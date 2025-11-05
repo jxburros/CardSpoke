@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Nested Cards</title>
+<style>
+  :root { --bg:#0b0f18; --panel:#131a2a; --card:#101724; --elev:#0f1522; --border:#3a4561; --ring:#86b7ff; --text:#f2f6ff; --muted:#b7c2d9; --accent:#86a8ff; --danger:#ff9fb1; --danger-bg:#351820; --radius:14px; --radius-pill:999px; --shadow-1:0 12px 30px rgba(0,0,0,.35); --grid-min:240px }
+  @media (prefers-color-scheme: light){:root.light{--bg:#f6f7fb;--panel:#fff;--card:#fff;--elev:#fff;--border:#e7eaf1;--ring:#2b59ff;--text:#0e1220;--muted:#5b6275;--accent:#2b59ff;--danger:#c22644;--danger-bg:#fff0f3;--shadow-1:0 10px 30px rgba(18,18,18,.06)}}
+  *{box-sizing:border-box}html,body{height:100%}
+  body{margin:0;background:radial-gradient(1200px 800px at 10% -10%, #172646 0%, transparent 55%),radial-gradient(900px 600px at 110% 10%, #201a3a 0%, transparent 40%),var(--bg);color:var(--text);font:15px/1.6 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial}
+  .app{max-width:1100px;margin:0 auto;padding:28px 20px 40px}
+  header.appbar{position:sticky;top:0;z-index:10;margin:0 0 20px;padding:16px 20px;backdrop-filter:blur(8px) saturate(1.1);background:color-mix(in oklab,var(--bg) 80%,transparent);border-bottom:1px solid var(--border)}
+  .appbar-inner{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.brand{font-weight:700}.spacer{flex:1}
+  .crumbs{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sep{color:var(--muted);opacity:.7}
+  .chip{border:1px solid var(--border);padding:6px 12px;border-radius:var(--radius-pill);background:linear-gradient(180deg,color-mix(in oklab,var(--panel) 85%,transparent),color-mix(in oklab,var(--panel) 60%,transparent));color:var(--text);font-weight:600}
+  .chip[disabled]{opacity:.85}
+  .chip-current{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:var(--radius-pill);background:color-mix(in oklab,var(--accent) 55%,var(--panel));color:#0a0f1a;border:1px solid color-mix(in oklab,var(--accent) 70%,var(--border));box-shadow:var(--shadow-1)}
+  :root.light .chip-current{color:#0b1020;background:color-mix(in oklab,var(--accent) 70%, white)}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .search{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:12px;background:var(--elev);min-width:260px;box-shadow:var(--shadow-1)}
+  .search input{border:0;background:transparent;color:var(--text);width:220px}
+  .btn{border:1px solid var(--border);background:var(--panel);color:var(--text);padding:10px 12px;border-radius:12px;cursor:pointer;box-shadow:var(--shadow-1)}
+  .btn.primary{background:linear-gradient(180deg,color-mix(in oklab,var(--accent) 25%,var(--panel)),var(--panel));border-color:color-mix(in oklab,var(--accent) 40%,var(--border))}
+  .btn.ghost{background:linear-gradient(180deg,color-mix(in oklab,var(--panel) 70%,transparent),transparent)}
+  .btn.small{padding:6px 8px;border-radius:10px}
+  .btn.danger{background:var(--danger-bg);color:var(--danger);border-color:color-mix(in oklab,var(--danger) 30%,var(--border))}
+  .panel{background:linear-gradient(180deg,color-mix(in oklab,var(--panel) 92%,transparent),color-mix(in oklab,var(--panel) 80%,transparent));border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow-1)}
+  .subhead{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:980px){.grid{grid-template-columns:1fr}}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--grid-min),1fr));gap:12px}
+  .card{background:linear-gradient(180deg,color-mix(in oklab,var(--card) 92%,transparent),color-mix(in oklab,var(--card) 78%,transparent));border:1px solid var(--border);border-radius:12px;padding:12px;cursor:pointer;display:flex;flex-direction:column;gap:8px}
+  .card .title{font-weight:700;font-size:16px}
+  .meta{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px}
+  .badge{border:1px solid var(--border);padding:2px 8px;border-radius:999px;font-size:11px;background:color-mix(in oklab,var(--panel) 70%,transparent)}
+  textarea,input[type=text],select{width:100%;background:var(--elev);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:10px;outline:none}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .tiny{font-size:12px;color:var(--muted)}
+  .divider{height:1px;background:var(--border);margin:10px 0}
+  .linklike{background:none;border:0;color:var(--accent);cursor:pointer}
+  .hidden{display:none}
+  .tests{margin-top:8px}
+</style>
+</head>
+<body>
+<header class="appbar">
+  <div class="appbar-inner app">
+    <div class="brand">Nested Cards</div>
+    <div class="crumbs" id="breadcrumbs"></div>
+    <div class="spacer"></div>
+    <div class="bar">
+      <button class="btn" id="homeBtn">🏠 Home</button>
+      <div class="search"><input id="search" type="search" placeholder="Search cards…"><button id="clearSearch" class="linklike">✕</button></div>
+      <button class="btn primary" id="addTop">+ New card</button>
+      <div id="themeToggle" class="btn ghost">Toggle theme</div>
+    </div>
+  </div>
+</header>
+
+<main class="app">
+  <div class="grid">
+    <!-- LEFT: Detail screen (Read-only / Edit / Create) -->
+    <section class="panel" id="leftPanel">
+      <div class="subhead" id="leftHead">Card</div>
+      <div id="detailEmpty" class="tiny">Select a card to view its details.</div>
+      <div id="detail" class="hidden"></div>
+      <details class="tests" id="testBox"><summary>Show built-in tests</summary><pre id="testLog" style="white-space:pre-wrap"></pre></details>
+    </section>
+
+    <!-- RIGHT: List screen (only shown when explicitly in list mode) -->
+    <section class="panel hidden" id="rightPanel">
+      <div class="subhead" id="listHead">List</div>
+      <div id="listControls" class="row" style="margin-bottom:8px"></div>
+      <div id="list" class="cards"></div>
+      <div id="listEmpty" class="tiny hidden">No cards here yet.</div>
+    </section>
+  </div>
+</main>
+
+<script>
+'use strict';
+// ======= Data =======
+const STORE_KEY='nested_cards_v3_three_screens_fixed3';
+const store={ rootOrder:[], cards:{} };
+const nav={ path:[], selectedId:null, search:'', mode:'read', creatingParentId:null, screen:'detail', listOf:null };
+
+// ======= Elements =======
+const el={
+  // header
+  breadcrumbs:document.getElementById('breadcrumbs'),
+  homeBtn:document.getElementById('homeBtn'),
+  search:document.getElementById('search'),
+  clearSearch:document.getElementById('clearSearch'),
+  addTop:document.getElementById('addTop'),
+  themeToggle:document.getElementById('themeToggle'),
+  // left
+  leftPanel:document.getElementById('leftPanel'),
+  leftHead:document.getElementById('leftHead'),
+  detail:document.getElementById('detail'),
+  detailEmpty:document.getElementById('detailEmpty'),
+  // right
+  rightPanel:document.getElementById('rightPanel'),
+  listHead:document.getElementById('listHead'),
+  listControls:document.getElementById('listControls'),
+  list:document.getElementById('list'),
+  listEmpty:document.getElementById('listEmpty'),
+  // tests
+  testBox:document.getElementById('testBox'),
+  testLog:document.getElementById('testLog')
+};
+
+// ======= Utils =======
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function now(){ return Date.now(); }
+function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+function load(){
+  const raw=localStorage.getItem(STORE_KEY);
+  if(raw){ try{ const d=JSON.parse(raw); if(d && d.cards && d.rootOrder){ Object.assign(store,d); return; } }catch(_e){ /* ignore */ } }
+  // seed
+  const a=makeCard('Trip Planning','High-level planning and checklists.',null);
+  const b=makeCard('Creative Ideas','Drafts, concepts, and moodboards.',null);
+  makeCard('Packing List','Clothes, toiletries, tech.',a.id);
+  const a2=makeCard('Itinerary','Day-by-day outline.',a.id);
+  makeCard('Food Spots','Restaurants to try.',a2.id);
+  makeCard('Story Seeds','Hooks, characters, vibes.',b.id);
+  save();
+}
+function listAllCards(){ return Object.values(store.cards); }
+function getDescendants(id){ const out=[]; (function rec(x){ const arr=(store.cards[x] && store.cards[x].children) ? store.cards[x].children : []; for(const ch of arr){ out.push(ch); rec(ch); } })(id); return out; }
+function escapeHtml(s){ return (s||'').replace(/[&<>\"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+// ======= Core ops =======
+function makeCard(title, body, parentId){
+  const id=uid();
+  const card={ id, title, body, parentId: (parentId==null?null:parentId), children:[], createdAt:now(), updatedAt:now() };
+  store.cards[id]=card;
+  if(parentId){ store.cards[parentId].children.push(id); } else { store.rootOrder.push(id); }
+  return card;
+}
+function deleteCard(id){
+  const c=store.cards[id]; if(!c) return;
+  // delete children first
+  const childrenCopy = c.children.slice();
+  for(let i=0;i<childrenCopy.length;i++){ deleteCard(childrenCopy[i]); }
+  if(c.parentId){ const p=store.cards[c.parentId]; p.children=p.children.filter(function(x){ return x!==id; }); }
+  else { store.rootOrder=store.rootOrder.filter(function(x){ return x!==id; }); }
+  delete store.cards[id];
+}
+
+// ======= View helpers =======
+function currentLevelIds(){ if(nav.path.length===0) return store.rootOrder; const pid=nav.path[nav.path.length-1]; const card=store.cards[pid]; return card ? card.children : []; }
+function filterBySearch(ids){ if(!nav.search) return ids; const q=nav.search.toLowerCase(); return ids.filter(function(id){ const c=store.cards[id]; const hay = (c.title+" "+(c.body||'')); return hay.toLowerCase().indexOf(q)!==-1; }); }
+function fmtAgo(ms){ const s=Math.max(1,Math.round((Date.now()-ms)/1000)); if(s<60)return s+"s"; const m=Math.round(s/60); if(m<60)return m+"m"; const h=Math.round(m/60); if(h<24)return h+"h"; const d=Math.round(h/24); return d+"d"; }
+
+// ======= Breadcrumbs =======
+function renderBreadcrumbs(){
+  el.breadcrumbs.innerHTML='';
+  const root=document.createElement('button'); root.className='chip'; root.disabled=(nav.path.length===0); root.textContent='All cards'; root.onclick=function(){ openLevelTo(null); }; el.breadcrumbs.appendChild(root);
+  for(let idx=0; idx<nav.path.length; idx++){
+    const id=nav.path[idx];
+    const sep=document.createElement('span'); sep.className='sep'; sep.textContent='›'; el.breadcrumbs.appendChild(sep);
+    const c=store.cards[id];
+    if(idx===(nav.path.length-1)){
+      const cur=document.createElement('span'); cur.className='chip-current'; cur.textContent=(c && c.title) ? c.title : '(untitled)'; el.breadcrumbs.appendChild(cur);
+    } else {
+      const b=document.createElement('button'); b.className='chip'; b.textContent=(c && c.title) ? c.title : '(untitled)'; b.onclick=function(){ nav.path=nav.path.slice(0,idx+1); nav.selectedId=null; renderAll(); }; el.breadcrumbs.appendChild(b);
+    }
+  }
+}
+
+// ======= Card Tiles =======
+function listTile(id){
+  const c=store.cards[id];
+  const div=document.createElement('div'); div.className='card';
+  const t=document.createElement('div'); t.className='title'; t.textContent=(c && c.title) ? c.title : '(untitled)';
+  const preview=document.createElement('div'); preview.className='tiny';
+  const text=((c && c.body) ? c.body : '').replace(/\s+/g,' ').trim();
+  preview.textContent = text ? (text.length>140? text.slice(0,140)+'…': text) : '—';
+  const m=document.createElement('div'); m.className='meta';
+  const childCount = (c && c.children) ? c.children.length : 0;
+  if(childCount>0){ const b=document.createElement('span'); b.className='badge'; b.textContent=childCount+' child'+(childCount>1?'ren':''); m.appendChild(b); }
+  div.appendChild(t); div.appendChild(preview); if(m.children.length) div.appendChild(m);
+  div.onclick=function(){ nav.screen='detail'; openCardDetail(id); };
+  return div;
+}
+
+// ======= List screen (right) =======
+function renderList(){
+  if(nav.screen !== 'list'){
+    el.rightPanel.classList.add('hidden');
+    return;
+  }
+  el.rightPanel.classList.remove('hidden');
+  el.list.innerHTML='';
+  el.listControls.innerHTML='';
+
+  const parentId = (nav.listOf==null?null:nav.listOf);
+  const parent = parentId ? store.cards[parentId] : null;
+  const childIds = parent ? parent.children.slice() : store.rootOrder.slice();
+  const ids = filterBySearch(childIds);
+
+  el.listHead.textContent = parent ? ('Child cards of "'+(parent.title||'(untitled)')+'"') : 'All cards';
+
+  const backBtn=document.createElement('button'); backBtn.className='btn ghost';
+  backBtn.textContent = parent ? '← Back to parent card' : '← Back to Home';
+  backBtn.onclick=function(){
+    nav.screen='detail';
+    if(parent){ openCardDetail(parent.id); } else { openLevelTo(null); nav.selectedId=null; renderAll(); }
+  };
+  el.listControls.appendChild(backBtn);
+
+  el.listEmpty.classList.toggle('hidden', ids.length>0);
+  for(let i=0;i<ids.length;i++){ el.list.appendChild(listTile(ids[i])); }
+}
+
+// ======= Left screen: Read / Edit / Create =======
+function setMode(mode,opts){ if(!opts) opts={}; nav.mode=mode; if(mode==='create'){ nav.creatingParentId=(opts.parentId==null?null:opts.parentId); nav.selectedId=null; } renderDetail(); }
+function parentOptions(selectedId, forbidIds){ if(!forbidIds) forbidIds=[]; const sel=document.createElement('select'); sel.add(new Option('(no parent)','',false,false)); const list=listAllCards(); for(let i=0;i<list.length;i++){ const c=list[i]; if(c.id===selectedId) continue; if(forbidIds.indexOf(c.id)!==-1) continue; sel.add(new Option(c.title||'(untitled)', c.id)); } return sel; }
+
+function renderEditForm(id){
+  const isCreate=(id==null);
+  const c=isCreate? {id:null,title:'',body:'',parentId:nav.creatingParentId,children:[]} : store.cards[id];
+  el.leftHead.textContent=isCreate?'Add card':'Edit card';
+
+  const wrap=document.createElement('div');
+  const title=document.createElement('input'); title.type='text'; title.placeholder='Card title'; title.value=c.title||'';
+  const body=document.createElement('textarea'); body.placeholder='Details…'; body.value=c.body||'';
+  const parentSel=parentOptions(id, isCreate?[]:[id].concat(getDescendants(id))); parentSel.value=c.parentId||'';
+
+  // quick child manage (edit only)
+  if(!isCreate){
+    const nestedHead=document.createElement('div'); nestedHead.className='subhead'; nestedHead.textContent='Nested cards';
+    const nestedWrap=document.createElement('div'); nestedWrap.className='cards';
+    function refresh(){
+      nestedWrap.innerHTML='';
+      for(let k=0;k<c.children.length;k++){
+        const childId=c.children[k];
+        const child=store.cards[childId];
+        const tile=document.createElement('div'); tile.className='card';
+        const tt=document.createElement('div'); tt.className='title'; tt.textContent=(child && child.title) ? child.title : '(untitled)';
+        const del=document.createElement('button'); del.className='btn small danger'; del.textContent='Delete';
+        del.onclick=function(){ deleteCard(childId); c.updatedAt=now(); save(); refresh(); renderList(); };
+        tile.appendChild(tt); tile.appendChild(del); nestedWrap.appendChild(tile);
+      }
+      if(c.children.length===0){ const tiny=document.createElement('div'); tiny.className='tiny'; tiny.textContent='No nested cards.'; nestedWrap.appendChild(tiny); }
+    }
+    refresh();
+    const quickRow=document.createElement('div'); quickRow.className='row';
+    const kidTitle=document.createElement('input'); kidTitle.type='text'; kidTitle.placeholder='New child title…';
+    const addBtn=document.createElement('button'); addBtn.className='btn small'; addBtn.textContent='+ Add child';
+    addBtn.onclick=function(){ const t=kidTitle.value.trim(); if(!t) return; const child=makeCard(t,'',c.id); c.children.push(child.id); c.updatedAt=now(); kidTitle.value=''; save(); refresh(); renderList(); };
+    quickRow.appendChild(kidTitle); quickRow.appendChild(addBtn);
+
+    wrap.appendChild(nestedHead); wrap.appendChild(nestedWrap); wrap.appendChild(quickRow); wrap.appendChild(new Divider());
+  }
+
+  const actions=document.createElement('div'); actions.className='row';
+  const saveBtn=document.createElement('button'); saveBtn.className='btn primary'; saveBtn.textContent=isCreate?'Create':'Save';
+  const cancelBtn=document.createElement('button'); cancelBtn.className='btn ghost'; cancelBtn.textContent='Cancel';
+  const deleteBtn = !isCreate ? (function(){ const b=document.createElement('button'); b.className='btn danger'; b.textContent='Delete card'; b.onclick=function(){ if(!confirm('Delete this card and its nested cards?')) return; const parent=(c.parentId==null?null:c.parentId); deleteCard(c.id); save(); nav.mode='read'; openLevelTo(parent); nav.selectedId=null; renderAll(); }; return b; })() : null;
+
+  saveBtn.onclick=function(){
+    if(isCreate){
+      const created=makeCard((title.value.trim()||'(untitled)'), body.value, (parentSel.value||null));
+      save(); nav.mode='read';
+      if(parentSel.value){ openLevelTo(parentSel.value); } else { openLevelTo(null); }
+      openCardDetail(created.id); renderAll();
+    } else {
+      c.title=(title.value.trim()||'(untitled)');
+      c.body=body.value;
+      const newParent=(parentSel.value||null);
+      if(newParent!==c.parentId){
+        if(c.parentId){ const p=store.cards[c.parentId]; p.children=p.children.filter(function(x){ return x!==c.id; }); }
+        else { store.rootOrder=store.rootOrder.filter(function(x){ return x!==c.id; }); }
+        c.parentId=newParent;
+        if(newParent){ store.cards[newParent].children.push(c.id); } else { store.rootOrder.push(c.id); }
+      }
+      c.updatedAt=now(); save(); nav.mode='read'; renderAll(); openCardDetail(c.id);
+    }
+  };
+  cancelBtn.onclick=function(){ nav.mode='read'; renderDetail(); };
+
+  wrap.prepend(body); wrap.prepend(title);
+  const parentRow=document.createElement('div'); parentRow.className='row'; const parentLbl=document.createElement('div'); parentLbl.className='tiny'; parentLbl.textContent='Parent:'; parentRow.appendChild(parentLbl); parentRow.appendChild(parentSel); wrap.appendChild(parentRow);
+  wrap.appendChild(new Divider());
+  const foot=document.createElement('div'); foot.className='row'; foot.appendChild(saveBtn); foot.appendChild(cancelBtn); if(deleteBtn) foot.appendChild(deleteBtn); wrap.appendChild(foot);
+
+  el.detail.innerHTML=''; el.detail.classList.remove('hidden'); el.detailEmpty.classList.add('hidden'); el.detail.appendChild(wrap);
+}
+
+function Divider(){ const d=document.createElement('div'); d.className='divider'; return d; }
+
+function renderReadOnly(id){
+  el.leftHead.textContent='Card';
+  const c=store.cards[id];
+  const wrap=document.createElement('div');
+  const titleRow=document.createElement('div'); titleRow.className='row'; titleRow.innerHTML='<h2 style="margin:0">'+((c && c.title)?c.title:'(untitled)')+'</h2>';
+  const parentLine=document.createElement('div'); parentLine.className='tiny';
+  if(c.parentId){ const p=store.cards[c.parentId]; const parentLink=document.createElement('button'); parentLink.className='linklike'; parentLink.textContent='Parent: '+((p && p.title)?p.title:'(untitled)'); parentLink.onclick=function(){ openLevelTo(c.parentId); openCardDetail(c.parentId); }; parentLine.appendChild(parentLink); }
+  else { parentLine.textContent='Parent: (none)'; }
+  const body=document.createElement('div'); body.innerHTML = (c.body? '<p style="white-space:pre-wrap;margin:6px 0 0">'+escapeHtml(c.body)+'</p>':'<p class="tiny">No details yet.</p>');
+
+  const actions=document.createElement('div'); actions.className='row';
+  const editBtn=document.createElement('button'); editBtn.className='btn'; editBtn.textContent='Edit card'; editBtn.onclick=function(){ setMode('edit'); };
+  const addChildBtn=document.createElement('button'); addChildBtn.className='btn'; addChildBtn.textContent='+ Add child'; addChildBtn.onclick=function(){ setMode('create',{parentId:id}); };
+  actions.appendChild(editBtn); actions.appendChild(addChildBtn);
+
+  // children preview + list routing buttons UNDERNEATH
+  const preview=document.createElement('div'); preview.className='cards';
+  const kids=c.children; const show=Math.min(4,kids.length);
+  if(show===0){ const tiny=document.createElement('div'); tiny.className='tiny'; tiny.textContent='No child cards yet.'; preview.appendChild(tiny); }
+  else { for(let i=0;i<show;i++){ const kid=kids[i]; const tile=listTile(kid); preview.appendChild(tile); } }
+
+  const navRow=document.createElement('div'); navRow.className='row';
+  const toParentList=document.createElement('button'); toParentList.className='btn ghost'; toParentList.textContent='← Parent’s child list';
+  toParentList.onclick=function(){ nav.screen='list'; nav.listOf = (c.parentId==null?null:c.parentId); renderAll(); };
+  const toChildList=document.createElement('button'); toChildList.className='btn ghost'; toChildList.textContent='View all child cards →';
+  toChildList.onclick=function(){ nav.screen='list'; nav.listOf = id; renderAll(); };
+  navRow.appendChild(toParentList); navRow.appendChild(toChildList);
+
+  const meta=document.createElement('div'); meta.className='tiny'; meta.textContent='Created '+new Date(c.createdAt).toLocaleString()+' • Updated '+new Date(c.updatedAt).toLocaleString();
+
+  wrap.appendChild(titleRow); wrap.appendChild(parentLine); wrap.appendChild(body); wrap.appendChild(actions); wrap.appendChild(new Divider());
+  const sub=document.createElement('div'); sub.className='subhead'; sub.textContent='Child cards';
+  const childSection=document.createElement('div'); childSection.appendChild(sub); childSection.appendChild(preview); childSection.appendChild(navRow);
+  wrap.appendChild(childSection); wrap.appendChild(new Divider()); wrap.appendChild(meta);
+
+  el.detail.innerHTML=''; el.detail.classList.remove('hidden'); el.detailEmpty.classList.add('hidden'); el.detail.appendChild(wrap);
+}
+
+function renderDetail(){
+  if(nav.screen === 'list'){
+    el.leftPanel.classList.add('hidden');
+    return;
+  }
+  el.leftPanel.classList.remove('hidden');
+  const mode=nav.mode;
+  if(mode==='create'){ renderEditForm(null); return; }
+  if(!nav.selectedId){ el.detail.classList.add('hidden'); el.detailEmpty.classList.remove('hidden'); return; }
+  if(mode==='edit'){ renderEditForm(nav.selectedId); return; }
+  renderReadOnly(nav.selectedId);
+}
+
+// ======= Navigation & Events =======
+function openLevelTo(id){
+  if(id===null){ nav.path=[]; }
+  else { const path=[]; let cur=store.cards[id]; while(cur && cur.parentId){ path.unshift(cur.parentId); cur=store.cards[cur.parentId]; } nav.path=path.concat([id]); }
+  nav.selectedId=null; renderAll();
+}
+function openCardDetail(id){ nav.selectedId=id; nav.mode='read'; renderDetail(); }
+
+function searchHandler(){ nav.search=el.search.value.trim().toLowerCase(); renderList(); }
+el.search.addEventListener('input', searchHandler);
+el.clearSearch.onclick=function(){ el.search.value=''; searchHandler(); };
+el.addTop.onclick=function(){ setMode('create', { parentId: null }); };
+el.themeToggle.onclick=function(){ const root=document.documentElement; const isLight=root.classList.toggle('light'); localStorage.setItem('nested_cards_theme', isLight?'light':'dark'); };
+el.homeBtn.onclick=function(){ nav.screen='list'; nav.listOf=null; openLevelTo(null); renderAll(); };
+
+document.addEventListener('keydown', function(e){
+  if(e.key==='Enter' && document.activeElement===el.search){ if(nav.screen!=='list'){ nav.screen='list'; nav.listOf = (nav.path.length? nav.path[nav.path.length-1] : null); } renderList(); }
+});
+
+// ======= Init =======
+load(); const savedTheme=localStorage.getItem('nested_cards_theme'); if(savedTheme==='light') document.documentElement.classList.add('light'); renderAll();
+function renderAll(){ renderBreadcrumbs(); renderDetail(); renderList(); }
+
+// ======= Tests (non-destructive & extended) =======
+(function runTests(){
+  const log=[]; let pass=0, fail=0;
+  function ok(name, cond){ (cond?pass:fail)++; log.push((cond?'✅ ':'❌ ')+name); }
+  try{
+    // snapshot store
+    const snapshot = JSON.stringify(store);
+    const rootCountBefore=store.rootOrder.length;
+
+    // create temp hierarchy
+    const temp = makeCard('__TEST__','tmp',null);
+    const child = makeCard('__TEST_CHILD__','tmp',temp.id); store.cards[temp.id].children.push(child.id);
+    ok('makeCard created root card', !!store.cards[temp.id]);
+    ok('child linked to parent', store.cards[temp.id].children.indexOf(child.id)!==-1);
+
+    // move child to root (edit-like)
+    const prevParent = store.cards[child.id].parentId;
+    store.cards[child.id].parentId=null; store.rootOrder.push(child.id);
+    store.cards[prevParent].children = store.cards[prevParent].children.filter(function(x){ return x!==child.id; });
+    ok('reparent child to root', store.rootOrder.indexOf(child.id)!==-1 && store.cards[prevParent].children.indexOf(child.id)===-1);
+
+    // open List (All) and ensure visible
+    nav.screen='list'; nav.listOf=null; renderList();
+    ok('list screen visible for All cards', !el.rightPanel.classList.contains('hidden'));
+
+    // open Detail again
+    nav.screen='detail'; renderDetail();
+    ok('detail screen visible in detail mode', !el.leftPanel.classList.contains('hidden'));
+
+    // search behavior (should not throw and should filter)
+    nav.screen='list'; nav.listOf=null; nav.search='Trip'; renderList();
+    ok('search filters list without error', true);
+    nav.search=''; renderList(); ok('clearing search restores list', true);
+
+    // parentOptions excludes self and descendants
+    const proto=makeCard('__TEST_PARENT__','',null);
+    const d1=makeCard('__TEST_CHILD_A__','',proto.id); store.cards[proto.id].children.push(d1.id);
+    const d2=makeCard('__TEST_CHILD_B__','',d1.id); store.cards[d1.id].children.push(d2.id);
+    const sel=parentOptions(proto.id, [proto.id].concat(getDescendants(proto.id)));
+    let containsSelf=false; for(let i=0;i<sel.options.length;i++){ if(sel.options[i].value===proto.id){ containsSelf=true; break; } }
+    ok('parentOptions excludes self', !containsSelf);
+
+    // restore snapshot
+    const restored = JSON.parse(snapshot);
+    store.rootOrder = restored.rootOrder; store.cards = restored.cards; save();
+    ok('store restored root count', store.rootOrder.length===rootCountBefore);
+  }catch(e){ fail++; log.push('❌ test runtime error: '+e.message); }
+  log.push('\nTests: '+(pass+fail)+'  Passed: '+pass+'  Failed: '+fail);
+  el.testLog.textContent=log.join('\n');
+})();
+</script>
+</body>
+</html>
