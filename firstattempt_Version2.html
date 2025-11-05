@@ -5,18 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Nested Cards</title>
 <style>
-  /* ====== Design System ====== */
   :root {
-    /* Higher-contrast dark theme */
     --bg: #0b0f18;
-    --panel: #131a2a;
+    --surface: #131a2a;
     --card: #101724;
-    --elev: #0f1522;
-    --border: #3a4561;   /* brighter borders for separation */
-    --ring: #86b7ff;     /* stronger focus ring */
-    --text: #f2f6ff;     /* brighter main text */
-    --muted: #b7c2d9;    /* lighter secondary text */
-    --accent: #86a8ff;   /* slightly brighter accent */
+    --border: #3a4561;
+    --ring: #86b7ff;
+    --text: #f2f6ff;
+    --muted: #b7c2d9;
+    --accent: #86a8ff;
     --accent-2: #a697ff;
     --success: #67e2bc;
     --danger-bg: #351820;
@@ -25,15 +22,13 @@
     --radius-pill: 999px;
     --shadow-1: 0 12px 30px rgba(0,0,0,.35);
     --shadow-2: 0 30px 60px rgba(0,0,0,.45);
-    --grid-min: 240px;
   }
 
   @media (prefers-color-scheme: light) {
     :root.light {
       --bg: #f6f7fb;
-      --panel: #ffffff;
+      --surface: #ffffff;
       --card: #ffffff;
-      --elev: #ffffff;
       --border: #e7eaf1;
       --ring: #2b59ff;
       --text: #0e1220;
@@ -60,7 +55,7 @@
     -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   }
 
-  .app { max-width: 1100px; margin: 0 auto; padding: 28px 20px 40px; }
+  .app { max-width: 960px; margin: 0 auto; padding: 28px 20px 40px; }
   header.appbar {
     position: sticky; top: 0; z-index: 10; margin: 0 0 20px;
     padding: 16px 20px; backdrop-filter: blur(8px) saturate(1.1);
@@ -75,59 +70,81 @@
   .sep { color: var(--muted); opacity:.7 }
 
   .chip { border: 1px solid var(--border); padding: 6px 12px; border-radius: var(--radius-pill);
-          background: linear-gradient(180deg, color-mix(in oklab, var(--panel) 85%, transparent), color-mix(in oklab, var(--panel) 60%, transparent)); color: var(--text); font-weight: 600; }
+          background: linear-gradient(180deg, color-mix(in oklab, var(--surface) 85%, transparent), color-mix(in oklab, var(--surface) 60%, transparent));
+          color: var(--text); font-weight: 600; }
   .chip[disabled] { opacity: .85 }
   .chip-current { display:inline-flex; align-items:center; gap:8px; padding: 7px 14px; border-radius: var(--radius-pill);
-                  background: color-mix(in oklab, var(--accent) 55%, var(--panel)); color: #0a0f1a;
+                  background: color-mix(in oklab, var(--accent) 55%, var(--surface)); color: #0a0f1a;
                   border: 1px solid color-mix(in oklab, var(--accent) 70%, var(--border)); box-shadow: var(--shadow-1); }
   :root.light .chip-current { color: #0b1020; background: color-mix(in oklab, var(--accent) 70%, white);
                               border-color: color-mix(in oklab, var(--accent) 80%, var(--border)); }
-  .chip-icon { width:16px; height:16px; display:inline-block; }
 
   .bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap }
-  .search { display:flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid var(--border); border-radius: 12px; background: var(--elev); min-width: 260px; box-shadow: var(--shadow-1); }
+  .search { display:flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid var(--border); border-radius: 12px; background: var(--surface); min-width: 260px; box-shadow: var(--shadow-1); }
   .search input[type="search"] { border:0; outline:0; background:transparent; color: var(--text); width: 220px }
   .search button { border:0; background:transparent; color: var(--muted); cursor:pointer }
-  .btn { border: 1px solid var(--border); background: var(--panel); color: var(--text); padding: 10px 12px; border-radius: 12px; cursor: pointer; box-shadow: var(--shadow-1); transition: transform .06s ease, box-shadow .2s ease, border-color .2s ease }
+  .btn { border: 1px solid var(--border); background: var(--surface); color: var(--text); padding: 10px 12px; border-radius: 12px;
+         cursor: pointer; box-shadow: var(--shadow-1); transition: transform .06s ease, box-shadow .2s ease, border-color .2s ease }
   .btn:hover { border-color: color-mix(in oklab, var(--accent) 30%, var(--border)); transform: translateY(-1px) }
   .btn:active { transform: translateY(0) scale(.99) }
-  .btn.primary { background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 25%, var(--panel)), var(--panel)); border-color: color-mix(in oklab, var(--accent) 40%, var(--border)) }
-  .btn.ghost { background: linear-gradient(180deg, color-mix(in oklab, var(--panel) 70%, transparent), transparent) }
+  .btn.primary { background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 25%, var(--surface)), var(--surface)); border-color: color-mix(in oklab, var(--accent) 40%, var(--border)) }
+  .btn.ghost { background: linear-gradient(180deg, color-mix(in oklab, var(--surface) 70%, transparent), transparent) }
   .btn.danger { background: var(--danger-bg); color: var(--danger); border-color: color-mix(in oklab, var(--danger) 30%, var(--border)) }
 
-  .grid { display:grid; grid-template-columns: 1.2fr 1.1fr; gap: 16px }
-  @media (max-width: 980px) { .grid { grid-template-columns: 1fr } }
+  .view-surface { background: linear-gradient(180deg, color-mix(in oklab, var(--surface) 92%, transparent), color-mix(in oklab, var(--surface) 80%, transparent));
+                  border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-1); }
+  .view-header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom: 20px }
+  .view-title { font-size: 24px; font-weight: 700; letter-spacing: .4px }
 
-  .panel { background: linear-gradient(180deg, color-mix(in oklab, var(--panel) 92%, transparent), color-mix(in oklab, var(--panel) 80%, transparent));
-           border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-1) }
-  .panel .subhead { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 10px }
+  .meta-line { color: var(--muted); font-size: 13px }
+  .body-text { white-space: pre-wrap; line-height: 1.7 }
 
-  .cards { display:grid; grid-template-columns: repeat(auto-fill, minmax(var(--grid-min), 1fr)); gap: 12px }
-  .card { background: linear-gradient(180deg, color-mix(in oklab, var(--card) 92%, transparent), color-mix(in oklab, var(--card) 78%, transparent));
-          border: 1px solid var(--border); border-radius: 12px; padding: 12px; cursor: pointer; display:flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow-1); transition: border-color .2s ease, transform .08s ease }
-  .card:hover { border-color: color-mix(in oklab, var(--accent) 45%, var(--border)); transform: translateY(-2px) }
-  .card .title { font-weight: 700; font-size: 16px }
-  .meta { display:flex; gap:8px; align-items:center; color: var(--muted); font-size: 12px }
-  .badge { border: 1px solid var(--border); padding: 2px 8px; border-radius: var(--radius-pill); font-size: 11px; background: color-mix(in oklab, var(--panel) 70%, transparent) }
+  .child-peek { display:flex; gap:10px; flex-wrap:wrap }
+  .child-pill { border:1px solid var(--border); padding:8px 12px; border-radius: var(--radius-pill); background: color-mix(in oklab, var(--card) 80%, transparent); display:flex; gap:8px; align-items:center; cursor:pointer; }
+  .child-pill:hover { border-color: color-mix(in oklab, var(--accent) 30%, var(--border)) }
+  .count-pill { font-size: 12px; color: var(--muted) }
 
-  textarea, input[type="text"] { width:100%; background: var(--elev); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 12px; outline: none; box-shadow: var(--shadow-1); }
-  textarea:focus, input[type="text"]:focus { border-color: color-mix(in oklab, var(--ring) 45%, var(--border)); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 20%, transparent), var(--shadow-1) }
+  .section { margin-top: 20px }
+  .section h3 { margin: 0 0 10px; font-size: 15px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted) }
+
+  .list-header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom: 16px }
+  .list-heading { display:flex; flex-direction:column; gap:4px }
+  .list-heading h1 { margin:0; font-size: 22px }
+  .list-heading p { margin:0; color: var(--muted); font-size: 13px }
+
+  .list-items { display:flex; flex-direction:column; gap:12px }
+  .list-card { padding:16px; border:1px solid var(--border); border-radius: 12px; background: linear-gradient(180deg, color-mix(in oklab, var(--card) 92%, transparent), color-mix(in oklab, var(--card) 78%, transparent));
+               display:flex; flex-direction:column; gap:6px; cursor:pointer; transition: border-color .2s ease, transform .08s ease; box-shadow: var(--shadow-1); }
+  .list-card:hover { border-color: color-mix(in oklab, var(--accent) 45%, var(--border)); transform: translateY(-2px) }
+  .list-card h2 { margin:0; font-size:18px }
+  .list-card p { margin:0; color: var(--muted); font-size: 14px }
+  .list-meta { display:flex; gap:10px; font-size:12px; color: var(--muted) }
+
+  textarea, input[type="text"], select { width:100%; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 12px; outline: none; box-shadow: var(--shadow-1); }
+  textarea:focus, input[type="text"]:focus, select:focus { border-color: color-mix(in oklab, var(--ring) 45%, var(--border)); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 20%, transparent), var(--shadow-1) }
   textarea { min-height: 140px; resize: vertical }
 
-  .detail-head { display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap: wrap }
-  .detail-actions { display:flex; gap:8px; align-items:center }
-  .empty { color: var(--muted); padding: 10px }
+  form.card-form { display:flex; flex-direction:column; gap:18px }
+  .form-row { display:flex; flex-direction:column; gap:8px }
+  .children-editor { display:flex; flex-direction:column; gap:12px }
+  .child-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center }
+  .child-row input { flex:1 1 220px }
+  .empty { color: var(--muted); padding: 10px 0 }
 
-  .footer { margin-top: 12px; display:flex; gap:8px; align-items:center; justify-content: space-between }
-  .tiny { font-size: 12px; color: var(--muted) }
-
+  .footer-actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; align-items:center }
   .theme-toggle { display:inline-flex; align-items:center; gap:8px }
-  .toggle { position: relative; width: 50px; height: 28px; border: 1px solid var(--border); background: var(--panel); border-radius: var(--radius-pill); box-shadow: var(--shadow-1); cursor: pointer }
+  .toggle { position: relative; width: 50px; height: 28px; border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-pill); box-shadow: var(--shadow-1); cursor: pointer }
   .knob { position:absolute; top:2px; left:2px; width:24px; height:24px; border-radius:50%; background: linear-gradient(180deg, #fff, #ddd); transform: translateX(0); transition: transform .2s ease }
   :root.light .knob { transform: translateX(22px) }
   .toggle svg { position:absolute; top:6px; width:16px; height:16px; opacity:.9 }
   .icon-sun { right: 8px; fill: #ddaa22 }
   .icon-moon { left: 8px; fill: #9cb7ff }
+
+  @media (max-width: 720px) {
+    .view-surface { padding: 20px }
+    .search { width: 100%; min-width: 0 }
+    .search input[type="search"] { width: 100% }
+  }
 </style>
 </head>
 <body>
@@ -155,48 +172,19 @@
   </header>
 
   <main class="app">
-    <div class="grid">
-      <!-- Detail first, then List -->
-      <section class="panel">
-        <div class="subhead">Card detail</div>
-        <div id="detailEmpty" class="empty">Select a card to view its details.</div>
-        <div id="detail" style="display:none">
-          <div class="detail-head">
-            <input id="cardTitle" type="text" placeholder="Card title" />
-            <div class="detail-actions">
-              <button class="btn" id="addChild">+ Add child</button>
-              <button class="btn ghost" id="moveUp">Move to parent</button>
-              <button class="btn danger" id="deleteCard">Delete</button>
-            </div>
-          </div>
-          <div style="margin-top:10px">
-            <textarea id="cardBody" placeholder="Write info for this card…"></textarea>
-          </div>
-          <div style="margin-top:14px">
-            <div class="subhead">Nested cards</div>
-            <div id="children" class="cards"></div>
-            <div id="childrenEmpty" class="empty" style="display:none">No nested cards.</div>
-          </div>
-          <div class="footer">
-            <span class="tiny" id="meta"></span>
-            <button class="btn primary" id="saveCard">Save</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="subhead">Cards in this level</div>
-        <div id="list" class="cards"></div>
-        <div id="listEmpty" class="empty" style="display:none">No cards here yet.</div>
-      </section>
-    </div>
+    <section id="content"></section>
   </main>
 
 <script>
-/* ======= Data Model & Store ======= */
 const STORE_KEY = "nested_cards_v1";
 const store = { rootOrder: [], cards: {} };
-const nav = { path: [], selectedId: null, search: "" };
+
+const state = {
+  currentView: { kind: 'list', source: 'children', parentId: null },
+  previousView: null,
+  searchQuery: '',
+  editDraft: null
+};
 
 function uid(){ return Math.random().toString(36).slice(2,10) }
 function now(){ return Date.now() }
@@ -205,36 +193,41 @@ function makeCard(title, body, parentId){
   const id = uid();
   const card = { id, title, body, parentId: parentId ?? null, children: [], createdAt: now(), updatedAt: now() };
   store.cards[id] = card;
-  if(parentId){ store.cards[parentId].children.push(id) } else { store.rootOrder.push(id) }
+  if(parentId){
+    const parent = store.cards[parentId];
+    if(parent && !parent.children.includes(id)) parent.children.push(id);
+  } else {
+    store.rootOrder.push(id);
+  }
   return card;
 }
 
 function deleteCard(id){
-  const c = store.cards[id]; if(!c) return;
-  for(const child of [...c.children]) deleteCard(child);
-  if(c.parentId){ const p = store.cards[c.parentId]; p.children = p.children.filter(x=>x!==id) } else {
-    store.rootOrder = store.rootOrder.filter(x=>x!==id)
+  const card = store.cards[id];
+  if(!card) return;
+  [...card.children].forEach(childId => deleteCard(childId));
+  if(card.parentId){
+    const parent = store.cards[card.parentId];
+    if(parent) parent.children = parent.children.filter(child => child !== id);
+  } else {
+    store.rootOrder = store.rootOrder.filter(rootId => rootId !== id);
   }
   delete store.cards[id];
-}
-
-function moveToParentLevel(id){
-  const c = store.cards[id]; if(!c || !c.parentId) return;
-  const parent = store.cards[c.parentId];
-  parent.children = parent.children.filter(x=>x!==id);
-  const gp = parent.parentId;
-  c.parentId = gp ?? null;
-  if(gp){ store.cards[gp].children.push(id) } else { store.rootOrder.push(id) }
-  c.updatedAt = now();
 }
 
 function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(store)) }
 function load(){
   const raw = localStorage.getItem(STORE_KEY);
   if(raw){
-    try{ const data = JSON.parse(raw); if(data?.rootOrder && data?.cards){ Object.assign(store,data); return } }catch{}
+    try {
+      const data = JSON.parse(raw);
+      if(data?.rootOrder && data?.cards){
+        store.rootOrder = data.rootOrder;
+        store.cards = data.cards;
+        return;
+      }
+    } catch (err) {}
   }
-  // seed demo
   const a = makeCard("Trip Planning", "High-level planning and checklists.", null);
   const b = makeCard("Creative Ideas", "Drafts, concepts, and moodboards.", null);
   const a1 = makeCard("Packing List", "Clothes, toiletries, tech.", a.id);
@@ -244,134 +237,542 @@ function load(){
   save();
 }
 
-/* ======= Rendering ======= */
 const el = {
   breadcrumbs: document.getElementById('breadcrumbs'),
-  list: document.getElementById('list'),
-  listEmpty: document.getElementById('listEmpty'),
-  detail: document.getElementById('detail'),
-  detailEmpty: document.getElementById('detailEmpty'),
-  children: document.getElementById('children'),
-  childrenEmpty: document.getElementById('childrenEmpty'),
-  cardTitle: document.getElementById('cardTitle'),
-  cardBody: document.getElementById('cardBody'),
-  meta: document.getElementById('meta'),
-  addTop: document.getElementById('addTop'),
-  addChild: document.getElementById('addChild'),
-  moveUp: document.getElementById('moveUp'),
-  deleteCard: document.getElementById('deleteCard'),
-  saveCard: document.getElementById('saveCard'),
+  content: document.getElementById('content'),
   search: document.getElementById('search'),
   clearSearch: document.getElementById('clearSearch'),
+  addTop: document.getElementById('addTop'),
   themeToggle: document.getElementById('themeToggle')
 };
 
-function fmtAgo(ms){
-  const s = Math.max(1, Math.round((now()-ms)/1000));
-  if(s<60) return s+"s ago"; const m=Math.round(s/60); if(m<60) return m+"m ago";
-  const h=Math.round(m/60); if(h<24) return h+"h ago"; const d=Math.round(h/24); return d+"d ago";
+function fmtDate(ms){ return new Date(ms).toLocaleString(); }
+function fmtChildrenCount(card){
+  const count = card.children.length;
+  return count === 1 ? '1 child' : count + ' children';
+}
+function bodyPreview(body){
+  const text = body.trim();
+  if(!text) return 'No details yet.';
+  const words = text.replace(/\s+/g, ' ').split(' ');
+  const preview = words.slice(0, 24).join(' ');
+  return words.length > 24 ? preview + '…' : preview;
+}
+
+function ancestry(id){
+  const path = [];
+  let current = store.cards[id];
+  while(current && current.parentId){
+    path.unshift(current.parentId);
+    current = store.cards[current.parentId];
+  }
+  return path;
 }
 
 function renderBreadcrumbs(){
   el.breadcrumbs.innerHTML = '';
-  const root = document.createElement('button');
-  root.className = 'chip'; root.disabled = nav.path.length===0; root.textContent = 'All cards';
-  root.onclick = ()=> openLevelTo(null);
-  el.breadcrumbs.appendChild(root);
+  const home = document.createElement('button');
+  home.className = 'chip';
+  const isRootList = state.currentView.kind === 'list' && state.currentView.source === 'children' && state.currentView.parentId === null;
+  home.disabled = isRootList;
+  home.textContent = 'All cards';
+  home.onclick = () => openRootList();
+  el.breadcrumbs.appendChild(home);
 
-  nav.path.forEach((id,idx)=>{
-    const isLast = idx===nav.path.length-1;
-    const sep = document.createElement('span'); sep.className='sep'; sep.textContent='›'; el.breadcrumbs.appendChild(sep);
-    const c = store.cards[id];
-    if(isLast){
-      const cur = document.createElement('span'); cur.className='chip-current';
-      const icon = document.createElementNS('http://www.w3.org/2000/svg','svg'); icon.setAttribute('viewBox','0 0 24 24'); icon.classList.add('chip-icon');
-      icon.innerHTML = '<path fill="currentColor" d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2Zm3.9 7.1-2.2 5.2a1 1 0 0 1-.5.5l-5.2 2.2a.5.5 0 0 1-.65-.65l2.2-5.2a1 1 0 0 1 .5-.5l5.2-2.2a.5.5 0 0 1 .65.65Z"/>';
-      cur.appendChild(icon);
-      const txt = document.createElement('span'); txt.textContent = c?.title || '(untitled)'; cur.appendChild(txt);
+  const renderTrail = (ids, highlightId) => {
+    ids.forEach((id, index) => {
+      const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '›';
+      el.breadcrumbs.appendChild(sep);
+      const card = store.cards[id];
+      const isLast = highlightId ? (index === ids.length - 1 && highlightId === id) : (index === ids.length - 1);
+      if(isLast && highlightId){
+        const cur = document.createElement('span'); cur.className = 'chip-current'; cur.textContent = card?.title || '(untitled)';
+        el.breadcrumbs.appendChild(cur);
+      } else {
+        const btn = document.createElement('button'); btn.className = 'chip'; btn.textContent = card?.title || '(untitled)';
+        btn.onclick = () => openCard(id);
+        el.breadcrumbs.appendChild(btn);
+      }
+    });
+  };
+
+  if(state.currentView.kind === 'read'){
+    const trail = ancestry(state.currentView.cardId);
+    renderTrail(trail, null);
+    const card = store.cards[state.currentView.cardId];
+    if(card){
+      const sep = document.createElement('span'); sep.className='sep'; sep.textContent='›'; el.breadcrumbs.appendChild(sep);
+      const cur = document.createElement('span'); cur.className='chip-current'; cur.textContent = card.title || '(untitled)';
       el.breadcrumbs.appendChild(cur);
-    } else {
-      const b=document.createElement('button'); b.className='chip'; b.textContent= c?.title||'(untitled)';
-      b.onclick=()=>{ nav.path = nav.path.slice(0, idx+1); nav.selectedId=null; renderAll(); };
-      el.breadcrumbs.appendChild(b);
     }
-  })
+  } else if(state.currentView.kind === 'list' && state.currentView.source === 'children' && state.currentView.parentId){
+    const parentId = state.currentView.parentId;
+    const trail = ancestry(parentId);
+    renderTrail(trail.concat(parentId), parentId);
+  } else if((state.currentView.kind === 'edit' || state.currentView.kind === 'create') && (state.currentView.cardId || state.currentView.parentId)){
+    const anchorId = state.currentView.cardId || state.currentView.parentId;
+    const trail = ancestry(anchorId);
+    renderTrail(trail.concat(anchorId), state.currentView.cardId ? state.currentView.cardId : null);
+  }
 }
 
-function currentLevelIds(){
-  if(nav.path.length===0) return store.rootOrder; const pid = nav.path.at(-1); return store.cards[pid]?.children ?? [];
-}
-function filterBySearch(ids){
-  if(!nav.search) return ids; const q=nav.search; return ids.filter(id=>{ const c=store.cards[id]; return (c.title+" "+c.body).toLowerCase().includes(q) })
-}
-
-function cardTile(id, clickToOpen=true){
-  const c = store.cards[id];
-  const div = document.createElement('div'); div.className='card';
-  const title = document.createElement('div'); title.className='title'; title.textContent = c.title||'(untitled)';
-  const meta = document.createElement('div'); meta.className='meta';
-  const badge = document.createElement('span'); badge.className='badge'; badge.textContent = (c.children.length||0)+ ' nested';
-  const time = document.createElement('span'); time.textContent = 'updated '+fmtAgo(c.updatedAt);
-  meta.appendChild(badge); meta.appendChild(time);
-  div.appendChild(title); div.appendChild(meta);
-  if(clickToOpen){ div.onclick = ()=>{ openCardDetail(id); openLevelTo(id) } }
-  return div;
+function openRootList(){
+  state.currentView = { kind: 'list', source: 'children', parentId: null };
+  state.previousView = null;
+  renderApp();
 }
 
-function renderList(){
-  const ids = filterBySearch(currentLevelIds());
-  el.list.innerHTML='';
-  el.listEmpty.style.display = ids.length? 'none':'block';
-  ids.forEach(id=> el.list.appendChild(cardTile(id,true)) );
+function openCard(id){
+  if(!store.cards[id]){ openRootList(); return; }
+  state.currentView = { kind: 'read', cardId: id };
+  renderApp();
 }
 
-function renderDetail(){
-  const id = nav.selectedId;
-  if(!id){ el.detail.style.display='none'; el.detailEmpty.style.display='block'; return }
-  el.detail.style.display='block'; el.detailEmpty.style.display='none';
-  const c = store.cards[id];
-  el.cardTitle.value = c.title; el.cardBody.value = c.body;
-  el.meta.textContent = `Created ${new Date(c.createdAt).toLocaleString()} • Updated ${new Date(c.updatedAt).toLocaleString()}`;
-  el.children.innerHTML='';
-  const kids = c.children; el.childrenEmpty.style.display = kids.length? 'none':'block';
-  kids.forEach(kid=>{ const tile = cardTile(kid,false); tile.onclick = ()=>{ openCardDetail(kid); openLevelTo(kid) }; el.children.appendChild(tile) })
+function openChildrenList(parentId){
+  state.currentView = { kind: 'list', source: 'children', parentId };
+  renderApp();
 }
 
-function renderAll(){ renderBreadcrumbs(); renderList(); renderDetail() }
+function openSearchResults(query){
+  const trimmed = query.trim();
+  state.searchQuery = trimmed;
+  if(trimmed){
+    if(state.currentView.source !== 'search'){
+      state.previousView = state.currentView;
+    }
+    state.currentView = { kind: 'list', source: 'search' };
+  } else {
+    const fallback = state.previousView || { kind: 'list', source: 'children', parentId: null };
+    state.currentView = fallback;
+    state.previousView = null;
+  }
+  renderApp();
+}
 
-/* ======= Navigation & Actions ======= */
-function setSearch(q){ nav.search = q.trim().toLowerCase(); renderList() }
-function openLevelTo(id){ if(id===null){ nav.path=[] } else { const path=[]; let cur=store.cards[id]; while(cur && cur.parentId){ path.unshift(cur.parentId); cur=store.cards[cur.parentId] } nav.path=[...path,id] } nav.selectedId=null; renderAll() }
-function openCardDetail(id){ nav.selectedId=id; renderDetail() }
+function startCreate(parentId = null){
+  state.editDraft = {
+    id: null,
+    title: '',
+    body: '',
+    parentId: parentId ?? null,
+    childEntries: [],
+    originalChildIds: []
+  };
+  state.currentView = { kind: 'create', parentId };
+  renderApp();
+}
 
-/* ======= Events ======= */
- el.addTop.onclick = ()=>{ const c = makeCard('New Card','',null); save(); openLevelTo(null); openCardDetail(c.id) };
- el.addChild.onclick = ()=>{ const parentId = nav.selectedId || nav.path.at(-1) || null; const c = makeCard('New Nested Card','',parentId); save(); openLevelTo(parentId); openCardDetail(c.id) };
- el.moveUp.onclick = ()=>{ const id=nav.selectedId; if(!id) return; moveToParentLevel(id); save(); openLevelTo(store.cards[id].parentId); openCardDetail(id); renderAll() };
- el.deleteCard.onclick = ()=>{ const id=nav.selectedId; if(!id) return; const title=store.cards[id]?.title||'this card'; if(!confirm(`Delete "${title}" and all of its nested cards?`)) return; const parentId = store.cards[id].parentId ?? null; deleteCard(id); save(); openLevelTo(parentId); nav.selectedId=null; renderAll() };
- el.saveCard.onclick = ()=>{ const id=nav.selectedId; if(!id) return; const c=store.cards[id]; c.title = el.cardTitle.value.trim()||'(untitled)'; c.body = el.cardBody.value; c.updatedAt = now(); save(); renderAll() };
- el.search.addEventListener('input', e=> setSearch(e.target.value));
- el.clearSearch.onclick = ()=>{ el.search.value=''; setSearch('') };
+function startEdit(cardId){
+  const card = store.cards[cardId];
+  if(!card){ openRootList(); return; }
+  state.editDraft = {
+    id: cardId,
+    title: card.title,
+    body: card.body,
+    parentId: card.parentId ?? null,
+    childEntries: card.children.map(childId => ({ tempId: childId, id: childId, title: store.cards[childId]?.title || '', isNew: false })),
+    originalChildIds: [...card.children]
+  };
+  state.currentView = { kind: 'edit', cardId };
+  renderApp();
+}
 
- // Keyboard
- document.addEventListener('keydown', e=>{
-   if(e.key==='Enter' && document.activeElement===el.search){ const ids=filterBySearch(currentLevelIds()); if(ids[0]){ openCardDetail(ids[0]); openLevelTo(ids[0]) } }
-   if((e.altKey||e.metaKey) && e.key==='ArrowLeft'){ if(nav.path.length>0){ nav.path.pop(); nav.selectedId=null; renderAll() } }
- });
+function listAllCards(excludeSet = new Set(), ids = null, prefix = ''){
+  const result = [];
+  const source = ids ?? store.rootOrder;
+  source.forEach(id => {
+    if(excludeSet.has(id)) return;
+    const card = store.cards[id];
+    const title = card?.title || '(untitled)';
+    result.push({ id, label: prefix + title });
+    if(card){
+      result.push(...listAllCards(excludeSet, card.children, prefix + '› '));
+    }
+  });
+  return result;
+}
 
- /* ======= Theme Toggle ======= */
- function applyTheme(theme){
-   const root = document.documentElement;
-   if(theme==='light'){ root.classList.add('light') } else { root.classList.remove('light') }
-   localStorage.setItem('nested_cards_theme', theme);
- }
- const savedTheme = localStorage.getItem('nested_cards_theme');
- if(savedTheme){ applyTheme(savedTheme) }
- el.themeToggle.onclick = ()=>{ const isLight = document.documentElement.classList.toggle('light'); applyTheme(isLight?'light':'dark') };
+function parentOptions(excludeId){
+  const exclude = new Set();
+  if(excludeId){
+    exclude.add(excludeId);
+    const stack = [...(store.cards[excludeId]?.children || [])];
+    while(stack.length){
+      const next = stack.pop();
+      exclude.add(next);
+      stack.push(...(store.cards[next]?.children || []));
+    }
+  }
+  const options = [{ id: null, label: 'No parent (top level)' }];
+  options.push(...listAllCards(exclude));
+  return options;
+}
 
- /* ======= Init ======= */
- load();
- renderAll();
+function renderListView(){
+  const view = state.currentView;
+  const wrapper = document.createElement('section');
+  wrapper.className = 'view-surface';
+
+  const header = document.createElement('div'); header.className = 'list-header';
+  const heading = document.createElement('div'); heading.className = 'list-heading';
+  const title = document.createElement('h1');
+  const subtitle = document.createElement('p');
+
+  let cardsToShow = [];
+  if(view.source === 'children'){
+    const parentId = view.parentId;
+    if(parentId){
+      const parent = store.cards[parentId];
+      title.textContent = (parent?.title || '(untitled)') + ' — children';
+      subtitle.textContent = fmtChildrenCount(parent || { children: [] });
+      const back = document.createElement('button');
+      back.className = 'btn ghost';
+      back.textContent = `Back to “${parent?.title || '(untitled)'}”`;
+      back.onclick = () => openCard(parentId);
+      header.appendChild(back);
+      cardsToShow = parent ? parent.children : [];
+    } else {
+      title.textContent = 'All cards';
+      subtitle.textContent = `${store.rootOrder.length} top-level ${store.rootOrder.length === 1 ? 'card' : 'cards'}`;
+      cardsToShow = store.rootOrder;
+    }
+  } else {
+    title.textContent = state.searchQuery ? `Search results for “${state.searchQuery}”` : 'Search results';
+    subtitle.textContent = 'Click a card to open it';
+    const back = document.createElement('button'); back.className = 'btn ghost';
+    back.textContent = 'Back to previous view';
+    back.onclick = () => {
+      const fallback = state.previousView || { kind: 'list', source: 'children', parentId: null };
+      state.searchQuery = '';
+      el.search.value = '';
+      state.currentView = fallback;
+      state.previousView = null;
+      renderApp();
+    };
+    header.appendChild(back);
+    const query = state.searchQuery.toLowerCase();
+    cardsToShow = Object.keys(store.cards).filter(id => {
+      const card = store.cards[id];
+      const text = (card.title + ' ' + card.body).toLowerCase();
+      return text.includes(query);
+    });
+  }
+
+  heading.appendChild(title);
+  heading.appendChild(subtitle);
+  header.appendChild(heading);
+  wrapper.appendChild(header);
+
+  const list = document.createElement('div'); list.className = 'list-items';
+  if(cardsToShow.length === 0){
+    const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'Nothing to show yet.';
+    list.appendChild(empty);
+  } else {
+    cardsToShow.forEach(id => {
+      const card = store.cards[id];
+      if(!card) return;
+      const item = document.createElement('div'); item.className = 'list-card';
+      const h2 = document.createElement('h2'); h2.textContent = card.title || '(untitled)';
+      const preview = document.createElement('p'); preview.textContent = bodyPreview(card.body || '');
+      const meta = document.createElement('div'); meta.className = 'list-meta';
+      const childrenMeta = document.createElement('span'); childrenMeta.textContent = fmtChildrenCount(card);
+      const updatedMeta = document.createElement('span'); updatedMeta.textContent = 'Updated ' + fmtDate(card.updatedAt);
+      meta.appendChild(childrenMeta); meta.appendChild(updatedMeta);
+      item.appendChild(h2); item.appendChild(preview); item.appendChild(meta);
+      item.onclick = () => openCard(id);
+      list.appendChild(item);
+    });
+  }
+  wrapper.appendChild(list);
+  el.content.innerHTML = '';
+  el.content.appendChild(wrapper);
+}
+
+function renderReadView(){
+  const card = store.cards[state.currentView.cardId];
+  const wrapper = document.createElement('section'); wrapper.className = 'view-surface';
+  if(!card){
+    const missing = document.createElement('div'); missing.textContent = 'This card could not be found.';
+    wrapper.appendChild(missing);
+    el.content.innerHTML='';
+    el.content.appendChild(wrapper);
+    return;
+  }
+  const header = document.createElement('div'); header.className = 'view-header';
+  const title = document.createElement('div'); title.className = 'view-title'; title.textContent = card.title || '(untitled)';
+  const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px'; actions.style.flexWrap='wrap';
+  const editBtn = document.createElement('button'); editBtn.className='btn'; editBtn.textContent='Edit card'; editBtn.onclick = () => startEdit(card.id);
+  const addChildBtn = document.createElement('button'); addChildBtn.className='btn'; addChildBtn.textContent='Add child'; addChildBtn.onclick = () => startCreate(card.id);
+  actions.appendChild(editBtn); actions.appendChild(addChildBtn);
+  if(state.searchQuery){
+    const backSearch = document.createElement('button'); backSearch.className='btn ghost'; backSearch.textContent='Back to search results';
+    backSearch.onclick = () => { state.currentView = { kind: 'list', source: 'search' }; renderApp(); };
+    actions.appendChild(backSearch);
+  }
+  header.appendChild(title);
+  header.appendChild(actions);
+  wrapper.appendChild(header);
+
+  if(card.parentId){
+    const parentLine = document.createElement('div'); parentLine.className='meta-line';
+    const parent = store.cards[card.parentId];
+    parentLine.innerHTML = `Parent: <button class="btn ghost" style="padding:6px 10px; border-radius:10px">${parent?.title || '(untitled)'}</button>`;
+    const parentBtn = parentLine.querySelector('button');
+    parentBtn.onclick = () => openCard(card.parentId);
+    wrapper.appendChild(parentLine);
+  } else {
+    const parentLine = document.createElement('div'); parentLine.className='meta-line'; parentLine.textContent = 'Parent: none (top level)';
+    wrapper.appendChild(parentLine);
+  }
+
+  const body = document.createElement('div'); body.className='section';
+  const bodyLabel = document.createElement('h3'); bodyLabel.textContent = 'Details';
+  const bodyText = document.createElement('div'); bodyText.className='body-text'; bodyText.textContent = card.body || 'No details yet.';
+  body.appendChild(bodyLabel); body.appendChild(bodyText); wrapper.appendChild(body);
+
+  const childSection = document.createElement('div'); childSection.className='section';
+  const childLabel = document.createElement('h3'); childLabel.textContent = 'Children';
+  childSection.appendChild(childLabel);
+  if(card.children.length){
+    const peek = document.createElement('div'); peek.className='child-peek';
+    card.children.slice(0,3).forEach(childId => {
+      const childCard = store.cards[childId]; if(!childCard) return;
+      const pill = document.createElement('div'); pill.className='child-pill';
+      const t = document.createElement('span'); t.textContent = childCard.title || '(untitled)';
+      const count = document.createElement('span'); count.className='count-pill'; count.textContent = fmtChildrenCount(childCard);
+      pill.appendChild(t); pill.appendChild(count);
+      pill.onclick = () => openCard(childId);
+      peek.appendChild(pill);
+    });
+    childSection.appendChild(peek);
+    if(card.children.length > 3){
+      const more = document.createElement('div'); more.className='meta-line'; more.textContent = `${card.children.length - 3} more ${card.children.length - 3 === 1 ? 'child' : 'children'} not shown.`;
+      childSection.appendChild(more);
+    }
+    const listBtn = document.createElement('button'); listBtn.className='btn ghost'; listBtn.textContent='View all children';
+    listBtn.onclick = () => openChildrenList(card.id);
+    childSection.appendChild(listBtn);
+  } else {
+    const empty = document.createElement('div'); empty.className='empty'; empty.textContent = 'No children yet.';
+    childSection.appendChild(empty);
+  }
+  if(card.parentId){
+    const siblingBtn = document.createElement('button'); siblingBtn.className='btn ghost'; siblingBtn.textContent = 'View parent's children';
+    siblingBtn.style.marginLeft = '8px';
+    siblingBtn.onclick = () => openChildrenList(card.parentId);
+    childSection.appendChild(siblingBtn);
+  }
+  wrapper.appendChild(childSection);
+
+  const meta = document.createElement('div'); meta.className='section';
+  const metaInfo = document.createElement('div'); metaInfo.className='meta-line'; metaInfo.textContent = `Created ${fmtDate(card.createdAt)} • Updated ${fmtDate(card.updatedAt)}`;
+  meta.appendChild(metaInfo);
+  wrapper.appendChild(meta);
+
+  el.content.innerHTML='';
+  el.content.appendChild(wrapper);
+}
+
+function renderEditView(){
+  const draft = state.editDraft;
+  const wrapper = document.createElement('section'); wrapper.className='view-surface';
+  const form = document.createElement('form'); form.className='card-form'; form.onsubmit = e => { e.preventDefault(); saveDraft(); };
+
+  const titleRow = document.createElement('div'); titleRow.className='form-row';
+  const titleLabel = document.createElement('label'); titleLabel.textContent = 'Title';
+  const titleInput = document.createElement('input'); titleInput.type='text'; titleInput.value = draft.title;
+  titleInput.oninput = e => { draft.title = e.target.value; };
+  titleRow.appendChild(titleLabel); titleRow.appendChild(titleInput);
+
+  const bodyRow = document.createElement('div'); bodyRow.className='form-row';
+  const bodyLabel = document.createElement('label'); bodyLabel.textContent = 'Details';
+  const bodyInput = document.createElement('textarea'); bodyInput.value = draft.body;
+  bodyInput.oninput = e => { draft.body = e.target.value; };
+  bodyRow.appendChild(bodyLabel); bodyRow.appendChild(bodyInput);
+
+  const parentRow = document.createElement('div'); parentRow.className='form-row';
+  const parentLabel = document.createElement('label'); parentLabel.textContent = 'Parent';
+  const parentSelect = document.createElement('select');
+  parentOptions(draft.id).forEach(opt => {
+    const option = document.createElement('option');
+    option.value = opt.id ?? '';
+    option.textContent = opt.label;
+    if((opt.id ?? null) === (draft.parentId ?? null)) option.selected = true;
+    parentSelect.appendChild(option);
+  });
+  parentSelect.onchange = e => {
+    const value = e.target.value;
+    draft.parentId = value === '' ? null : value;
+  };
+  parentRow.appendChild(parentLabel); parentRow.appendChild(parentSelect);
+
+  const childrenRow = document.createElement('div'); childrenRow.className='form-row';
+  const childrenLabel = document.createElement('label'); childrenLabel.textContent = 'Children (titles only)';
+  const childrenEditor = document.createElement('div'); childrenEditor.className='children-editor';
+  if(draft.childEntries.length === 0){
+    const empty = document.createElement('div'); empty.className='empty'; empty.textContent = 'No children yet.';
+    childrenEditor.appendChild(empty);
+  } else {
+    draft.childEntries.forEach((entry, index) => {
+      const row = document.createElement('div'); row.className='child-row';
+      const input = document.createElement('input'); input.type='text'; input.placeholder='Child title'; input.value = entry.title;
+      input.oninput = e => { entry.title = e.target.value; };
+      const remove = document.createElement('button'); remove.type='button'; remove.className='btn ghost'; remove.textContent='Remove';
+      remove.onclick = () => {
+        draft.childEntries.splice(index,1);
+        renderApp();
+      };
+      row.appendChild(input); row.appendChild(remove);
+      childrenEditor.appendChild(row);
+    });
+  }
+  const addChild = document.createElement('button'); addChild.type='button'; addChild.className='btn'; addChild.textContent='Add child title';
+  addChild.onclick = () => {
+    draft.childEntries.push({ tempId: uid(), id: null, title: '', isNew: true });
+    renderApp();
+  };
+  childrenRow.appendChild(childrenLabel);
+  childrenRow.appendChild(childrenEditor);
+  childrenRow.appendChild(addChild);
+
+  const footer = document.createElement('div'); footer.className='footer-actions';
+  const leftActions = document.createElement('div'); leftActions.style.display='flex'; leftActions.style.gap='10px';
+  const saveBtn = document.createElement('button'); saveBtn.type='submit'; saveBtn.className='btn primary'; saveBtn.textContent = 'Save card';
+  const cancelBtn = document.createElement('button'); cancelBtn.type='button'; cancelBtn.className='btn ghost'; cancelBtn.textContent='Cancel';
+  cancelBtn.onclick = () => {
+    if(draft.id){
+      openCard(draft.id);
+    } else if(draft.parentId){
+      openChildrenList(draft.parentId);
+    } else {
+      openRootList();
+    }
+  };
+  leftActions.appendChild(saveBtn); leftActions.appendChild(cancelBtn);
+  footer.appendChild(leftActions);
+  if(draft.id){
+    const deleteBtn = document.createElement('button'); deleteBtn.type='button'; deleteBtn.className='btn danger'; deleteBtn.textContent='Delete card';
+    deleteBtn.onclick = () => {
+      const title = store.cards[draft.id]?.title || 'this card';
+      if(confirm(`Delete "${title}" and all of its children?`)){
+        const parentId = store.cards[draft.id]?.parentId ?? null;
+        deleteCard(draft.id);
+        save();
+        state.editDraft = null;
+        if(parentId){ openChildrenList(parentId); } else { openRootList(); }
+      }
+    };
+    footer.appendChild(deleteBtn);
+  }
+
+  form.appendChild(titleRow);
+  form.appendChild(bodyRow);
+  form.appendChild(parentRow);
+  form.appendChild(childrenRow);
+  form.appendChild(footer);
+  wrapper.appendChild(form);
+  el.content.innerHTML='';
+  el.content.appendChild(wrapper);
+}
+
+function saveDraft(){
+  const draft = state.editDraft;
+  const title = draft.title.trim() || '(untitled)';
+  const body = draft.body;
+  const parentId = draft.parentId ?? null;
+
+  if(draft.id){
+    const card = store.cards[draft.id];
+    if(!card) return;
+    const oldParentId = card.parentId ?? null;
+    if(oldParentId !== parentId){
+      if(oldParentId){
+        const parent = store.cards[oldParentId];
+        if(parent) parent.children = parent.children.filter(child => child !== card.id);
+      } else {
+        store.rootOrder = store.rootOrder.filter(rootId => rootId !== card.id);
+      }
+      if(parentId){
+        const newParent = store.cards[parentId];
+        if(newParent && !newParent.children.includes(card.id)) newParent.children.push(card.id);
+      } else {
+        if(!store.rootOrder.includes(card.id)) store.rootOrder.push(card.id);
+      }
+      card.parentId = parentId;
+    }
+    card.title = title;
+    card.body = body;
+    card.updatedAt = now();
+
+    const processedIds = [];
+    const remainingExisting = new Set(card.children);
+    draft.childEntries.forEach(entry => {
+      const trimmed = entry.title.trim();
+      if(!trimmed) return;
+      if(entry.id && remainingExisting.has(entry.id)){
+        const child = store.cards[entry.id];
+        if(child){
+          child.title = trimmed;
+          child.updatedAt = now();
+          processedIds.push(entry.id);
+          remainingExisting.delete(entry.id);
+        }
+      } else {
+        const child = makeCard(trimmed, '', card.id);
+        processedIds.push(child.id);
+      }
+    });
+    remainingExisting.forEach(id => deleteCard(id));
+    card.children = processedIds;
+    save();
+    state.editDraft = null;
+    openCard(card.id);
+  } else {
+    const card = makeCard(title, body, parentId);
+    draft.childEntries.forEach(entry => {
+      const trimmed = entry.title.trim();
+      if(!trimmed) return;
+      makeCard(trimmed, '', card.id);
+    });
+    save();
+    state.editDraft = null;
+    openCard(card.id);
+  }
+}
+
+function renderApp(){
+  el.search.value = state.searchQuery;
+  renderBreadcrumbs();
+  if(state.currentView.kind === 'read'){
+    renderReadView();
+  } else if(state.currentView.kind === 'list'){
+    renderListView();
+  } else {
+    renderEditView();
+  }
+}
+
+el.addTop.onclick = () => startCreate(null);
+el.search.addEventListener('input', e => openSearchResults(e.target.value));
+el.clearSearch.onclick = () => {
+  el.search.value = '';
+  openSearchResults('');
+};
+
+const savedTheme = localStorage.getItem('nested_cards_theme');
+function applyTheme(theme){
+  const root = document.documentElement;
+  if(theme === 'light'){ root.classList.add('light'); } else { root.classList.remove('light'); }
+  localStorage.setItem('nested_cards_theme', theme);
+}
+if(savedTheme){ applyTheme(savedTheme); }
+el.themeToggle.onclick = () => {
+  const isLight = document.documentElement.classList.toggle('light');
+  applyTheme(isLight ? 'light' : 'dark');
+};
+
+load();
+renderApp();
 </script>
 </body>
 </html>
