@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Card Info Base</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="app:version" content="0.4.1">
+<meta name="app:author" content="jxburros">
+  <style>
+    /* ========================
+       THEME PALETTE (Dark default)
+       ======================== */
+    :root {
+      --bg: #0b0f18;
+      --panel: #131a2a;
+      --card: #101724;
+      --elev: #0f1522;
+      --border: #3a4561;
+      --ring: #86b7ff;
+      --text: #f2f6ff;
+      --muted: #b7c2d9;
+      --accent: #86a8ff;
+      --success: #67e2bc;
+      --danger-bg: #351820;
+      --danger: #ff9fb1;
+      --radius: 14px;
+      --radius-pill: 999px;
+      --shadow-1: 0 12px 30px rgba(0,0,0,.35);
+      --grid-min: 250px;
+
+      /* shared type helpers */
+      --fs-0: 14px;
+      --fs-1: 16px;
+      --fs-2: 18px;
+      --fs-3: 20px;
+      --fs-4: 24px;
+      --lh: 1.6;
+    }
+
+    /* Light palette when .light is on <html> */
+    :root.light {
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --card: #ffffff;
+      --elev: #ffffff;
+      --border: #e7eaf1;
+      --ring: #2b59ff;
+      --text: #0e1220;
+      --muted: #5b6275;
+      --accent: #2b59ff;
+      --success: #1ea97c;
+      --danger-bg: #fff0f3;
+      --danger: #c22644;
+      --shadow-1: 0 10px 30px rgba(18,18,18,.06);
+    }
+
+    * { box-sizing: border-box }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    }
+    .app { max-width: 900px; margin: 0 auto; padding: 28px 10px 40px; }
+    header.appbar {
+      position: sticky; top: 0; z-index: 10;
+      padding: 13px 0; margin-bottom: 20px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(8px) saturate(1.1);
+      width: 100%;
+    }
+    .appbar-inner { display: flex; gap: 12px; align-items: center; max-width: 900px; margin: 0 auto; }
+    .brand { font-weight: 700; letter-spacing:.3px; font-size: 1.2rem;}
+    .spacer { flex:1 }
+    .crumbs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .chip, .chip-current {
+      border: 1px solid var(--border); border-radius: var(--radius-pill);
+      background: var(--panel);
+      color: var(--text);
+      font-weight: 600; padding: 6px 13px; cursor: pointer;
+      transition: background .15s, border-color .15s;
+      display: inline-flex; align-items: center;
+    }
+    .chip[disabled], .chip-current { opacity: .86; cursor: default; }
+    .chip-current {
+      background: var(--accent);
+      color: #0a0f1a; border: 1.5px solid var(--accent);
+    }
+    .chip-icon { width: 16px; height: 16px; margin-right: 4px;}
+    .btn {
+      border: 1px solid var(--border); background: var(--panel); color: var(--text);
+      padding: 9px 15px; border-radius: 10px; font: inherit; font-weight: 600;
+      cursor: pointer; box-shadow: var(--shadow-1); transition: background .11s, border-color .11s, transform .09s;
+    }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #0a0f1a; }
+    .btn.ghost { background: transparent;}
+    .btn.danger { background: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
+    .btn:active { transform: scale(.97);}
+    .search { display: flex; align-items: center; gap: 7px; padding: 7px 11px; border:1px solid var(--border); border-radius: 12px; background: var(--elev);}
+    .search input[type="search"] { border:0; outline:0; background:transparent; color: var(--text); width: 180px; font-size: 1em;}
+    .search button { border:0; background:transparent; color: var(--muted); cursor:pointer;}
+    .card-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--grid-min), 1fr)); gap: 15px; }
+    .card-tile {
+      background: var(--card); border: 1.5px solid var(--border); border-radius: 14px;
+      padding: 14px 12px; cursor:pointer; box-shadow: var(--shadow-1);
+      display: flex; flex-direction: column; gap: 8px;
+      transition: border-color .17s, box-shadow .13s, transform .11s;
+      min-height: 80px;
+    }
+    .card-tile:hover { border-color: var(--accent); transform: translateY(-2px);}
+    .card-title-row { display: flex; justify-content: space-between; align-items: center; gap: 6px;}
+    .ct-title { font-weight: 700; font-size: 1.09em;}
+    .ct-kid-count { color: var(--muted); font-size: .98em;}
+    .ct-preview { color: var(--muted); font-size: .98em; margin-left: 3px;}
+    .ct-meta { color: var(--muted); font-size: 0.95em;}
+    .subhead { text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; color: var(--muted); margin: 7px 0 10px 2px;}
+    .empty { color: var(--muted); padding: 12px; text-align: center;}
+    .card-main-title { font-size: 1.3em; font-weight: bold; margin-bottom:3px;}
+    .card-parent-ref {
+      color: var(--text);
+      font-size: .95em;
+      margin-bottom: 14px;
+      padding: 8px 12px;
+      background: var(--elev);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: inline-block;
+    }
+    .card-parent-ref a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .card-parent-ref a:hover { text-decoration: underline; }
+    .details { white-space: pre-wrap; margin-top: .6em; min-height: 36px;}
+    .children-preview-list { margin:8px 0 3px 0; display: flex; gap: 13px; flex-wrap:wrap;}
+    .children-preview-tile {
+      padding:5px 12px; background: var(--elev); border:1px solid var(--border); border-radius:10px;
+      color: var(--text); font-size:.99em; display: flex; align-items:center; gap:6px; cursor: pointer; transition: background .13s, border-color .13s;
+    }
+    .children-preview-tile:hover { background: var(--panel);}
+    .action-row { display: flex; gap:10px; flex-wrap:wrap; margin: 21px 0 10px 0; }
+    .card-meta { font-size:.97em; color: var(--muted); margin-top:16px; margin-bottom:4px;}
+    .form { display: flex; flex-direction: column; gap: 13px;}
+    .form label { font-size:.99em; font-weight:600; margin-bottom:2px; color: var(--muted);}
+    .form input[type="text"], .form textarea, .form select {
+      width: 100%; background: var(--elev); color: var(--text); border: 1.5px solid var(--border);
+      border-radius: 10px; padding: 10px; font-size:1em; outline: none; box-shadow: var(--shadow-1);
+      margin-bottom:3px;
+    }
+    .form input[type="text"]:focus, .form textarea:focus, .form select:focus { border-color: var(--ring); }
+    .form-children-inline {display: flex; flex-direction: column; gap:8px; margin-bottom:6px;}
+    .form-child-row {display: flex; gap:6px; align-items:center;}
+    .form-child-row input[type="text"] { flex:1; }
+    .form-child-del { background:none; border:none; color: var(--danger); font-size:1.2em; cursor:pointer;}
+    .flex-between { display: flex; align-items: center; justify-content: space-between;}
+    .footer { margin-top: 12px; display: flex; gap:8px; align-items:center; justify-content: space-between;}
+    .tiny { font-size: 12px; color: var(--muted); }
+    .theme-toggle { display:inline-flex; align-items:center; gap:8px }
+    .toggle { position: relative; width: 50px; height: 28px; border: 1px solid var(--border); background: var(--panel); border-radius: var(--radius-pill); box-shadow: var(--shadow-1); cursor: pointer }
+    .knob { position:absolute; top:2px; left:2px; width:24px; height:24px; border-radius:50%; background: #fff; transform: translateX(0); transition: transform .2s ease }
+    :root.light .knob { transform: translateX(22px) }
+    .toggle svg { position:absolute; top:6px; width:16px; height:16px; opacity:.9 }
+    .icon-sun { right: 8px; fill: #ddaa22 }
+    .icon-moon { left: 8px; fill: #9cb7ff }
+
+    /* ===== Minimal style (layout/typography only) ===== */
+    body.minimal {
+      font: var(--fs-1)/var(--lh) system-ui, -apple-system, Segoe UI, Inter, Roboto, Arial, sans-serif;
+    }
+    body.minimal .app { max-width: 820px; padding: 28px 16px 48px; }
+    body.minimal header.appbar { backdrop-filter: none; }
+    body.minimal .card-list { gap: 8px; }
+    body.minimal .card-tile { border-radius: 10px; box-shadow: none; transition: box-shadow .12s ease, border-color .12s ease; }
+    body.minimal .card-tile:hover { box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+    body.minimal .details { font-size: var(--fs-2); line-height: 1.7; max-width: 60ch; }
+    body.minimal .chip, body.minimal .chip-current { background: transparent; border: none; border-radius: 0; padding: 0; box-shadow: none; }
+    body.minimal .chip { color: var(--muted); font-weight: 600; }
+    body.minimal .chip:hover { color: var(--text); text-decoration: underline; }
+    body.minimal .chip-current { color: var(--text); font-weight: 700; }
+    body.minimal .form input[type="text"],
+    body.minimal .form textarea,
+    body.minimal .form select { background: var(--panel); border: 1px solid var(--border); box-shadow: none; border-radius: 8px; }
+    body.minimal .form input:focus,
+    body.minimal .form textarea:focus,
+    body.minimal .form select:focus { border-color: var(--ring); outline: 3px solid color-mix(in oklab, var(--ring) 18%, transparent); }
+    .btn { color: var(--text); }
+    .btn.primary { color: #0a0f1a; }
+    body.minimal .btn { background: var(--panel); border-color: var(--border); }
+    body.minimal .btn.ghost { background: transparent; border-color: transparent; }
+
+    /* Tiny error banner if JS fails early */
+    #bootError { display:none; position:fixed; inset:auto 12px 12px 12px; background:#ffefef; color:#7a1f1f; border:1px solid #e9bcbc; padding:8px 10px; border-radius:8px; font: 14px/1.5 system-ui; z-index:9999 }
+  </style>
+</head>
+<body>
+  <header class="appbar">
+    <div class="appbar-inner">
+      <div class="brand">Card Info Base</div>
+      <button class="btn ghost" id="homeBtn" title="Go to Home">Home</button>
+      <button class="btn ghost" id="backBtn" title="Go Back">← Back</button>
+      <div class="crumbs" id="breadcrumbs"></div>
+      <div class="spacer"></div>
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2"/></svg>
+        <input id="search" type="search" placeholder="Search Cards…" />
+        <button id="clearSearch" title="Clear">✕</button>
+      </div>
+      <button class="btn primary" id="startAddCardBtn">+ New Card</button>
+      <button class="btn ghost" id="styleToggle" title="Toggle style">Style: Classic</button>
+      <div class="theme-toggle" title="Toggle theme">
+        <div class="toggle" id="themeToggle" role="switch" aria-label="Toggle theme" aria-checked="false">
+          <span class="knob"></span>
+          <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app" id="main"></main>
+  <div id="bootError"></div>
+
+  <script>
+  window.addEventListener('DOMContentLoaded', () => {
+    const bootError = (msg) => {
+      const el = document.getElementById('bootError');
+      if (!el) return;
+      el.textContent = 'Init error: ' + msg;
+      el.style.display = 'block';
+      console.error('[Card Info Base]', msg);
+    };
+
+    try {
+      // ==== Data Model
+      const STORE_KEY = "nested_cards_v2";
+      const store = { rootOrder: [], cards: {} };
+      const uid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2,10));
+      const now = () => Date.now();
+
+      function makeCard(title, body, parentId){
+        const id = uid();
+        const card = { id, title, body, parentId: parentId ?? null, children: [], createdAt: now(), updatedAt: now() };
+        store.cards[id] = card;
+        if(parentId){ store.cards[parentId].children.push(id); store.cards[parentId].updatedAt = now(); }
+        else { store.rootOrder.push(id); }
+        return card;
+      }
+
+      function deleteCard(id){
+        // iterative to avoid deep recursion
+        const stack = [id];
+        while (stack.length) {
+          const cur = stack.pop();
+          const c = store.cards[cur];
+          if (!c) continue;
+          stack.push(...c.children);
+          if (c.parentId) {
+            const p = store.cards[c.parentId];
+            if (p) {
+              p.children = p.children.filter(x => x !== cur);
+              p.updatedAt = now();
+            }
+          } else {
+            store.rootOrder = store.rootOrder.filter(x => x !== cur);
+          }
+          delete store.cards[cur];
+        }
+      }
+
+      function save() {
+        try {
+          localStorage.setItem(STORE_KEY, JSON.stringify(store));
+          return true;
+        } catch (e) {
+          if (e && e.name === 'QuotaExceededError') {
+            alert('Storage quota exceeded! Cannot save.');
+          }
+          console.error('Save failed:', e);
+          return false;
+        }
+      }
+
+      function load(){
+        const raw = localStorage.getItem(STORE_KEY);
+        if(raw){
+          try{
+            const data = JSON.parse(raw);
+            if(data?.rootOrder && data?.cards){
+              Object.assign(store,data);
+              return;
+            }
+          }catch(e){
+            console.error("Failed to parse store, backing up bad data:", e);
+            localStorage.setItem(STORE_KEY + "_backup_error", raw);
+          }
+        }
+        // initial demo
+        const a = makeCard("Trip Planning", "High-level planning and checklists.", null);
+        const b = makeCard("Creative Ideas", "Drafts, concepts, and moodboards.", null);
+        const a1 = makeCard("Packing List", "Clothes, toiletries, tech.", a.id);
+        const a2 = makeCard("Itinerary", "Day-by-day outline.", a.id);
+        const a2a = makeCard("Food Spots", "Restaurants to try.", a2.id);
+        makeCard("Story Seeds", "Hooks, characters, vibes.", b.id);
+        save();
+      }
+
+      // ==== State and Routing
+      const navState = { page: "list", cardId: null, parentId: null, prev: null, searchQuery: "" };
+
+      const main = document.getElementById('main');
+      const headerEl = {
+        breadcrumbs: document.getElementById('breadcrumbs'),
+        search: document.getElementById('search'),
+        clearSearch: document.getElementById('clearSearch'),
+        startAddCardBtn: document.getElementById('startAddCardBtn'),
+        themeToggle: document.getElementById('themeToggle'),
+        homeBtn: document.getElementById('homeBtn'),
+        backBtn: document.getElementById('backBtn'),
+        styleToggle: document.getElementById('styleToggle')
+      };
+
+      // Guards
+      if (!main) return bootError('Main container missing');
+      if (!headerEl.search || !headerEl.startAddCardBtn) {
+        return bootError('Header elements not found (did IDs change?)');
+      }
+
+      function goTo(page, data = {}) {
+        navState.prev = {...navState};
+        navState.page = page;
+        for(const k in data) navState[k]=data[k];
+        render();
+      }
+      function goBack() {
+        if(navState.prev) {
+          Object.assign(navState, navState.prev);
+          render();
+        }
+      }
+      const currentCard = () => navState.cardId ? store.cards[navState.cardId] : null;
+      const parentOf = (id) => { const c=store.cards[id]; return c?.parentId ? store.cards[c.parentId] : null; };
+      function fmtAgo(ms){
+        const s = Math.max(1, Math.round((Date.now()-ms)/1000));
+        if(s<60) return s+"s ago"; const m=Math.round(s/60); if(m<60) return m+"m ago";
+        const h=Math.round(m/60); if(h<24) return h+"h ago"; const d=Math.round(h/24); return d+"d ago";
+      }
+      function previewString(str, n=60) {
+        if(!str) return "";
+        const lines = str.split('\n'), firstLine = lines[0];
+        if(firstLine.length > n) return firstLine.slice(0, n-3)+"...";
+        if(lines.length>1) return firstLine + " ...";
+        return str;
+      }
+
+      function sepDot(txt){ const s=document.createElement('span'); s.className='sep'; s.textContent=txt; return s;}
+      function spanCrumb(txt){ const s=document.createElement('span'); s.className='chip-current'; s.textContent=txt; return s; }
+
+      function renderBreadcrumbs() {
+        headerEl.breadcrumbs.innerHTML = '';
+        if(navState.page === 'read' || navState.page==='edit') {
+          let cur = navState.cardId ? store.cards[navState.cardId] : null, path = [];
+          while(cur) { path.push(cur); cur = cur.parentId ? store.cards[cur.parentId] : null; }
+          path.reverse();
+          const rootBtn = document.createElement('button');
+          rootBtn.className = 'chip'; rootBtn.textContent = 'All Cards';
+          rootBtn.onclick = () => goTo('list', { cardId: null });
+          headerEl.breadcrumbs.appendChild(rootBtn);
+
+          path.forEach((c, idx)=>{
+            headerEl.breadcrumbs.appendChild(sepDot('›'));
+            if(idx === path.length-1) {
+              headerEl.breadcrumbs.appendChild(spanCrumb(c.title || '(Untitled)'));
+            } else {
+              const btn = document.createElement('button');
+              btn.className = 'chip'; btn.textContent = c.title || '(Untitled)';
+              btn.onclick = () => goTo('read', { cardId: c.id });
+              headerEl.breadcrumbs.appendChild(btn);
+            }
+          });
+        } else if(navState.page==='list' && navState.cardId) {
+          const card = store.cards[navState.cardId];
+          const parent = parentOf(card.id);
+          if(parent) {
+            const parBtn=document.createElement('button'); parBtn.className='chip'; parBtn.textContent=parent.title||'(Parent)';
+            parBtn.onclick=()=>goTo('read',{cardId:parent.id});
+            headerEl.breadcrumbs.appendChild(parBtn);
+          }
+          headerEl.breadcrumbs.appendChild(sepDot('›'));
+          headerEl.breadcrumbs.appendChild(spanCrumb(card.title||'(Untitled)'));
+          headerEl.breadcrumbs.appendChild(sepDot('›'));
+          headerEl.breadcrumbs.appendChild(spanCrumb('Children'));
+        } else {
+          headerEl.breadcrumbs.innerHTML = '';
+          const btn = document.createElement('button');
+          btn.className='chip'; btn.textContent='All Cards';
+          btn.onclick=()=>goTo('list', { cardId: null});
+          headerEl.breadcrumbs.appendChild(btn);
+          if(navState.page==='search') headerEl.breadcrumbs.appendChild(spanCrumb('› Search Results'));
+        }
+      }
+
+      function h(tag, props, ...children) {
+        if(Array.isArray(props) || typeof props === "string" || typeof props === "number" || !props){ children = [props].concat(children); props = {}; }
+        const el = document.createElement(tag);
+        if(props) for(const k in props) {
+          if(/^on/.test(k)) el[k.toLowerCase()]=props[k];
+          else if(k==='className') el.className=props[k];
+          else if(k==='style') el.style=props[k];
+          else el.setAttribute(k,props[k]);
+        }
+        for(const c of children.flat(Infinity)){
+          if(typeof c === "string" || typeof c === "number") el.appendChild(document.createTextNode(c));
+          else if (c instanceof Node) el.appendChild(c);
+        }
+        return el;
+      }
+
+      function cardListTile(card) {
+        const div = document.createElement('div');
+        div.className = 'card-tile';
+        div.onclick = ()=>goTo('read', {cardId: card.id});
+        const row = h('div', {className:'card-title-row'}, [
+          h('span', {className:'ct-title'}, card.title || '(untitled)'),
+          h('span', {className:'ct-kid-count'}, `${card.children.length} children`)
+        ]);
+        const preview = h('div', {className:'ct-preview'}, previewString(card.body||''));
+        const meta = h('div',{className:'ct-meta'},`Created ${fmtAgo(card.createdAt)}`);
+        div.appendChild(row); div.appendChild(preview); div.appendChild(meta);
+        return div;
+      }
+
+      function renderCardList() {
+        const cardId = navState.cardId;
+        let ids, caption, backHandler;
+        if(cardId) {
+          const card = store.cards[cardId];
+          ids = card.children;
+          caption = `Children of "${card.title||'(Untitled)'}"`;
+          backHandler = ()=>goTo('read', { cardId: cardId });
+        } else {
+          ids = store.rootOrder;
+          caption = "All Cards";
+          backHandler = null;
+        }
+        main.appendChild(h('div', {className:'subhead'}, caption));
+        if(backHandler) {
+          const back = h('button', { className:'btn ghost', onclick: backHandler, style:"margin-bottom:10px;"}, '← Back to Card');
+          main.appendChild(back);
+        }
+        if(ids.length===0) main.appendChild(h('div',{className:'empty'}, 'No cards here.'));
+        else {
+          const grid = document.createElement('div');
+          grid.className = 'card-list';
+          ids.forEach(id=>{
+            const c = store.cards[id];
+            grid.appendChild(cardListTile(c));
+          })
+          main.appendChild(grid);
+        }
+      }
+
+      function renderReadOnlyCard() {
+        const card = store.cards[navState.cardId];
+        if(!card) { main.appendChild(h('div',{className:'empty'},'Card not found.')); return;}
+        main.appendChild(h('div',{className:'card-main-title'}, card.title||'(Untitled)'));
+        if(card.parentId){
+          const par = store.cards[card.parentId];
+          const parSpan = h('div',{className:'card-parent-ref'},
+            "Parent: ", h('a',{href:'#',onclick:(e)=>{e.preventDefault();goTo('read',{cardId:par.id});}},par.title||'(Untitled)')
+          );
+          main.appendChild(parSpan);
+        }
+        main.appendChild(h('div',{className:'details'},card.body||''));
+        const actions = h('div',{className:'action-row'},
+          h('button',{className:'btn',onclick:()=>goTo('edit',{cardId:card.id})},'Edit Card'),
+          h('button',{className:'btn primary',onclick:()=>goTo('edit',{cardId:null,parentId:card.id})},'+ Add Child'),
+        );
+        main.appendChild(actions);
+        if(card.children.length>0){
+          main.appendChild(h('div',{style:'margin:18px 0 1px 0;font-weight:600'},'Children'));
+          const prevList = h('div',{className:'children-preview-list'});
+          card.children.slice(0,4).forEach((cid)=>{
+            const kid=store.cards[cid];
+            prevList.appendChild(h('div',{
+              className:'children-preview-tile',
+              onclick:()=>goTo('read',{cardId:kid.id})
+            }, kid.title||'(Untitled)','(',kid.children.length,')'));
+          });
+          main.appendChild(prevList);
+          const childNavRow = h('div',{style:'display:flex;gap:10px;flex-wrap:wrap;'});
+          childNavRow.appendChild(h('button',{className:'btn ghost',onclick:()=>goTo('list',{cardId:card.id})},'See All Children'));
+          if(card.parentId){
+            childNavRow.appendChild(h('button',{className:'btn ghost',onclick:()=>goTo('list',{cardId:card.parentId})},'See Siblings'));
+          }
+          main.appendChild(childNavRow);
+        } else {
+          main.appendChild(h('div',{className:'empty',style:'margin-top:13px;'},'No children.'));
+        }
+        main.appendChild(h('div',{className:'card-meta'},`Created ${new Date(card.createdAt).toLocaleString()}`));
+      }
+
+      function exportJSON() {
+        const blob = new Blob([JSON.stringify(store,null,2)], {type:'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'cards-export.json';
+        a.click();
+      }
+      function importJSON(file) {
+        const fr = new FileReader();
+        fr.onload = () => {
+          try {
+            const data = JSON.parse(fr.result);
+            if (!data.cards || !data.rootOrder) throw new Error('Invalid file');
+            Object.assign(store, data);
+            save(); goTo('list', { cardId: null });
+          } catch(e){ alert('Import failed: ' + e.message); }
+        };
+        fr.readAsText(file);
+      }
+
+      function isDescendant(ancestorId, maybeChildId) {
+        const q = [ancestorId];
+        while (q.length) {
+          const id = q.pop();
+          const c = store.cards[id];
+          if (!c) continue;
+          if (c.children.includes(maybeChildId)) return true;
+          q.push(...c.children);
+        }
+        return false;
+      }
+
+      function renderEditCard() {
+        let card=null, editing=false; let dirty = false;
+        window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; }});
+
+        if(navState.cardId) { card=store.cards[navState.cardId]; editing=true; }
+        const form=document.createElement('form'); form.className='form'; form.onsubmit=(e)=>{e.preventDefault();return saveCardForm();}
+        form.appendChild(h('label',null,'Title'));
+        const titleInput = h('input',{type:'text',required:true, value:card?.title||'',placeholder:'Title...'});
+        form.appendChild(titleInput);
+        form.appendChild(h('label',null,'Details'));
+        const bodyInput = h('textarea',{placeholder:'Write info or details...'},card?.body||'');
+        form.appendChild(bodyInput);
+
+        // PARENT
+        form.appendChild(h('label', null, 'Parent'));
+        let parVal;
+        if (editing) parVal = card.parentId ?? '';
+        else if (navState.parentId) parVal = navState.parentId;
+        else parVal = '';
+        const parentSel = h('select', null);
+        parentSel.appendChild(h('option', { value: '', selected: parVal === '' }, '(None - Top Level)'));
+        Object.values(store.cards).forEach(c => {
+          if (editing && c.id === card?.id) return;
+          parentSel.appendChild(h('option', { value: c.id, selected: parVal === c.id }, c.title || '(Untitled)'));
+        });
+        parentSel.value = parVal || '';
+        form.appendChild(parentSel);
+
+        let childrenInpMap={};
+        if(editing){
+          form.appendChild(h('label',null,'Children'));
+          const kidsWrap = h('div',{className:'form-children-inline'});
+          card.children.forEach(cid=>{
+            const c=store.cards[cid];
+            const row=h('div',{className:'form-child-row'});
+            const chInp=h('input',{type:'text',value:c.title,style:'min-width: 0;'});
+            row.appendChild(chInp);
+            const delBtn = h('button', {
+              type: "button",
+              className: 'form-child-del',
+              title: "Remove child",
+              onclick: () => {
+                if (confirm('Delete child and all its children?')) { 
+                  deleteCard(cid);
+                  save();
+                  render();
+                }
+              }
+            }, '✕');
+            row.appendChild(delBtn);
+            childrenInpMap[cid] = chInp;
+            kidsWrap.appendChild(row);
+          });
+          form.appendChild(kidsWrap);
+
+          form.appendChild(h('label',{style:'margin-top:10px;'},'Add New Children'));
+          const newKidsWrap = h('div',{className:'form-children-inline',id:'addChildList'});
+          const addChildRow=(title="")=>{
+            const r=h('div',{className:'form-child-row'});
+            const t=h('input',{type:'text',value:title,placeholder:'Child title...'});
+            const d=h('button',{type:'button',className:'form-child-del',onclick:()=>{r.remove();}},'✕');
+            r.appendChild(t); r.appendChild(d);
+            newKidsWrap.appendChild(r);
+          };
+          addChildRow();
+          form.appendChild(newKidsWrap);
+          const addBtn = h('button',{type:'button',className:'btn ghost',onclick:()=>addChildRow()},'+ Add Another Child');
+          form.appendChild(addBtn);
+        } else {
+          form.appendChild(h('label',null,'Add Children Now (title only)'));
+          const kidsWrap = h('div',{className:'form-children-inline',id:'addChildList'});
+          const addChildRow=(title="")=>{
+            const r=h('div',{className:'form-child-row'});
+            const t=h('input',{type:'text',value:title,placeholder:'Child title...'});
+            const d=h('button',{type:'button',className:'form-child-del',onclick:()=>{r.remove();}},'✕');
+            r.appendChild(t); r.appendChild(d);
+            kidsWrap.appendChild(r);
+          };
+          addChildRow();
+          form.appendChild(kidsWrap);
+          const addBtn = h('button',{type:'button',className:'btn ghost',onclick:()=>addChildRow()},'+ Add Another Child');
+          form.appendChild(addBtn);
+        }
+
+        const actionRow=h('div',{style:'margin-top:12px;display:flex;gap:10px;'},[
+          h('button',{type:'submit',className:'btn primary'},'Save'),
+          h('button',{type:'button',className:'btn ghost',onclick:()=>editing?goTo('read',{cardId:card.id}):goBack()},'Cancel'),
+          editing?h('button',{type:'button',className:'btn danger',onclick:()=>{
+            if(confirm('Delete this card and all children?')){
+              deleteCard(card.id);save();
+              goTo('list',{cardId:card.parentId??null});
+            }
+          }},'Delete'):''
+        ]);
+        form.appendChild(actionRow);
+
+        main.appendChild(h('div',{className:'subhead'},editing?'Edit Card':'Add Card'));
+        main.appendChild(form);
+
+const version = document.querySelector('meta[name="app:version"]')?.content;
+const author  = document.querySelector('meta[name="app:author"]')?.content;
+
+        function saveCardForm(){
+          const title = titleInput.value.trim();
+          if(!title) {alert("Title required."); return;}
+          const body = bodyInput.value;
+          let parent = parentSel.value || null;
+
+          if (editing && parent && isDescendant(card.id, parent)) {
+            alert("Invalid parent: cannot assign a descendant as parent.");
+            return false;
+          }
+
+          if(editing){
+            card.title=title; card.body=body; card.updatedAt=now();
+            if((card.parentId??null)!==(parent??null)){
+              if(card.parentId){
+                const p=store.cards[card.parentId];
+                if (p) p.children=p.children.filter(x=>x!==card.id);
+              } else {
+                store.rootOrder = store.rootOrder.filter(x=>x!==card.id);
+              }
+              card.parentId=parent;
+              if(parent){ store.cards[parent].children.push(card.id); }
+              else { store.rootOrder.push(card.id); }
+            }
+            if(childrenInpMap){
+              for(const cid in childrenInpMap){
+                const t=childrenInpMap[cid].value.trim();
+                if(t.length>0 && store.cards[cid]) store.cards[cid].title=t;
+              }
+            }
+            let childList=Array.from(form.querySelectorAll("#addChildList .form-child-row input[type='text']"));
+            for(const inp of childList){
+              let t=inp.value.trim(); if(t){makeCard(t,"",card.id);}
+            }
+            save(); goTo('read',{cardId:card.id});
+          } else {
+            const newCard = makeCard(title,body,parent);
+            let childList=Array.from(form.querySelectorAll("#addChildList .form-child-row input[type='text']"));
+            for(const inp of childList){
+              let t=inp.value.trim(); if(t){makeCard(t,"",newCard.id);}
+            }
+            save(); goTo('read',{cardId:newCard.id});
+          }
+          return false;
+        }
+      }
+
+      function renderSearchResults() {
+        const query=navState.searchQuery.trim().toLowerCase();
+        if(!query) { main.appendChild(h('div',{className:'empty'},'Please enter a search term.')); return;}
+        let results = Object.values(store.cards).filter(c=>(c.title+" "+c.body).toLowerCase().includes(query));
+        main.appendChild(h('div',{className:'subhead'},`Search: "${navState.searchQuery}"`));
+        main.appendChild(h('button',{className:'btn ghost', onclick:goBack},'← Back'));
+        if(results.length===0) main.appendChild(h('div',{className:'empty'},"No results found."));
+        else {
+          const grid = document.createElement('div'); grid.className='card-list';
+          results.forEach(c=>grid.appendChild(cardListTile(c)));
+          main.appendChild(grid);
+        }
+      }
+
+      // Renders the current page
+      function render() {
+        renderBreadcrumbs();
+        if (!main) return;
+        main.innerHTML = "";
+        switch (navState.page) {
+          case "read":   renderReadOnlyCard(); break;
+          case "list":   renderCardList(); break;
+          case "search": renderSearchResults(); break;
+          case "edit":   renderEditCard(); break;
+          default:       renderCardList();
+        }
+      }
+
+      // ===== THEME & STYLE TOGGLES =====
+      function applyTheme(theme) {
+        if (theme === 'light') document.documentElement.classList.add('light');
+        else document.documentElement.classList.remove('light');
+        localStorage.setItem('nested_cards_theme', theme);
+        // reflect a11y state
+        if (headerEl.themeToggle) headerEl.themeToggle.setAttribute('aria-checked', theme === 'light' ? 'true' : 'false');
+      }
+      function applyStyle(styleMode) {
+        const minimal = styleMode === 'minimal';
+        document.body.classList.toggle('minimal', minimal);
+        localStorage.setItem('nested_cards_style', minimal ? 'minimal' : 'classic');
+        if (headerEl.styleToggle) headerEl.styleToggle.textContent = 'Style: ' + (minimal ? 'Minimal' : 'Classic');
+      }
+      applyTheme(localStorage.getItem('nested_cards_theme') || 'dark');
+      applyStyle(localStorage.getItem('nested_cards_style') || 'classic');
+
+      if (headerEl.themeToggle) {
+        headerEl.themeToggle.onclick = () => {
+          const isLight = !document.documentElement.classList.contains('light');
+          applyTheme(isLight ? 'light' : 'dark');
+        };
+      }
+      if (headerEl.styleToggle) {
+        headerEl.styleToggle.onclick = () => {
+          const next = document.body.classList.contains('minimal') ? 'classic' : 'minimal';
+          applyStyle(next);
+        };
+      }
+
+      // Header controls
+      headerEl.search.addEventListener('input', e=>{
+        headerEl.clearSearch.style.display = e.target.value.trim() ? "inline" : "none";
+      });
+      headerEl.search.onkeydown = (e)=>{
+        if(e.key==="Enter" && headerEl.search.value.trim()){
+          navState.searchQuery = headerEl.search.value.trim(); goTo('search');
+        }
+      }
+      headerEl.clearSearch.onclick=()=>{
+        headerEl.search.value=""; headerEl.clearSearch.style.display="none";
+        if(navState.page==="search") goBack();
+      }
+      headerEl.startAddCardBtn.onclick = ()=>goTo('edit', {cardId:null, parentId:null});
+      if (headerEl.homeBtn) headerEl.homeBtn.onclick = ()=>goTo('list', {cardId:null});
+      if (headerEl.backBtn) headerEl.backBtn.onclick = ()=>goBack();
+
+      // Boot
+      load();
+      goTo('list',{cardId:null});
+    } catch (e) {
+      bootError(e.message || String(e));
+    }
+  });
+  </script>
+</body>
+</html>
