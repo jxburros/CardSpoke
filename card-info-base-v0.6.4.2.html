@@ -694,6 +694,31 @@
         return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       }
 
+      function readFileAsText(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.onerror = () => reject(new Error('Failed to read file'));
+          reader.readAsText(file);
+        });
+      }
+
+      async function extractDocxText(file) {
+        if (typeof mammoth === 'undefined') {
+          throw new Error('DOCX support requires mammoth.js library. This feature is currently unavailable.');
+        }
+
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        const text = (result.value || '').trim();
+
+        if (!text) {
+          throw new Error('No text extracted from document');
+        }
+
+        return text;
+      }
+
       function showToast(message, type = 'success') {
         toastEl.toastMessage.textContent = message;
         toastEl.toastIcon.textContent = type === 'success' ? '✓' : '✕';
@@ -1183,28 +1208,14 @@
        * @returns {Promise<Object>} Import result
        */
       async function importDocxToCard(file, cardId, mode = 'append') {
-        // Check if mammoth.js is available
-        if (typeof mammoth === 'undefined') {
-          return { 
-            success: false, 
-            error: 'DOCX support requires mammoth.js library. This feature is currently unavailable.' 
-          };
-        }
-        
         const card = store.cards[cardId];
         if (!card) {
           return { success: false, error: 'Card not found' };
         }
-        
+
         try {
-          const arrayBuffer = await file.arrayBuffer();
-          const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
-          const text = result.value.trim();
-          
-          if (!text) {
-            return { success: false, error: 'No text extracted from document' };
-          }
-          
+          const text = await extractDocxText(file);
+
           if (mode === 'replace') {
             card.body = text;
           } else {
@@ -1293,11 +1304,15 @@
         const newCards = {};
         Object.entries(pkg.cards).forEach(([oldId, card]) => {
           const newId = idMap[oldId];
+          const remappedChildren = card.children
+            .map(childId => idMap[childId])
+            .filter(Boolean);
+
           newCards[newId] = {
             ...card,
             id: newId,
             parentId: card.parentId ? (idMap[card.parentId] || null) : null,
-            children: card.children.map(childId => idMap[childId] || childId).filter(id => idMap[id]),
+            children: remappedChildren,
             createdAt: card.createdAt || Date.now(),
             updatedAt: Date.now(),
             modsData: card.modsData || {}
@@ -1305,7 +1320,9 @@
         });
 
         // Remap rootIds
-        const newRootIds = pkg.rootIds.map(oldId => idMap[oldId] || oldId).filter(id => idMap[id]);
+        const newRootIds = pkg.rootIds
+          .map(oldId => idMap[oldId])
+          .filter(Boolean);
 
         return {
           ...pkg,
@@ -1745,6 +1762,65 @@
         const bodyInput = h('textarea', { placeholder: 'Write info or details...' }, card?.body || '');
         bodyInput.addEventListener('input', () => { dirty = true; });
         form.appendChild(bodyInput);
+
+        const txtFileInput = h('input', { type: 'file', accept: '.txt', style: 'display:none;' });
+        const docxFileInput = h('input', { type: 'file', accept: '.docx', style: 'display:none;' });
+
+        const applyImportedText = (text, sourceLabel) => {
+          const cleaned = (text || '').trim();
+          if (!cleaned) {
+            showToast(`No text found in ${sourceLabel}`, 'error');
+            return;
+          }
+
+          if (bodyInput.value.trim() && !confirm('Replace the current details with the imported text?')) {
+            return;
+          }
+
+          bodyInput.value = cleaned;
+          dirty = true;
+          showToast(`Loaded text from ${sourceLabel}`, 'success');
+        };
+
+        txtFileInput.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          try {
+            const text = await readFileAsText(file);
+            applyImportedText(text, 'the TXT file');
+          } catch (err) {
+            showToast(err.message || 'Failed to read TXT file', 'error');
+          } finally {
+            e.target.value = '';
+          }
+        });
+
+        docxFileInput.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          try {
+            const text = await extractDocxText(file);
+            applyImportedText(text, 'the DOCX file');
+          } catch (err) {
+            showToast(err.message || 'Failed to process DOCX file', 'error');
+          } finally {
+            e.target.value = '';
+          }
+        });
+
+        const fileButtonRow = h('div', {
+          className: 'form-file-actions',
+          style: 'display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 16px;'
+        },
+          h('button', { type: 'button', className: 'btn ghost', onclick: () => txtFileInput.click() }, 'Use TXT File'),
+          h('button', { type: 'button', className: 'btn ghost', onclick: () => docxFileInput.click() }, 'Use DOCX File')
+        );
+
+        form.appendChild(txtFileInput);
+        form.appendChild(docxFileInput);
+        form.appendChild(fileButtonRow);
 
         form.appendChild(h('label', null, 'Parent'));
         let parVal = editing ? (card.parentId ?? '') : (navState.parentId || '');
