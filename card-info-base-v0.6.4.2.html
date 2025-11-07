@@ -728,6 +728,23 @@
         }, 3000);
       }
 
+      function cloneCard(card) {
+        if (!card) return null;
+        let modsData = {};
+        if (card.modsData) {
+          try {
+            modsData = JSON.parse(JSON.stringify(card.modsData));
+          } catch (err) {
+            modsData = { ...card.modsData };
+          }
+        }
+        return {
+          ...card,
+          children: Array.isArray(card.children) ? card.children.slice() : [],
+          modsData
+        };
+      }
+
       /* =========================
          STORAGE
          ========================= */
@@ -771,6 +788,192 @@
       }
 
       /* =========================
+         MOD SYSTEM FOUNDATION (Phase 5)
+         ========================= */
+      const CIB_MODS = (() => {
+        const registry = {};
+        const styleTags = {};
+        const initializedMods = new Set();
+
+        function ensureRegistered(modId, modData) {
+          const existing = registry[modId];
+          if (existing && existing.__loaded) {
+            return existing;
+          }
+          if (!modData || !modData.js) {
+            if (!registry[modId]) {
+              registry[modId] = { id: modId, hooks: {}, meta: modData?.meta || {}, __loaded: true };
+            }
+            return registry[modId];
+          }
+          try {
+            registry[modId] = registry[modId] || { id: modId, hooks: {}, meta: {} };
+            const sourceURL = `\n//# sourceURL=${modId}.mod.js`;
+            const storeAPI = createStoreAPI(modId);
+            const runner = new Function('window', 'document', 'CIB_MODS', 'storeAPI', 'console', modData.js + sourceURL);
+            runner(window, document, CIB_MODS, storeAPI, console);
+            if (modData.meta) {
+              registry[modId].meta = { ...modData.meta };
+            }
+            registry[modId].__loaded = true;
+            return registry[modId];
+          } catch (err) {
+            console.error(`[Mods] Failed to evaluate ${modId}:`, err);
+            registry[modId] = registry[modId] || { id: modId, hooks: {}, meta: modData?.meta || {} };
+            registry[modId].__loaded = false;
+            registry[modId].__error = err;
+            return null;
+          }
+        }
+
+        function ensureStyle(modId, css) {
+          if (!css || styleTags[modId]) return;
+          const tag = document.createElement('style');
+          tag.setAttribute('data-mod-style', modId);
+          tag.textContent = css;
+          document.head.appendChild(tag);
+          styleTags[modId] = tag;
+        }
+
+        function removeStyle(modId) {
+          const tag = styleTags[modId];
+          if (tag && tag.parentNode) tag.parentNode.removeChild(tag);
+          delete styleTags[modId];
+        }
+
+        function createStoreAPI(modId) {
+          return {
+            getAppInfo() {
+              return { appVersion: APP_VERSION, schemaVersion: SCHEMA_VERSION };
+            },
+            getCard(id) {
+              return cloneCard(store.cards[id]);
+            },
+            listCards() {
+              return Object.values(store.cards).map(cloneCard);
+            },
+            listRootIds() {
+              return store.rootOrder.slice();
+            },
+            getNavState() {
+              return { ...navState };
+            },
+            navigate(page, opts = {}) {
+              goTo(page, opts);
+            },
+            showToast(message, type = 'success') {
+              showToast(message, type);
+            },
+            markDirty() {
+              dirty = true;
+            }
+          };
+        }
+
+        function buildContext(modId) {
+          return {
+            modId,
+            appVersion: APP_VERSION,
+            schemaVersion: SCHEMA_VERSION,
+            api: createStoreAPI(modId)
+          };
+        }
+
+        return {
+          registry,
+          register(modId, definition = {}) {
+            if (!modId) throw new Error('CIB_MODS.register requires a mod id');
+            const entry = registry[modId] || { id: modId, hooks: {}, meta: {} };
+            entry.hooks = {
+              onAppInit: typeof definition.onAppInit === 'function' ? definition.onAppInit : entry.hooks.onAppInit,
+              onCardRender: typeof definition.onCardRender === 'function' ? definition.onCardRender : entry.hooks.onCardRender,
+              onCardSave: typeof definition.onCardSave === 'function' ? definition.onCardSave : entry.hooks.onCardSave,
+              onCardDelete: typeof definition.onCardDelete === 'function' ? definition.onCardDelete : entry.hooks.onCardDelete
+            };
+            if (definition.meta) {
+              entry.meta = { ...definition.meta };
+            }
+            registry[modId] = entry;
+            entry.__loaded = true;
+            return entry;
+          },
+          enable(modId) {
+            const modData = store.mods[modId];
+            if (!modData) {
+              console.warn(`[Mods] Cannot enable missing mod ${modId}`);
+              return false;
+            }
+            modData.enabled = true;
+            ensureStyle(modId, modData.css);
+            const entry = ensureRegistered(modId, modData);
+            if (!entry) return false;
+            initializedMods.delete(modId);
+            save();
+            this.runHook('onAppInit');
+            return true;
+          },
+          disable(modId) {
+            const modData = store.mods[modId];
+            if (!modData) return false;
+            modData.enabled = false;
+            removeStyle(modId);
+            initializedMods.delete(modId);
+            save();
+            return true;
+          },
+          syncFromStore() {
+            Object.keys(registry).forEach(modId => {
+              if (!store.mods[modId]) {
+                removeStyle(modId);
+                initializedMods.delete(modId);
+                delete registry[modId];
+              }
+            });
+            Object.entries(store.mods).forEach(([modId, modData]) => {
+              if (!modData) return;
+              if (modData.enabled) {
+                ensureStyle(modId, modData.css);
+                ensureRegistered(modId, modData);
+              } else {
+                removeStyle(modId);
+              }
+            });
+          },
+          runHook(name, ...args) {
+            Object.entries(store.mods).forEach(([modId, modData]) => {
+              if (!modData?.enabled) return;
+              const entry = ensureRegistered(modId, modData);
+              if (!entry) return;
+              if (name === 'onAppInit' && initializedMods.has(modId)) return;
+              const fn = entry.hooks?.[name];
+              if (typeof fn === 'function') {
+                try {
+                  const context = buildContext(modId);
+                  fn(...args, context);
+                  if (name === 'onAppInit') {
+                    initializedMods.add(modId);
+                  }
+                } catch (err) {
+                  console.error(`[Mods] ${modId} ${name} hook failed:`, err);
+                }
+              }
+            });
+          }
+        };
+      })();
+      window.CIB_MODS = CIB_MODS;
+
+      function runModHook(name, ...args) {
+        try {
+          if (window.CIB_MODS && typeof window.CIB_MODS.runHook === 'function') {
+            window.CIB_MODS.runHook(name, ...args);
+          }
+        } catch (err) {
+          console.error('[Mods] Failed to dispatch hook', err);
+        }
+      }
+
+      /* =========================
          CARD MANAGEMENT
          ========================= */
       function createCard(title, body, parentId) {
@@ -791,6 +994,7 @@
         } else {
           store.rootOrder.push(id);
         }
+        runModHook('onCardSave', cloneCard(card), { isNew: true, source: 'createCard' });
         return card;
       }
 
@@ -812,11 +1016,13 @@
             store.rootOrder.push(id);
           }
         }
+        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'updateCard' });
       }
 
       function deleteCard(id) {
         const card = store.cards[id];
         if (!card) return;
+        const snapshot = cloneCard(card);
         card.children.slice().forEach(cid => deleteCard(cid));
         if (card.parentId && store.cards[card.parentId]) {
           store.cards[card.parentId].children = store.cards[card.parentId].children.filter(cid => cid !== id);
@@ -824,6 +1030,7 @@
           store.rootOrder = store.rootOrder.filter(cid => cid !== id);
         }
         delete store.cards[id];
+        runModHook('onCardDelete', snapshot, { source: 'deleteCard' });
       }
 
       /* =========================
@@ -888,13 +1095,25 @@
         cardIdsToExport.forEach(cardId => {
           const card = store.cards[cardId];
           if (card) {
-            pkg.cards[cardId] = { ...card };
+            pkg.cards[cardId] = cloneCard(card);
           }
         });
 
         // Include mods for instance exports
         if (exportType === 'instance' && Object.keys(store.mods).length > 0) {
-          pkg.mods = { ...store.mods };
+          const sortedMods = Object.keys(store.mods).sort();
+          pkg.mods = {};
+          sortedMods.forEach(modId => {
+            const mod = store.mods[modId];
+            if (mod) {
+              pkg.mods[modId] = {
+                enabled: !!mod.enabled,
+                js: mod.js || '',
+                css: mod.css || '',
+                meta: mod.meta ? { ...mod.meta } : {}
+              };
+            }
+          });
         }
 
         return pkg;
@@ -1193,10 +1412,12 @@
         } else {
           card.body = text.trim();
         }
-        
+
         card.updatedAt = Date.now();
         save();
-        
+
+        runModHook('onCardSave', cloneCard(card), { source: 'appendTXT' });
+
         return { success: true };
       }
 
@@ -1226,10 +1447,12 @@
               card.body = text;
             }
           }
-          
+
           card.updatedAt = Date.now();
           save();
-          
+
+          runModHook('onCardSave', cloneCard(card), { source: 'importDOCX', mode });
+
           return { success: true, textLength: text.length };
         } catch (error) {
           return { success: false, error: error.message || 'Failed to process DOCX file' };
@@ -1339,7 +1562,8 @@
        */
       function importJSON(pkg, mode) {
         const remappedPkg = remapIds(pkg);
-        
+        const importedIds = Object.keys(remappedPkg.cards);
+
         // Add all cards to store
         Object.entries(remappedPkg.cards).forEach(([cardId, card]) => {
           store.cards[cardId] = card;
@@ -1374,13 +1598,29 @@
         if (pkg.exportType === 'instance' && pkg.mods) {
           Object.entries(pkg.mods).forEach(([modId, mod]) => {
             if (!store.mods[modId]) {
-              store.mods[modId] = mod;
+              store.mods[modId] = {
+                enabled: !!mod.enabled,
+                js: mod.js || '',
+                css: mod.css || '',
+                meta: mod.meta ? { ...mod.meta } : {}
+              };
             }
           });
         }
 
         save();
-        
+        if (window.CIB_MODS) {
+          window.CIB_MODS.syncFromStore();
+          window.CIB_MODS.runHook('onAppInit');
+        }
+
+        importedIds.forEach(cardId => {
+          const storedCard = store.cards[cardId];
+          if (storedCard) {
+            runModHook('onCardSave', cloneCard(storedCard), { isNew: true, source: 'importJSON', exportType: pkg.exportType });
+          }
+        });
+
         return {
           success: true,
           cardCount: Object.keys(remappedPkg.cards).length,
@@ -1507,6 +1747,8 @@
          ========================= */
       function cardListTile(c) {
         const tile = h('div', { className: 'card-tile', onclick: () => goTo('read', { cardId: c.id }) });
+        tile.dataset.cardId = c.id;
+        tile.dataset.renderType = 'list';
         const titleRow = h('div', { className: 'card-title-row' });
         const title = h('div', { className: 'ct-title' }, c.title || '(Untitled)');
         titleRow.appendChild(title);
@@ -1553,7 +1795,11 @@
             kids.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           }
           grid.innerHTML = '';
-          kids.forEach(c => grid.appendChild(cardListTile(c)));
+          kids.forEach(c => {
+            const tile = cardListTile(c);
+            grid.appendChild(tile);
+            runModHook('onCardRender', cloneCard(c), tile);
+          });
         };
 
         sortSelect.addEventListener('change', sortKids);
@@ -1561,8 +1807,8 @@
 
         const grid = document.createElement('div');
         grid.className = 'card-list';
-        sortKids();
         main.appendChild(grid);
+        sortKids();
 
         const addBtn = h('button', { className: 'btn primary', style: 'margin-top:20px', onclick: () => goTo('edit', { cardId: null, parentId: parentId }) }, '+ Add Card Here');
         main.appendChild(addBtn);
@@ -1580,7 +1826,12 @@
           return;
         }
 
-        main.appendChild(h('div', { className: 'card-main-title' }, card.title || '(Untitled)'));
+        const cardView = h('div', { className: 'card-view' });
+        cardView.dataset.cardId = card.id;
+        cardView.dataset.renderType = 'detail';
+        main.appendChild(cardView);
+
+        cardView.appendChild(h('div', { className: 'card-main-title' }, card.title || '(Untitled)'));
 
         if (card.parentId) {
           const parent = store.cards[card.parentId];
@@ -1589,12 +1840,12 @@
               'Parent: ',
               h('a', { href: '#', onclick: (e) => { e.preventDefault(); goTo('read', { cardId: parent.id }); } }, parent.title || '(Untitled)')
             );
-            main.appendChild(ref);
+            cardView.appendChild(ref);
           }
         }
 
         if (card.body) {
-          main.appendChild(h('div', { className: 'details' }, card.body));
+          cardView.appendChild(h('div', { className: 'details' }, card.body));
         }
 
         // Action row 1: Edit and Download (operations on THIS card)
@@ -1630,8 +1881,8 @@
         cardDropdown.appendChild(cardExportMenu);
         setupDropdown(cardExportToggle, cardExportMenu);
         actionRow1.appendChild(cardDropdown);
-        
-        main.appendChild(actionRow1);
+
+        cardView.appendChild(actionRow1);
 
         // Action row 2: Add Child and Upload (operations to ADD children)
         const actionRow2 = h('div', { className: 'action-row' });
@@ -1645,14 +1896,14 @@
             modalEl.uploadModal.classList.add('show');
           }
         }, 'Upload Card'));
-        
-        main.appendChild(actionRow2);
+
+        cardView.appendChild(actionRow2);
 
         // Children section
         if (card.children.length > 0) {
-          main.appendChild(h('div', { className: 'subhead', style: 'margin-top:16px' }, 'Children'));
+          cardView.appendChild(h('div', { className: 'subhead', style: 'margin-top:16px' }, 'Children'));
           const childList = h('div', { className: 'children-preview-list' });
-          
+
           // Show first 4 children alphabetically
           const sortedKids = card.children.slice().sort((a, b) => {
             const cardA = store.cards[a];
@@ -1677,14 +1928,14 @@
               childList.appendChild(tile);
             }
           });
-          main.appendChild(childList);
+          cardView.appendChild(childList);
         } else {
-          main.appendChild(h('div', { className: 'empty', style: 'margin-top:13px;' }, 'No children.'));
+          cardView.appendChild(h('div', { className: 'empty', style: 'margin-top:13px;' }, 'No children.'));
         }
 
         // Navigation row: See All Children and See Siblings (NAVIGATION operations)
         const navRow = h('div', { className: 'action-row' });
-        
+
         // See All Children - always enabled, shows empty list if no children
         const seeChildrenBtn = h('button', { 
           className: 'btn ghost',
@@ -1693,19 +1944,21 @@
         navRow.appendChild(seeChildrenBtn);
         
         // See Siblings - always visible, goes to parent list or root
-        const seeSiblingsBtn = h('button', { 
-          className: 'btn ghost', 
-          onclick: () => goTo('list', { cardId: card.parentId || null }) 
+        const seeSiblingsBtn = h('button', {
+          className: 'btn ghost',
+          onclick: () => goTo('list', { cardId: card.parentId || null })
         }, 'See Siblings');
         navRow.appendChild(seeSiblingsBtn);
-        
-        main.appendChild(navRow);
+
+        cardView.appendChild(navRow);
 
         // Card metadata
-        main.appendChild(h('div', { 
-          className: 'ct-meta', 
-          style: 'margin-top:20px;' 
+        cardView.appendChild(h('div', {
+          className: 'ct-meta',
+          style: 'margin-top:20px;'
         }, 'Created ' + formatDate(card.createdAt)));
+
+        runModHook('onCardRender', cloneCard(card), cardView);
       }
 
       function renderEditCard() {
@@ -1907,8 +2160,12 @@
         } else {
           const grid = document.createElement('div');
           grid.className = 'card-list';
-          results.forEach(c => grid.appendChild(cardListTile(c)));
           main.appendChild(grid);
+          results.forEach(c => {
+            const tile = cardListTile(c);
+            grid.appendChild(tile);
+            runModHook('onCardRender', cloneCard(c), tile);
+          });
         }
       }
 
@@ -2279,6 +2536,10 @@
 
       // Boot
       load();
+      if (window.CIB_MODS) {
+        window.CIB_MODS.syncFromStore();
+        window.CIB_MODS.runHook('onAppInit');
+      }
       goTo('list', { cardId: null });
     } catch (e) {
       bootError(e.message || String(e));
