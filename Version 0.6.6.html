@@ -11,9 +11,9 @@
     Version: 0.6.6
     Released by: jxburros
     Build date: 2025-11-06
-    Notes: Update - Added extension installer and manager UI for mods
-           - Supports packaged JSON uploads and paste-from-code installs
-           - Added Manage Extensions modal with enable/disable and removal controls
+    Notes: Hotfix - Fixed JSON/TXT/DOCX import and See All Children
+           - Removed redundant render() calls after goTo() (was causing import failures)
+           - See All Children button now always enabled (shows empty list if no children)
     =============================================================
   -->
   <meta name="app:version" content="0.6.6">
@@ -349,9 +349,6 @@
       display: flex;
       gap: 8px;
       align-items: center;
-    }
-    .mod-row.disabled {
-      opacity: 0.6;
     }
     .file-upload-area {
       border: 2px dashed var(--border);
@@ -1097,26 +1094,25 @@
       }
 
       function normalizeModPackage(raw) {
-        const toStr = (value) => typeof value === 'string' ? value.trim() : '';
         if (!raw || typeof raw !== 'object') {
           return { success: false, error: 'Invalid mod package structure' };
         }
-        const modId = toStr(raw.id) || toStr(raw.modId);
+        const modId = typeof raw.id === 'string' ? raw.id.trim() : typeof raw.modId === 'string' ? raw.modId.trim() : '';
         if (!modId) {
           return { success: false, error: 'Extension package is missing an id' };
         }
-        const js = toStr(raw.js);
+        const js = typeof raw.js === 'string' ? raw.js : '';
         if (!js.trim()) {
           return { success: false, error: 'Extension package must include JavaScript' };
         }
-        const css = toStr(raw.css);
+        const css = typeof raw.css === 'string' ? raw.css : '';
         const enabled = raw.enabled === undefined ? true : !!raw.enabled;
         const metaSource = typeof raw.meta === 'object' && raw.meta !== null ? raw.meta : {};
         const meta = {
-          name: toStr(metaSource.name) || toStr(raw.name),
-          version: toStr(metaSource.version) || toStr(raw.version),
-          author: toStr(metaSource.author) || toStr(raw.author),
-          description: toStr(metaSource.description) || toStr(raw.description)
+          name: typeof metaSource.name === 'string' ? metaSource.name : typeof raw.name === 'string' ? raw.name : '',
+          version: typeof metaSource.version === 'string' ? metaSource.version : typeof raw.version === 'string' ? raw.version : '',
+          author: typeof metaSource.author === 'string' ? metaSource.author : typeof raw.author === 'string' ? raw.author : '',
+          description: typeof metaSource.description === 'string' ? metaSource.description : typeof raw.description === 'string' ? raw.description : ''
         };
         return { success: true, modId, js, css, enabled, meta };
       }
@@ -1137,7 +1133,7 @@
           enabled: !!enabled,
           js,
           css,
-          meta: { ...meta }
+          meta
         };
         save();
         if (window.CIB_MODS) {
@@ -1217,7 +1213,7 @@
             h('button', { className: 'btn ghost', 'data-mod-action': 'toggle', 'data-mod-id': modId }, modData.enabled ? 'Disable' : 'Enable'),
             h('button', { className: 'btn danger', 'data-mod-action': 'remove', 'data-mod-id': modId }, 'Remove')
           );
-          const row = h('div', { className: 'mod-row' + (modData.enabled ? '' : ' disabled') }, info, actions);
+          const row = h('div', { className: 'mod-row' }, info, actions);
           modalEl.modsList.appendChild(row);
         });
       }

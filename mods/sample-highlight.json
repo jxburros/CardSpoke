@@ -1,0 +1,12 @@
+{
+  "id": "sample.highlight@1.0.0",
+  "enabled": true,
+  "meta": {
+    "name": "Sample Highlight",
+    "version": "1.0.0",
+    "author": "Card Info Base",
+    "description": "Outlines cards that have more than three children."
+  },
+  "js": "const MOD_ID = 'sample.highlight@1.0.0';\nconst HIGHLIGHT_CLASS = 'sample-highlight-card';\nCIB_MODS.register(MOD_ID, {\n  meta: {\n    name: 'Sample Highlight',\n    version: '1.0.0',\n    author: 'Card Info Base',\n    description: 'Outlines cards that have more than three children.'\n  },\n  onCardRender(card, element) {\n    if (!element || !card) return;\n    if (Array.isArray(card.children) && card.children.length > 3) {\n      element.classList.add(HIGHLIGHT_CLASS);\n    } else {\n      element.classList.remove(HIGHLIGHT_CLASS);\n    }\n  },\n  onCardDelete(card, info, context) {\n    const api = context?.api;\n    if (api && typeof api.showToast === 'function') {\n      api.showToast(`Removed ${card?.title || 'a card'} (Sample Highlight).`, 'success');\n    }\n  }\n});\n",
+  "css": ".sample-highlight-card{outline:2px solid #67e2bc;outline-offset:3px;box-shadow:0 0 12px rgba(103,226,188,0.4);}"
+}

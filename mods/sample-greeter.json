@@ -1,0 +1,12 @@
+{
+  "id": "sample.greeter@1.0.0",
+  "enabled": true,
+  "meta": {
+    "name": "Sample Greeter",
+    "version": "1.0.0",
+    "author": "Card Info Base",
+    "description": "Displays toast notifications when cards are created or updated."
+  },
+  "js": "const MOD_ID = 'sample.greeter@1.0.0';\nCIB_MODS.register(MOD_ID, {\n  meta: {\n    name: 'Sample Greeter',\n    version: '1.0.0',\n    author: 'Card Info Base',\n    description: 'Displays toast notifications when cards are created or updated.'\n  },\n  onAppInit(_, context) {\n    const api = context?.api;\n    if (api && typeof api.showToast === 'function') {\n      api.showToast('Sample Greeter ready to help!');\n    }\n  },\n  onCardSave(card, info, context) {\n    const api = context?.api;\n    if (!api || typeof api.showToast !== 'function') return;\n    const name = card?.title || '(Untitled)';\n    if (info?.isNew) {\n      api.showToast(`Created \"${name}\" with Sample Greeter.`, 'success');\n    } else {\n      api.showToast(`Updated \"${name}\" with Sample Greeter.`, 'success');\n    }\n  }\n});\n",
+  "css": ""
+}
