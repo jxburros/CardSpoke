@@ -16,13 +16,13 @@ export function ManageModsModal({ open, onOpenChange, store, onToggleMod, onRemo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl rounded-[32px] bg-background/95 p-8">
         <DialogHeader>
           <DialogTitle className="text-2xl font-semibold">Manage Extensions</DialogTitle>
         </DialogHeader>
 
         {mods.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border px-6 py-12 text-center text-muted-foreground">
+          <div className="rounded-[28px] bg-muted/25 px-8 py-16 text-center text-muted-foreground">
             No extensions installed yet.
           </div>
         ) : (
@@ -32,7 +32,7 @@ export function ManageModsModal({ open, onOpenChange, store, onToggleMod, onRemo
               return (
                 <div
                   key={modId}
-                  className={`border border-border rounded-2xl p-5 bg-card/50 flex items-center justify-between gap-4 ${
+                  className={`flex items-center justify-between gap-4 rounded-[28px] bg-muted/20 p-6 shadow-[0_24px_60px_rgba(17,17,17,0.08)] ${
                     mod.enabled ? "" : "opacity-60"
                   }`}
                 >

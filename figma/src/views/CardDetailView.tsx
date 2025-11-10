@@ -1,8 +1,8 @@
 import { CardID, StoreShape } from "../lib/types";
 import { formatDate, bodyPreview } from "../lib/format";
 import { Button } from "../components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
+import { SimpleMenu } from "../components/SimpleMenu";
 
 interface CardDetailViewProps {
   store: StoreShape;
@@ -49,7 +49,7 @@ export function CardDetailView({
             </button>
           </p>
         )}
-        <p className="text-muted-foreground whitespace-pre-wrap leading-7 bg-muted/20 border border-border rounded-2xl p-6">
+        <p className="whitespace-pre-wrap rounded-[32px] bg-muted/25 p-8 text-lg leading-relaxed text-muted-foreground">
           {card.body || "No details available yet."}
         </p>
       </header>
@@ -65,23 +65,24 @@ export function CardDetailView({
             <Button variant="ghost" onClick={() => onUploadToCard(card.id)}>
               Upload to Card
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary" size="icon">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => onExport(card.id, "card-json")}>Download Card (JSON)</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onExport(card.id, "card-txt")}>Download Card (TXT)</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onExport(card.id, "subtree-json")}>
-                  Download Card + Children (JSON)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onExport(card.id, "subtree-txt")}>
-                  Download Card + Children (TXT)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+              role="presentation"
+            >
+              <SimpleMenu
+                triggerIcon={<MoreHorizontal className="h-4 w-4" />}
+                triggerLabel="Card export menu"
+                triggerClassName="h-11 w-11 rounded-full bg-foreground/10 text-foreground hover:bg-foreground/20"
+                items={[
+                  { label: "Download Card (JSON)", onSelect: () => onExport(card.id, "card-json") },
+                  { label: "Download Card (TXT)", onSelect: () => onExport(card.id, "card-txt") },
+                  { label: "Download Card + Children (JSON)", onSelect: () => onExport(card.id, "subtree-json") },
+                  { label: "Download Card + Children (TXT)", onSelect: () => onExport(card.id, "subtree-txt") }
+                ]}
+                menuClassName="w-72"
+              />
+            </div>
             <Button variant="ghost" onClick={() => onViewChildren(card.id)}>
               View All Children
             </Button>
@@ -92,9 +93,9 @@ export function CardDetailView({
         </div>
 
         <div className="space-y-3">
-          <h3 className="uppercase tracking-wide text-xs text-muted-foreground">Metadata</h3>
-          <div className="rounded-2xl border border-border p-5 bg-card/50">
-            <dl className="space-y-3 text-sm">
+          <h3 className="uppercase tracking-[0.3em] text-xs text-muted-foreground">Metadata</h3>
+          <div className="rounded-[28px] bg-muted/20 p-6">
+            <dl className="space-y-4 text-sm text-foreground/90">
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Created</dt>
                 <dd>{formatDate(card.createdAt)}</dd>
@@ -120,7 +121,7 @@ export function CardDetailView({
           </Button>
         </div>
         {children.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border px-6 py-10 text-muted-foreground">
+          <div className="rounded-[28px] bg-muted/20 px-6 py-12 text-muted-foreground">
             No children yet.
           </div>
         ) : (
@@ -128,7 +129,7 @@ export function CardDetailView({
             {children.map((child) => (
               <button
                 key={child!.id}
-                className="text-left rounded-2xl border border-border p-5 bg-card/40 hover:border-foreground transition"
+                className="rounded-[28px] bg-card/80 p-6 text-left text-foreground shadow-[0_24px_60px_rgba(17,17,17,0.08)] transition hover:shadow-[0_30px_90px_rgba(17,17,17,0.12)]"
                 onClick={() => onOpenCard(child!.id)}
                 ref={(el) => onCardRender(child!.id, el)}
               >

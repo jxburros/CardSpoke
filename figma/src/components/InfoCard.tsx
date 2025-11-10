@@ -21,7 +21,7 @@ export const InfoCard = forwardRef<HTMLDivElement, InfoCardProps>(function InfoC
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className="group pb-8 mb-8 rounded-2xl p-8 shadow-sm hover:shadow-lg transition-shadow duration-500 bg-card border border-border"
+      className="group mb-10 rounded-[32px] px-10 py-12 bg-card/95 text-foreground shadow-[0_40px_80px_rgba(17,17,17,0.08)] transition duration-500 hover:shadow-[0_50px_120px_rgba(17,17,17,0.12)]"
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -42,20 +42,23 @@ export const InfoCard = forwardRef<HTMLDivElement, InfoCardProps>(function InfoC
           </div>
 
           {/* Preview */}
-          <p className="text-muted-foreground max-w-2xl pl-8">
+          <p className="max-w-2xl pl-8 text-lg leading-relaxed text-muted-foreground">
             {preview}
           </p>
 
           {/* Tags */}
           {tags.length > 0 && (
             <div className="pl-8 pt-2">
-              <p className="text-muted-foreground italic tracking-wide flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
                 {tags.map((tag) => (
-                  <span key={tag} className="bg-muted/30 rounded-full px-3 py-1 text-xs uppercase tracking-wide">
+                  <span
+                    key={tag}
+                    className="rounded-full bg-foreground/5 px-4 py-1 text-xs uppercase tracking-[0.3em] text-foreground/70"
+                  >
                     #{tag.toLowerCase()}
                   </span>
                 ))}
-              </p>
+              </div>
             </div>
           )}
         </div>
@@ -75,11 +78,7 @@ export const InfoCard = forwardRef<HTMLDivElement, InfoCardProps>(function InfoC
           </div>
         )}
       </div>
-      {actions && (
-        <div className="mt-6 pt-6 border-t border-border/60 flex flex-wrap gap-3">
-          {actions}
-        </div>
-      )}
+      {actions && <div className="mt-10 flex flex-wrap gap-3">{actions}</div>}
     </motion.div>
   );
 });

@@ -601,7 +601,7 @@ export default function App() {
         onExport={(type) => handleExport(type)}
       />
 
-      <main className="max-w-6xl mx-auto px-6 md:px-16 pb-32">
+      <main className="mx-auto max-w-6xl px-6 pb-32 md:px-16">
         <Breadcrumbs
           store={store}
           currentCardId={breadcrumbTarget}
@@ -661,7 +661,7 @@ export default function App() {
           />
         )}
 
-        <section className="mt-24 pt-12 border-t border-border space-y-6">
+        <section className="mt-24 space-y-6">
           <form
             onSubmit={(event) => {
               event.preventDefault();

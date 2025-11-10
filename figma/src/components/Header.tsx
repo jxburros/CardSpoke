@@ -1,7 +1,7 @@
 import { Home, Moon, Sun, Menu, ArrowLeft, Sparkles } from "lucide-react";
 import { Button } from "./ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { motion } from "motion/react";
+import { SimpleMenu, SimpleMenuItem } from "./SimpleMenu";
 
 interface HeaderProps {
   theme: 'light' | 'dark';
@@ -36,51 +36,64 @@ export function Header({
   onInstance,
   onExport
 }: HeaderProps) {
+  const menuItems: SimpleMenuItem[] = [
+    { label: "New Card", onSelect: onAddCard },
+    { label: "Upload Content", onSelect: onUpload },
+    { label: "Manage Extensions", onSelect: onManageMods },
+    { label: "Switch Instance", onSelect: onInstance },
+    { label: styleMode === 'minimal' ? 'Style · Minimal' : 'Style · Classic', disabled: true },
+    ...exportMenuItems.map((item) => ({ label: item.label, onSelect: () => onExport(item.value) }))
+  ];
+
   return (
     <motion.header
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8 }}
-      className="bg-background border-b border-border"
+      className="bg-background"
     >
-      <div className="max-w-6xl mx-auto px-16 py-12">
-        <div className="flex items-center justify-between">
+      <div className="mx-auto flex max-w-6xl flex-col gap-12 px-6 pb-10 pt-16 md:px-16">
+        <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
           {/* Logo */}
-          <div>
-            <h1 className="text-foreground text-[56px] font-[Inter] font-bold leading-none">CardSpoke</h1>
-            <p className="text-muted-foreground tracking-wide uppercase text-xs mt-2">Card-Based Information Repository</p>
+          <div className="space-y-4">
+            <h1 className="text-[56px] font-semibold leading-none tracking-tight text-foreground" style={{ fontFamily: "'Inter', 'Outfit', sans-serif" }}>
+              CardSpoke
+            </h1>
+            <p className="max-w-sm text-sm uppercase tracking-[0.2em] text-muted-foreground">
+              Card-Based Information Repository
+            </p>
           </div>
 
           {/* Navigation Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
               onClick={onHome}
-              className="hover:bg-accent transition-all duration-500 w-11 h-11 text-foreground rounded-full"
+              className="h-12 w-12 rounded-full bg-foreground/90 text-background transition hover:bg-foreground"
             >
-              <Home className="w-5 h-5" strokeWidth={1.5} />
+              <Home className="h-5 w-5" strokeWidth={1.5} />
             </Button>
 
             <Button
               variant="ghost"
               size="icon"
               onClick={onBack}
-              className="hover:bg-accent transition-all duration-500 w-11 h-11 text-foreground rounded-full"
+              className="h-12 w-12 rounded-full bg-foreground/10 text-foreground transition hover:bg-foreground/20"
             >
-              <ArrowLeft className="w-5 h-5" strokeWidth={1.5} />
+              <ArrowLeft className="h-5 w-5" strokeWidth={1.5} />
             </Button>
 
             <Button
               variant="ghost"
               size="icon"
               onClick={onThemeToggle}
-              className="hover:bg-accent transition-all duration-500 w-11 h-11 text-foreground rounded-full"
+              className="h-12 w-12 rounded-full bg-foreground/10 text-foreground transition hover:bg-foreground/20"
             >
               {theme === 'light' ? (
-                <Moon className="w-5 h-5" strokeWidth={1.5} />
+                <Moon className="h-5 w-5" strokeWidth={1.5} />
               ) : (
-                <Sun className="w-5 h-5" strokeWidth={1.5} />
+                <Sun className="h-5 w-5" strokeWidth={1.5} />
               )}
             </Button>
 
@@ -88,49 +101,18 @@ export function Header({
               variant="ghost"
               size="icon"
               onClick={onStyleToggle}
-              className="hover:bg-accent transition-all duration-500 w-11 h-11 text-foreground rounded-full"
+              className="h-12 w-12 rounded-full bg-foreground/10 text-foreground transition hover:bg-foreground/20"
             >
-              <Sparkles className="w-5 h-5" strokeWidth={1.5} />
+              <Sparkles className="h-5 w-5" strokeWidth={1.5} />
             </Button>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hover:bg-accent transition-all duration-500 w-11 h-11 text-foreground rounded-full"
-                >
-                  <Menu className="w-5 h-5" strokeWidth={1.5} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60 mt-2">
-                <DropdownMenuItem onClick={onAddCard} className="cursor-pointer py-3 text-sm">
-                  New Card
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onUpload} className="cursor-pointer py-3 text-sm">
-                  Upload Content
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onManageMods} className="cursor-pointer py-3 text-sm">
-                  Manage Extensions
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onInstance} className="cursor-pointer py-3 text-sm">
-                  Switch Instance
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled className="py-2 text-xs text-muted-foreground">
-                  Style Mode: {styleMode === 'minimal' ? 'Minimal' : 'Classic'}
-                </DropdownMenuItem>
-                <div className="border-t border-border my-2" />
-                {exportMenuItems.map((item) => (
-                  <DropdownMenuItem
-                    key={item.value}
-                    onClick={() => onExport(item.value)}
-                    className="cursor-pointer py-3 text-sm"
-                  >
-                    {item.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <SimpleMenu
+              triggerIcon={<Menu className="h-5 w-5" strokeWidth={1.5} />}
+              triggerLabel="Open primary menu"
+              items={menuItems}
+              triggerClassName="h-12 w-12 rounded-full bg-foreground/90 text-background hover:bg-foreground"
+              menuClassName="backdrop-blur-xl"
+            />
           </div>
         </div>
       </div>

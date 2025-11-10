@@ -75,13 +75,13 @@ export function UploadModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl rounded-[32px] bg-background/95 p-8">
         <DialogHeader>
           <DialogTitle className="text-2xl font-semibold">Import Content</DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="json" className="mt-6">
-          <TabsList className="grid grid-cols-3">
+          <TabsList className="grid grid-cols-3 rounded-full bg-muted/30 p-1">
             <TabsTrigger value="json">JSON</TabsTrigger>
             <TabsTrigger value="txt">TXT</TabsTrigger>
             <TabsTrigger value="mods">Extensions</TabsTrigger>
@@ -91,7 +91,7 @@ export function UploadModal({
             <div className="space-y-3">
               <Label>Select location</Label>
               <select
-                className="w-full border border-border rounded-xl px-4 py-3 bg-background"
+                className="w-full rounded-full border-0 bg-muted/25 px-5 py-3 text-base text-foreground transition focus:bg-muted/35 focus:outline-none"
                 value={jsonLocation}
                 onChange={(event) => setJsonLocation(event.target.value as CardID | "root")}
               >
@@ -104,7 +104,7 @@ export function UploadModal({
               </select>
             </div>
 
-            <div className="border border-dashed border-border rounded-2xl p-8 text-center space-y-4">
+            <div className="space-y-4 rounded-[28px] bg-muted/25 p-10 text-center shadow-[0_24px_60px_rgba(17,17,17,0.08)]">
               <p className="text-muted-foreground">Upload a JSON package exported from CardSpoke.</p>
               <Input
                 type="file"
@@ -148,7 +148,7 @@ export function UploadModal({
             <div className="space-y-3">
               <Label>Select location</Label>
               <select
-                className="w-full border border-border rounded-xl px-4 py-3 bg-background"
+                className="w-full rounded-full border-0 bg-muted/25 px-5 py-3 text-base text-foreground transition focus:bg-muted/35 focus:outline-none"
                 value={txtLocation}
                 onChange={(event) => setTxtLocation(event.target.value as CardID | "root")}
               >
@@ -163,7 +163,7 @@ export function UploadModal({
               </select>
             </div>
 
-            <div className="border border-dashed border-border rounded-2xl p-8 text-center space-y-4">
+            <div className="space-y-4 rounded-[28px] bg-muted/25 p-10 text-center shadow-[0_24px_60px_rgba(17,17,17,0.08)]">
               <p className="text-muted-foreground">Upload a TXT outline exported from CardSpoke or another tool.</p>
               <Input
                 type="file"

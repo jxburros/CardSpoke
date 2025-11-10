@@ -98,7 +98,7 @@ export function CardFormView({ store, cardId, parentId, onSubmit, onCancel, onDe
         <div className="space-y-2">
           <label className="text-sm font-medium">Parent Card</label>
           <select
-            className="w-full border border-border rounded-xl px-4 py-3 bg-background"
+            className="w-full rounded-full border-0 bg-muted/25 px-5 py-3 text-base text-foreground transition focus:bg-muted/35 focus:outline-none"
             value={selectedParent ?? ""}
             onChange={(event) => {
               const value = event.target.value as CardID | "";
