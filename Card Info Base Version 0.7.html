@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Card Info Base</title>
+  <title>CardSpoke</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
 
   <!-- 
@@ -31,241 +31,619 @@
   <meta name="app:author" content="jxburros">
 
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap');
+
     /* =============================================================
        DESIGN TOKENS
        ============================================================= */
     :root {
-      /* Color */
-      --bg: #0b0f18; --panel: #131a2a; --card: #101724; --elev: #0f1522;
-      --border: #3a4561; --ring: #86b7ff; --text: #f2f6ff; --muted: #b7c2d9;
-      --accent: #86a8ff; --success: #67e2bc; --danger-bg: #351820; --danger: #ff9fb1;
-
-      /* Typography */
-      --ff: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      --fs-0: 14px; --fs-1: 16px; --fs-2: 18px; --fs-3: 20px; --fs-4: 24px; --lh: 1.6;
-
-      /* Geometry */
-      --radius: 14px; --radius-pill: 999px;
-      --space-1: 6px; --space-2: 10px; --space-3: 14px; --space-4: 20px;
-
-      /* Shadows & layout */
-      --shadow-1: 0 12px 30px rgba(0,0,0,.35);
-      --grid-min: 250px;
+      --bg: #0b0f18;
+      --panel: #131a2a;
+      --card: #101724;
+      --elev: #0f1522;
+      --border: #3a4561;
+      --ring: #86b7ff;
+      --text: #f2f6ff;
+      --muted: #b7c2d9;
+      --accent: #86a8ff;
+      --accent-contrast: #0a0f1a;
+      --success: #67e2bc;
+      --danger-bg: #351820;
+      --danger: #ff9fb1;
+      --ff-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --ff-heading: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --fs-0: 14px;
+      --fs-1: 16px;
+      --fs-2: 18px;
+      --fs-3: 20px;
+      --fs-4: 24px;
+      --lh: 1.6;
+      --radius: 16px;
+      --radius-pill: 999px;
+      --space-1: 6px;
+      --space-2: 10px;
+      --space-3: 16px;
+      --space-4: 24px;
+      --shadow-1: 0 12px 30px rgba(0, 0, 0, 0.35);
+      --shadow-hover: 0 18px 38px rgba(0, 0, 0, 0.4);
+      --grid-min: 280px;
     }
+
     :root.light {
-      --bg: #f6f7fb; --panel: #ffffff; --card: #ffffff; --elev: #ffffff; --border: #e7eaf1;
-      --ring: #2b59ff; --text: #0e1220; --muted: #5b6275; --accent: #2b59ff; --success: #1ea97c;
-      --danger-bg: #fff0f3; --danger: #c22644; --shadow-1: 0 10px 30px rgba(18,18,18,.06);
+      --bg: #fdfaf5;
+      --panel: #fefcf7;
+      --card: #ffffff;
+      --elev: #fefcf7;
+      --border: #ebe1d3;
+      --ring: #1f1b15;
+      --text: #1c1812;
+      --muted: #7a6d5c;
+      --accent: #1f1b15;
+      --accent-contrast: #ffffff;
+      --success: #2a9d6f;
+      --danger-bg: #ffe8ec;
+      --danger: #c23555;
+      --shadow-1: 0 20px 45px rgba(47, 35, 24, 0.08);
+      --shadow-hover: 0 28px 55px rgba(47, 35, 24, 0.12);
+      --grid-min: 320px;
+      --fs-0: 14px;
+      --fs-1: 17px;
+      --fs-2: 19px;
+      --fs-3: 22px;
+      --fs-4: 32px;
+      --lh: 1.65;
     }
 
-    /* === Minimal mode overrides (applied when :root.minimal) === */
     :root.minimal {
-      /* Subtler surfaces */
-      --panel: #0e1422; --card: #0d1220; --elev: #0c111d; --border: #2a3550;
-      --accent: #7e9bff; --muted: #99a6c4;
-
-      /* Typography: crisper, slightly smaller & tighter */
-      --ff: system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans";
-      --fs-0: 13px; --fs-1: 15px; --fs-2: 17px; --fs-3: 19px; --fs-4: 22px; --lh: 1.5;
-
-      /* Geometry: tighter */
-      --radius: 10px; --radius-pill: 18px;
-      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
-
-      /* Layout: less shadow, wider grid min for cleaner lists */
+      --panel: rgba(15, 21, 34, 0.9);
+      --card: rgba(13, 19, 30, 0.9);
+      --elev: rgba(14, 20, 33, 0.9);
+      --border: rgba(76, 86, 110, 0.6);
+      --muted: rgba(156, 168, 197, 0.9);
+      --radius: 12px;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 18px;
       --shadow-1: none;
-      --grid-min: 300px;
+      --shadow-hover: none;
     }
+
     :root.light.minimal {
-      --panel: #ffffff; --card: #ffffff; --elev: #ffffff; --border: #e5e8f0;
-      --accent: #2b59ff; --muted: #626a7e; --shadow-1: none;
+      --panel: #ffffff;
+      --card: #ffffff;
+      --elev: #fdf7ed;
+      --border: #e6dac8;
+      --muted: #867a6b;
+      --shadow-1: none;
+      --shadow-hover: none;
     }
 
     /* =============================================================
        BASE ELEMENTS
        ============================================================= */
-    * { box-sizing: border-box }
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       min-height: 100vh;
       background: var(--bg);
       color: var(--text);
-      font: var(--fs-1)/var(--lh) var(--ff);
+      font-family: var(--ff-body);
+      font-size: var(--fs-1);
+      line-height: var(--lh);
       -webkit-font-smoothing: antialiased;
       text-rendering: optimizeLegibility;
     }
 
-    .app { max-width: 900px; margin: 0 auto; padding: calc(var(--space-4) + 8px) 10px 40px; }
+    h1, h2, h3, h4, h5, h6 {
+      font-family: var(--ff-heading);
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .app {
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 48px 32px 80px;
+    }
 
     header.appbar {
-      position: sticky; top: 0; z-index: 10;
-      padding: var(--space-2) 0;
-      margin-bottom: var(--space-3);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: 0;
+      margin-bottom: 32px;
       background: var(--bg);
       border-bottom: 1px solid var(--border);
-      backdrop-filter: blur(8px) saturate(1.1);
-      /* Add vendor-prefixed backdrop-filter for broader browser support */
-      -webkit-backdrop-filter: blur(8px) saturate(1.1);
     }
-    :root.minimal header.appbar { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+    :root.minimal header.appbar {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
 
     .appbar-inner {
-      display: flex; gap: var(--space-2); align-items: center;
-      max-width: 900px; margin: 0 auto;
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 48px 32px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
     }
-    .brand { font-weight: 700; letter-spacing: .3px; font-size: 1.2rem; }
-    .spacer { flex: 1 }
-    .crumbs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-    .chip, .chip-current {
-      border: 1px solid var(--border); border-radius: var(--radius-pill);
-      background: var(--panel); color: var(--text);
-      font-weight: 600; padding: 6px 13px; cursor: pointer; display: inline-flex; align-items: center;
+    .appbar-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
     }
-    .chip-current { background: var(--accent); color: #0a0f1a; border-color: var(--accent) }
+
+    .brand {
+      font-family: var(--ff-heading);
+      font-size: clamp(2.8rem, 5vw, 4rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .appbar-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .appbar-bottom {
+      display: flex;
+    }
+
+    .crumbs {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+
+    .chip,
+    .chip-current {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      background: var(--card);
+      color: var(--text);
+      font-weight: 500;
+      padding: 8px 16px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--ff-body);
+      transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .chip-current {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-contrast);
+      cursor: default;
+    }
+
+    .chip:not(.chip-current):hover {
+      background: var(--elev);
+    }
 
     .btn {
       border: 1px solid var(--border);
-      background: var(--panel);
+      background: var(--card);
       color: var(--text);
-      padding: 9px 15px;
-      border-radius: var(--radius);
-      font: inherit; font-weight: 600; cursor: pointer; box-shadow: var(--shadow-1);
-      transition: border-color .15s ease, background-color .15s ease;
+      padding: 12px 18px;
+      border-radius: 999px;
+      font-family: var(--ff-body);
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: var(--shadow-1);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
     }
-    .btn.primary { background: var(--accent); border-color: var(--accent); color: #0a0f1a }
-    .btn.ghost { background: transparent }
-    .btn.danger { background: var(--danger-bg); border-color: var(--danger); color: var(--danger) }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-contrast);
+    }
+
+    .btn.ghost {
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .btn.danger {
+      background: var(--danger-bg);
+      border-color: var(--danger);
+      color: var(--danger);
+      box-shadow: none;
+    }
+
     .btn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
     }
 
-    :root.minimal .btn { box-shadow: none; padding: 8px 12px; }
+    .spacer {
+      display: none;
+    }
 
     /* Dropdown button styles */
     .dropdown {
       position: relative;
-      display: inline-block;
+      display: inline-flex;
     }
+
     .dropdown-toggle {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
     }
+
     .dropdown-menu {
       display: none;
       position: absolute;
-      top: 100%;
+      top: calc(100% + 6px);
       right: 0;
-      margin-top: 4px;
-      background: var(--panel);
+      background: var(--card);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
+      border-radius: 18px;
       box-shadow: var(--shadow-1);
-      min-width: 200px;
+      min-width: 220px;
       z-index: 1000;
+      padding: 8px;
     }
+
     .dropdown-menu.show {
       display: block;
     }
+
     .dropdown-item {
       display: block;
       width: 100%;
-      padding: 10px 14px;
+      padding: 12px 14px;
       border: none;
       background: none;
       color: var(--text);
       text-align: left;
       cursor: pointer;
-      font: inherit;
-      font-weight: 500;
-      transition: background-color .15s ease;
+      font-family: var(--ff-body);
+      font-size: 0.95rem;
+      border-radius: 12px;
+      transition: background 0.2s ease;
     }
+
     .dropdown-item:hover {
       background: var(--elev);
     }
-    .dropdown-item:first-child {
-      border-radius: var(--radius) var(--radius) 0 0;
-    }
-    .dropdown-item:last-child {
-      border-radius: 0 0 var(--radius) var(--radius);
-    }
+
     .dropdown-divider {
       height: 1px;
       background: var(--border);
-      margin: 4px 0;
+      margin: 6px 0;
     }
 
     .search {
-      display: flex; align-items: center; gap: 7px;
-      padding: var(--space-2) 11px; border: 1px solid var(--border);
-      border-radius: calc(var(--radius) - 2px); background: var(--elev)
-    }
-    .search input[type="search"] {
-      border: 0; outline: 0; background: transparent; color: var(--text);
-      width: 180px; font-size: 1em
-    }
-    .search button { border: 0; background: transparent; color: var(--muted); cursor: pointer }
-
-    .card-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--grid-min), 1fr)); gap: 15px }
-    .card-tile {
-      background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius);
-      padding: var(--space-3) var(--space-3); cursor: pointer; box-shadow: var(--shadow-1);
-      display: flex; flex-direction: column; gap: 8px; min-height: 80px
-    }
-    :root.minimal .card-tile { border-width: 1px; }
-
-    .card-title-row { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
-    .ct-title { font-weight: 700; font-size: 1.06rem }
-    .ct-kid-count, .ct-preview, .ct-meta { color: var(--muted); font-size: .98em }
-    .subhead { text-transform: uppercase; letter-spacing: .06em; font-size: 12px; color: var(--muted); margin: 7px 0 10px 2px }
-    .empty { color: var(--muted); padding: 12px; text-align: center }
-    .card-main-title { font-size: var(--fs-3); font-weight: 700; margin-bottom: 3px }
-    .card-parent-ref { color: var(--text); font-size: .95em; margin-bottom: 14px; padding: 8px 12px; background: var(--elev); border: 1px solid var(--border); border-radius: 8px; display: inline-block }
-    .card-parent-ref a { color: var(--accent); text-decoration: none; font-weight: 600 }
-    .card-parent-ref a:hover { text-decoration: underline }
-    .details { white-space: pre-wrap; margin-top: .6em; min-height: 36px }
-
-    .children-preview-list { margin: 8px 0 3px 0; display: flex; gap: 13px; flex-wrap: wrap }
-    .children-preview-tile { padding: 5px 12px; background: var(--elev); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: .99em; display: flex; align-items: center; gap: 6px; cursor: pointer }
-
-    .action-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 21px 0 10px 0 }
-
-    form label { display: block; color: var(--muted); font-size: .92em; text-transform: uppercase; letter-spacing: .04em; margin: 15px 0 6px }
-    form input, form textarea, form select {
-      display: block; width: 100%; padding: 10px 13px; border: 1.5px solid var(--border); border-radius: calc(var(--radius) - 2px);
-      background: var(--elev); color: var(--text); font: inherit; outline: 0
-    }
-    form input:focus, form textarea:focus, form select:focus { border-color: var(--ring) }
-    form textarea { min-height: 140px; resize: vertical; line-height: 1.5 }
-    .form-children-inline { display: flex; flex-direction: column; gap: 7px }
-    .form-child-row { display: flex; gap: 6px; align-items: center }
-    .form-child-row input { flex: 1; margin: 0 }
-    .form-child-del { border: 0; background: var(--danger-bg); color: var(--danger); cursor: pointer; padding: 8px 12px; border-radius: 7px; font-size: .9em; font-weight: 600 }
-
-    /* Sorting control */
-    .sort-control {
-      margin: 10px 0;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
+      padding: 16px 20px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--card);
+      width: 100%;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
     }
-    .sort-control label {
+
+    .search input[type="search"] {
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text);
+      font-family: var(--ff-body);
+      font-size: 1.05rem;
+      width: 100%;
+    }
+
+    .search input[type="search"]::placeholder {
       color: var(--muted);
-      font-size: .9em;
+    }
+
+    .search button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .page-header {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .page-title {
+      font-family: var(--ff-heading);
+      font-size: clamp(2.6rem, 4vw, 3.5rem);
+      letter-spacing: -0.015em;
+      color: var(--text);
+    }
+
+    .page-subtitle {
+      font-family: var(--ff-body);
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 720px;
+    }
+
+    .sort-control {
+      margin: 0 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .sort-control label {
       text-transform: uppercase;
-      letter-spacing: .04em;
+      letter-spacing: 0.08em;
+      font-weight: 600;
       margin: 0;
     }
+
     .sort-control select {
-      padding: 6px 10px;
+      padding: 10px 16px;
       border: 1px solid var(--border);
-      border-radius: calc(var(--radius) - 4px);
-      background: var(--elev);
+      border-radius: 999px;
+      background: var(--card);
       color: var(--text);
-      font: inherit;
+      font-family: var(--ff-body);
       cursor: pointer;
+      transition: border-color 0.2s ease;
+    }
+
+    .sort-control select:focus {
+      border-color: var(--ring);
+      outline: none;
+    }
+
+    .card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .card-tile {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 28px;
+      padding: 28px 32px;
+      cursor: pointer;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 32px;
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.2s ease;
+      box-shadow: var(--shadow-1);
+    }
+
+    .card-tile:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-hover);
+      border-color: var(--ring);
+    }
+
+    .card-content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-width: min(640px, 100%);
+    }
+
+    .card-title-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .ct-title {
+      font-family: var(--ff-heading);
+      font-size: clamp(1.5rem, 2.8vw, 2rem);
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .ct-preview {
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+
+    .ct-meta {
+      color: var(--muted);
+      font-size: 0.92rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .card-count {
+      font-family: var(--ff-heading);
+      font-size: clamp(2.8rem, 5vw, 3.5rem);
+      font-weight: 500;
+      color: var(--muted);
+      min-width: 60px;
+      text-align: right;
+    }
+
+    .card-count.has-children {
+      color: var(--text);
+    }
+
+    .subhead {
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 12px 0 10px;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 24px;
+      text-align: center;
+      border-radius: 18px;
+      border: 1px dashed var(--border);
+    }
+
+    .card-main-title {
+      font-size: var(--fs-4);
+      font-family: var(--ff-heading);
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .card-parent-ref {
+      color: var(--text);
+      font-size: 0.95em;
+      margin-bottom: 14px;
+      padding: 10px 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .card-parent-ref a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .card-parent-ref a:hover {
+      text-decoration: underline;
+    }
+
+    .details {
+      white-space: pre-wrap;
+      margin-top: 0.6em;
+      min-height: 36px;
+      line-height: 1.7;
+    }
+
+    .children-preview-list {
+      margin: 12px 0 6px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .children-preview-tile {
+      padding: 8px 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--text);
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .children-preview-tile:hover {
+      background: var(--elev);
+    }
+
+    .action-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 24px 0 12px;
+    }
+
+    form label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.92em;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin: 18px 0 8px;
+    }
+
+    form input,
+    form textarea,
+    form select {
+      display: block;
+      width: 100%;
+      padding: 12px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      background: var(--card);
+      color: var(--text);
+      font-family: var(--ff-body);
+      outline: 0;
+    }
+
+    form input:focus,
+    form textarea:focus,
+    form select:focus {
+      border-color: var(--ring);
+    }
+
+    form textarea {
+      min-height: 160px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+
+    .form-children-inline {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .form-child-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .form-child-row input {
+      flex: 1;
+      margin: 0;
+    }
+
+    .form-child-del {
+      border: 0;
+      background: var(--danger-bg);
+      color: var(--danger);
+      cursor: pointer;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.9em;
+      font-weight: 600;
     }
 
     /* Modal styles */
@@ -553,35 +931,35 @@
 <body>
   <header class="appbar">
     <div class="appbar-inner">
-      <div class="brand">Card Info Base</div>
-      <div class="spacer"></div>
-      <div class="search" title="Search cards">
-        <input type="search" placeholder="Search..." id="searchInput" />
-        <button id="clearSearchBtn" style="display:none;">✕</button>
-      </div>
-      <button class="btn ghost" id="homeBtn" title="Home">🏠</button>
-      <button class="btn ghost" id="backBtn" title="Back">←</button>
-      <button class="btn primary" id="startAddCardBtn">+ New Card</button>
-      <button class="btn ghost" id="uploadBtn">Upload</button>
-      <button class="btn ghost" id="manageModsBtn">Extensions</button>
-      
-      <!-- Instance management button -->
-      <button class="btn ghost" id="instanceBtn">Instance</button>
-      
-      <!-- Export Dropdown -->
-      <div class="dropdown" id="headerExportDropdown">
-        <button class="btn ghost dropdown-toggle" id="headerExportToggle">
-          Download ▾
-        </button>
-        <div class="dropdown-menu" id="headerExportMenu">
-      <button class="dropdown-item" data-export-type="instance-json">All Data (JSON)</button>
-          <button class="dropdown-item" data-export-type="instance-txt">All Cards (TXT)</button>
-      <button class="dropdown-item" data-export-type="mods-json">Active Mods (JSON)</button>
+      <div class="appbar-top">
+        <div class="brand">CardSpoke</div>
+        <div class="appbar-controls">
+          <button class="btn ghost" id="homeBtn" title="Home">🏠</button>
+          <button class="btn ghost" id="backBtn" title="Back">←</button>
+          <button class="btn ghost" id="instanceBtn">Instance</button>
+          <button class="btn ghost" id="uploadBtn">Upload</button>
+          <button class="btn ghost" id="manageModsBtn">Extensions</button>
+          <div class="dropdown" id="headerExportDropdown">
+            <button class="btn ghost dropdown-toggle" id="headerExportToggle">
+              Download ▾
+            </button>
+            <div class="dropdown-menu" id="headerExportMenu">
+              <button class="dropdown-item" data-export-type="instance-json">All Data (JSON)</button>
+              <button class="dropdown-item" data-export-type="instance-txt">All Cards (TXT)</button>
+              <button class="dropdown-item" data-export-type="mods-json">Active Mods (JSON)</button>
+            </div>
+          </div>
+          <button class="btn ghost" id="themeToggle" role="switch" aria-checked="false" aria-label="Toggle theme">🌙</button>
+          <button class="btn ghost" id="styleToggle">Style: Classic</button>
+          <button class="btn primary" id="startAddCardBtn">+ New Card</button>
         </div>
       </div>
-
-      <button class="btn ghost" id="themeToggle" role="switch" aria-checked="false" aria-label="Toggle theme">🌙</button>
-      <button class="btn ghost" id="styleToggle">Style: Classic</button>
+      <div class="appbar-bottom">
+        <div class="search" title="Search cards">
+          <input type="search" placeholder="Search cards, tags, or content..." id="searchInput" />
+          <button id="clearSearchBtn" style="display:none;">✕</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -2163,33 +2541,65 @@
         const tile = h('div', { className: 'card-tile', onclick: () => goTo('read', { cardId: c.id }) });
         tile.dataset.cardId = c.id;
         tile.dataset.renderType = 'list';
+
+        const content = h('div', { className: 'card-content' });
         const titleRow = h('div', { className: 'card-title-row' });
         const title = h('div', { className: 'ct-title' }, c.title || '(Untitled)');
         titleRow.appendChild(title);
-        if (c.children.length > 0) {
-          const kidCount = h('div', { className: 'ct-kid-count' }, c.children.length + ' child' + (c.children.length > 1 ? 'ren' : ''));
-          titleRow.appendChild(kidCount);
-        }
-        tile.appendChild(titleRow);
+        content.appendChild(titleRow);
+
         if (c.body) {
-          const preview = c.body.substring(0, 80) + (c.body.length > 80 ? '...' : '');
-          tile.appendChild(h('div', { className: 'ct-preview' }, preview));
+          const trimmed = c.body.trim();
+          if (trimmed) {
+            const normalized = trimmed.replace(/\s+/g, ' ');
+            const previewText = normalized.length > 140 ? normalized.substring(0, 140) + '…' : normalized;
+            content.appendChild(h('div', { className: 'ct-preview' }, previewText));
+          }
         }
-        const meta = h('div', { className: 'ct-meta' }, 'Updated ' + formatDate(c.updatedAt));
-        tile.appendChild(meta);
+
+        const childCount = c.children.length;
+        const childLabel = childCount === 1 ? 'child card' : 'child cards';
+        const metaText = `${childCount} ${childLabel} • Updated ${formatDate(c.updatedAt)}`;
+        content.appendChild(h('div', { className: 'ct-meta' }, metaText));
+
+        const count = h('div', { className: 'card-count' }, childCount > 0 ? String(childCount) : '—');
+        if (childCount > 0) {
+          count.classList.add('has-children');
+        }
+
+        tile.appendChild(content);
+        tile.appendChild(count);
         return tile;
       }
 
       function renderCardList() {
         const parentId = navState.cardId;
         let kids = [];
+        let parent = null;
         if (!parentId) {
           kids = store.rootOrder.map(id => store.cards[id]).filter(c => c);
         } else {
-          const parent = store.cards[parentId];
+          parent = store.cards[parentId];
           if (!parent) { main.appendChild(h('div', { className: 'empty' }, 'Card not found.')); return; }
           kids = parent.children.map(id => store.cards[id]).filter(c => c);
         }
+
+        const headerBlock = h('div', { className: 'page-header' });
+        const headingText = parent ? (parent.title || '(Untitled)') : 'Top Level Cards';
+        headerBlock.appendChild(h('h1', { className: 'page-title' }, headingText));
+
+        let subtitleText;
+        if (parent) {
+          subtitleText = kids.length > 0
+            ? `Viewing ${kids.length} ${kids.length === 1 ? 'child card' : 'child cards'} nested inside this topic.`
+            : 'This topic does not contain any child cards yet.';
+        } else {
+          subtitleText = kids.length > 0
+            ? 'Browse the highest-level topics in your knowledge base.'
+            : 'Start building your knowledge base by creating a top-level card.';
+        }
+        headerBlock.appendChild(h('p', { className: 'page-subtitle' }, subtitleText));
+        main.appendChild(headerBlock);
 
         const sortControl = h('div', { className: 'sort-control' });
         sortControl.appendChild(h('label', null, 'Sort:'));
@@ -2199,6 +2609,9 @@
         sortSelect.appendChild(h('option', { value: 'updated' }, 'Recently Updated'));
         sortSelect.appendChild(h('option', { value: 'created' }, 'Recently Created'));
         sortControl.appendChild(sortSelect);
+
+        const grid = document.createElement('div');
+        grid.className = 'card-list';
 
         const sortKids = () => {
           const val = sortSelect.value;
@@ -2210,6 +2623,13 @@
             kids.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           }
           grid.innerHTML = '';
+          if (kids.length === 0) {
+            const emptyMessage = parentId
+              ? 'No child cards yet.'
+              : 'No top-level cards yet.';
+            grid.appendChild(h('div', { className: 'empty' }, emptyMessage));
+            return;
+          }
           kids.forEach(c => {
             const tile = cardListTile(c);
             grid.appendChild(tile);
@@ -2219,19 +2639,11 @@
 
         sortSelect.addEventListener('change', sortKids);
         main.appendChild(sortControl);
-
-        const grid = document.createElement('div');
-        grid.className = 'card-list';
         main.appendChild(grid);
         sortKids();
 
-        const addBtn = h('button', { className: 'btn primary', style: 'margin-top:20px', onclick: () => goTo('edit', { cardId: null, parentId: parentId }) }, '+ Add Card Here');
+        const addBtn = h('button', { className: 'btn primary', style: 'margin-top:32px', onclick: () => goTo('edit', { cardId: null, parentId: parentId }) }, parentId ? '+ Add Card Here' : '+ Create Top-Level Card');
         main.appendChild(addBtn);
-
-        if (kids.length === 0 && parentId) {
-          const empty = h('div', { className: 'empty' }, 'No children yet.');
-          grid.appendChild(empty);
-        }
       }
 
       function renderReadOnlyCard() {
@@ -2560,7 +2972,8 @@
       }
 
       function renderSearchResults() {
-        const query = navState.searchQuery.trim().toLowerCase();
+        const queryRaw = navState.searchQuery || '';
+        const query = queryRaw.trim().toLowerCase();
         if (!query) { main.appendChild(h('div', { className: 'empty' }, 'Please enter a search term.')); return; }
         let results = Object.values(store.cards).filter(c => (c.title + ' ' + c.body).toLowerCase().includes(query));
         results = results.sort((a, b) => {
@@ -2568,10 +2981,19 @@
           const B = (b.title || '').toLowerCase();
           return A.localeCompare(B);
         });
-        main.appendChild(h('div', { className: 'subhead' }, `Search: "${navState.searchQuery}"`));
-        main.appendChild(h('button', { className: 'btn ghost', onclick: goBack }, '← Back'));
+
+        const headerBlock = h('div', { className: 'page-header' });
+        headerBlock.appendChild(h('h1', { className: 'page-title' }, 'Search Results'));
+        const summaryText = results.length === 0
+          ? `No cards matched “${queryRaw.trim()}”.`
+          : `${results.length} ${results.length === 1 ? 'card matches' : 'cards match'} “${queryRaw.trim()}”.`;
+        headerBlock.appendChild(h('p', { className: 'page-subtitle' }, summaryText));
+        main.appendChild(headerBlock);
+
+        main.appendChild(h('button', { className: 'btn ghost', style: 'margin-bottom:24px', onclick: goBack }, '← Back'));
+
         if (results.length === 0) {
-          main.appendChild(h('div', { className: 'empty' }, 'No results found.'));
+          main.appendChild(h('div', { className: 'empty' }, 'Try a different search term.'));
         } else {
           const grid = document.createElement('div');
           grid.className = 'card-list';
@@ -2616,7 +3038,7 @@
         const st = headerEl.styleToggle; if (st) st.textContent = 'Style: ' + (minimal ? 'Minimal' : 'Classic');
       };
 
-      applyTheme(localStorage.getItem('nested_cards_theme') || 'dark');
+      applyTheme(localStorage.getItem('nested_cards_theme') || 'light');
       applyStyle(localStorage.getItem('nested_cards_style') || 'classic');
 
       if (headerEl.themeToggle) headerEl.themeToggle.onclick = () => {
