@@ -1,0 +1,2890 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CardSpoke</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- 
+    =============================================================
+    CardSpoke
+    Version: 0.8.0
+    Released by: jxburros
+    Build date: 2025-11-10
+    Notes: Complete UI redesign based on Figma prototype
+           - Rebranded from "Card Info Base" to "CardSpoke"
+           - New card design with large child count numbers
+           - Hamburger menu for all functions
+           - Light theme as default
+           - Figma-inspired clean, modern aesthetic
+           - All previous functionality preserved
+    =============================================================
+  -->
+  <meta name="app:version" content="0.8.0">
+  <meta name="app:author" content="jxburros">
+
+  <style>
+    /* =============================================================
+       DESIGN TOKENS - FIGMA INSPIRED
+       ============================================================= */
+    :root {
+      /* Light theme (default) */
+      --bg: #f8f9fc;
+      --surface: #ffffff;
+      --card-bg: #ffffff;
+      --border: #e5e7eb;
+      --border-subtle: #f3f4f6;
+      --text: #111827;
+      --text-muted: #6b7280;
+      --text-subtle: #9ca3af;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #10b981;
+      --danger: #ef4444;
+      --danger-bg: #fee2e2;
+      
+      /* Typography */
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      --font-display: var(--font-sans);
+      --fs-xs: 13px;
+      --fs-sm: 14px;
+      --fs-base: 15px;
+      --fs-lg: 17px;
+      --fs-xl: 20px;
+      --fs-2xl: 24px;
+      --fs-3xl: 30px;
+      --fs-display: 48px;
+      --lh: 1.6;
+      
+      /* Spacing */
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 16px;
+      --space-lg: 24px;
+      --space-xl: 32px;
+      --space-2xl: 48px;
+      
+      /* Border radius */
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+      
+      /* Shadows */
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+    
+    :root.dark {
+      /* Dark theme */
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --border-subtle: #1e293b;
+      --text: #f1f5f9;
+      --text-muted: #cbd5e1;
+      --text-subtle: #94a3b8;
+      --accent: #60a5fa;
+      --accent-hover: #3b82f6;
+      --success: #34d399;
+      --danger: #f87171;
+      --danger-bg: #7f1d1d;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    }
+
+    /* =============================================================
+       BASE ELEMENTS
+       ============================================================= */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: var(--font-sans);
+      font-size: var(--fs-base);
+      line-height: var(--lh);
+      color: var(--text);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    
+    /* =============================================================
+       HEADER
+       ============================================================= */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-md) var(--space-lg);
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
+    
+    .brand {
+      font-family: var(--font-display);
+      font-size: var(--fs-2xl);
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    
+    .spacer {
+      flex: 1;
+    }
+    
+    .header-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: var(--fs-lg);
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    
+    .header-btn:hover {
+      background: var(--border-subtle);
+      color: var(--text);
+    }
+    
+    /* =============================================================
+       HAMBURGER MENU
+       ============================================================= */
+    .menu-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 200;
+      backdrop-filter: blur(2px);
+    }
+    
+    .menu-overlay.show {
+      display: block;
+    }
+    
+    .menu-panel {
+      position: fixed;
+      top: 0;
+      right: -320px;
+      width: 320px;
+      height: 100%;
+      background: var(--surface);
+      box-shadow: var(--shadow-lg);
+      transition: right 0.3s ease;
+      z-index: 201;
+      overflow-y: auto;
+    }
+    
+    .menu-overlay.show .menu-panel {
+      right: 0;
+    }
+    
+    .menu-header {
+      padding: var(--space-lg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .menu-title {
+      font-weight: 600;
+      font-size: var(--fs-lg);
+    }
+    
+    .menu-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: var(--fs-xl);
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm);
+    }
+    
+    .menu-close:hover {
+      background: var(--border-subtle);
+    }
+    
+    .menu-section {
+      padding: var(--space-md) 0;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .menu-section:last-child {
+      border-bottom: none;
+    }
+    
+    .menu-section-title {
+      padding: 0 var(--space-lg) var(--space-sm);
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-subtle);
+    }
+    
+    .menu-item {
+      display: block;
+      width: 100%;
+      padding: var(--space-md) var(--space-lg);
+      background: transparent;
+      border: none;
+      text-align: left;
+      color: var(--text);
+      font-size: var(--fs-base);
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    
+    .menu-item:hover {
+      background: var(--border-subtle);
+    }
+    
+    .menu-item-icon {
+      margin-right: var(--space-sm);
+    }
+    
+    /* =============================================================
+       MAIN CONTENT
+       ============================================================= */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-2xl) var(--space-lg);
+    }
+    
+    .page-title {
+      font-size: var(--fs-3xl);
+      font-weight: 700;
+      margin-bottom: var(--space-xl);
+      color: var(--text);
+    }
+    
+    /* =============================================================
+       BREADCRUMBS
+       ============================================================= */
+    .breadcrumbs {
+      display: flex;
+      gap: var(--space-sm);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-lg);
+    }
+    
+    .breadcrumb {
+      padding: var(--space-sm) var(--space-md);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      font-size: var(--fs-sm);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--text-muted);
+    }
+    
+    .breadcrumb:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    
+    .breadcrumb.current {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+      cursor: default;
+    }
+    
+    /* =============================================================
+       CARDS
+       ============================================================= */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: var(--space-lg);
+    }
+    
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: var(--accent);
+    }
+    
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--space-md);
+      margin-bottom: var(--space-sm);
+    }
+    
+    .card-title {
+      font-size: var(--fs-xl);
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.3;
+      flex: 1;
+    }
+    
+    .card-count {
+      font-size: var(--fs-display);
+      font-weight: 700;
+      color: var(--text-subtle);
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    
+    .card-description {
+      color: var(--text-muted);
+      font-size: var(--fs-base);
+      line-height: 1.5;
+      margin-bottom: var(--space-md);
+      flex: 1;
+    }
+    
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-xs);
+      margin-top: auto;
+    }
+    
+    .card-tag {
+      font-size: var(--fs-sm);
+      color: var(--text-subtle);
+      font-weight: 500;
+    }
+    
+    .card-meta {
+      font-size: var(--fs-sm);
+      color: var(--text-subtle);
+      margin-top: var(--space-sm);
+    }
+    
+    /* =============================================================
+       BUTTONS
+       ============================================================= */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      border-radius: var(--radius-md);
+      font-size: var(--fs-base);
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+    }
+    
+    .btn:hover {
+      background: var(--border-subtle);
+    }
+    
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+    
+    .btn-danger {
+      background: var(--danger-bg);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+    
+    .btn-danger:hover {
+      background: var(--danger);
+      color: white;
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    /* =============================================================
+       FORMS
+       ============================================================= */
+    .form-group {
+      margin-bottom: var(--space-lg);
+    }
+    
+    .form-label {
+      display: block;
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: var(--space-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    .form-input,
+    .form-textarea,
+    .form-select {
+      width: 100%;
+      padding: var(--space-md);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: var(--fs-base);
+      font-family: inherit;
+      color: var(--text);
+      background: var(--surface);
+      transition: all 0.2s;
+    }
+    
+    .form-input:focus,
+    .form-textarea:focus,
+    .form-select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .form-textarea {
+      min-height: 150px;
+      resize: vertical;
+    }
+    
+    .form-children {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+    
+    .form-child-row {
+      display: flex;
+      gap: var(--space-sm);
+      align-items: center;
+    }
+    
+    .form-child-input {
+      flex: 1;
+    }
+    
+    .form-child-delete {
+      padding: var(--space-sm);
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid var(--danger);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: var(--fs-base);
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .form-actions {
+      display: flex;
+      gap: var(--space-md);
+      margin-top: var(--space-xl);
+    }
+    
+    /* =============================================================
+       SEARCH
+       ============================================================= */
+    .search-container {
+      margin-bottom: var(--space-xl);
+    }
+    
+    .search-input-wrapper {
+      position: relative;
+      max-width: 500px;
+    }
+    
+    .search-input {
+      width: 100%;
+      padding: var(--space-md) var(--space-md) var(--space-md) 44px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      font-size: var(--fs-base);
+      font-family: inherit;
+      color: var(--text);
+      background: var(--surface);
+      transition: all 0.2s;
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .search-icon {
+      position: absolute;
+      left: var(--space-md);
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    
+    .search-clear {
+      position: absolute;
+      right: var(--space-sm);
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: var(--space-sm);
+      border-radius: var(--radius-sm);
+      display: none;
+    }
+    
+    .search-clear:hover {
+      background: var(--border-subtle);
+    }
+    
+    /* =============================================================
+       MODALS
+       ============================================================= */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(2px);
+    }
+    
+    .modal-overlay.show {
+      display: flex;
+    }
+    
+    .modal {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .modal-header {
+      padding: var(--space-lg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .modal-title {
+      font-size: var(--fs-xl);
+      font-weight: 600;
+    }
+    
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: var(--fs-xl);
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm);
+    }
+    
+    .modal-close:hover {
+      background: var(--border-subtle);
+    }
+    
+    .modal-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    
+    .modal-tab {
+      flex: 1;
+      padding: var(--space-md);
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      font-size: var(--fs-base);
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .modal-tab:hover {
+      color: var(--text);
+    }
+    
+    .modal-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    
+    .modal-body {
+      padding: var(--space-lg);
+      overflow-y: auto;
+      flex: 1;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    /* =============================================================
+       FILE UPLOAD
+       ============================================================= */
+    .file-upload-area {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-2xl);
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: var(--space-lg);
+    }
+    
+    .file-upload-area:hover {
+      border-color: var(--accent);
+      background: var(--border-subtle);
+    }
+    
+    .upload-icon {
+      font-size: var(--fs-3xl);
+      margin-bottom: var(--space-md);
+    }
+    
+    .upload-text {
+      font-size: var(--fs-base);
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: var(--space-sm);
+    }
+    
+    .upload-hint {
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    
+    /* =============================================================
+       RADIO GROUPS
+       ============================================================= */
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+    
+    .radio-option {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-md);
+      padding: var(--space-md);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .radio-option:hover {
+      border-color: var(--accent);
+      background: var(--border-subtle);
+    }
+    
+    .radio-option input[type="radio"] {
+      margin-top: 2px;
+    }
+    
+    .radio-label {
+      flex: 1;
+    }
+    
+    .radio-description {
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+      margin-top: var(--space-xs);
+    }
+    
+    /* =============================================================
+       SORT CONTROL
+       ============================================================= */
+    .sort-control {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      margin-bottom: var(--space-lg);
+    }
+    
+    .sort-label {
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-subtle);
+    }
+    
+    .sort-select {
+      padding: var(--space-sm) var(--space-md);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: var(--fs-base);
+      color: var(--text);
+      background: var(--surface);
+      cursor: pointer;
+    }
+    
+    /* =============================================================
+       CARD DETAIL VIEW
+       ============================================================= */
+    .card-detail {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+    }
+    
+    .card-detail-title {
+      font-size: var(--fs-3xl);
+      font-weight: 700;
+      margin-bottom: var(--space-md);
+    }
+    
+    .card-detail-body {
+      font-size: var(--fs-base);
+      line-height: 1.7;
+      color: var(--text);
+      white-space: pre-wrap;
+      margin-bottom: var(--space-xl);
+    }
+    
+    .card-detail-actions {
+      display: flex;
+      gap: var(--space-md);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-xl);
+    }
+    
+    .children-section {
+      margin-top: var(--space-2xl);
+    }
+    
+    .children-title {
+      font-size: var(--fs-xl);
+      font-weight: 600;
+      margin-bottom: var(--space-lg);
+    }
+    
+    .children-preview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      margin-top: var(--space-md);
+    }
+    
+    .child-chip {
+      padding: var(--space-sm) var(--space-md);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      font-size: var(--fs-sm);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .child-chip:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    
+    /* =============================================================
+       EMPTY STATES
+       ============================================================= */
+    .empty {
+      text-align: center;
+      padding: var(--space-2xl);
+      color: var(--text-muted);
+    }
+    
+    /* =============================================================
+       TOAST NOTIFICATIONS
+       ============================================================= */
+    .toast-container {
+      position: fixed;
+      bottom: var(--space-lg);
+      right: var(--space-lg);
+      z-index: 400;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+      max-width: 400px;
+    }
+    
+    .toast {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-md);
+      box-shadow: var(--shadow-lg);
+      animation: slideIn 0.3s ease;
+    }
+    
+    .toast.success {
+      border-left: 4px solid var(--success);
+    }
+    
+    .toast.error {
+      border-left: 4px solid var(--danger);
+    }
+    
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    
+    /* =============================================================
+       BAKE APP MODAL (for compilation feature)
+       ============================================================= */
+    #bakeAppModal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      align-items: center;
+      justify-content: center;
+      z-index: 350;
+    }
+    
+    #bakeAppModal.show {
+      display: flex;
+    }
+    
+    #bakeAppModal .modal-dialog {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      width: min(560px, 92%);
+      margin: auto;
+      overflow: hidden;
+    }
+    
+    #bakeAppModal .modal-header,
+    #bakeAppModal .modal-footer {
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid var(--border);
+    }
+    
+    #bakeAppModal .modal-footer {
+      border-top: 1px solid var(--border);
+      border-bottom: none;
+    }
+    
+    #bakeAppModal .modal-body {
+      padding: var(--space-lg);
+    }
+    
+    #bakeAppFab {
+      position: fixed;
+      bottom: 18px;
+      left: 18px;
+      z-index: 340;
+      padding: 10px 14px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: var(--shadow-md);
+      cursor: pointer;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="brand">CardSpoke</div>
+      <div class="spacer"></div>
+      <button class="header-btn" id="homeBtn" title="Home">🏠</button>
+      <button class="header-btn" id="themeToggle" title="Toggle dark mode">🌙</button>
+      <button class="header-btn" id="menuBtn" title="Menu">☰</button>
+    </div>
+  </header>
+
+  <!-- Hamburger Menu -->
+  <div class="menu-overlay" id="menuOverlay">
+    <div class="menu-panel">
+      <div class="menu-header">
+        <div class="menu-title">Menu</div>
+        <button class="menu-close" id="menuClose">✕</button>
+      </div>
+      
+      <div class="menu-section">
+        <div class="menu-section-title">Actions</div>
+        <button class="menu-item" id="menuNewCard">
+          <span class="menu-item-icon">➕</span> New Card
+        </button>
+        <button class="menu-item" id="menuUpload">
+          <span class="menu-item-icon">📤</span> Upload
+        </button>
+        <button class="menu-item" id="menuExtensions">
+          <span class="menu-item-icon">🧩</span> Extensions
+        </button>
+      </div>
+      
+      <div class="menu-section">
+        <div class="menu-section-title">Data</div>
+        <button class="menu-item" id="menuInstance">
+          <span class="menu-item-icon">💾</span> Instance Manager
+        </button>
+        <button class="menu-item" id="menuDownloadJSON">
+          <span class="menu-item-icon">⬇️</span> Download All Data (JSON)
+        </button>
+        <button class="menu-item" id="menuDownloadTXT">
+          <span class="menu-item-icon">📄</span> Download All Cards (TXT)
+        </button>
+        <button class="menu-item" id="menuDownloadMods">
+          <span class="menu-item-icon">🔌</span> Download Mods (JSON)
+        </button>
+        <button class="menu-item" id="menuBakeApp">
+          <span class="menu-item-icon">📦</span> Bake Standalone App
+        </button>
+      </div>
+      
+      <div class="menu-section">
+        <div class="menu-section-title">View</div>
+        <button class="menu-item" id="menuStyle">
+          <span class="menu-item-icon">🎨</span> <span id="menuStyleText">Style: CardSpoke</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="container">
+    <div class="breadcrumbs" id="breadcrumbs"></div>
+    
+    <!-- Search (shown on list view) -->
+    <div class="search-container" id="searchContainer" style="display: none;">
+      <div class="search-input-wrapper">
+        <span class="search-icon">🔍</span>
+        <input type="search" class="search-input" id="searchInput" placeholder="Search cards..." />
+        <button class="search-clear" id="searchClear">✕</button>
+      </div>
+    </div>
+    
+    <main id="main"></main>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Upload Modal -->
+  <div class="modal-overlay" id="uploadModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Upload Content</div>
+        <button class="modal-close" id="closeUploadModal">✕</button>
+      </div>
+      
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-tab="json">JSON</button>
+        <button class="modal-tab" data-tab="txt">TXT</button>
+        <button class="modal-tab" data-tab="docx">DOCX</button>
+        <button class="modal-tab" data-tab="mods">Mods</button>
+      </div>
+      
+      <div class="modal-body">
+        <!-- JSON Tab -->
+        <div class="tab-content active" id="tab-json">
+          <div class="file-upload-area" id="fileUploadAreaJSON">
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">Click to select or drag & drop JSON file</div>
+            <div class="upload-hint">Supports card, subtree, and instance exports</div>
+          </div>
+          <input type="file" id="fileInputJSON" accept=".json" style="display: none;" />
+          
+          <div class="form-group">
+            <label class="form-label">Import Location</label>
+            <select id="importLocationSelectJSON" class="form-select">
+              <option value="root">Add as Root Cards</option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- TXT Tab -->
+        <div class="tab-content" id="tab-txt">
+          <div class="file-upload-area" id="fileUploadAreaTXT">
+            <div class="upload-icon">📝</div>
+            <div class="upload-text">Click to select or drag & drop TXT file</div>
+            <div class="upload-hint">Plain text or hierarchical outline</div>
+          </div>
+          <input type="file" id="fileInputTXT" accept=".txt" style="display: none;" />
+          
+          <div class="form-group">
+            <label class="form-label">Import Mode</label>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="txtImportMode" value="outline" checked />
+                <div class="radio-label">
+                  <div>Create Cards from Outline</div>
+                  <div class="radio-description">Parse hierarchical structure into cards</div>
+                </div>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="txtImportMode" value="append" />
+                <div class="radio-label">
+                  <div>Append to Card Body</div>
+                  <div class="radio-description">Add text to existing card details</div>
+                </div>
+              </label>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label">Import Location</label>
+            <select id="importLocationSelectTXT" class="form-select">
+              <option value="root">Add as Root Cards</option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- DOCX Tab -->
+        <div class="tab-content" id="tab-docx">
+          <div class="file-upload-area" id="fileUploadAreaDOCX">
+            <div class="upload-icon">📃</div>
+            <div class="upload-text">Click to select or drag & drop DOCX file</div>
+            <div class="upload-hint">Extract text from Word documents (Beta)</div>
+          </div>
+          <input type="file" id="fileInputDOCX" accept=".docx" style="display: none;" />
+          
+          <div class="form-group">
+            <label class="form-label">Import Mode</label>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="docxImportMode" value="append" checked />
+                <div class="radio-label">
+                  <div>Append to Card Body</div>
+                  <div class="radio-description">Add extracted text to card details</div>
+                </div>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="docxImportMode" value="replace" />
+                <div class="radio-label">
+                  <div>Replace Card Body</div>
+                  <div class="radio-description">Replace card details with extracted text</div>
+                </div>
+              </label>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label">Target Card</label>
+            <select id="importLocationSelectDOCX" class="form-select">
+              <option value="">Select a card...</option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- Mods Tab -->
+        <div class="tab-content" id="tab-mods">
+          <div class="file-upload-area" id="fileUploadAreaMods">
+            <div class="upload-icon">🧩</div>
+            <div class="upload-text">Install Extension (.json or .js)</div>
+            <div class="upload-hint">Load a packaged mod file or a standalone script</div>
+          </div>
+          <input type="file" id="fileInputMods" accept=".json,.js" style="display: none;" />
+          
+          <p style="margin: var(--space-md) 0; color: var(--text-muted); font-size: var(--fs-sm);">Or paste code below to create a mod directly.</p>
+          <div class="form-group">
+            <label class="form-label">Mod Name</label>
+            <input type="text" id="manualModName" class="form-input" placeholder="my-custom-mod" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">JavaScript Code</label>
+            <textarea id="manualModJS" class="form-textarea" placeholder="CIB_MODS.register('my-mod', { ... });"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">CSS (Optional)</label>
+            <textarea id="manualModCSS" class="form-textarea" placeholder=".my-class { ... }"></textarea>
+          </div>
+          <button class="btn btn-primary" id="installManualMod">Install Mod</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bake App Modal -->
+  <div id="bakeAppModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <strong>Bake App with Mods</strong>
+        <button class="close" id="closeBakeModal" style="background: transparent; border: 0; font-size: 20px; cursor: pointer;">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 12px;">Select which mods to bake into the exported HTML:</p>
+        <div id="bakeModCheckboxList" style="max-height: 200px; overflow-y: auto; margin-bottom: 16px;"></div>
+        <p style="color: var(--text-muted); font-size: 13px;">The exported file will have these mods pre-installed and enabled.</p>
+      </div>
+      <div class="modal-footer" style="text-align: right;">
+        <button class="btn" id="cancelBakeBtn">Cancel</button>
+        <button class="btn btn-primary" id="confirmBakeBtn" style="margin-left: 8px;">Export HTML</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      'use strict';
+
+      /* =========================
+         CONSTANTS & STATE
+         ========================= */
+      const APP_VERSION = '0.8.0';
+      const SCHEMA_VERSION = 1;
+      
+      let instanceKey = localStorage.getItem('activeInstance') || 'nested_cards_store';
+      let store = { rootOrder: [], cards: {}, mods: {} };
+      let navState = { page: 'list', cardId: null, parentId: null, searchQuery: '' };
+      let navHistory = [];
+      let dirty = false;
+
+      /* =========================
+         DOM REFERENCES
+         ========================= */
+      const header = {
+        homeBtn: document.getElementById('homeBtn'),
+        themeToggle: document.getElementById('themeToggle'),
+        menuBtn: document.getElementById('menuBtn')
+      };
+      
+      const menu = {
+        overlay: document.getElementById('menuOverlay'),
+        closeBtn: document.getElementById('menuClose'),
+        newCard: document.getElementById('menuNewCard'),
+        upload: document.getElementById('menuUpload'),
+        extensions: document.getElementById('menuExtensions'),
+        instance: document.getElementById('menuInstance'),
+        downloadJSON: document.getElementById('menuDownloadJSON'),
+        downloadTXT: document.getElementById('menuDownloadTXT'),
+        downloadMods: document.getElementById('menuDownloadMods'),
+        bakeApp: document.getElementById('menuBakeApp'),
+        style: document.getElementById('menuStyle'),
+        styleText: document.getElementById('menuStyleText')
+      };
+      
+      const searchContainer = document.getElementById('searchContainer');
+      const searchInput = document.getElementById('searchInput');
+      const searchClear = document.getElementById('searchClear');
+      
+      const breadcrumbs = document.getElementById('breadcrumbs');
+      const main = document.getElementById('main');
+      const toastContainer = document.getElementById('toastContainer');
+      
+      const uploadModal = {
+        overlay: document.getElementById('uploadModal'),
+        closeBtn: document.getElementById('closeUploadModal'),
+        tabs: document.querySelectorAll('.modal-tab'),
+        tabContents: document.querySelectorAll('.tab-content'),
+        
+        // JSON
+        fileUploadAreaJSON: document.getElementById('fileUploadAreaJSON'),
+        fileInputJSON: document.getElementById('fileInputJSON'),
+        importLocationSelectJSON: document.getElementById('importLocationSelectJSON'),
+        
+        // TXT
+        fileUploadAreaTXT: document.getElementById('fileUploadAreaTXT'),
+        fileInputTXT: document.getElementById('fileInputTXT'),
+        importLocationSelectTXT: document.getElementById('importLocationSelectTXT'),
+        
+        // DOCX
+        fileUploadAreaDOCX: document.getElementById('fileUploadAreaDOCX'),
+        fileInputDOCX: document.getElementById('fileInputDOCX'),
+        importLocationSelectDOCX: document.getElementById('importLocationSelectDOCX'),
+        
+        // Mods
+        fileUploadAreaMods: document.getElementById('fileUploadAreaMods'),
+        fileInputMods: document.getElementById('fileInputMods'),
+        manualModName: document.getElementById('manualModName'),
+        manualModJS: document.getElementById('manualModJS'),
+        manualModCSS: document.getElementById('manualModCSS'),
+        installManualMod: document.getElementById('installManualMod')
+      };
+
+      /* =========================
+         UTILITY FUNCTIONS
+         ========================= */
+      function h(tag, props = {}, ...children) {
+        const el = document.createElement(tag);
+        Object.entries(props).forEach(([k, v]) => {
+          if (k === 'className') el.className = v;
+          else if (k === 'onclick') el.onclick = v;
+          else if (k === 'style') el.style.cssText = v;
+          else el.setAttribute(k, v);
+        });
+        children.flat().forEach(ch => {
+          if (typeof ch === 'string') el.appendChild(document.createTextNode(ch));
+          else if (ch) el.appendChild(ch);
+        });
+        return el;
+      }
+
+      function uid() {
+        return Date.now().toString(36) + Math.random().toString(36).substring(2);
+      }
+
+      function formatDate(timestamp) {
+        if (!timestamp) return '';
+        const d = new Date(timestamp);
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+      }
+
+      function showToast(message, type = 'success') {
+        const toast = h('div', { className: `toast ${type}` }, message);
+        toastContainer.appendChild(toast);
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          setTimeout(() => toast.remove(), 300);
+        }, 3000);
+      }
+
+      function bootError(msg) {
+        main.innerHTML = '';
+        main.appendChild(h('div', { className: 'empty' }, '⚠️ ' + msg));
+      }
+
+      function cloneCard(card) {
+        if (!card) return null;
+        let modsData = {};
+        if (card.modsData) {
+          try {
+            modsData = JSON.parse(JSON.stringify(card.modsData));
+          } catch (err) {
+            modsData = { ...card.modsData };
+          }
+        }
+        return {
+          ...card,
+          children: Array.isArray(card.children) ? card.children.slice() : [],
+          modsData
+        };
+      }
+
+      /* =========================
+         STORAGE
+         ========================= */
+      function save() {
+        try {
+          const key = instanceKey || 'nested_cards_store';
+          localStorage.setItem(key, JSON.stringify(store));
+        } catch (e) {
+          showToast('Failed to save: ' + e.message, 'error');
+        }
+      }
+
+      function load() {
+        const key = instanceKey || 'nested_cards_store';
+        const raw = localStorage.getItem(key);
+        if (!raw) {
+          store = { rootOrder: [], cards: {}, mods: {} };
+          save();
+          return;
+        }
+        try {
+          const parsed = JSON.parse(raw);
+          store = {
+            rootOrder: parsed.rootOrder || [],
+            cards: parsed.cards || {},
+            mods: parsed.mods || {}
+          };
+        } catch (e) {
+          bootError('Corrupted data.');
+        }
+      }
+
+      /* =========================
+         NAVIGATION
+         ========================= */
+      function goTo(page, opts = {}) {
+        navHistory.push({ ...navState });
+        navState = {
+          page,
+          cardId: opts.cardId ?? null,
+          parentId: opts.parentId ?? null,
+          searchQuery: opts.searchQuery ?? ''
+        };
+        render();
+      }
+
+      function goBack() {
+        if (navHistory.length) {
+          navState = navHistory.pop();
+          render();
+        }
+      }
+
+      /* =========================
+         MOD SYSTEM
+         ========================= */
+      const CIB_MODS = (() => {
+        const registry = {};
+        const styleTags = {};
+        const initializedMods = new Set();
+
+        function ensureRegistered(modId, modData) {
+          const existing = registry[modId];
+          if (existing && existing.__loaded) {
+            return existing;
+          }
+          if (!modData || !modData.js) {
+            if (!registry[modId]) {
+              registry[modId] = { id: modId, hooks: {}, meta: modData?.meta || {}, __loaded: true };
+            }
+            return registry[modId];
+          }
+          try {
+            registry[modId] = registry[modId] || { id: modId, hooks: {}, meta: {} };
+            const sourceURL = `\n//# sourceURL=${modId}.mod.js`;
+            const storeAPI = createStoreAPI(modId);
+            const runner = new Function('window', 'document', 'CIB_MODS', 'storeAPI', 'console', modData.js + sourceURL);
+            runner(window, document, CIB_MODS, storeAPI, console);
+            if (modData.meta) {
+              registry[modId].meta = { ...modData.meta };
+            }
+            registry[modId].__loaded = true;
+            return registry[modId];
+          } catch (err) {
+            console.error(`[Mods] Failed to evaluate ${modId}:`, err);
+            registry[modId] = registry[modId] || { id: modId, hooks: {}, meta: modData?.meta || {} };
+            registry[modId].__loaded = false;
+            registry[modId].__error = err;
+            return null;
+          }
+        }
+
+        function ensureStyle(modId, css) {
+          if (!css || styleTags[modId]) return;
+          const tag = document.createElement('style');
+          tag.setAttribute('data-mod-style', modId);
+          tag.textContent = css;
+          document.head.appendChild(tag);
+          styleTags[modId] = tag;
+        }
+
+        function removeStyle(modId) {
+          const tag = styleTags[modId];
+          if (tag && tag.parentNode) tag.parentNode.removeChild(tag);
+          delete styleTags[modId];
+        }
+
+        function createStoreAPI(modId) {
+          return {
+            getAppInfo() {
+              return { appVersion: APP_VERSION, schemaVersion: SCHEMA_VERSION };
+            },
+            getCard(id) {
+              return cloneCard(store.cards[id]);
+            },
+            listCards() {
+              return Object.values(store.cards).map(cloneCard);
+            },
+            listRootIds() {
+              return store.rootOrder.slice();
+            },
+            getNavState() {
+              return { ...navState };
+            },
+            navigate(page, opts = {}) {
+              goTo(page, opts);
+            },
+            showToast(message, type = 'success') {
+              showToast(message, type);
+            },
+            markDirty() {
+              dirty = true;
+            }
+          };
+        }
+
+        function buildContext(modId) {
+          return {
+            modId,
+            appVersion: APP_VERSION,
+            schemaVersion: SCHEMA_VERSION,
+            api: createStoreAPI(modId)
+          };
+        }
+
+        return {
+          registry,
+          _registry: registry,
+          register(modId, definition = {}) {
+            if (!modId) throw new Error('CIB_MODS.register requires a mod id');
+            const entry = registry[modId] || { id: modId, hooks: {}, meta: {} };
+            entry.hooks = {
+              onAppInit: typeof definition.onAppInit === 'function' ? definition.onAppInit : entry.hooks.onAppInit,
+              onCardRender: typeof definition.onCardRender === 'function' ? definition.onCardRender : entry.hooks.onCardRender,
+              onCardSave: typeof definition.onCardSave === 'function' ? definition.onCardSave : entry.hooks.onCardSave,
+              onCardDelete: typeof definition.onCardDelete === 'function' ? definition.onCardDelete : entry.hooks.onCardDelete
+            };
+            if (definition.meta) {
+              entry.meta = { ...definition.meta };
+            }
+            registry[modId] = entry;
+            entry.__loaded = true;
+            return entry;
+          },
+          enable(modId) {
+            const modData = store.mods[modId];
+            if (!modData) {
+              console.warn(`[Mods] Cannot enable missing mod ${modId}`);
+              return false;
+            }
+            modData.enabled = true;
+            ensureStyle(modId, modData.css);
+            const entry = ensureRegistered(modId, modData);
+            if (!entry) return false;
+            initializedMods.delete(modId);
+            save();
+            this.runHook('onAppInit');
+            return true;
+          },
+          disable(modId) {
+            const modData = store.mods[modId];
+            if (!modData) return false;
+            modData.enabled = false;
+            removeStyle(modId);
+            initializedMods.delete(modId);
+            save();
+            return true;
+          },
+          syncFromStore() {
+            Object.keys(registry).forEach(modId => {
+              if (!store.mods[modId]) {
+                removeStyle(modId);
+                initializedMods.delete(modId);
+                delete registry[modId];
+              }
+            });
+            Object.entries(store.mods).forEach(([modId, modData]) => {
+              if (!modData.enabled) return;
+              ensureStyle(modId, modData.css);
+              ensureRegistered(modId, modData);
+            });
+          },
+          runHook(hookName, ...args) {
+            Object.keys(store.mods).forEach(modId => {
+              const modData = store.mods[modId];
+              if (!modData.enabled) return;
+              const entry = registry[modId];
+              if (!entry || !entry.__loaded || !entry.hooks[hookName]) return;
+              if (hookName === 'onAppInit' && initializedMods.has(modId)) return;
+              try {
+                entry.hooks[hookName](buildContext(modId), ...args);
+                if (hookName === 'onAppInit') {
+                  initializedMods.add(modId);
+                }
+              } catch (err) {
+                console.error(`[Mods] Error in ${modId}.${hookName}:`, err);
+              }
+            });
+          },
+          listMods() {
+            return Object.keys(store.mods).map(id => ({
+              id,
+              enabled: !!store.mods[id]?.enabled,
+              meta: store.mods[id]?.meta || {}
+            }));
+          }
+        };
+      })();
+
+      window.CIB_MODS = CIB_MODS;
+
+      function runModHook(hookName, ...args) {
+        CIB_MODS.runHook(hookName, ...args);
+      }
+
+      /* =========================
+         CARD OPERATIONS
+         ========================= */
+      function createCard(title, body, parentId = null) {
+        const id = uid();
+        const now = Date.now();
+        store.cards[id] = {
+          id,
+          title: title || '',
+          body: body || '',
+          parentId: parentId || null,
+          children: [],
+          createdAt: now,
+          updatedAt: now,
+          modsData: {}
+        };
+        if (!parentId) {
+          store.rootOrder.push(id);
+        } else {
+          const parent = store.cards[parentId];
+          if (parent && !parent.children.includes(id)) {
+            parent.children.push(id);
+          }
+        }
+        save();
+        runModHook('onCardSave', cloneCard(store.cards[id]), { isNew: true, source: 'create' });
+        return id;
+      }
+
+      function updateCard(id, updates) {
+        const card = store.cards[id];
+        if (!card) return;
+        Object.assign(card, updates, { updatedAt: Date.now() });
+        save();
+        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'update' });
+      }
+
+      function deleteCard(id) {
+        const card = store.cards[id];
+        if (!card) return;
+        
+        runModHook('onCardDelete', cloneCard(card));
+        
+        // Delete children recursively
+        (card.children || []).forEach(cid => deleteCard(cid));
+        
+        // Remove from parent's children or rootOrder
+        if (card.parentId) {
+          const parent = store.cards[card.parentId];
+          if (parent) {
+            parent.children = parent.children.filter(c => c !== id);
+          }
+        } else {
+          store.rootOrder = store.rootOrder.filter(c => c !== id);
+        }
+        
+        delete store.cards[id];
+        save();
+      }
+
+      /* =========================
+         EXPORT FUNCTIONS
+         ========================= */
+      function exportJSON(type = 'instance') {
+        let data;
+        if (type === 'instance') {
+          data = {
+            exportType: 'instance',
+            appVersion: APP_VERSION,
+            timestamp: Date.now(),
+            cards: store.cards,
+            rootIds: store.rootOrder,
+            mods: store.mods
+          };
+        } else if (type === 'mods') {
+          data = {
+            exportType: 'mods',
+            appVersion: APP_VERSION,
+            timestamp: Date.now(),
+            mods: store.mods
+          };
+        }
+        
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cardspoke-${type}-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast(`Exported ${type} successfully`);
+      }
+
+      function exportTXT() {
+        let text = '# CardSpoke Export\n\n';
+        
+        function writeCard(cardId, depth = 0) {
+          const card = store.cards[cardId];
+          if (!card) return;
+          const indent = '  '.repeat(depth);
+          text += `${indent}${card.title || '(Untitled)'}\n`;
+          if (card.body) {
+            text += `${indent}  ${card.body.replace(/\n/g, '\n' + indent + '  ')}\n`;
+          }
+          text += '\n';
+          (card.children || []).forEach(cid => writeCard(cid, depth + 1));
+        }
+        
+        store.rootOrder.forEach(id => writeCard(id));
+        
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cardspoke-${Date.now()}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Exported TXT successfully');
+      }
+
+      function handleExport(type) {
+        if (type === 'instance-json') exportJSON('instance');
+        else if (type === 'instance-txt') exportTXT();
+        else if (type === 'mods-json') exportJSON('mods');
+      }
+
+      /* =========================
+         IMPORT FUNCTIONS
+         ========================= */
+      function importJSON(data, mode = 'root') {
+        const pkg = typeof data === 'string' ? JSON.parse(data) : data;
+        const importedIds = [];
+        
+        // Remap IDs to avoid conflicts
+        const idMap = {};
+        const remappedCards = {};
+        
+        Object.entries(pkg.cards || {}).forEach(([oldId, card]) => {
+          const newId = uid();
+          idMap[oldId] = newId;
+          remappedCards[newId] = { ...card, id: newId };
+          importedIds.push(newId);
+        });
+        
+        // Fix references
+        Object.values(remappedCards).forEach(card => {
+          card.children = (card.children || []).map(cid => idMap[cid] || cid);
+          if (card.parentId && idMap[card.parentId]) {
+            card.parentId = idMap[card.parentId];
+          }
+        });
+        
+        const remappedRootIds = (pkg.rootIds || []).map(id => idMap[id] || id);
+        
+        // Import cards
+        Object.values(remappedCards).forEach(card => {
+          store.cards[card.id] = card;
+        });
+        
+        // Handle import location
+        if (mode === 'root') {
+          remappedRootIds.forEach(id => {
+            if (store.cards[id]) {
+              store.cards[id].parentId = null;
+              if (!store.rootOrder.includes(id)) {
+                store.rootOrder.push(id);
+              }
+            }
+          });
+        } else {
+          // Import as children of specified card
+          const parentCard = store.cards[mode];
+          if (parentCard) {
+            remappedRootIds.forEach(cardId => {
+              if (store.cards[cardId]) {
+                store.cards[cardId].parentId = mode;
+                if (!parentCard.children.includes(cardId)) {
+                  parentCard.children.push(cardId);
+                }
+              }
+            });
+          }
+        }
+        
+        // Import mods if it's an instance export
+        if (pkg.exportType === 'instance' && pkg.mods) {
+          Object.entries(pkg.mods).forEach(([modId, mod]) => {
+            if (!store.mods[modId]) {
+              store.mods[modId] = {
+                enabled: !!mod.enabled,
+                js: mod.js || '',
+                css: mod.css || '',
+                meta: mod.meta ? { ...mod.meta } : {}
+              };
+            }
+          });
+        }
+        
+        save();
+        if (window.CIB_MODS) {
+          window.CIB_MODS.syncFromStore();
+          window.CIB_MODS.runHook('onAppInit');
+        }
+        
+        importedIds.forEach(cardId => {
+          const storedCard = store.cards[cardId];
+          if (storedCard) {
+            runModHook('onCardSave', cloneCard(storedCard), { isNew: true, source: 'importJSON', exportType: pkg.exportType });
+          }
+        });
+        
+        showToast(`Imported ${Object.keys(remappedCards).length} cards`);
+        render();
+      }
+
+      function importTXT(text, mode = 'outline', location = 'root') {
+        if (mode === 'outline') {
+          const lines = text.split('\n').filter(l => l.trim());
+          const stack = [];
+          
+          lines.forEach(line => {
+            const indent = line.search(/\S/);
+            const title = line.trim();
+            
+            const depth = Math.floor(indent / 2);
+            
+            const parentId = depth > 0 && stack[depth - 1] ? stack[depth - 1] : 
+                           (location === 'root' ? null : location);
+            const id = createCard(title, '', parentId);
+            
+            stack[depth] = id;
+            stack.length = depth + 1;
+          });
+          
+          showToast('Imported outline successfully');
+          render();
+        } else if (mode === 'append') {
+          if (location && location !== 'root') {
+            const card = store.cards[location];
+            if (card) {
+              card.body = (card.body ? card.body + '\n\n' : '') + text;
+              card.updatedAt = Date.now();
+              save();
+              showToast('Text appended successfully');
+              render();
+            }
+          }
+        }
+      }
+
+      function importDOCX(text, mode = 'append', targetCardId) {
+        if (!targetCardId || !store.cards[targetCardId]) {
+          showToast('Please select a target card', 'error');
+          return;
+        }
+        
+        const card = store.cards[targetCardId];
+        if (mode === 'append') {
+          card.body = (card.body ? card.body + '\n\n' : '') + text;
+        } else if (mode === 'replace') {
+          card.body = text;
+        }
+        card.updatedAt = Date.now();
+        save();
+        showToast('DOCX imported successfully');
+        render();
+      }
+
+      /* =========================
+         INSTANCE MANAGEMENT
+         ========================= */
+      function chooseInstance(isInitial = false) {
+        const allKeys = Object.keys(localStorage).filter(k => k.startsWith('nested_cards_') || k === 'nested_cards_store');
+        const current = instanceKey || 'nested_cards_store';
+        
+        let msg = 'Available instances:\n\n';
+        allKeys.forEach((k, i) => {
+          const isCurrent = (k === current);
+          msg += `${i + 1}. ${k}${isCurrent ? ' (current)' : ''}\n`;
+        });
+        msg += `\n${allKeys.length + 1}. Create new instance`;
+        
+        const choice = prompt(msg, '1');
+        if (!choice) return;
+        
+        const idx = parseInt(choice, 10) - 1;
+        
+        if (idx === allKeys.length) {
+          const newName = prompt('Enter new instance key:', 'nested_cards_' + Date.now());
+          if (!newName) return;
+          localStorage.setItem('activeInstance', newName);
+          instanceKey = newName;
+          store = { rootOrder: [], cards: {}, mods: {} };
+          save();
+          render();
+          showToast('Created new instance: ' + newName);
+        } else if (idx >= 0 && idx < allKeys.length) {
+          const selectedKey = allKeys[idx];
+          localStorage.setItem('activeInstance', selectedKey);
+          instanceKey = selectedKey;
+          load();
+          CIB_MODS.syncFromStore();
+          CIB_MODS.runHook('onAppInit');
+          render();
+          showToast('Switched to: ' + selectedKey);
+        }
+      }
+
+      /* =========================
+         MOD MANAGEMENT UI
+         ========================= */
+      function showModsManager() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal' });
+        
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Extension Manager'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        const modalBody = h('div', { className: 'modal-body' });
+        
+        const modList = Object.entries(store.mods).map(([modId, modData]) => {
+          const modItem = h('div', { style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: var(--space-md);' });
+          
+          const modHeader = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
+          modHeader.appendChild(h('div', { style: 'font-weight: 600;' }, modData.meta?.name || modId));
+          
+          const toggleBtn = h('button', {
+            className: modData.enabled ? 'btn btn-danger' : 'btn btn-primary',
+            onclick: () => {
+              if (modData.enabled) {
+                CIB_MODS.disable(modId);
+              } else {
+                CIB_MODS.enable(modId);
+              }
+              overlay.remove();
+              showModsManager();
+            }
+          }, modData.enabled ? 'Disable' : 'Enable');
+          modHeader.appendChild(toggleBtn);
+          
+          modItem.appendChild(modHeader);
+          
+          if (modData.meta?.description) {
+            modItem.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--fs-sm); margin-bottom: var(--space-sm);' }, modData.meta.description));
+          }
+          
+          const deleteBtn = h('button', {
+            className: 'btn btn-danger',
+            style: 'font-size: var(--fs-sm);',
+            onclick: () => {
+              if (confirm(`Delete extension "${modData.meta?.name || modId}"?`)) {
+                CIB_MODS.disable(modId);
+                delete store.mods[modId];
+                save();
+                overlay.remove();
+                showModsManager();
+              }
+            }
+          }, 'Delete');
+          modItem.appendChild(deleteBtn);
+          
+          return modItem;
+        });
+        
+        if (modList.length === 0) {
+          modalBody.appendChild(h('div', { className: 'empty' }, 'No extensions installed'));
+        } else {
+          modList.forEach(item => modalBody.appendChild(item));
+        }
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+      }
+
+      /* =========================
+         UPDATE IMPORT OPTIONS
+         ========================= */
+      function updateImportLocationOptions() {
+        const selectJSON = uploadModal.importLocationSelectJSON;
+        const selectTXT = uploadModal.importLocationSelectTXT;
+        const selectDOCX = uploadModal.importLocationSelectDOCX;
+        
+        const sortedCards = Object.values(store.cards)
+          .sort((a, b) => {
+            const A = (a.title || '').toLowerCase();
+            const B = (b.title || '').toLowerCase();
+            return A.localeCompare(B);
+          });
+        
+        if (selectJSON) {
+          selectJSON.innerHTML = '<option value="root">Add as Root Cards</option>';
+          sortedCards.forEach(card => {
+            const option = document.createElement('option');
+            option.value = card.id;
+            option.textContent = `Add as children of: ${card.title || '(Untitled)'}`;
+            selectJSON.appendChild(option);
+          });
+        }
+        
+        if (selectTXT) {
+          selectTXT.innerHTML = '<option value="root">Add as Root Cards</option>';
+          sortedCards.forEach(card => {
+            const option = document.createElement('option');
+            option.value = card.id;
+            option.textContent = `Add as children of: ${card.title || '(Untitled)'}`;
+            selectTXT.appendChild(option);
+          });
+        }
+        
+        if (selectDOCX) {
+          selectDOCX.innerHTML = '<option value="">Select a card...</option>';
+          sortedCards.forEach(card => {
+            const option = document.createElement('option');
+            option.value = card.id;
+            option.textContent = card.title || '(Untitled)';
+            selectDOCX.appendChild(option);
+          });
+        }
+      }
+
+      /* =========================
+         EXTRACT TAGS FROM BODY
+         ========================= */
+      function extractTags(body) {
+        if (!body) return [];
+        const matches = body.match(/#\w+/g);
+        return matches ? matches.slice(0, 5) : [];
+      }
+
+      /* =========================
+         BREADCRUMBS
+         ========================= */
+      function renderBreadcrumbs() {
+        breadcrumbs.innerHTML = '';
+        
+        if (navState.page === 'search') {
+          breadcrumbs.appendChild(h('div', { className: 'breadcrumb current' }, 'Search Results'));
+          return;
+        }
+        
+        if (navState.page === 'edit') {
+          breadcrumbs.appendChild(h('div', { className: 'breadcrumb current' }, navState.cardId ? 'Edit Card' : 'New Card'));
+          return;
+        }
+        
+        let current = navState.cardId;
+        const path = [];
+        while (current) {
+          const c = store.cards[current];
+          if (!c) break;
+          path.unshift(c);
+          current = c.parentId;
+        }
+        
+        if (path.length === 0) {
+          breadcrumbs.appendChild(h('div', { className: 'breadcrumb current' }, 'All Cards'));
+        } else {
+          const home = h('div', { className: 'breadcrumb', onclick: () => goTo('list', { cardId: null }) }, 'All Cards');
+          breadcrumbs.appendChild(home);
+          path.forEach((c, i) => {
+            const isCurrent = (i === path.length - 1 && navState.page === 'list');
+            const cls = isCurrent ? 'breadcrumb current' : 'breadcrumb';
+            const chip = h('div', { className: cls, onclick: isCurrent ? null : () => goTo('list', { cardId: c.id }) }, c.title || '(Untitled)');
+            breadcrumbs.appendChild(chip);
+          });
+        }
+      }
+
+      /* =========================
+         RENDER CARD LIST
+         ========================= */
+      function renderCardList() {
+        const parentId = navState.cardId;
+        let kids = [];
+        
+        if (!parentId) {
+          kids = store.rootOrder.map(id => store.cards[id]).filter(c => c);
+        } else {
+          const parent = store.cards[parentId];
+          if (!parent) {
+            main.appendChild(h('div', { className: 'empty' }, 'Card not found.'));
+            return;
+          }
+          kids = parent.children.map(id => store.cards[id]).filter(c => c);
+        }
+        
+        // Show search on list view
+        searchContainer.style.display = 'block';
+        
+        // Page title
+        const title = parentId ? (store.cards[parentId]?.title || 'Card') : 'Top Level Cards';
+        main.appendChild(h('div', { className: 'page-title' }, title));
+        
+        // Sort control
+        const sortControl = h('div', { className: 'sort-control' });
+        sortControl.appendChild(h('label', { className: 'sort-label' }, 'Sort:'));
+        const sortSelect = h('select', { className: 'sort-select', id: 'sortSelect' });
+        sortSelect.appendChild(h('option', { value: 'alpha' }, 'Alphabetical'));
+        sortSelect.appendChild(h('option', { value: 'updated' }, 'Recently Updated'));
+        sortSelect.appendChild(h('option', { value: 'created' }, 'Recently Created'));
+        sortSelect.addEventListener('change', () => render());
+        sortControl.appendChild(sortSelect);
+        main.appendChild(sortControl);
+        
+        // Sort cards
+        const sortMode = sortSelect.value || 'alpha';
+        if (sortMode === 'alpha') {
+          kids.sort((a, b) => (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase()));
+        } else if (sortMode === 'updated') {
+          kids.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        } else if (sortMode === 'created') {
+          kids.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        }
+        
+        if (kids.length === 0) {
+          main.appendChild(h('div', { className: 'empty' }, 'No cards yet. Create one to get started!'));
+        } else {
+          const grid = h('div', { className: 'card-grid' });
+          kids.forEach(card => {
+            const cardEl = renderCardTile(card);
+            grid.appendChild(cardEl);
+            runModHook('onCardRender', cloneCard(card), cardEl);
+          });
+          main.appendChild(grid);
+        }
+      }
+
+      function renderCardTile(card) {
+        const cardEl = h('div', { className: 'card', onclick: () => goTo('read', { cardId: card.id }) });
+        cardEl.dataset.cardId = card.id;
+        cardEl.dataset.renderType = 'list';
+        
+        const header = h('div', { className: 'card-header' });
+        header.appendChild(h('div', { className: 'card-title' }, card.title || '(Untitled)'));
+        if (card.children.length > 0) {
+          header.appendChild(h('div', { className: 'card-count' }, String(card.children.length)));
+        }
+        cardEl.appendChild(header);
+        
+        if (card.body) {
+          const preview = card.body.substring(0, 120) + (card.body.length > 120 ? '...' : '');
+          cardEl.appendChild(h('div', { className: 'card-description' }, preview));
+        }
+        
+        const tags = extractTags(card.body);
+        if (tags.length > 0) {
+          const tagsEl = h('div', { className: 'card-tags' });
+          tags.forEach(tag => {
+            tagsEl.appendChild(h('span', { className: 'card-tag' }, tag));
+          });
+          cardEl.appendChild(tagsEl);
+        }
+        
+        cardEl.appendChild(h('div', { className: 'card-meta' }, 'Updated ' + formatDate(card.updatedAt)));
+        
+        return cardEl;
+      }
+
+      /* =========================
+         RENDER READ VIEW
+         ========================= */
+      function renderReadOnlyCard() {
+        searchContainer.style.display = 'none';
+        
+        const card = store.cards[navState.cardId];
+        if (!card) {
+          main.appendChild(h('div', { className: 'empty' }, 'Card not found.'));
+          return;
+        }
+        
+        const detail = h('div', { className: 'card-detail' });
+        detail.appendChild(h('div', { className: 'card-detail-title' }, card.title || '(Untitled)'));
+        
+        if (card.body) {
+          detail.appendChild(h('div', { className: 'card-detail-body' }, card.body));
+        }
+        
+        const actions = h('div', { className: 'card-detail-actions' });
+        actions.appendChild(h('button', { className: 'btn btn-primary', onclick: () => goTo('edit', { cardId: card.id }) }, 'Edit'));
+        actions.appendChild(h('button', { className: 'btn', onclick: () => {
+          const newId = createCard('', '', card.id);
+          goTo('edit', { cardId: newId });
+        } }, 'Add Child'));
+        actions.appendChild(h('button', { className: 'btn btn-danger', onclick: () => {
+          if (confirm('Delete this card and all its children?')) {
+            deleteCard(card.id);
+            goTo('list', { cardId: card.parentId });
+          }
+        } }, 'Delete'));
+        detail.appendChild(actions);
+        
+        if (card.children.length > 0) {
+          const childrenSection = h('div', { className: 'children-section' });
+          childrenSection.appendChild(h('div', { className: 'children-title' }, `Children (${card.children.length})`));
+          
+          const childrenGrid = h('div', { className: 'card-grid' });
+          card.children.forEach(cid => {
+            const childCard = store.cards[cid];
+            if (childCard) {
+              const childEl = renderCardTile(childCard);
+              childrenGrid.appendChild(childEl);
+              runModHook('onCardRender', cloneCard(childCard), childEl);
+            }
+          });
+          childrenSection.appendChild(childrenGrid);
+          detail.appendChild(childrenSection);
+        }
+        
+        main.appendChild(detail);
+        runModHook('onCardRender', cloneCard(card), detail);
+      }
+
+      /* =========================
+         RENDER EDIT VIEW
+         ========================= */
+      function renderEditCard() {
+        searchContainer.style.display = 'none';
+        
+        const editing = !!navState.cardId;
+        const card = editing ? store.cards[navState.cardId] : {
+          id: null,
+          title: '',
+          body: '',
+          parentId: navState.parentId,
+          children: []
+        };
+        
+        if (editing && !card) {
+          main.appendChild(h('div', { className: 'empty' }, 'Card not found.'));
+          return;
+        }
+        
+        const form = h('form', {
+          onsubmit: (e) => {
+            e.preventDefault();
+            
+            const titleVal = form.querySelector('#cardTitle').value.trim();
+            const bodyVal = form.querySelector('#cardBody').value.trim();
+            const parentVal = form.querySelector('#cardParent').value || null;
+            
+            if (editing) {
+              // Handle reparenting
+              const oldParentId = card.parentId;
+              if (oldParentId !== parentVal) {
+                // Remove from old parent
+                if (oldParentId) {
+                  const oldParent = store.cards[oldParentId];
+                  if (oldParent) {
+                    oldParent.children = oldParent.children.filter(c => c !== card.id);
+                  }
+                } else {
+                  store.rootOrder = store.rootOrder.filter(c => c !== card.id);
+                }
+                
+                // Add to new parent
+                if (parentVal) {
+                  const newParent = store.cards[parentVal];
+                  if (newParent && !newParent.children.includes(card.id)) {
+                    newParent.children.push(card.id);
+                  }
+                } else {
+                  if (!store.rootOrder.includes(card.id)) {
+                    store.rootOrder.push(card.id);
+                  }
+                }
+                
+                card.parentId = parentVal;
+              }
+              
+              updateCard(card.id, { title: titleVal, body: bodyVal });
+              
+              // Handle children title updates
+              card.children.forEach(cid => {
+                const inp = childrenInpMap[cid];
+                if (inp) {
+                  updateCard(cid, { title: inp.value.trim() });
+                }
+              });
+              
+              // Handle new children
+              const newKidRows = form.querySelectorAll('#addChildList .form-child-row input');
+              newKidRows.forEach(inp => {
+                const t = inp.value.trim();
+                if (t) createCard(t, '', card.id);
+              });
+              
+              goTo('read', { cardId: card.id });
+            } else {
+              const newId = createCard(titleVal, bodyVal, parentVal);
+              
+              // Handle new children
+              const newKidRows = form.querySelectorAll('#addChildList .form-child-row input');
+              newKidRows.forEach(inp => {
+                const t = inp.value.trim();
+                if (t) createCard(t, '', newId);
+              });
+              
+              goTo('read', { cardId: newId });
+            }
+          }
+        });
+        
+        const formGroup1 = h('div', { className: 'form-group' });
+        formGroup1.appendChild(h('label', { className: 'form-label' }, 'Title'));
+        formGroup1.appendChild(h('input', { type: 'text', id: 'cardTitle', className: 'form-input', value: card.title, oninput: () => { dirty = true; } }));
+        form.appendChild(formGroup1);
+        
+        const formGroup2 = h('div', { className: 'form-group' });
+        formGroup2.appendChild(h('label', { className: 'form-label' }, 'Body'));
+        const bodyTextarea = h('textarea', { id: 'cardBody', className: 'form-textarea' });
+        bodyTextarea.value = card.body;
+        bodyTextarea.addEventListener('input', () => { dirty = true; });
+        formGroup2.appendChild(bodyTextarea);
+        form.appendChild(formGroup2);
+        
+        const formGroup3 = h('div', { className: 'form-group' });
+        formGroup3.appendChild(h('label', { className: 'form-label' }, 'Parent Card'));
+        const parentSel = h('select', { id: 'cardParent', className: 'form-select' });
+        const parVal = card.parentId || '';
+        parentSel.appendChild(h('option', { value: '', selected: !parVal }, '(Root Level)'));
+        Object.values(store.cards)
+          .filter(c => c.id !== card.id)
+          .sort((a, b) => {
+            const A = (a.title || '').toLowerCase();
+            const B = (b.title || '').toLowerCase();
+            return A.localeCompare(B);
+          })
+          .forEach(c => {
+            parentSel.appendChild(h('option', { value: c.id, selected: parVal === c.id }, c.title || '(Untitled)'));
+          });
+        parentSel.addEventListener('change', () => { dirty = true; });
+        formGroup3.appendChild(parentSel);
+        form.appendChild(formGroup3);
+        
+        let childrenInpMap = {};
+        if (editing) {
+          const formGroup4 = h('div', { className: 'form-group' });
+          formGroup4.appendChild(h('label', { className: 'form-label' }, 'Children'));
+          const kidsWrap = h('div', { className: 'form-children' });
+          card.children.forEach(cid => {
+            const c = store.cards[cid];
+            const row = h('div', { className: 'form-child-row' });
+            const chInp = h('input', { type: 'text', value: c.title, className: 'form-input form-child-input' });
+            chInp.addEventListener('input', () => { dirty = true; });
+            row.appendChild(chInp);
+            const delBtn = h('button', {
+              type: 'button',
+              className: 'form-child-delete',
+              onclick: () => {
+                if (confirm('Delete child and all its children?')) {
+                  deleteCard(cid);
+                  save();
+                  render();
+                }
+              }
+            }, '✕');
+            row.appendChild(delBtn);
+            childrenInpMap[cid] = chInp;
+            kidsWrap.appendChild(row);
+          });
+          formGroup4.appendChild(kidsWrap);
+          form.appendChild(formGroup4);
+          
+          const formGroup5 = h('div', { className: 'form-group' });
+          formGroup5.appendChild(h('label', { className: 'form-label' }, 'Add New Children'));
+          const newKidsWrap = h('div', { className: 'form-children', id: 'addChildList' });
+          const addChildRow = (title = '') => {
+            const r = h('div', { className: 'form-child-row' });
+            const t = h('input', { type: 'text', value: title, placeholder: 'Child title...', className: 'form-input form-child-input' });
+            t.addEventListener('input', () => { dirty = true; });
+            const d = h('button', { type: 'button', className: 'form-child-delete', onclick: () => { r.remove(); } }, '✕');
+            r.appendChild(t);
+            r.appendChild(d);
+            newKidsWrap.appendChild(r);
+          };
+          addChildRow();
+          formGroup5.appendChild(newKidsWrap);
+          formGroup5.appendChild(h('button', { type: 'button', className: 'btn', onclick: () => addChildRow() }, '+ Add Another Child'));
+          form.appendChild(formGroup5);
+        } else {
+          const formGroup4 = h('div', { className: 'form-group' });
+          formGroup4.appendChild(h('label', { className: 'form-label' }, 'Add Children Now (title only)'));
+          const kidsWrap = h('div', { className: 'form-children', id: 'addChildList' });
+          const addChildRow = (title = '') => {
+            const r = h('div', { className: 'form-child-row' });
+            const t = h('input', { type: 'text', value: title, placeholder: 'Child title...', className: 'form-input form-child-input' });
+            t.addEventListener('input', () => { dirty = true; });
+            const d = h('button', { type: 'button', className: 'form-child-delete', onclick: () => { r.remove(); } }, '✕');
+            r.appendChild(t);
+            r.appendChild(d);
+            kidsWrap.appendChild(r);
+          };
+          addChildRow();
+          formGroup4.appendChild(kidsWrap);
+          formGroup4.appendChild(h('button', { type: 'button', className: 'btn', onclick: () => addChildRow() }, '+ Add Another Child'));
+          form.appendChild(formGroup4);
+        }
+        
+        const formActions = h('div', { className: 'form-actions' });
+        formActions.appendChild(h('button', { type: 'submit', className: 'btn btn-primary' }, 'Save'));
+        formActions.appendChild(h('button', { type: 'button', className: 'btn', onclick: () => editing ? goTo('read', { cardId: card.id }) : goBack() }, 'Cancel'));
+        if (editing) {
+          formActions.appendChild(h('button', {
+            type: 'button',
+            className: 'btn btn-danger',
+            onclick: () => {
+              if (confirm('Delete this card and all children?')) {
+                deleteCard(card.id);
+                save();
+                goTo('list', { cardId: card.parentId ?? null });
+              }
+            }
+          }, 'Delete'));
+        }
+        form.appendChild(formActions);
+        
+        main.appendChild(h('div', { className: 'page-title' }, editing ? 'Edit Card' : 'New Card'));
+        main.appendChild(form);
+      }
+
+      /* =========================
+         RENDER SEARCH RESULTS
+         ========================= */
+      function renderSearchResults() {
+        searchContainer.style.display = 'none';
+        
+        const query = navState.searchQuery.trim().toLowerCase();
+        if (!query) {
+          main.appendChild(h('div', { className: 'empty' }, 'Please enter a search term.'));
+          return;
+        }
+        
+        let results = Object.values(store.cards).filter(c =>
+          (c.title + ' ' + c.body).toLowerCase().includes(query)
+        );
+        
+        results = results.sort((a, b) => {
+          const A = (a.title || '').toLowerCase();
+          const B = (b.title || '').toLowerCase();
+          return A.localeCompare(B);
+        });
+        
+        main.appendChild(h('div', { className: 'page-title' }, `Search: "${navState.searchQuery}"`));
+        
+        if (results.length === 0) {
+          main.appendChild(h('div', { className: 'empty' }, 'No results found.'));
+        } else {
+          const grid = h('div', { className: 'card-grid' });
+          results.forEach(card => {
+            const cardEl = renderCardTile(card);
+            grid.appendChild(cardEl);
+            runModHook('onCardRender', cloneCard(card), cardEl);
+          });
+          main.appendChild(grid);
+        }
+      }
+
+      /* =========================
+         MAIN RENDER
+         ========================= */
+      function render() {
+        try {
+          renderBreadcrumbs();
+          main.innerHTML = '';
+          
+          switch (navState.page) {
+            case 'read':
+              renderReadOnlyCard();
+              break;
+            case 'list':
+              renderCardList();
+              break;
+            case 'search':
+              renderSearchResults();
+              break;
+            case 'edit':
+              renderEditCard();
+              break;
+            default:
+              renderCardList();
+          }
+        } catch (e) {
+          bootError('Render failed: ' + (e.message || e));
+        }
+      }
+
+      /* =========================
+         THEME TOGGLE
+         ========================= */
+      function applyTheme(theme) {
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+        try {
+          localStorage.setItem('cardspoke_theme', theme);
+        } catch { }
+        header.themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
+      }
+
+      const savedTheme = localStorage.getItem('cardspoke_theme') || 'light';
+      applyTheme(savedTheme);
+
+      header.themeToggle.onclick = () => {
+        const isDark = document.documentElement.classList.contains('dark');
+        applyTheme(isDark ? 'light' : 'dark');
+      };
+
+      /* =========================
+         MENU HANDLERS
+         ========================= */
+      header.menuBtn.onclick = () => {
+        menu.overlay.classList.add('show');
+      };
+
+      menu.closeBtn.onclick = () => {
+        menu.overlay.classList.remove('show');
+      };
+
+      menu.overlay.onclick = (e) => {
+        if (e.target === menu.overlay) {
+          menu.overlay.classList.remove('show');
+        }
+      };
+
+      menu.newCard.onclick = () => {
+        menu.overlay.classList.remove('show');
+        goTo('edit', { cardId: null, parentId: null });
+      };
+
+      menu.upload.onclick = () => {
+        menu.overlay.classList.remove('show');
+        updateImportLocationOptions();
+        if (uploadModal.importLocationSelectJSON) uploadModal.importLocationSelectJSON.value = 'root';
+        if (uploadModal.importLocationSelectTXT) uploadModal.importLocationSelectTXT.value = 'root';
+        uploadModal.overlay.classList.add('show');
+      };
+
+      menu.extensions.onclick = () => {
+        menu.overlay.classList.remove('show');
+        showModsManager();
+      };
+
+      menu.instance.onclick = () => {
+        menu.overlay.classList.remove('show');
+        chooseInstance(false);
+      };
+
+      menu.downloadJSON.onclick = () => {
+        menu.overlay.classList.remove('show');
+        handleExport('instance-json');
+      };
+
+      menu.downloadTXT.onclick = () => {
+        menu.overlay.classList.remove('show');
+        handleExport('instance-txt');
+      };
+
+      menu.downloadMods.onclick = () => {
+        menu.overlay.classList.remove('show');
+        handleExport('mods-json');
+      };
+      
+      menu.bakeApp.onclick = () => {
+        menu.overlay.classList.remove('show');
+        openBakeModal();
+      };
+
+      menu.style.onclick = () => {
+        menu.overlay.classList.remove('show');
+        showToast('Future style options coming soon!');
+      };
+
+      /* =========================
+         OTHER HEADER HANDLERS
+         ========================= */
+      header.homeBtn.onclick = () => {
+        goTo('list', { cardId: null });
+      };
+
+      /* =========================
+         SEARCH HANDLERS
+         ========================= */
+      searchInput.addEventListener('input', (e) => {
+        if (e.target.value.trim()) {
+          searchClear.style.display = 'block';
+        } else {
+          searchClear.style.display = 'none';
+        }
+      });
+
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && searchInput.value.trim()) {
+          goTo('search', { searchQuery: searchInput.value.trim() });
+        }
+      });
+
+      searchClear.onclick = () => {
+        searchInput.value = '';
+        searchClear.style.display = 'none';
+        if (navState.page === 'search') {
+          goBack();
+        }
+      };
+
+      /* =========================
+         UPLOAD MODAL HANDLERS
+         ========================= */
+      uploadModal.tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const tabName = tab.getAttribute('data-tab');
+          
+          uploadModal.tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          
+          uploadModal.tabContents.forEach(content => content.classList.remove('active'));
+          document.getElementById(`tab-${tabName}`).classList.add('active');
+        });
+      });
+
+      uploadModal.closeBtn.onclick = () => {
+        uploadModal.overlay.classList.remove('show');
+      };
+
+      uploadModal.overlay.onclick = (e) => {
+        if (e.target === uploadModal.overlay) {
+          uploadModal.overlay.classList.remove('show');
+        }
+      };
+
+      // JSON upload
+      uploadModal.fileUploadAreaJSON.onclick = () => {
+        uploadModal.fileInputJSON.click();
+      };
+
+      uploadModal.fileInputJSON.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const data = JSON.parse(reader.result);
+            const mode = uploadModal.importLocationSelectJSON.value || 'root';
+            importJSON(data, mode);
+            uploadModal.overlay.classList.remove('show');
+          } catch (err) {
+            showToast('Failed to parse JSON: ' + err.message, 'error');
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      // TXT upload
+      uploadModal.fileUploadAreaTXT.onclick = () => {
+        uploadModal.fileInputTXT.click();
+      };
+
+      uploadModal.fileInputTXT.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = () => {
+          const text = reader.result;
+          const modeRadio = document.querySelector('input[name="txtImportMode"]:checked');
+          const mode = modeRadio ? modeRadio.value : 'outline';
+          const location = uploadModal.importLocationSelectTXT.value || 'root';
+          importTXT(text, mode, location);
+          uploadModal.overlay.classList.remove('show');
+        };
+        reader.readAsText(file);
+      });
+
+      // DOCX upload
+      uploadModal.fileUploadAreaDOCX.onclick = () => {
+        uploadModal.fileInputDOCX.click();
+      };
+
+      uploadModal.fileInputDOCX.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = () => {
+          // For now, just extract text naively
+          // In a real app, you'd use a library like mammoth.js
+          const text = '(DOCX text extraction not fully implemented - would need mammoth.js library)';
+          const modeRadio = document.querySelector('input[name="docxImportMode"]:checked');
+          const mode = modeRadio ? modeRadio.value : 'append';
+          const targetCardId = uploadModal.importLocationSelectDOCX.value;
+          importDOCX(text, mode, targetCardId);
+          uploadModal.overlay.classList.remove('show');
+        };
+        reader.readAsArrayBuffer(file);
+      });
+
+      // Mods upload
+      uploadModal.fileUploadAreaMods.onclick = () => {
+        uploadModal.fileInputMods.click();
+      };
+
+      uploadModal.fileInputMods.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            let modData;
+            if (file.name.endsWith('.json')) {
+              modData = JSON.parse(reader.result);
+            } else if (file.name.endsWith('.js')) {
+              const modId = prompt('Enter mod ID:', file.name.replace('.js', ''));
+              if (!modId) return;
+              modData = {
+                id: modId,
+                js: reader.result,
+                css: '',
+                meta: { name: modId }
+              };
+            }
+            
+            if (modData) {
+              const modId = modData.id || uid();
+              store.mods[modId] = {
+                enabled: false,
+                js: modData.js || '',
+                css: modData.css || '',
+                meta: modData.meta || { name: modId }
+              };
+              save();
+              showToast('Mod installed: ' + modId);
+              uploadModal.overlay.classList.remove('show');
+            }
+          } catch (err) {
+            showToast('Failed to install mod: ' + err.message, 'error');
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      uploadModal.installManualMod.onclick = () => {
+        const modName = uploadModal.manualModName.value.trim();
+        const modJS = uploadModal.manualModJS.value.trim();
+        const modCSS = uploadModal.manualModCSS.value.trim();
+        
+        if (!modName || !modJS) {
+          showToast('Please provide mod name and JS code', 'error');
+          return;
+        }
+        
+        const modId = modName.replace(/\s+/g, '-').toLowerCase();
+        store.mods[modId] = {
+          enabled: false,
+          js: modJS,
+          css: modCSS,
+          meta: { name: modName }
+        };
+        save();
+        showToast('Mod installed: ' + modName);
+        uploadModal.overlay.classList.remove('show');
+        uploadModal.manualModName.value = '';
+        uploadModal.manualModJS.value = '';
+        uploadModal.manualModCSS.value = '';
+      };
+
+      /* =========================
+         BAKE APP FUNCTIONALITY
+         ========================= */
+      function openBakeModal() {
+        const bakeModal = document.getElementById('bakeAppModal');
+        if (bakeModal) {
+          // Populate mod checkbox list
+          const modCheckboxList = document.getElementById('bakeModCheckboxList');
+          modCheckboxList.innerHTML = '';
+          
+          Object.entries(store.mods).forEach(([modId, modData]) => {
+            const isEnabled = modData.enabled;
+            const modName = modData.meta?.name || modId;
+            
+            const label = h('label', { style: 'display: block; padding: var(--space-sm) 0; cursor: pointer;' });
+            const checkbox = h('input', {
+              type: 'checkbox',
+              value: modId,
+              checked: isEnabled,
+              style: 'margin-right: var(--space-sm);'
+            });
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(modName + (isEnabled ? ' (enabled)' : '')));
+            modCheckboxList.appendChild(label);
+          });
+          
+          bakeModal.classList.add('show');
+        }
+      }
+      
+      function closeBakeModal() {
+        const bakeModal = document.getElementById('bakeAppModal');
+        if (bakeModal) {
+          bakeModal.classList.remove('show');
+        }
+      }
+      
+      function exportAppWithMods() {
+        const modCheckboxList = document.getElementById('bakeModCheckboxList');
+        const checkedBoxes = modCheckboxList.querySelectorAll('input[type="checkbox"]:checked');
+        const selectedModIds = Array.from(checkedBoxes).map(cb => cb.value);
+        
+        console.log('[Bake] Selected mod IDs:', selectedModIds);
+        
+        // Build baked mods payload
+        const bakedModsPayload = selectedModIds.map(modId => {
+          const modData = store.mods[modId];
+          return {
+            id: modId,
+            js: modData.js || '',
+            css: modData.css || '',
+            enabled: true,
+            meta: modData.meta || {}
+          };
+        });
+        
+        console.log('[Bake] Baked mods payload:', bakedModsPayload.length, 'mods');
+        
+        // Get current DOM
+        let doc = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+        
+        // Inject mod scripts before </body>
+        let modScriptsInjection = '\n<!-- BAKED MODS -->\n';
+        bakedModsPayload.forEach(mod => {
+          if (mod.js && mod.js.length > 0) {
+            modScriptsInjection += `<script data-baked-mod="${mod.id}">\n`;
+            modScriptsInjection += `console.log('[Baked Mod] Initializing ${mod.id}');\n`;
+            modScriptsInjection += `(function(){\n`;
+            modScriptsInjection += `  try {\n`;
+            modScriptsInjection += `    ${mod.js}\n`;
+            modScriptsInjection += `    console.log('[Baked Mod] ${mod.id} initialized successfully');\n`;
+            modScriptsInjection += `  } catch(e) {\n`;
+            modScriptsInjection += `    console.error('[Baked Mod] ${mod.id} failed:', e);\n`;
+            modScriptsInjection += `  }\n`;
+            modScriptsInjection += `})();\n`;
+            modScriptsInjection += `<\/script>\n`;
+          }
+          
+          if (mod.css && mod.css.length > 0) {
+            modScriptsInjection += `<style data-baked-mod-style="${mod.id}">\n`;
+            modScriptsInjection += mod.css;
+            modScriptsInjection += `\n</style>\n`;
+          }
+        });
+        
+        // Insert before </body>
+        const bodyEndPos = doc.toLowerCase().lastIndexOf('</body>');
+        if (bodyEndPos !== -1) {
+          doc = doc.slice(0, bodyEndPos) + modScriptsInjection + doc.slice(bodyEndPos);
+        } else {
+          doc += modScriptsInjection;
+        }
+        
+        // Remove the bake modal from exported version
+        doc = doc.replace(/<div id="bakeAppModal"[\s\S]*?<\/div>\s*(?=<script|<\/body>)/, '');
+        
+        // Download the baked app
+        const blob = new Blob([doc], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cardspoke-baked-${Date.now()}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        showToast('Baked app exported successfully!');
+        closeBakeModal();
+      }
+      
+      // Bake modal event handlers
+      const closeBakeModalBtn = document.getElementById('closeBakeModal');
+      const cancelBakeBtn = document.getElementById('cancelBakeBtn');
+      const confirmBakeBtn = document.getElementById('confirmBakeBtn');
+      
+      if (closeBakeModalBtn) {
+        closeBakeModalBtn.onclick = closeBakeModal;
+      }
+      
+      if (cancelBakeBtn) {
+        cancelBakeBtn.onclick = closeBakeModal;
+      }
+      
+      if (confirmBakeBtn) {
+        confirmBakeBtn.onclick = exportAppWithMods;
+      }
+
+      /* =========================
+         INITIALIZATION
+         ========================= */
+      load();
+      CIB_MODS.syncFromStore();
+      CIB_MODS.runHook('onAppInit');
+      render();
+
+      window.addEventListener('beforeunload', (e) => {
+        if (dirty) {
+          e.preventDefault();
+          e.returnValue = '';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
