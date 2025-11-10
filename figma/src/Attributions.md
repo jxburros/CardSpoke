@@ -1,0 +1,3 @@
+Earlier iterations of this project incorporated components from [shadcn/ui](https://ui.shadcn.com/) under the [MIT license](https://github.com/shadcn-ui/ui/blob/main/LICENSE.md). The current build replaces them with bespoke primitives styled to match the provided Figma reference.
+
+This Figma Make file includes photos from [Unsplash](https://unsplash.com) used under [license](https://unsplash.com/license).
