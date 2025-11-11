@@ -1642,7 +1642,7 @@
 
       // --- DATA (CRUD) ---
 
-      function createCard(title, body, parentId = null) {
+      function createCard(title, body, parentId = null, skipSave = false) {
         const id = uid();
         const now = Date.now();
         store.cards[id] = {
@@ -1664,16 +1664,16 @@
             parent.children.push(id);
           }
         }
-        save();
+        if (!skipSave) save();
         runModHook('onCardSave', cloneCard(store.cards[id]), { isNew: true, source: 'create' });
         return id;
       }
 
-      function updateCard(id, updates) {
+      function updateCard(id, updates, skipSave = false) {
         const card = store.cards[id];
         if (!card) return;
         Object.assign(card, updates, { updatedAt: Date.now() });
-        save();
+        if (!skipSave) save();
         runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'update' });
       }
 
@@ -2254,24 +2254,26 @@
                 }
                 card.parentId = parentVal;
               }
-              updateCard(card.id, { title: titleVal, body: bodyVal, tags: tagsVal });
+              updateCard(card.id, { title: titleVal, body: bodyVal, tags: tagsVal }, true);
               card.children.forEach(cid => {
                 const inp = childrenInpMap[cid];
-                if (inp) updateCard(cid, { title: inp.value.trim() });
+                if (inp) updateCard(cid, { title: inp.value.trim() }, true);
               });
               const newKidRows = form.querySelectorAll('#addChildList .form-child-row input');
               newKidRows.forEach(inp => {
                 const t = inp.value.trim();
-                if (t) createCard(t, '', card.id);
+                if (t) createCard(t, '', card.id, true);
               });
+              save();
               goTo('read', { cardId: card.id });
             } else {
-              const newId = createCard(titleVal, bodyVal, parentVal);
+              const newId = createCard(titleVal, bodyVal, parentVal, true);
               const newKidRows = form.querySelectorAll('#addChildList .form-child-row input');
               newKidRows.forEach(inp => {
                 const t = inp.value.trim();
-                if (t) createCard(t, '', newId);
+                if (t) createCard(t, '', newId, true);
               });
+              save();
               goTo('read', { cardId: newId });
             }
           }
