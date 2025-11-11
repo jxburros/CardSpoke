@@ -1,0 +1,149 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Card Info Base Schema v4",
+  "description": "JSON Schema for Card Info Base data structures (Schema v4)",
+  "definitions": {
+    "Card": {
+      "type": "object",
+      "required": ["id", "title", "body", "parentId", "children", "tags", "meta", "attributes", "createdAt", "updatedAt", "modsData"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the card",
+          "pattern": "^card-[0-9]+-[a-z0-9]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the card"
+        },
+        "body": {
+          "type": "string",
+          "description": "Content of the card in plain text"
+        },
+        "parentId": {
+          "type": ["string", "null"],
+          "description": "ID of the parent card, or null if root card",
+          "pattern": "^card-[0-9]+-[a-z0-9]+$"
+        },
+        "children": {
+          "type": "array",
+          "description": "Array of child card IDs",
+          "items": {
+            "type": "string",
+            "pattern": "^card-[0-9]+-[a-z0-9]+$"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "description": "Array of tag strings (Schema v4)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "meta": {
+          "type": "object",
+          "description": "Custom metadata object for extensibility (Schema v4)",
+          "additionalProperties": true
+        },
+        "attributes": {
+          "type": "object",
+          "description": "Additional attributes for future extensions (Schema v4)",
+          "additionalProperties": true
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Unix timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Unix timestamp of last update"
+        },
+        "modsData": {
+          "type": "object",
+          "description": "Storage for mod-specific data",
+          "additionalProperties": true
+        }
+      }
+    },
+    "ModType": {
+      "type": "string",
+      "enum": ["Theme", "Patch", "Plugin", "Mod", "Expansion"],
+      "description": "Mod type taxonomy (Schema v4)"
+    },
+    "ModMeta": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name of the mod"
+        },
+        "version": {
+          "type": "string",
+          "description": "Semantic version number",
+          "pattern": "^\\d+\\.\\d+\\.\\d+.*$"
+        },
+        "author": {
+          "type": "string",
+          "description": "Name of the mod author"
+        },
+        "type": {
+          "$ref": "#/definitions/ModType"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description of the mod"
+        }
+      }
+    },
+    "Mod": {
+      "type": "object",
+      "required": ["enabled", "js", "css", "meta"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the mod is currently active"
+        },
+        "js": {
+          "type": "string",
+          "description": "JavaScript code to execute"
+        },
+        "css": {
+          "type": "string",
+          "description": "CSS styles to inject"
+        },
+        "meta": {
+          "$ref": "#/definitions/ModMeta"
+        }
+      }
+    },
+    "Store": {
+      "type": "object",
+      "required": ["rootOrder", "cards", "mods"],
+      "properties": {
+        "rootOrder": {
+          "type": "array",
+          "description": "Array of root card IDs in display order",
+          "items": {
+            "type": "string",
+            "pattern": "^card-[0-9]+-[a-z0-9]+$"
+          }
+        },
+        "cards": {
+          "type": "object",
+          "description": "Map of card ID to Card object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Card"
+          }
+        },
+        "mods": {
+          "type": "object",
+          "description": "Map of mod ID to Mod object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Mod"
+          }
+        }
+      }
+    }
+  },
+  "$ref": "#/definitions/Store"
+}

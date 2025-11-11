@@ -786,6 +786,75 @@
   <script src="storage-manager.js"></script>
 
   <script>
+  /*
+   * =============================================================
+   * Card Info Base - v0.7.0 - Schema v4
+   * =============================================================
+   * 
+   * ARCHITECTURE OVERVIEW:
+   * 
+   * This is a single-file, client-side knowledge base application.
+   * All data is stored in localStorage and managed through a simple
+   * store object with no external dependencies.
+   * 
+   * SCHEMA v4 DATA STRUCTURES:
+   * 
+   * Card {
+   *   id: string;              // Unique identifier (e.g., 'card-1234567890-abc123')
+   *   title: string;           // Card title
+   *   body: string;            // Card content (plain text)
+   *   parentId: string | null; // Parent card ID (null for root cards)
+   *   children: string[];      // Array of child card IDs
+   *   tags: string[];          // Array of tag strings (Schema v4)
+   *   meta: object;            // Custom metadata object (Schema v4)
+   *   attributes: object;      // Additional attributes (Schema v4)
+   *   createdAt: number;       // Unix timestamp
+   *   updatedAt: number;       // Unix timestamp
+   *   modsData: object;        // Per-mod custom data storage
+   * }
+   * 
+   * Mod {
+   *   enabled: boolean;        // Whether the mod is active
+   *   js: string;              // JavaScript code to execute
+   *   css: string;             // CSS styles to inject
+   *   meta: {                  // Mod metadata
+   *     name: string;          // Human-readable name
+   *     version: string;       // Semantic version (e.g., '1.0.0')
+   *     author: string;        // Author name
+   *     type: string;          // Mod type: 'Theme' | 'Patch' | 'Plugin' | 'Mod' | 'Expansion' (Schema v4)
+   *     description: string;   // Optional description
+   *   }
+   * }
+   * 
+   * Store {
+   *   rootOrder: string[];     // Array of root card IDs in display order
+   *   cards: { [id: string]: Card };  // Map of card ID to Card object
+   *   mods: { [id: string]: Mod };    // Map of mod ID to Mod object
+   * }
+   * 
+   * MOD SYSTEM:
+   * 
+   * Mods can register hooks that are called at specific lifecycle events:
+   * - onAppInit: Called when app starts or mod is enabled
+   * - onCardRender: Called before a card is rendered (can modify rendering)
+   * - onCardSave: Called after a card is saved
+   * - onCardDelete: Called after a card is deleted
+   * 
+   * Mods register themselves by calling:
+   *   CIB_MODS.register('mod-id', {
+   *     onAppInit: (ctx) => { ... },
+   *     onCardRender: (ctx, card) => { ... },
+   *     ...
+   *   });
+   * 
+   * MIGRATION & COMPATIBILITY:
+   * 
+   * Schema v4 is backward compatible with v3. On load, missing fields
+   * (tags, meta, attributes, mod types) are automatically added to
+   * existing data and the store is saved.
+   * 
+   * =============================================================
+   */
   document.addEventListener('DOMContentLoaded', () => {
     try {
       const APP_VERSION = "0.7.0";
