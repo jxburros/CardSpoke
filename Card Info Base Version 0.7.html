@@ -8,24 +8,26 @@
   <!-- 
     =============================================================
     Card Info Base
-    Version: 0.7.3.8
-    Released by: jxburros
-    Build date: 2025-11-11 (Test Version)
-    Notes: TEST VERSION 0.7.3.8 - Verified all core features working correctly
+    Version: 0.7.4.0
+    Released by: jxburros / GitHub Copilot Agent
+    Build date: 2025-11-11 (Schema v4 Upgrade)
+    Notes: VERSION 0.7.4.0 - Schema v4 Implementation Complete
+           - ✅ SCHEMA_VERSION upgraded from 3 to 4
+           - ✅ Added tags[] field to card structure for tag support
+           - ✅ Added meta{} field for custom metadata storage
+           - ✅ Added attributes{} field for extensible attributes
+           - ✅ Implemented automatic migration from v3 to v4
+           - ✅ Backward compatible - existing cards auto-upgraded on load
+           - ✅ All previous functionality preserved
+    Previous: TEST VERSION 0.7.3.8 - Verified all core features working correctly
            - All UI features tested and working (card creation, editing, themes, extensions)
            - No console errors or JavaScript issues detected
            - Light/dark theme toggle working properly
            - Modal dialogs functioning correctly
            - Instance management operational
-    Previous: CRITICAL FIX: Mods now properly export in baked apps!
-           - Exposed CIB_MODS._registry so exportAppWithMods can access active mods
-           - Added fallback to CIB_MODS._registry when window.store.mods is empty
-           - Improved mod data extraction to handle different storage formats
-           - Added comprehensive debugging throughout export process
-           - Fixed issue where mods appeared active but weren't included in baked payload
     =============================================================
   -->
-  <meta name="app:version" content="0.7.3.8">
+  <meta name="app:version" content="0.7.4.0">
   <meta name="app:author" content="jxburros">
 
   <style>
@@ -781,8 +783,8 @@
   <script>
   document.addEventListener('DOMContentLoaded', () => {
     try {
-      const APP_VERSION = "0.7.3.8";
-      const SCHEMA_VERSION = 3;
+      const APP_VERSION = "0.7.4.0";
+      const SCHEMA_VERSION = 4;
       
       const headerEl = {
         themeToggle: document.getElementById('themeToggle'),
@@ -1049,8 +1051,57 @@
         try {
           const parsed = JSON.parse(raw);
           store = { rootOrder: parsed.rootOrder || [], cards: parsed.cards || {}, mods: parsed.mods || {} };
+          // Migrate cards to Schema v4 if needed
+          migrateToSchemaV4();
         } catch (e) {
           bootError('Corrupted data.');
+        }
+      }
+
+      /**
+       * Migrate all cards from Schema v3 to Schema v4.
+       * Adds tags, meta, and attributes fields if they don't exist.
+       * This function is idempotent and safe to run multiple times.
+       */
+      function migrateToSchemaV4() {
+        let migrationCount = 0;
+        for (const id in store.cards) {
+          const card = store.cards[id];
+          let needsMigration = false;
+          
+          // Add tags array if missing
+          if (!card.tags) {
+            card.tags = [];
+            needsMigration = true;
+          }
+          
+          // Add meta object if missing
+          if (!card.meta) {
+            card.meta = {};
+            needsMigration = true;
+          }
+          
+          // Add attributes object if missing
+          if (!card.attributes) {
+            card.attributes = {};
+            needsMigration = true;
+          }
+          
+          // Ensure modsData exists (for completeness)
+          if (!card.modsData) {
+            card.modsData = {};
+            needsMigration = true;
+          }
+          
+          if (needsMigration) {
+            migrationCount++;
+          }
+        }
+        
+        // Save if any cards were migrated
+        if (migrationCount > 0) {
+          console.log(`[Migration] Upgraded ${migrationCount} cards to Schema v4`);
+          save();
         }
       }
 
@@ -1395,6 +1446,9 @@
           body: body || '',
           parentId: parentId || null,
           children: [],
+          tags: [],
+          meta: {},
+          attributes: {},
           createdAt: Date.now(),
           updatedAt: Date.now(),
           modsData: {}
