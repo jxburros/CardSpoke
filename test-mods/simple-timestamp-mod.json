@@ -1,0 +1,13 @@
+{
+  "id": "simple-timestamp-mod",
+  "meta": {
+    "name": "Simple Timestamp Mod",
+    "creator": "jxburros",
+    "version": "1.0.0",
+    "releaseDate": "2025-11-11",
+    "description": "Adds a timestamp display to each card showing when it was last updated",
+    "type": "Plugin"
+  },
+  "js": "CIB_MODS.register('simple-timestamp-mod', {\n  meta: {\n    name: 'Simple Timestamp Mod',\n    creator: 'jxburros',\n    version: '1.0.0',\n    type: 'Plugin'\n  },\n  onAppInit(ctx) {\n    console.log('[SimpleTimestampMod] Initialized');\n    ctx.api.showToast('Simple Timestamp Mod loaded', 'success');\n  },\n  onCardRender(ctx, cardId, cardElement) {\n    const card = ctx.api.getCard(cardId);\n    if (!card) return;\n    \n    const timestamp = card.updatedAt || card.createdAt;\n    if (!timestamp) return;\n    \n    const date = new Date(timestamp);\n    const timeStr = date.toLocaleString();\n    \n    const timestampDiv = document.createElement('div');\n    timestampDiv.style.cssText = 'color: var(--text-muted); font-size: var(--text-xs); margin-top: var(--space-sm); font-style: italic;';\n    timestampDiv.textContent = 'Last updated: ' + timeStr;\n    \n    const detailSection = cardElement.querySelector('.card-detail, .card-body');\n    if (detailSection) {\n      detailSection.appendChild(timestampDiv);\n    }\n  }\n});",
+  "css": "/* Simple Timestamp Mod Styles */\n.card-timestamp {\n  color: var(--text-muted);\n  font-size: var(--text-xs);\n  margin-top: var(--space-sm);\n  font-style: italic;\n}"
+}
