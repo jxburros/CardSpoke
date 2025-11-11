@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jxburros/card-based-info-base/schemas/card-v4.json",
+  "title": "Card Schema v4",
+  "description": "Schema definition for Card Info Base cards (Schema Version 4)",
+  "type": "object",
+  "required": ["id", "title", "body", "parentId", "children", "tags", "meta", "attributes", "createdAt", "updatedAt", "modsData"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^card-[0-9]+-[a-z0-9]+$",
+      "description": "Unique card identifier with format: card-{timestamp}-{random}"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 0,
+      "description": "Card title or heading"
+    },
+    "body": {
+      "type": "string",
+      "description": "Card content or details"
+    },
+    "parentId": {
+      "oneOf": [
+        { "type": "string", "pattern": "^card-[0-9]+-[a-z0-9]+$" },
+        { "type": "null" }
+      ],
+      "description": "Parent card ID, or null for root-level cards"
+    },
+    "children": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^card-[0-9]+-[a-z0-9]+$"
+      },
+      "description": "Array of child card IDs"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of tag strings for categorization (Schema v4)"
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Custom metadata key-value pairs (Schema v4)"
+    },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Extensible attributes for future features (Schema v4)"
+    },
+    "createdAt": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Unix timestamp in milliseconds when card was created"
+    },
+    "updatedAt": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Unix timestamp in milliseconds when card was last updated"
+    },
+    "modsData": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Mod-specific data storage, keyed by mod ID"
+    }
+  }
+}

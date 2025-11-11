@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jxburros/card-based-info-base/schemas/store-v4.json",
+  "title": "Store Schema v4",
+  "description": "Schema definition for Card Info Base data store",
+  "type": "object",
+  "required": ["rootOrder", "cards", "mods"],
+  "properties": {
+    "rootOrder": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^card-[0-9]+-[a-z0-9]+$"
+      },
+      "description": "Ordered array of root-level card IDs"
+    },
+    "cards": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "card-schema-v4.json"
+      },
+      "description": "Map of card ID to Card object"
+    },
+    "mods": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ModData"
+      },
+      "description": "Map of mod ID to ModData object"
+    }
+  },
+  "definitions": {
+    "ModData": {
+      "type": "object",
+      "required": ["id", "meta", "enabled"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique mod identifier"
+        },
+        "meta": {
+          "$ref": "#/definitions/ModMeta"
+        },
+        "js": {
+          "type": "string",
+          "description": "JavaScript code to execute"
+        },
+        "css": {
+          "type": "string",
+          "description": "CSS styles to inject"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the mod is currently active"
+        }
+      }
+    },
+    "ModMeta": {
+      "type": "object",
+      "required": ["name", "version", "author"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Display name of the mod"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Semantic version (e.g., '1.0.0')"
+        },
+        "author": {
+          "type": "string",
+          "description": "Mod author name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional mod description"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["Theme", "Patch", "Plugin", "Mod", "Expansion"],
+          "description": "Mod taxonomy type (Road Map v0.7 feature)"
+        }
+      }
+    }
+  }
+}
