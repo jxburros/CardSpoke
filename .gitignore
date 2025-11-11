@@ -1,0 +1,16 @@
+# Node modules
+node_modules/
+
+# Capacitor native platforms
+android/
+ios/
+
+# Build outputs
+www/capacitor.js.map
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

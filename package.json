@@ -1,0 +1,32 @@
+{
+  "name": "cardspoke",
+  "version": "0.8.1",
+  "description": "A lightweight, extensible, multi-platform knowledge base framework",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "echo 'Files already in www directory'",
+    "sync": "npx cap sync",
+    "sync:android": "npx cap sync android",
+    "sync:ios": "npx cap sync ios",
+    "open:android": "npx cap open android",
+    "open:ios": "npx cap open ios"
+  },
+  "keywords": [
+    "knowledge-base",
+    "notes",
+    "capacitor",
+    "cross-platform"
+  ],
+  "author": "jxburros",
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/app": "^7.1.0",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/filesystem": "^7.1.4",
+    "@capacitor/ios": "^7.4.4",
+    "@capacitor/preferences": "^7.0.2"
+  }
+}
