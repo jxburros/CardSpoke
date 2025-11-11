@@ -1032,7 +1032,51 @@
     .app-footer p {
       margin-bottom: var(--space-md);
     }
-    
+
+    /* Save status indicator */
+    .save-status {
+      font-size: 18px;
+      margin-right: var(--space-md);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 24px;
+      transition: all 0.3s ease;
+    }
+
+    .save-status.pending {
+      color: #ff9800;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .save-status.saved {
+      color: #4caf50;
+    }
+
+    .save-status.error {
+      color: #f44336;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Danger menu item */
+    .menu-item-danger {
+      color: #f44336 !important;
+      font-weight: 500;
+    }
+
+    .menu-item-danger:hover {
+      background: rgba(244, 67, 54, 0.1) !important;
+    }
+
+    :root.dark .menu-item-danger:hover {
+      background: rgba(244, 67, 54, 0.2) !important;
+    }
+
   </style>
 </head>
 <body>
@@ -1040,6 +1084,7 @@
     <div class="header-inner">
       <div class="brand">CardSpoke</div>
       <div class="spacer"></div>
+      <span id="saveStatus" class="save-status" title=""></span>
       <button class="header-btn" id="homeBtn" title="Home">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
       </button>
@@ -1084,8 +1129,11 @@
         <button class="menu-item" id="menuDownloadMods">
           Download Mods (JSON)
         </button>
+        <button class="menu-item menu-item-danger" id="menuClearAll">
+          ⚠️ Clear All Data
+        </button>
       </div>
-      
+
       <div class="menu-section">
         <div class="menu-section-title">View</div>
         <div class="menu-item-toggle">
@@ -1320,7 +1368,8 @@
         instance: document.getElementById('menuInstance'),
         downloadJSON: document.getElementById('menuDownloadJSON'),
         downloadTXT: document.getElementById('menuDownloadTXT'),
-        downloadMods: document.getElementById('menuDownloadMods')
+        downloadMods: document.getElementById('menuDownloadMods'),
+        clearAll: document.getElementById('menuClearAll')
       };
       
       const searchContainer = document.getElementById('searchContainer');
@@ -1421,12 +1470,135 @@
 
       // --- LOCAL STORAGE ---
 
-      function save() {
+      // Save state tracking
+      let saveTimeout = null;
+      let savePending = false;
+      let lastSaveTime = 0;
+      const SAVE_DEBOUNCE_MS = 500; // Wait 500ms after last change before saving
+      const MIN_SAVE_INTERVAL_MS = 100; // Minimum time between actual saves
+
+      function saveNow() {
         try {
           const key = instanceKey || 'nested_cards_store';
-          localStorage.setItem(key, JSON.stringify(store));
+          const startTime = performance.now();
+
+          // Use requestIdleCallback if available to avoid blocking UI
+          const doSave = () => {
+            try {
+              localStorage.setItem(key, JSON.stringify(store));
+              const duration = performance.now() - startTime;
+              lastSaveTime = Date.now();
+              savePending = false;
+
+              // Show success indicator briefly
+              updateSaveStatus('saved');
+              setTimeout(() => updateSaveStatus('idle'), 1000);
+
+              console.log(`Saved in ${duration.toFixed(2)}ms`);
+            } catch (e) {
+              savePending = false;
+              if (e.name === 'QuotaExceededError') {
+                showToast('Storage quota exceeded! Please clear old data or export your cards.', 'error');
+              } else {
+                showToast('Failed to save: ' + e.message, 'error');
+              }
+              updateSaveStatus('error');
+            }
+          };
+
+          if (window.requestIdleCallback) {
+            requestIdleCallback(doSave, { timeout: 2000 });
+          } else {
+            doSave();
+          }
         } catch (e) {
           showToast('Failed to save: ' + e.message, 'error');
+          savePending = false;
+          updateSaveStatus('error');
+        }
+      }
+
+      function save(immediate = false) {
+        // Clear any pending save
+        if (saveTimeout) {
+          clearTimeout(saveTimeout);
+          saveTimeout = null;
+        }
+
+        // If immediate save requested, save now
+        if (immediate) {
+          saveNow();
+          return;
+        }
+
+        // Check if we're saving too frequently
+        const timeSinceLastSave = Date.now() - lastSaveTime;
+        if (timeSinceLastSave < MIN_SAVE_INTERVAL_MS) {
+          // Schedule save after minimum interval
+          savePending = true;
+          updateSaveStatus('pending');
+          saveTimeout = setTimeout(saveNow, Math.max(SAVE_DEBOUNCE_MS, MIN_SAVE_INTERVAL_MS - timeSinceLastSave));
+          return;
+        }
+
+        // Debounce: wait for user to stop making changes
+        savePending = true;
+        updateSaveStatus('pending');
+        saveTimeout = setTimeout(saveNow, SAVE_DEBOUNCE_MS);
+      }
+
+      function updateSaveStatus(status) {
+        const indicator = document.getElementById('saveStatus');
+        if (!indicator) return;
+
+        indicator.className = 'save-status ' + status;
+        switch (status) {
+          case 'pending':
+            indicator.textContent = '●';
+            indicator.title = 'Save pending...';
+            break;
+          case 'saved':
+            indicator.textContent = '✓';
+            indicator.title = 'Saved';
+            break;
+          case 'error':
+            indicator.textContent = '✕';
+            indicator.title = 'Save failed';
+            break;
+          default:
+            indicator.textContent = '';
+            indicator.title = '';
+        }
+      }
+
+      function clearAllData() {
+        if (!confirm('⚠️ WARNING: This will DELETE ALL instances and data from localStorage.\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?')) {
+          return;
+        }
+
+        if (!confirm('This is your FINAL warning.\n\nAll card data, all instances, and all settings will be permanently deleted.\n\nContinue?')) {
+          return;
+        }
+
+        try {
+          // Get all keys to clear
+          const allKeys = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            allKeys.push(key);
+          }
+
+          // Clear everything
+          localStorage.clear();
+
+          showToast(`Cleared ${allKeys.length} items from localStorage`, 'success');
+
+          // Reset the app
+          setTimeout(() => {
+            location.reload();
+          }, 1000);
+        } catch (e) {
+          showToast('Failed to clear data: ' + e.message, 'error');
         }
       }
 
@@ -2593,7 +2765,12 @@
         menu.overlay.classList.remove('show');
         handleExport('mods-json');
       };
-      
+
+      menu.clearAll.onclick = () => {
+        menu.overlay.classList.remove('show');
+        clearAllData();
+      };
+
       header.homeBtn.onclick = () => {
         goTo('list', { cardId: null });
       };
