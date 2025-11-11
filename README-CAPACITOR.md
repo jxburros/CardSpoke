@@ -2,6 +2,10 @@
 
 CardSpoke is a lightweight, extensible, multi-platform knowledge base framework. Version 0.8.1 introduces Capacitor support for cross-platform deployment.
 
+## Branch Information
+
+This Capacitor-based version is available in the **`capacitor-0.8.1`** branch. The original single-file version 0.8 remains in `CardSpoke 0.8.html` for reference.
+
 ## What's New in 0.8.1
 
 - **Capacitor Integration**: CardSpoke now runs as a native-capable standalone app
