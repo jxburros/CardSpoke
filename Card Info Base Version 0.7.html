@@ -778,7 +778,7 @@
   <!-- Storage Manager: load early before app initialization -->
   <!-- This script forces the user to choose a storage location (localStorage, sessionStorage, memory) before mods and data are loaded.
        It exposes window.StorageManager and overrides window.save/load to use the selected storage. -->
-  <script src="storage-manager.js"></script>
+  <!-- REMOVED: External storage-manager.js dependency - app now uses default localStorage directly -->
 
   <script>
   document.addEventListener('DOMContentLoaded', () => {
@@ -831,25 +831,41 @@
         // Determine current name for prompt suggestions
         let defaultName = currentInstanceName || (instances.length > 0 ? instances[0] : '');
         let selectedName = '';
-        if (instances.length === 0) {
-          // No instances yet; prompt to create one
-          selectedName = prompt('Enter a name for your new data instance:', defaultName || 'default') || 'default';
-          selectedName = selectedName.trim();
-          if (!selectedName) selectedName = 'default';
-          instances.push(selectedName);
-          localStorage.setItem('cib_instances', JSON.stringify(instances));
-        } else {
-          // Prompt to select or create an instance
-          const listStr = instances.join(', ');
-          selectedName = prompt('Enter a data instance name (existing: ' + listStr + ') or type a new one:', defaultName) || defaultName;
-          selectedName = selectedName.trim();
-          if (!selectedName) selectedName = defaultName;
-          // If it's a new name, add to the list
-          if (!instances.includes(selectedName)) {
+        
+        // On initial load, use default instance without prompting to avoid blocking DOMContentLoaded
+        if (initial) {
+          if (instances.length === 0) {
+            // No instances yet; create default one silently
+            selectedName = 'default';
             instances.push(selectedName);
             localStorage.setItem('cib_instances', JSON.stringify(instances));
+          } else {
+            // Use first available instance
+            selectedName = instances[0];
+          }
+        } else {
+          // User-initiated instance change - show prompts
+          if (instances.length === 0) {
+            // No instances yet; prompt to create one
+            selectedName = prompt('Enter a name for your new data instance:', defaultName || 'default') || 'default';
+            selectedName = selectedName.trim();
+            if (!selectedName) selectedName = 'default';
+            instances.push(selectedName);
+            localStorage.setItem('cib_instances', JSON.stringify(instances));
+          } else {
+            // Prompt to select or create an instance
+            const listStr = instances.join(', ');
+            selectedName = prompt('Enter a data instance name (existing: ' + listStr + ') or type a new one:', defaultName) || defaultName;
+            selectedName = selectedName.trim();
+            if (!selectedName) selectedName = defaultName;
+            // If it's a new name, add to the list
+            if (!instances.includes(selectedName)) {
+              instances.push(selectedName);
+              localStorage.setItem('cib_instances', JSON.stringify(instances));
+            }
           }
         }
+        
         currentInstanceName = selectedName;
         instanceKey = 'nested_cards_store__' + currentInstanceName;
         updateInstanceButton();
@@ -3260,7 +3276,7 @@ const result = installModPackage(pkg, 'code');
       }
 
       // Boot
-      // Wrap boot logic into initApp so we can wait for StorageManager
+      // Initialize app directly - uses localStorage by default
       function initApp() {
         // Prompt for instance selection before loading data
         chooseInstance(true);
@@ -3272,18 +3288,9 @@ const result = installModPackage(pkg, 'code');
         goTo('list', { cardId: null });
       }
 
-      // If storage is already chosen (e.g. returning user), run immediately
-      if (window.StorageManager && window.StorageManager.initialized) {
-        console.log('[App] Storage already initialized');
-        initApp();
-      } else {
-        // Wait until storage picker signals readiness
-        console.log('[App] Waiting for storage selection...');
-        window.addEventListener('storageReady', function(e) {
-          console.log('[App] Storage ready:', e.detail.mode);
-          initApp();
-        });
-      }
+      // Initialize immediately - no longer waiting for external StorageManager
+      console.log('[App] Initializing with default localStorage...');
+      initApp();
     } catch (e) {
       bootError(e.message || String(e));
     }
@@ -3627,7 +3634,8 @@ console.log('[Init] typeof window.exportAppWithMods:', typeof window.exportAppWi
 </script>
 
   <!-- Use the new comment-block export system; this overrides the older exportAppWithMods definition above. -->
-  <script src="comment-block-export.js"></script>
+  <!-- REMOVED: External comment-block-export.js dependency - using inline exportAppWithMods function instead -->
+  <!-- <script src="comment-block-export.js"></script> -->
   <!-- Custom overrides: hide old compile/bake UI that is no longer supported -->
   <style id="disable-bake">
     /* Hide bake/export UI elements since the standalone compiler feature has been removed */
