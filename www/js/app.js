@@ -1,0 +1,3091 @@
+
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      const APP_VERSION = "0.6.9.13";
+      const SCHEMA_VERSION = 3;
+      
+      const headerEl = {
+        themeToggle: document.getElementById('themeToggle'),
+        styleToggle: document.getElementById('styleToggle'),
+        search: document.getElementById('searchInput'),
+        clearSearch: document.getElementById('clearSearchBtn'),
+        startAddCardBtn: document.getElementById('startAddCardBtn'),
+        uploadBtn: document.getElementById('uploadBtn'),
+        manageModsBtn: document.getElementById('manageModsBtn'),
+        instanceBtn: document.getElementById('instanceBtn'),
+        homeBtn: document.getElementById('homeBtn'),
+        backBtn: document.getElementById('backBtn'),
+        exportDropdown: document.getElementById('headerExportDropdown'),
+        exportToggle: document.getElementById('headerExportToggle'),
+        exportMenu: document.getElementById('headerExportMenu')
+      };
+
+      /**
+       * Update the text label on the instance management button to reflect the currently
+       * selected data instance. If no instance has been selected yet the button will
+       * simply read "Instance".
+       */
+      function updateInstanceButton() {
+        if (headerEl.instanceBtn) {
+          headerEl.instanceBtn.textContent = currentInstanceName ? `Instance: ${currentInstanceName}` : 'Instance';
+        }
+      }
+
+      /**
+       * Prompt the user to select an existing data instance or create a new one.
+       * Each instance is stored under its own localStorage key. Selecting an instance
+       * updates `instanceKey` and `currentInstanceName`. When called with
+       * `initial = true`, this function will not immediately reload the store.
+       * Subsequent calls (from the Instance button) will trigger a reload and rerender.
+       * @param {boolean} initial - Whether this is called at application startup.
+       */
+      function chooseInstance(initial = false) {
+        let instances;
+        try {
+          instances = JSON.parse(localStorage.getItem('cib_instances') || '[]');
+        } catch (e) {
+          instances = [];
+        }
+        // Determine current name for prompt suggestions
+        let defaultName = currentInstanceName || (instances.length > 0 ? instances[0] : '');
+        let selectedName = '';
+        if (instances.length === 0) {
+          // No instances yet; prompt to create one
+          selectedName = prompt('Enter a name for your new data instance:', defaultName || 'default') || 'default';
+          selectedName = selectedName.trim();
+          if (!selectedName) selectedName = 'default';
+          instances.push(selectedName);
+          localStorage.setItem('cib_instances', JSON.stringify(instances));
+        } else {
+          // Prompt to select or create an instance
+          const listStr = instances.join(', ');
+          selectedName = prompt('Enter a data instance name (existing: ' + listStr + ') or type a new one:', defaultName) || defaultName;
+          selectedName = selectedName.trim();
+          if (!selectedName) selectedName = defaultName;
+          // If it's a new name, add to the list
+          if (!instances.includes(selectedName)) {
+            instances.push(selectedName);
+            localStorage.setItem('cib_instances', JSON.stringify(instances));
+          }
+        }
+        currentInstanceName = selectedName;
+        instanceKey = 'nested_cards_store__' + currentInstanceName;
+        updateInstanceButton();
+        if (!initial) {
+          // Reload the store from the selected instance and rerender the UI
+          load();
+          if (window.CIB_MODS) {
+            window.CIB_MODS.syncFromStore();
+            window.CIB_MODS.runHook('onAppInit');
+          }
+          goTo('list', { cardId: null });
+        }
+      }
+
+      const modalEl = {
+        uploadModal: document.getElementById('uploadModal'),
+        closeUploadModal: document.getElementById('closeUploadModal'),
+        cancelUploadBtn: document.getElementById('cancelUploadBtn'),
+        // Tab elements
+        tabs: document.querySelectorAll('.modal-tab'),
+        tabContents: document.querySelectorAll('.tab-content'),
+        // JSON tab
+        fileUploadAreaJSON: document.getElementById('fileUploadAreaJSON'),
+        fileInputJSON: document.getElementById('fileInputJSON'),
+        importLocationSelectJSON: document.getElementById('importLocationSelectJSON'),
+        // TXT tab
+        fileUploadAreaTXT: document.getElementById('fileUploadAreaTXT'),
+        fileInputTXT: document.getElementById('fileInputTXT'),
+        importLocationSelectTXT: document.getElementById('importLocationSelectTXT'),
+        // DOCX tab
+        fileUploadAreaDOCX: document.getElementById('fileUploadAreaDOCX'),
+        fileInputDOCX: document.getElementById('fileInputDOCX'),
+        importLocationSelectDOCX: document.getElementById('importLocationSelectDOCX'),
+        // Mods tab
+        fileUploadAreaMods: document.getElementById('fileUploadAreaMods'),
+        fileInputMods: document.getElementById('fileInputMods'),
+        modCodeForm: document.getElementById('modCodeForm'),
+        modCodeId: document.getElementById('modCodeId'),
+        modCodeName: document.getElementById('modCodeName'),
+        modCodeVersion: document.getElementById('modCodeVersion'),
+        modCodeAuthor: document.getElementById('modCodeAuthor'),
+        modCodeJS: document.getElementById('modCodeJS'),
+        modCodeCSS: document.getElementById('modCodeCSS'),
+        modCodeEnabled: document.getElementById('modCodeEnabled'),
+        // Manage modal
+        manageModal: document.getElementById('manageModsModal'),
+        closeManageModal: document.getElementById('closeManageModsModal'),
+        closeManageModalBtn: document.getElementById('closeManageModsBtn'),
+        modsList: document.getElementById('modsList')
+      };
+
+      const toastEl = {
+        toast: document.getElementById('toast'),
+        toastIcon: document.getElementById('toastIcon'),
+        toastMessage: document.getElementById('toastMessage')
+      };
+
+      const breadcrumbsEl = document.getElementById('breadcrumbs');
+      const main = document.getElementById('main');
+      let store = { rootOrder: [], cards: {}, mods: {} };
+      let navState = { page: 'list', cardId: null, parentId: null, searchQuery: '' };
+      let navHistory = [];
+      let dirty = false;
+
+      // Instance management: the app can operate on multiple separate data instances.
+      // Each instance is stored under its own key in localStorage (nested_cards_store__<instanceName>).
+      // The variable `instanceKey` holds the current storage key, and `currentInstanceName`
+      // tracks the human‑readable name. These are configured via chooseInstance().
+      let instanceKey = '';
+      let currentInstanceName = '';
+
+      /* =========================
+         ERROR & BOOT
+         ========================= */
+      function bootError(msg) {
+        document.body.innerHTML = `<div style="margin:50px auto; max-width:600px; padding:20px; background:#351820; color:#ff9fb1; border:1px solid #ff9fb1; border-radius:12px;">${msg}</div>`;
+      }
+
+      /* =========================
+         UTILITIES
+         ========================= */
+      function h(type, attrs = {}, ...children) {
+        const el = document.createElement(type);
+        Object.entries(attrs || {}).forEach(([k, v]) => {
+          if (k === 'className') el.className = v;
+          else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+          else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
+          else if (k === 'disabled' || k === 'checked' || k === 'selected') {
+            // Boolean attributes - only set if truthy
+            if (v) el.setAttribute(k, '');
+          }
+          else el.setAttribute(k, v);
+        });
+        children.flat().forEach(child => {
+          if (child) el.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
+        });
+        return el;
+      }
+
+      function sanitizeFilename(str) {
+        return str.replace(/[^a-zA-Z0-9_\-]/g, '-').replace(/-+/g, '-').substring(0, 50);
+      }
+
+      function formatDate(timestamp) {
+        if (!timestamp) return '';
+        const d = new Date(timestamp);
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      function readFileAsText(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.onerror = () => reject(new Error('Failed to read file'));
+          reader.readAsText(file);
+        });
+      }
+
+      async function extractDocxText(file) {
+        if (typeof mammoth === 'undefined') {
+          throw new Error('DOCX support requires mammoth.js library. This feature is currently unavailable.');
+        }
+
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        const text = (result.value || '').trim();
+
+        if (!text) {
+          throw new Error('No text extracted from document');
+        }
+
+        return text;
+      }
+
+      function showToast(message, type = 'success') {
+        toastEl.toastMessage.textContent = message;
+        toastEl.toastIcon.textContent = type === 'success' ? '✓' : '✕';
+        toastEl.toast.className = 'toast show ' + type;
+        setTimeout(() => {
+          toastEl.toast.classList.remove('show');
+        }, 3000);
+      }
+
+      function cloneCard(card) {
+        if (!card) return null;
+        let modsData = {};
+        if (card.modsData) {
+          try {
+            modsData = JSON.parse(JSON.stringify(card.modsData));
+          } catch (err) {
+            modsData = { ...card.modsData };
+          }
+        }
+        return {
+          ...card,
+          children: Array.isArray(card.children) ? card.children.slice() : [],
+          modsData
+        };
+      }
+
+      /* =========================
+         STORAGE
+         ========================= */
+      function save() {
+        try {
+          // Save to the current instance's key, falling back to the default if none selected.
+          const key = instanceKey || 'nested_cards_store';
+          localStorage.setItem(key, JSON.stringify(store));
+        } catch (e) {
+          alert('Failed to save: ' + e.message);
+        }
+      }
+
+      function load() {
+        // When multiple instances are supported use the instanceKey; fall back to the default key.
+        const key = instanceKey || 'nested_cards_store';
+        const raw = localStorage.getItem(key);
+        if (!raw) {
+          store = { rootOrder: [], cards: {}, mods: {} };
+          save();
+          return;
+        }
+        try {
+          const parsed = JSON.parse(raw);
+          store = { rootOrder: parsed.rootOrder || [], cards: parsed.cards || {}, mods: parsed.mods || {} };
+        } catch (e) {
+          bootError('Corrupted data.');
+        }
+      }
+
+      /* =========================
+         NAVIGATION
+         ========================= */
+      function goTo(page, opts = {}) {
+        navHistory.push({ ...navState });
+        navState = { page, cardId: opts.cardId ?? null, parentId: opts.parentId ?? null, searchQuery: opts.searchQuery ?? '' };
+        render();
+      }
+
+      function goBack() {
+        if (navHistory.length) {
+          navState = navHistory.pop();
+          render();
+        }
+      }
+
+      /* =========================
+         MOD SYSTEM FOUNDATION (Phase 5)
+         ========================= */
+      const CIB_MODS = (() => {
+        const registry = {};
+        const styleTags = {};
+        const initializedMods = new Set();
+
+        function ensureRegistered(modId, modData) {
+          const existing = registry[modId];
+          if (existing && existing.__loaded) {
+            return existing;
+          }
+          if (!modData || !modData.js) {
+            if (!registry[modId]) {
+              registry[modId] = { id: modId, hooks: {}, meta: modData?.meta || {}, __loaded: true };
+            }
+            return registry[modId];
+          }
+          try {
+            registry[modId] = registry[modId] || { id: modId, hooks: {}, meta: {} };
+            const sourceURL = `\n//# sourceURL=${modId}.mod.js`;
+            const storeAPI = createStoreAPI(modId);
+            const runner = new Function('window', 'document', 'CIB_MODS', 'storeAPI', 'console', modData.js + sourceURL);
+            runner(window, document, CIB_MODS, storeAPI, console);
+            if (modData.meta) {
+              registry[modId].meta = { ...modData.meta };
+            }
+            registry[modId].__loaded = true;
+            return registry[modId];
+          } catch (err) {
+            console.error(`[Mods] Failed to evaluate ${modId}:`, err);
+            registry[modId] = registry[modId] || { id: modId, hooks: {}, meta: modData?.meta || {} };
+            registry[modId].__loaded = false;
+            registry[modId].__error = err;
+            return null;
+          }
+        }
+
+        function ensureStyle(modId, css) {
+          if (!css || styleTags[modId]) return;
+          const tag = document.createElement('style');
+          tag.setAttribute('data-mod-style', modId);
+          tag.textContent = css;
+          document.head.appendChild(tag);
+          styleTags[modId] = tag;
+        }
+
+        function removeStyle(modId) {
+          const tag = styleTags[modId];
+          if (tag && tag.parentNode) tag.parentNode.removeChild(tag);
+          delete styleTags[modId];
+        }
+
+        function createStoreAPI(modId) {
+          return {
+            getAppInfo() {
+              return { appVersion: APP_VERSION, schemaVersion: SCHEMA_VERSION };
+            },
+            getCard(id) {
+              return cloneCard(store.cards[id]);
+            },
+            listCards() {
+              return Object.values(store.cards).map(cloneCard);
+            },
+            listRootIds() {
+              return store.rootOrder.slice();
+            },
+            getNavState() {
+              return { ...navState };
+            },
+            navigate(page, opts = {}) {
+              goTo(page, opts);
+            },
+            showToast(message, type = 'success') {
+              showToast(message, type);
+            },
+            markDirty() {
+              dirty = true;
+            }
+          };
+        }
+
+        function buildContext(modId) {
+          return {
+            modId,
+            appVersion: APP_VERSION,
+            schemaVersion: SCHEMA_VERSION,
+            api: createStoreAPI(modId)
+          };
+        }
+
+        return {
+          registry,
+          _registry: registry,  // CRITICAL FIX: Explicit alias for export function
+          register(modId, definition = {}) {
+            if (!modId) throw new Error('CIB_MODS.register requires a mod id');
+            const entry = registry[modId] || { id: modId, hooks: {}, meta: {} };
+            entry.hooks = {
+              onAppInit: typeof definition.onAppInit === 'function' ? definition.onAppInit : entry.hooks.onAppInit,
+              onCardRender: typeof definition.onCardRender === 'function' ? definition.onCardRender : entry.hooks.onCardRender,
+              onCardSave: typeof definition.onCardSave === 'function' ? definition.onCardSave : entry.hooks.onCardSave,
+              onCardDelete: typeof definition.onCardDelete === 'function' ? definition.onCardDelete : entry.hooks.onCardDelete
+            };
+            if (definition.meta) {
+              entry.meta = { ...definition.meta };
+            }
+            registry[modId] = entry;
+            entry.__loaded = true;
+            return entry;
+          },
+          enable(modId) {
+            const modData = store.mods[modId];
+            if (!modData) {
+              console.warn(`[Mods] Cannot enable missing mod ${modId}`);
+              return false;
+            }
+            modData.enabled = true;
+            ensureStyle(modId, modData.css);
+            const entry = ensureRegistered(modId, modData);
+            if (!entry) return false;
+            initializedMods.delete(modId);
+            save();
+            this.runHook('onAppInit');
+            return true;
+          },
+          disable(modId) {
+            const modData = store.mods[modId];
+            if (!modData) return false;
+            modData.enabled = false;
+            removeStyle(modId);
+            initializedMods.delete(modId);
+            save();
+            return true;
+          },
+          syncFromStore() {
+            Object.keys(registry).forEach(modId => {
+              if (!store.mods[modId]) {
+                removeStyle(modId);
+                initializedMods.delete(modId);
+                delete registry[modId];
+              }
+            });
+            Object.entries(store.mods).forEach(([modId, modData]) => {
+              if (!modData) return;
+              if (modData.enabled) {
+                ensureStyle(modId, modData.css);
+                ensureRegistered(modId, modData);
+              } else {
+                removeStyle(modId);
+              }
+            });
+          },
+          runHook(name, ...args) {
+            Object.entries(store.mods).forEach(([modId, modData]) => {
+              if (!modData?.enabled) return;
+              const entry = ensureRegistered(modId, modData);
+              if (!entry) return;
+              if (name === 'onAppInit' && initializedMods.has(modId)) return;
+              const fn = entry.hooks?.[name];
+              if (typeof fn === 'function') {
+                try {
+                  const context = buildContext(modId);
+                  fn(...args, context);
+                  if (name === 'onAppInit') {
+                    initializedMods.add(modId);
+                  }
+                } catch (err) {
+                  console.error(`[Mods] ${modId} ${name} hook failed:`, err);
+                }
+              }
+            });
+          }
+        };
+      })();
+
+      window.CIB_MODS = CIB_MODS;
+
+      function runModHook(name, ...args) {
+        try {
+          if (window.CIB_MODS && typeof window.CIB_MODS.runHook === 'function') {
+            window.CIB_MODS.runHook(name, ...args);
+          }
+        } catch (err) {
+          console.error('[Mods] Failed to dispatch hook', err);
+        }
+      }
+
+      function normalizeModPackage(raw) {
+        const toStr = (value) => typeof value === 'string' ? value.trim() : '';
+        if (!raw || typeof raw !== 'object') {
+          return { success: false, error: 'Invalid mod package structure' };
+        }
+        const modId = toStr(raw.id) || toStr(raw.modId);
+        if (!modId) {
+          return { success: false, error: 'Extension package is missing an id' };
+        }
+        const js = toStr(raw.js);
+        if (!js.trim()) {
+          return { success: false, error: 'Extension package must include JavaScript' };
+        }
+        const css = toStr(raw.css);
+        const enabled = raw.enabled === undefined ? true : !!raw.enabled;
+        const metaSource = typeof raw.meta === 'object' && raw.meta !== null ? raw.meta : {};
+        const meta = {
+          name: toStr(metaSource.name) || toStr(raw.name),
+          version: toStr(metaSource.version) || toStr(raw.version),
+          author: toStr(metaSource.author) || toStr(raw.author),
+          description: toStr(metaSource.description) || toStr(raw.description)
+        };
+        return { success: true, modId, js, css, enabled, meta };
+      }
+
+      function installModPackage(raw, source = 'upload') {
+        const normalized = normalizeModPackage(raw);
+        if (!normalized.success) {
+          return { success: false, error: normalized.error };
+        }
+        const { modId, js, css, enabled, meta } = normalized;
+        if (store.mods[modId]) {
+          const proceed = confirm(`Extension "${modId}" already exists. Replace it?`);
+          if (!proceed) {
+            return { success: false, cancelled: true };
+          }
+        }
+        store.mods[modId] = {
+          enabled: !!enabled,
+          js,
+          css,
+          meta: { ...meta }
+        };
+        save();
+        if (window.CIB_MODS) {
+          window.CIB_MODS.syncFromStore();
+          if (store.mods[modId].enabled) {
+            window.CIB_MODS.enable(modId);
+          } else {
+            window.CIB_MODS.disable(modId);
+          }
+        }
+        renderManageMods();
+        return { success: true, modId, source };
+      }
+
+      function getModSummary(modId, modData) {
+        const meta = modData?.meta || {};
+        const parts = [];
+        if (meta.version) parts.push(`v${meta.version}`);
+        if (meta.author) parts.push(meta.author);
+        return { title: meta.name ? `${meta.name}` : modId, subtitle: parts.join(' • '), description: meta.description || '' };
+      }
+
+      function toggleMod(modId) {
+        const mod = store.mods[modId];
+        if (!mod) return;
+        const nextState = !mod.enabled;
+        mod.enabled = nextState;
+        save();
+        if (window.CIB_MODS) {
+          if (nextState) {
+            window.CIB_MODS.enable(modId);
+          } else {
+            window.CIB_MODS.disable(modId);
+          }
+        }
+        renderManageMods();
+        const summary = getModSummary(modId, mod);
+        showToast(`${summary.title} ${nextState ? 'enabled' : 'disabled'}.`, 'success');
+      }
+
+      function removeMod(modId) {
+        if (!store.mods[modId]) return;
+        if (!confirm('Remove this extension permanently?')) {
+          return;
+        }
+        const summary = getModSummary(modId, store.mods[modId]);
+        delete store.mods[modId];
+        save();
+        if (window.CIB_MODS) {
+          window.CIB_MODS.syncFromStore();
+        }
+        renderManageMods();
+        showToast(`${summary.title} removed.`, 'success');
+      }
+
+      function renderManageMods() {
+        if (!modalEl.modsList) return;
+        modalEl.modsList.innerHTML = '';
+        const mods = Object.entries(store.mods || {}).sort((a, b) => a[0].localeCompare(b[0]));
+        if (!mods.length) {
+          modalEl.modsList.appendChild(h('div', { className: 'empty', style: 'margin: 6px 0;' }, 'No extensions installed yet.'));
+          return;
+        }
+        mods.forEach(([modId, modData]) => {
+          const summary = getModSummary(modId, modData);
+          const infoChildren = [
+            h('div', { className: 'mod-title' }, summary.title)
+          ];
+          if (summary.subtitle) {
+            infoChildren.push(h('div', { className: 'mod-meta' }, summary.subtitle));
+          }
+          if (summary.description) {
+            infoChildren.push(h('div', { className: 'mod-description' }, summary.description));
+          }
+          const info = h('div', { className: 'mod-info' }, infoChildren);
+          const actions = h('div', { className: 'mod-actions' },
+            h('button', { className: 'btn ghost', 'data-mod-action': 'toggle', 'data-mod-id': modId }, modData.enabled ? 'Disable' : 'Enable'),
+            h('button', { className: 'btn danger', 'data-mod-action': 'remove', 'data-mod-id': modId }, 'Remove')
+          );
+          const row = h('div', { className: 'mod-row' + (modData.enabled ? '' : ' disabled') }, info, actions);
+          modalEl.modsList.appendChild(row);
+        });
+      }
+
+      /* =========================
+         CARD MANAGEMENT
+         ========================= */
+      function createCard(title, body, parentId) {
+        const id = 'card-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+        const card = {
+          id,
+          title: title || '(Untitled)',
+          body: body || '',
+          parentId: parentId || null,
+          children: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          modsData: {}
+        };
+        store.cards[id] = card;
+        if (parentId) {
+          if (store.cards[parentId]) store.cards[parentId].children.push(id);
+        } else {
+          store.rootOrder.push(id);
+        }
+        runModHook('onCardSave', cloneCard(card), { isNew: true, source: 'createCard' });
+        return card;
+      }
+
+      function updateCard(id, updates) {
+        const card = store.cards[id];
+        if (!card) return;
+        const oldParent = card.parentId;
+        Object.assign(card, updates, { updatedAt: Date.now() });
+        const newParent = card.parentId;
+        if (oldParent !== newParent) {
+          if (oldParent && store.cards[oldParent]) {
+            store.cards[oldParent].children = store.cards[oldParent].children.filter(cid => cid !== id);
+          } else {
+            store.rootOrder = store.rootOrder.filter(cid => cid !== id);
+          }
+          if (newParent && store.cards[newParent]) {
+            store.cards[newParent].children.push(id);
+          } else {
+            store.rootOrder.push(id);
+          }
+        }
+        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'updateCard' });
+      }
+
+      function deleteCard(id) {
+        const card = store.cards[id];
+        if (!card) return;
+        const snapshot = cloneCard(card);
+        card.children.slice().forEach(cid => deleteCard(cid));
+        if (card.parentId && store.cards[card.parentId]) {
+          store.cards[card.parentId].children = store.cards[card.parentId].children.filter(cid => cid !== id);
+        } else {
+          store.rootOrder = store.rootOrder.filter(cid => cid !== id);
+        }
+        delete store.cards[id];
+        runModHook('onCardDelete', snapshot, { source: 'deleteCard' });
+      }
+
+      /* =========================
+         JSON EXPORT FUNCTIONS (Phase 1)
+         ========================= */
+      
+      /**
+       * Recursively collect all card IDs in a subtree
+       * @param {string} cardId - The root card ID
+       * @returns {string[]} Array of all card IDs in the subtree
+       */
+      function collectSubtreeIds(cardId) {
+        const card = store.cards[cardId];
+        if (!card) return [];
+        
+        let ids = [cardId];
+        card.children.forEach(childId => {
+          ids = ids.concat(collectSubtreeIds(childId));
+        });
+        return ids;
+      }
+
+      /**
+       * Build a JSON export package
+       * @param {string[]} rootIds - Array of root card IDs to export
+       * @param {string} exportType - 'card', 'subtree', or 'instance'
+       * @returns {Object} Export package
+       */
+      function buildPackage(rootIds, exportType) {
+        const pkg = {
+          version: APP_VERSION,
+          exportType: exportType,
+          exportDate: new Date().toISOString(),
+          rootIds: rootIds,
+          cards: {},
+          meta: {
+            schemaVersion: SCHEMA_VERSION,
+            notes: ''
+          }
+        };
+
+        // Collect all cards to export
+        let cardIdsToExport = [];
+        rootIds.forEach(rootId => {
+          if (exportType === 'card') {
+            cardIdsToExport.push(rootId);
+          } else if (exportType === 'subtree') {
+            cardIdsToExport = cardIdsToExport.concat(collectSubtreeIds(rootId));
+          }
+        });
+
+        // For instance export, include all cards
+        if (exportType === 'instance') {
+          cardIdsToExport = Object.keys(store.cards);
+          pkg.rootIds = store.rootOrder;
+        }
+
+        // Sort cards alphabetically by ID for consistent exports
+        cardIdsToExport.sort();
+
+        // Build cards object
+        cardIdsToExport.forEach(cardId => {
+          const card = store.cards[cardId];
+          if (card) {
+            pkg.cards[cardId] = cloneCard(card);
+          }
+        });
+
+        // Include mods for instance exports
+        if (exportType === 'instance' && Object.keys(store.mods).length > 0) {
+          const sortedMods = Object.keys(store.mods).sort();
+          pkg.mods = {};
+          sortedMods.forEach(modId => {
+            const mod = store.mods[modId];
+            if (mod) {
+              pkg.mods[modId] = {
+                enabled: !!mod.enabled,
+                js: mod.js || '',
+                css: mod.css || '',
+                meta: mod.meta ? { ...mod.meta } : {}
+              };
+            }
+          });
+        }
+
+        return pkg;
+      }
+
+      /**
+       * Trigger a JSON file download
+       * @param {string} filename - Suggested filename
+       * @param {Object} data - Data to export
+       */
+      function downloadJSON(filename, data) {
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      /**
+       * Build a human-readable TXT outline for the given root IDs.
+       * Format example:
+       * Card: Trip Planning
+       * Details:
+       *   High-level planning and checklists.
+       * Children:
+       *   - Card: Itinerary
+       *     Details:
+       *       Day-by-day outline.
+       *     Children:
+       *       - Card: Food Spots
+       *         Details:
+       *           Restaurants to try.
+       */
+      function exportTXT(rootIds) {
+        const IND1 = '  ';
+        const IND2 = IND1 + '  ';
+
+        function sortByTitle(ids) {
+          return ids.slice().sort((a, b) => {
+            const A = (store.cards[a]?.title || '').toLowerCase();
+            const B = (store.cards[b]?.title || '').toLowerCase();
+            return A.localeCompare(B);
+          });
+        }
+
+        function blockForCard(cardId, depth = 0) {
+          const c = store.cards[cardId];
+          if (!c) return '';
+          const pad = IND1.repeat(depth);
+          const pad2 = IND1.repeat(depth + 1);
+          const pad3 = IND1.repeat(depth + 2);
+
+          let out = '';
+          out += `${pad}Card: ${c.title || '(Untitled)'}\n`;
+          out += `${pad}Details:\n`;
+          const bodyLines = (c.body || '').split('\n');
+          if (bodyLines.length === 0 || (bodyLines.length === 1 && bodyLines[0].trim() === '')) {
+            out += `${pad2}(none)\n`;
+          } else {
+            bodyLines.forEach(line => { out += `${pad2}${line}\n`; });
+          }
+
+          const children = sortByTitle(c.children || []);
+          out += `${pad}Children:\n`;
+          if (children.length === 0) {
+            out += `${pad2}(none)\n`;
+          } else {
+            children.forEach(cid => {
+              out += `${pad2}- ` + `Card: ${(store.cards[cid]?.title || '(Untitled)')}\n`;
+              // Include nested block indented further
+              out += blockForCard(cid, depth + 2);
+            });
+          }
+          return out;
+        }
+
+        const lines = [];
+        const rootsSorted = sortByTitle(rootIds);
+        rootsSorted.forEach((rid, idx) => {
+          lines.push(blockForCard(rid, 0).trimEnd());
+          if (idx < rootsSorted.length - 1) lines.push('\n'); // spacer between roots
+        });
+        return lines.join('\n');
+      }
+
+      /** Download plain text */
+      function downloadTXT(filename, text) {
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      /**
+       * Handle export action
+       * @param {string} exportType - 'card', 'subtree', or 'instance'
+       * @param {string|null} cardId - Card ID (for card/subtree exports)
+       */
+      function handleExport(exportType, cardId = null) {
+        // Export active mods as a stand‑alone JSON package
+        if (exportType === 'mods-json') {
+          const modsOut = {};
+          Object.entries(store.mods || {}).forEach(([mid, mdata]) => {
+            if (mdata && mdata.enabled) {
+              modsOut[mid] = {
+                js: mdata.js || '',
+                css: mdata.css || '',
+                meta: mdata.meta ? { ...mdata.meta } : {}
+              };
+            }
+          });
+          const dateStr = new Date().toISOString().split('T')[0];
+          const filename = `active-mods-${dateStr}.json`;
+          downloadJSON(filename, modsOut);
+          return;
+        }
+        let rootIds = [];
+        let filename = '';
+        let pkgType = '';
+
+        if (exportType === 'instance-json' || exportType === 'instance-txt') {
+          rootIds = store.rootOrder;
+          pkgType = 'instance';
+          const dateStr = new Date().toISOString().split('T')[0];
+          filename = exportType.endsWith('-txt') ? `card-info-base-instance-${dateStr}.txt`
+                                                 : `card-info-base-instance-${dateStr}.json`;
+        } else if (exportType === 'card-json' || exportType === 'card-txt') {
+          rootIds = [cardId];
+          pkgType = 'card';
+          const card = store.cards[cardId];
+          const titleSlug = sanitizeFilename(card?.title || 'card');
+          filename = exportType.endsWith('-txt') ? `${titleSlug}-card.txt` : `${titleSlug}-card.json`;
+        } else if (exportType === 'subtree-json' || exportType === 'subtree-txt') {
+          rootIds = [cardId];
+          pkgType = 'subtree';
+          const card = store.cards[cardId];
+          const titleSlug = sanitizeFilename(card?.title || 'card');
+          filename = exportType.endsWith('-txt') ? `${titleSlug}-subtree.txt` : `${titleSlug}-subtree.json`;
+        }
+
+        if (exportType.endsWith('-txt')) {
+          const text = exportTXT(pkgType === 'instance' ? store.rootOrder : rootIds);
+          downloadTXT(filename, text);
+        } else {
+          const pkg = buildPackage(rootIds, pkgType);
+          downloadJSON(filename, pkg);
+        }
+      }
+
+      /* =========================
+         TXT & DOCX IMPORT FUNCTIONS (Phase 4)
+         ========================= */
+      
+      /**
+       * Parse TXT content into hierarchical card structure
+       * @param {string} text - The text content to parse
+       * @returns {Array} Array of parsed card objects
+       */
+      function parseTXT(text) {
+        const lines = text.split('\n');
+        const cards = [];
+        const stack = []; // Track parent chain by depth
+        
+        let currentCard = null;
+        let currentSection = null; // 'title', 'details', 'children'
+        let detailsBuffer = [];
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          
+          // Skip empty lines
+          if (!line.trim()) {
+            if (currentSection === 'details' && detailsBuffer.length > 0) {
+              detailsBuffer.push('');
+            }
+            continue;
+          }
+          
+          // Calculate indentation level (2 spaces = 1 level)
+          const indent = line.search(/\S/);
+          const depth = Math.floor(indent / 2);
+          const content = line.trim();
+          
+          // Check for card declaration
+          if (content.startsWith('Card:') || content.startsWith('- Card:')) {
+            // Save previous card's details
+            if (currentCard && detailsBuffer.length > 0) {
+              currentCard.body = detailsBuffer.join('\n').trim();
+              detailsBuffer = [];
+            }
+            
+            // Extract title
+            const title = content.replace(/^-?\s*Card:\s*/, '').trim();
+            
+            // Create new card
+            currentCard = {
+              title: title || '(Imported)',
+              body: '',
+              children: [],
+              depth: depth
+            };
+            
+            // Add to appropriate parent
+            if (depth === 0) {
+              cards.push(currentCard);
+            } else {
+              // Find parent at depth-1
+              while (stack.length > depth) {
+                stack.pop();
+              }
+              const parent = stack[stack.length - 1];
+              if (parent) {
+                parent.children.push(currentCard);
+              }
+            }
+            
+            // Update stack
+            while (stack.length > depth) {
+              stack.pop();
+            }
+            stack.push(currentCard);
+            
+            currentSection = 'title';
+          }
+          // Check for Details section
+          else if (content === 'Details:') {
+            currentSection = 'details';
+            detailsBuffer = [];
+          }
+          // Check for Children section
+          else if (content === 'Children:') {
+            // Save any pending details
+            if (currentCard && detailsBuffer.length > 0) {
+              currentCard.body = detailsBuffer.join('\n').trim();
+              detailsBuffer = [];
+            }
+            currentSection = 'children';
+          }
+          // Content line
+          else if (currentSection === 'details') {
+            detailsBuffer.push(content);
+          }
+        }
+        
+        // Save final card's details
+        if (currentCard && detailsBuffer.length > 0) {
+          currentCard.body = detailsBuffer.join('\n').trim();
+        }
+        
+        return cards;
+      }
+
+      /**
+       * Import TXT outline as card structure
+       * @param {string} text - The text content
+       * @param {string} parentId - Parent card ID or null for root
+       * @returns {Object} Import result
+       */
+      function importTXTOutline(text, parentId = null) {
+        const parsedCards = parseTXT(text);
+        const createdIds = [];
+        
+        function createCardsRecursive(cardData, parentId) {
+          const card = createCard(cardData.title, cardData.body, parentId);
+          createdIds.push(card.id);
+          
+          // Create children
+          cardData.children.forEach(childData => {
+            createCardsRecursive(childData, card.id);
+          });
+          
+          return card;
+        }
+        
+        parsedCards.forEach(cardData => {
+          createCardsRecursive(cardData, parentId);
+        });
+        
+        save();
+        
+        return {
+          success: true,
+          cardCount: createdIds.length,
+          rootIds: createdIds
+        };
+      }
+
+      /**
+       * Append TXT content to a card's body
+       * @param {string} cardId - The card ID
+       * @param {string} text - The text to append
+       * @returns {Object} Result
+       */
+      function appendTXTToDetails(cardId, text) {
+        const card = store.cards[cardId];
+        if (!card) {
+          return { success: false, error: 'Card not found' };
+        }
+        
+        // Append text to body with separator if body exists
+        if (card.body && card.body.trim()) {
+          card.body += '\n\n' + text.trim();
+        } else {
+          card.body = text.trim();
+        }
+
+        card.updatedAt = Date.now();
+        save();
+
+        runModHook('onCardSave', cloneCard(card), { source: 'appendTXT' });
+
+        return { success: true };
+      }
+
+      /**
+       * Import DOCX content to card body (requires mammoth.js)
+       * @param {File} file - The DOCX file
+       * @param {string} cardId - Target card ID
+       * @param {string} mode - 'append' or 'replace'
+       * @returns {Promise<Object>} Import result
+       */
+      async function importDocxToCard(file, cardId, mode = 'append') {
+        const card = store.cards[cardId];
+        if (!card) {
+          return { success: false, error: 'Card not found' };
+        }
+
+        try {
+          const text = await extractDocxText(file);
+
+          if (mode === 'replace') {
+            card.body = text;
+          } else {
+            // Append mode
+            if (card.body && card.body.trim()) {
+              card.body += '\n\n' + text;
+            } else {
+              card.body = text;
+            }
+          }
+
+          card.updatedAt = Date.now();
+          save();
+
+          runModHook('onCardSave', cloneCard(card), { source: 'importDOCX', mode });
+
+          return { success: true, textLength: text.length };
+        } catch (error) {
+          return { success: false, error: error.message || 'Failed to process DOCX file' };
+        }
+      }
+
+      /* =========================
+         JSON IMPORT FUNCTIONS (Phase 2)
+         ========================= */
+      
+      /**
+       * Validate an import package structure
+       * @param {Object} pkg - The package to validate
+       * @returns {Object} { valid: boolean, error: string|null }
+       */
+      function validateImport(pkg) {
+        // Check basic structure
+        if (!pkg || typeof pkg !== 'object') {
+          return { valid: false, error: 'Invalid JSON structure' };
+        }
+
+        // Check for required fields
+        if (!pkg.version) {
+          return { valid: false, error: 'Missing version field' };
+        }
+        if (!pkg.exportType || !['card', 'subtree', 'instance'].includes(pkg.exportType)) {
+          return { valid: false, error: 'Invalid or missing exportType' };
+        }
+        if (!pkg.cards || typeof pkg.cards !== 'object') {
+          return { valid: false, error: 'Missing or invalid cards object' };
+        }
+        if (!pkg.rootIds || !Array.isArray(pkg.rootIds)) {
+          return { valid: false, error: 'Missing or invalid rootIds array' };
+        }
+
+        // Check that cards object is not empty
+        if (Object.keys(pkg.cards).length === 0) {
+          return { valid: false, error: 'No cards found in import' };
+        }
+
+        // Validate each card has required fields
+        for (const [cardId, card] of Object.entries(pkg.cards)) {
+          if (!card.id) {
+            return { valid: false, error: `Card missing id field: ${cardId}` };
+          }
+          if (card.title === undefined) {
+            return { valid: false, error: `Card missing title field: ${cardId}` };
+          }
+          if (!Array.isArray(card.children)) {
+            return { valid: false, error: `Card has invalid children array: ${cardId}` };
+          }
+        }
+
+        return { valid: true, error: null };
+      }
+
+      /**
+       * Remap all IDs in a package to avoid collisions
+       * @param {Object} pkg - The package to remap
+       * @returns {Object} Package with remapped IDs
+       */
+      function remapIds(pkg) {
+        const idMap = {};
+        
+        // Generate new IDs for all cards
+        Object.keys(pkg.cards).forEach(oldId => {
+          const newId = 'card-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+          idMap[oldId] = newId;
+        });
+
+        // Create new cards object with remapped IDs
+        const newCards = {};
+        Object.entries(pkg.cards).forEach(([oldId, card]) => {
+          const newId = idMap[oldId];
+          const remappedChildren = card.children
+            .map(childId => idMap[childId])
+            .filter(Boolean);
+
+          newCards[newId] = {
+            ...card,
+            id: newId,
+            parentId: card.parentId ? (idMap[card.parentId] || null) : null,
+            children: remappedChildren,
+            createdAt: card.createdAt || Date.now(),
+            updatedAt: Date.now(),
+            modsData: card.modsData || {}
+          };
+        });
+
+        // Remap rootIds
+        const newRootIds = pkg.rootIds
+          .map(oldId => idMap[oldId])
+          .filter(Boolean);
+
+        return {
+          ...pkg,
+          cards: newCards,
+          rootIds: newRootIds,
+          idMap: idMap // Include mapping for reference
+        };
+      }
+
+      /**
+       * Import JSON package into the store
+       * @param {Object} pkg - The validated and remapped package
+       * @param {string} mode - 'root' or a cardId to add as children
+       */
+      function importJSON(pkg, mode) {
+        const remappedPkg = remapIds(pkg);
+        const importedIds = Object.keys(remappedPkg.cards);
+
+        // Add all cards to store
+        Object.entries(remappedPkg.cards).forEach(([cardId, card]) => {
+          store.cards[cardId] = card;
+        });
+
+        // Handle placement based on mode
+        if (mode === 'root') {
+          // Add root cards to store.rootOrder
+          remappedPkg.rootIds.forEach(cardId => {
+            if (store.cards[cardId] && !store.rootOrder.includes(cardId)) {
+              store.rootOrder.push(cardId);
+            }
+          });
+        } else {
+          // Add as children of specified parent
+          const parentCard = store.cards[mode];
+          if (parentCard) {
+            remappedPkg.rootIds.forEach(cardId => {
+              if (store.cards[cardId]) {
+                // Update the imported card's parentId
+                store.cards[cardId].parentId = mode;
+                // Add to parent's children
+                if (!parentCard.children.includes(cardId)) {
+                  parentCard.children.push(cardId);
+                }
+              }
+            });
+          }
+        }
+
+        // Import mods if it's an instance export
+        if (pkg.exportType === 'instance' && pkg.mods) {
+          Object.entries(pkg.mods).forEach(([modId, mod]) => {
+            if (!store.mods[modId]) {
+              store.mods[modId] = {
+                enabled: !!mod.enabled,
+                js: mod.js || '',
+                css: mod.css || '',
+                meta: mod.meta ? { ...mod.meta } : {}
+              };
+            }
+          });
+        }
+
+        save();
+        if (window.CIB_MODS) {
+          window.CIB_MODS.syncFromStore();
+          window.CIB_MODS.runHook('onAppInit');
+        }
+
+        importedIds.forEach(cardId => {
+          const storedCard = store.cards[cardId];
+          if (storedCard) {
+            runModHook('onCardSave', cloneCard(storedCard), { isNew: true, source: 'importJSON', exportType: pkg.exportType });
+          }
+        });
+
+        return {
+          success: true,
+          cardCount: Object.keys(remappedPkg.cards).length,
+          rootIds: remappedPkg.rootIds
+        };
+      }
+
+      /**
+       * Populate import location dropdown with all cards
+       */
+      function updateImportLocationOptions() {
+        // Get all select elements
+        const selectJSON = modalEl.importLocationSelectJSON;
+        const selectTXT = modalEl.importLocationSelectTXT;
+        const selectDOCX = modalEl.importLocationSelectDOCX;
+        
+        // Get sorted cards
+        const sortedCards = Object.values(store.cards)
+          .sort((a, b) => {
+            const A = (a.title || '').toLowerCase();
+            const B = (b.title || '').toLowerCase();
+            return A.localeCompare(B);
+          });
+        
+        // Update JSON select (for creating cards)
+        if (selectJSON) {
+          selectJSON.innerHTML = '<option value="root">Add as Root Cards</option>';
+          sortedCards.forEach(card => {
+            const option = document.createElement('option');
+            option.value = card.id;
+            option.textContent = `Add as children of: ${card.title || '(Untitled)'}`;
+            selectJSON.appendChild(option);
+          });
+        }
+        
+        // Update TXT select (for creating cards)
+        if (selectTXT) {
+          selectTXT.innerHTML = '<option value="root">Add as Root Cards</option>';
+          sortedCards.forEach(card => {
+            const option = document.createElement('option');
+            option.value = card.id;
+            option.textContent = `Add as children of: ${card.title || '(Untitled)'}`;
+            selectTXT.appendChild(option);
+          });
+        }
+        
+        // Update DOCX select (for appending to card body - no root option)
+        if (selectDOCX) {
+          selectDOCX.innerHTML = '<option value="">Select a card...</option>';
+          sortedCards.forEach(card => {
+            const option = document.createElement('option');
+            option.value = card.id;
+            option.textContent = card.title || '(Untitled)';
+            selectDOCX.appendChild(option);
+          });
+        }
+      }
+
+      /* =========================
+         DROPDOWN HELPERS
+         ========================= */
+      function setupDropdown(toggleBtn, menu) {
+        if (!toggleBtn || !menu) return;
+
+        toggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isShown = menu.classList.contains('show');
+          // Close all other dropdowns
+          document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
+          if (!isShown) {
+            menu.classList.add('show');
+          }
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', () => {
+          menu.classList.remove('show');
+        });
+
+        // Prevent menu clicks from closing dropdown
+        menu.addEventListener('click', (e) => {
+          e.stopPropagation();
+        });
+      }
+
+      /* =========================
+         BREADCRUMBS
+         ========================= */
+      function renderBreadcrumbs() {
+        breadcrumbsEl.innerHTML = '';
+        if (navState.page === 'search') {
+          breadcrumbsEl.appendChild(h('div', { className: 'chip-current' }, 'Search Results'));
+          return;
+        }
+        if (navState.page === 'edit') {
+          const chip = h('div', { className: 'chip-current' }, navState.cardId ? 'Edit Card' : 'New Card');
+          breadcrumbsEl.appendChild(chip);
+          return;
+        }
+        let current = navState.cardId;
+        const path = [];
+        while (current) {
+          const c = store.cards[current];
+          if (!c) break;
+          path.unshift(c);
+          current = c.parentId;
+        }
+        if (path.length === 0) {
+          breadcrumbsEl.appendChild(h('div', { className: 'chip-current' }, 'All Cards'));
+        } else {
+          const home = h('div', { className: 'chip', onclick: () => goTo('list', { cardId: null }) }, 'All Cards');
+          breadcrumbsEl.appendChild(home);
+          path.forEach((c, i) => {
+            const isCurrent = (i === path.length - 1 && navState.page === 'list');
+            const cls = isCurrent ? 'chip-current' : 'chip';
+            const chip = h('div', { className: cls, onclick: isCurrent ? null : () => goTo('list', { cardId: c.id }) }, c.title || '(Untitled)');
+            breadcrumbsEl.appendChild(chip);
+          });
+        }
+      }
+
+      /* =========================
+         RENDER LOGIC
+         ========================= */
+      function cardListTile(c) {
+        const tile = h('div', { className: 'card-tile', onclick: () => goTo('read', { cardId: c.id }) });
+        tile.dataset.cardId = c.id;
+        tile.dataset.renderType = 'list';
+        const titleRow = h('div', { className: 'card-title-row' });
+        const title = h('div', { className: 'ct-title' }, c.title || '(Untitled)');
+        titleRow.appendChild(title);
+        if (c.children.length > 0) {
+          const kidCount = h('div', { className: 'ct-kid-count' }, c.children.length + ' child' + (c.children.length > 1 ? 'ren' : ''));
+          titleRow.appendChild(kidCount);
+        }
+        tile.appendChild(titleRow);
+        if (c.body) {
+          const preview = c.body.substring(0, 80) + (c.body.length > 80 ? '...' : '');
+          tile.appendChild(h('div', { className: 'ct-preview' }, preview));
+        }
+        const meta = h('div', { className: 'ct-meta' }, 'Updated ' + formatDate(c.updatedAt));
+        tile.appendChild(meta);
+        return tile;
+      }
+
+      function renderCardList() {
+        const parentId = navState.cardId;
+        let kids = [];
+        if (!parentId) {
+          kids = store.rootOrder.map(id => store.cards[id]).filter(c => c);
+        } else {
+          const parent = store.cards[parentId];
+          if (!parent) { main.appendChild(h('div', { className: 'empty' }, 'Card not found.')); return; }
+          kids = parent.children.map(id => store.cards[id]).filter(c => c);
+        }
+
+        const sortControl = h('div', { className: 'sort-control' });
+        sortControl.appendChild(h('label', null, 'Sort:'));
+        // Provide an accessible name for the sort dropdown via a title
+        const sortSelect = h('select', { id: 'sortSelect', title: 'Sort cards' });
+        sortSelect.appendChild(h('option', { value: 'alpha' }, 'Alphabetical'));
+        sortSelect.appendChild(h('option', { value: 'updated' }, 'Recently Updated'));
+        sortSelect.appendChild(h('option', { value: 'created' }, 'Recently Created'));
+        sortControl.appendChild(sortSelect);
+
+        const sortKids = () => {
+          const val = sortSelect.value;
+          if (val === 'alpha') {
+            kids.sort((a, b) => (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase()));
+          } else if (val === 'updated') {
+            kids.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+          } else if (val === 'created') {
+            kids.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          }
+          grid.innerHTML = '';
+          kids.forEach(c => {
+            const tile = cardListTile(c);
+            grid.appendChild(tile);
+            runModHook('onCardRender', cloneCard(c), tile);
+          });
+        };
+
+        sortSelect.addEventListener('change', sortKids);
+        main.appendChild(sortControl);
+
+        const grid = document.createElement('div');
+        grid.className = 'card-list';
+        main.appendChild(grid);
+        sortKids();
+
+        const addBtn = h('button', { className: 'btn primary', style: 'margin-top:20px', onclick: () => goTo('edit', { cardId: null, parentId: parentId }) }, '+ Add Card Here');
+        main.appendChild(addBtn);
+
+        if (kids.length === 0 && parentId) {
+          const empty = h('div', { className: 'empty' }, 'No children yet.');
+          grid.appendChild(empty);
+        }
+      }
+
+      function renderReadOnlyCard() {
+        const card = store.cards[navState.cardId];
+        if (!card) {
+          main.appendChild(h('div', { className: 'empty' }, 'Card not found.'));
+          return;
+        }
+
+        const cardView = h('div', { className: 'card-view' });
+        cardView.dataset.cardId = card.id;
+        cardView.dataset.renderType = 'detail';
+        main.appendChild(cardView);
+
+        cardView.appendChild(h('div', { className: 'card-main-title' }, card.title || '(Untitled)'));
+
+        if (card.parentId) {
+          const parent = store.cards[card.parentId];
+          if (parent) {
+            const ref = h('div', { className: 'card-parent-ref' },
+              'Parent: ',
+              h('a', { href: '#', onclick: (e) => { e.preventDefault(); goTo('read', { cardId: parent.id }); } }, parent.title || '(Untitled)')
+            );
+            cardView.appendChild(ref);
+          }
+        }
+
+        if (card.body) {
+          cardView.appendChild(h('div', { className: 'details' }, card.body));
+        }
+
+        // Action row 1: Edit and Download (operations on THIS card)
+        const actionRow1 = h('div', { className: 'action-row' });
+        actionRow1.appendChild(h('button', { className: 'btn primary', onclick: () => goTo('edit', { cardId: card.id }) }, 'Edit Card'));
+        
+        // Per-card export dropdown
+        const cardDropdown = h('div', { className: 'dropdown', style: 'display: inline-block' });
+        const cardExportToggle = h('button', { className: 'btn ghost dropdown-toggle' }, 'Download ▾');
+        const cardExportMenu = h('div', { className: 'dropdown-menu' });
+        
+        cardExportMenu.appendChild(h('button', { 
+          className: 'dropdown-item', 
+          onclick: () => handleExport('card-json', card.id) 
+        }, 'Current Card (JSON)'));
+        
+        cardExportMenu.appendChild(h('button', { 
+          className: 'dropdown-item', 
+          onclick: () => handleExport('subtree-json', card.id) 
+        }, 'Card + Children (JSON)'));
+        
+        cardExportMenu.appendChild(h('button', { 
+          className: 'dropdown-item', 
+          onclick: () => handleExport('card-txt', card.id) 
+        }, 'Current Card (TXT)'));
+        
+        cardExportMenu.appendChild(h('button', { 
+          className: 'dropdown-item', 
+          onclick: () => handleExport('subtree-txt', card.id) 
+        }, 'Card + Children (TXT)'));
+        
+        cardDropdown.appendChild(cardExportToggle);
+        cardDropdown.appendChild(cardExportMenu);
+        setupDropdown(cardExportToggle, cardExportMenu);
+        actionRow1.appendChild(cardDropdown);
+
+        cardView.appendChild(actionRow1);
+
+        // Action row 2: Add Child and Upload (operations to ADD children)
+        const actionRow2 = h('div', { className: 'action-row' });
+        actionRow2.appendChild(h('button', { className: 'btn ghost', onclick: () => goTo('edit', { parentId: card.id }) }, '+ Add Child'));
+        actionRow2.appendChild(h('button', {
+          className: 'btn ghost',
+          onclick: () => {
+            updateImportLocationOptions();
+            modalEl.importLocationSelectJSON.value = card.id;
+            modalEl.importLocationSelectTXT.value = card.id;
+            modalEl.uploadModal.classList.add('show');
+          }
+        }, 'Upload Card'));
+
+        cardView.appendChild(actionRow2);
+
+        // Children section
+        if (card.children.length > 0) {
+          cardView.appendChild(h('div', { className: 'subhead', style: 'margin-top:16px' }, 'Children'));
+          const childList = h('div', { className: 'children-preview-list' });
+
+          // Show first 4 children alphabetically
+          const sortedKids = card.children.slice().sort((a, b) => {
+            const cardA = store.cards[a];
+            const cardB = store.cards[b];
+            const titleA = (cardA?.title || '').toLowerCase();
+            const titleB = (cardB?.title || '').toLowerCase();
+            return titleA.localeCompare(titleB);
+          }).slice(0, 4);
+          
+          sortedKids.forEach(cid => {
+            const c = store.cards[cid];
+            if (c) {
+              const tile = h('div', { 
+                className: 'children-preview-tile', 
+                onclick: () => goTo('read', { cardId: c.id }) 
+              },
+                c.title || '(Untitled)',
+                ' (',
+                c.children.length.toString(),
+                ')'
+              );
+              childList.appendChild(tile);
+            }
+          });
+          cardView.appendChild(childList);
+        } else {
+          cardView.appendChild(h('div', { className: 'empty', style: 'margin-top:13px;' }, 'No children.'));
+        }
+
+        // Navigation row: See All Children and See Siblings (NAVIGATION operations)
+        const navRow = h('div', { className: 'action-row' });
+
+        // See All Children - always enabled, shows empty list if no children
+        const seeChildrenBtn = h('button', { 
+          className: 'btn ghost',
+          onclick: () => goTo('list', { cardId: card.id })
+        }, 'See All Children');
+        navRow.appendChild(seeChildrenBtn);
+        
+        // See Siblings - always visible, goes to parent list or root
+        const seeSiblingsBtn = h('button', {
+          className: 'btn ghost',
+          onclick: () => goTo('list', { cardId: card.parentId || null })
+        }, 'See Siblings');
+        navRow.appendChild(seeSiblingsBtn);
+
+        cardView.appendChild(navRow);
+
+        // Card metadata
+        cardView.appendChild(h('div', {
+          className: 'ct-meta',
+          style: 'margin-top:20px;'
+        }, 'Created ' + formatDate(card.createdAt)));
+
+        runModHook('onCardRender', cloneCard(card), cardView);
+      }
+
+      function renderEditCard() {
+        const editing = !!navState.cardId;
+        const card = editing ? store.cards[navState.cardId] : null;
+        if (editing && !card) {
+          main.appendChild(h('div', { className: 'empty' }, 'Card not found.'));
+          return;
+        }
+
+        const form = h('form');
+        form.onsubmit = (e) => {
+          e.preventDefault();
+          const title = form.querySelector('input[type="text"]').value.trim();
+          const body = form.querySelector('textarea').value.trim();
+          const parentId = form.querySelector('select').value || null;
+
+          if (editing) {
+            updateCard(card.id, { title, body, parentId });
+            const childrenInputs = Object.entries(childrenInpMap);
+            childrenInputs.forEach(([cid, inp]) => {
+              const newTitle = inp.value.trim();
+              if (newTitle) updateCard(cid, { title: newTitle });
+            });
+            const newKidsList = form.querySelector('#addChildList');
+            if (newKidsList) {
+              newKidsList.querySelectorAll('input[type="text"]').forEach(inp => {
+                const t = inp.value.trim();
+                if (t) createCard(t, '', card.id);
+              });
+            }
+            save();
+            goTo('read', { cardId: card.id });
+          } else {
+            const newCard = createCard(title, body, parentId);
+            const kidsList = form.querySelector('#addChildList');
+            if (kidsList) {
+              kidsList.querySelectorAll('input[type="text"]').forEach(inp => {
+                const t = inp.value.trim();
+                if (t) createCard(t, '', newCard.id);
+              });
+            }
+            save();
+            goTo('read', { cardId: newCard.id });
+          }
+        };
+
+        form.appendChild(h('label', null, 'Title'));
+        const titleInput = h('input', { type: 'text', required: true, value: card?.title || '', placeholder: 'Title...' });
+        titleInput.addEventListener('input', () => { dirty = true; });
+        form.appendChild(titleInput);
+
+        form.appendChild(h('label', null, 'Details'));
+        const bodyInput = h('textarea', { placeholder: 'Write info or details...' }, card?.body || '');
+        bodyInput.addEventListener('input', () => { dirty = true; });
+        form.appendChild(bodyInput);
+
+        const txtFileInput = h('input', { type: 'file', accept: '.txt', style: 'display:none;' });
+        const docxFileInput = h('input', { type: 'file', accept: '.docx', style: 'display:none;' });
+
+        const applyImportedText = (text, sourceLabel) => {
+          const cleaned = (text || '').trim();
+          if (!cleaned) {
+            showToast(`No text found in ${sourceLabel}`, 'error');
+            return;
+          }
+
+          if (bodyInput.value.trim() && !confirm('Replace the current details with the imported text?')) {
+            return;
+          }
+
+          bodyInput.value = cleaned;
+          dirty = true;
+          showToast(`Loaded text from ${sourceLabel}`, 'success');
+        };
+
+        txtFileInput.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          try {
+            const text = await readFileAsText(file);
+            applyImportedText(text, 'the TXT file');
+          } catch (err) {
+            showToast(err.message || 'Failed to read TXT file', 'error');
+          } finally {
+            e.target.value = '';
+          }
+        });
+
+        docxFileInput.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          try {
+            const text = await extractDocxText(file);
+            applyImportedText(text, 'the DOCX file');
+          } catch (err) {
+            showToast(err.message || 'Failed to process DOCX file', 'error');
+          } finally {
+            e.target.value = '';
+          }
+        });
+
+        const fileButtonRow = h('div', {
+          className: 'form-file-actions',
+          style: 'display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 16px;'
+        },
+          h('button', { type: 'button', className: 'btn ghost', onclick: () => txtFileInput.click() }, 'Use TXT File'),
+          h('button', { type: 'button', className: 'btn ghost', onclick: () => docxFileInput.click() }, 'Use DOCX File')
+        );
+
+        form.appendChild(txtFileInput);
+        form.appendChild(docxFileInput);
+        form.appendChild(fileButtonRow);
+
+        form.appendChild(h('label', null, 'Parent'));
+        let parVal = editing ? (card.parentId ?? '') : (navState.parentId || '');
+        const parentSel = h('select', null);
+        parentSel.appendChild(h('option', { value: '', selected: parVal === '' }, '(None - Top Level)'));
+        Object.values(store.cards)
+          .filter(c => !(editing && c.id === card?.id))
+          .sort((a, b) => {
+            const A = (a.title || '').toLowerCase();
+            const B = (b.title || '').toLowerCase();
+            return A.localeCompare(B);
+          })
+          .forEach(c => {
+            parentSel.appendChild(h('option', { value: c.id, selected: parVal === c.id }, c.title || '(Untitled)'));
+          });
+        parentSel.value = parVal || '';
+        parentSel.addEventListener('change', () => { dirty = true; });
+        form.appendChild(parentSel);
+
+        let childrenInpMap = {};
+        if (editing) {
+          form.appendChild(h('label', null, 'Children'));
+          const kidsWrap = h('div', { className: 'form-children-inline' });
+          card.children.forEach((cid) => {
+            const c = store.cards[cid];
+            const row = h('div', { className: 'form-child-row' });
+            const chInp = h('input', { type: 'text', value: c.title, style: 'min-width: 0;' });
+            chInp.addEventListener('input', () => { dirty = true; });
+            row.appendChild(chInp);
+            const delBtn = h('button', {
+              type: "button", className: 'form-child-del', title: "Remove child",
+              onclick: () => { if (confirm('Delete child and all its children?')) { deleteCard(cid); save(); render(); } }
+            }, '✕');
+            row.appendChild(delBtn);
+            childrenInpMap[cid] = chInp;
+            kidsWrap.appendChild(row);
+          });
+          form.appendChild(kidsWrap);
+
+          form.appendChild(h('label', { style: 'margin-top:10px;' }, 'Add New Children'));
+          const newKidsWrap = h('div', { className: 'form-children-inline', id: 'addChildList' });
+          const addChildRow = (title = "") => {
+            const r = h('div', { className: 'form-child-row' }); const t = h('input', { type: 'text', value: title, placeholder: 'Child title...' });
+            t.addEventListener('input', () => { dirty = true; });
+            const d = h('button', { type: 'button', className: 'form-child-del', onclick: () => { r.remove(); } }, '✕'); r.appendChild(t); r.appendChild(d); newKidsWrap.appendChild(r);
+          };
+          addChildRow(); form.appendChild(newKidsWrap);
+          form.appendChild(h('button', { type: 'button', className: 'btn ghost', onclick: () => addChildRow() }, '+ Add Another Child'));
+        } else {
+          form.appendChild(h('label', null, 'Add Children Now (title only)'));
+          const kidsWrap = h('div', { className: 'form-children-inline', id: 'addChildList' });
+          const addChildRow = (title = "") => {
+            const r = h('div', { className: 'form-child-row' }); const t = h('input', { type: 'text', value: title, placeholder: 'Child title...' });
+            t.addEventListener('input', () => { dirty = true; });
+            const d = h('button', { type: 'button', className: 'form-child-del', onclick: () => { r.remove(); } }, '✕'); r.appendChild(t); r.appendChild(d); kidsWrap.appendChild(r);
+          };
+          addChildRow(); form.appendChild(kidsWrap);
+          form.appendChild(h('button', { type: 'button', className: 'btn ghost', onclick: () => addChildRow() }, '+ Add Another Child'));
+        }
+
+        form.appendChild(h('div', { style: 'margin-top:12px;display:flex;gap:10px;' },
+          h('button', { type: 'submit', className: 'btn primary' }, 'Save'),
+          h('button', { type: 'button', className: 'btn ghost', onclick: () => editing ? goTo('read', { cardId: card.id }) : goBack() }, 'Cancel'),
+          editing ? h('button', { type: 'button', className: 'btn danger', onclick: () => { if (confirm('Delete this card and all children?')) { deleteCard(card.id); save(); goTo('list', { cardId: card.parentId ?? null }); } } }, 'Delete') : ''
+        ));
+
+        main.appendChild(h('div', { className: 'subhead' }, editing ? 'Edit Card' : 'Add Card'));
+        main.appendChild(form);
+      }
+
+      function renderSearchResults() {
+        const query = navState.searchQuery.trim().toLowerCase();
+        if (!query) { main.appendChild(h('div', { className: 'empty' }, 'Please enter a search term.')); return; }
+        let results = Object.values(store.cards).filter(c => (c.title + ' ' + c.body).toLowerCase().includes(query));
+        results = results.sort((a, b) => {
+          const A = (a.title || '').toLowerCase();
+          const B = (b.title || '').toLowerCase();
+          return A.localeCompare(B);
+        });
+        main.appendChild(h('div', { className: 'subhead' }, `Search: "${navState.searchQuery}"`));
+        main.appendChild(h('button', { className: 'btn ghost', onclick: goBack }, '← Back'));
+        if (results.length === 0) {
+          main.appendChild(h('div', { className: 'empty' }, 'No results found.'));
+        } else {
+          const grid = document.createElement('div');
+          grid.className = 'card-list';
+          main.appendChild(grid);
+          results.forEach(c => {
+            const tile = cardListTile(c);
+            grid.appendChild(tile);
+            runModHook('onCardRender', cloneCard(c), tile);
+          });
+        }
+      }
+
+      function render() {
+        try {
+          renderBreadcrumbs();
+          main.innerHTML = "";
+          switch (navState.page) {
+            case "read": renderReadOnlyCard(); break;
+            case "list": renderCardList(); break;
+            case "search": renderSearchResults(); break;
+            case "edit": renderEditCard(); break;
+            default: renderCardList();
+          }
+        } catch (e) {
+          bootError('Render failed: ' + (e.message || e));
+        }
+      }
+
+      /* =========================
+         THEME / STYLE TOGGLES
+         ========================= */
+      const applyTheme = (theme) => {
+        if (theme === 'light') document.documentElement.classList.add('light');
+        else document.documentElement.classList.remove('light');
+        try { localStorage.setItem('nested_cards_theme', theme); } catch { }
+        const t = headerEl.themeToggle; if (t) t.setAttribute('aria-checked', theme === 'light' ? 'true' : 'false');
+      };
+      const applyStyle = (styleMode) => {
+        const minimal = styleMode === 'minimal';
+        document.documentElement.classList.toggle('minimal', minimal);
+        try { localStorage.setItem('nested_cards_style', minimal ? 'minimal' : 'classic'); } catch { }
+        const st = headerEl.styleToggle; if (st) st.textContent = 'Style: ' + (minimal ? 'Minimal' : 'Classic');
+      };
+
+      applyTheme(localStorage.getItem('nested_cards_theme') || 'dark');
+      applyStyle(localStorage.getItem('nested_cards_style') || 'classic');
+
+      if (headerEl.themeToggle) headerEl.themeToggle.onclick = () => {
+        const isLight = !document.documentElement.classList.contains('light');
+        applyTheme(isLight ? 'light' : 'dark');
+      };
+      if (headerEl.styleToggle) headerEl.styleToggle.onclick = () => {
+        const next = document.documentElement.classList.contains('minimal') ? 'classic' : 'minimal';
+        applyStyle(next);
+      };
+      if (headerEl.search) {
+        headerEl.search.addEventListener('input', e => { if (headerEl.clearSearch) headerEl.clearSearch.style.display = e.target.value.trim() ? "inline" : "none"; });
+        headerEl.search.onkeydown = (e) => { 
+          if (e.key === "Enter" && headerEl.search.value.trim()) { 
+            goTo('search', { searchQuery: headerEl.search.value.trim() }); 
+          } 
+        };
+      }
+      if (headerEl.clearSearch) headerEl.clearSearch.onclick = () => { if (headerEl.search) headerEl.search.value = ""; headerEl.clearSearch.style.display = "none"; if (navState.page === "search") goBack(); };
+      if (headerEl.startAddCardBtn) headerEl.startAddCardBtn.onclick = () => goTo('edit', { cardId: null, parentId: null });
+      if (headerEl.homeBtn) headerEl.homeBtn.onclick = () => goTo('list', { cardId: null });
+      if (headerEl.backBtn) headerEl.backBtn.onclick = () => goBack();
+
+      // Instance selection: allow user to switch or create a data instance at runtime.
+      if (headerEl.instanceBtn) headerEl.instanceBtn.onclick = () => {
+        chooseInstance(false);
+      };
+
+      // Setup header export dropdown
+      setupDropdown(headerEl.exportToggle, headerEl.exportMenu);
+      if (headerEl.exportMenu) {
+        headerEl.exportMenu.addEventListener('click', (e) => {
+          if (e.target.classList.contains('dropdown-item')) {
+            const exportType = e.target.getAttribute('data-export-type');
+            handleExport(exportType);
+            headerEl.exportMenu.classList.remove('show');
+          }
+        });
+      }
+
+      /* =========================
+         UPLOAD MODAL HANDLERS
+         ========================= */
+      
+      // Tab switching
+      modalEl.tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const tabName = tab.getAttribute('data-tab');
+          
+          // Update tab states
+          modalEl.tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          
+          // Update tab content states
+          modalEl.tabContents.forEach(content => content.classList.remove('active'));
+          document.getElementById(`tab-${tabName}`).classList.add('active');
+        });
+      });
+      
+      // Open upload modal
+      if (headerEl.uploadBtn) {
+        headerEl.uploadBtn.onclick = () => {
+          updateImportLocationOptions();
+          // Default to root for JSON and TXT tabs when opening from header
+          if (modalEl.importLocationSelectJSON) modalEl.importLocationSelectJSON.value = 'root';
+          if (modalEl.importLocationSelectTXT) modalEl.importLocationSelectTXT.value = 'root';
+          modalEl.uploadModal.classList.add('show');
+        };
+      }
+
+      // Close modal handlers
+      if (modalEl.closeUploadModal) {
+        modalEl.closeUploadModal.onclick = () => {
+          modalEl.uploadModal.classList.remove('show');
+        };
+      }
+      if (modalEl.cancelUploadBtn) {
+        modalEl.cancelUploadBtn.onclick = () => {
+          modalEl.uploadModal.classList.remove('show');
+        };
+      }
+
+      // Click outside modal to close
+      if (modalEl.uploadModal) {
+        modalEl.uploadModal.onclick = (e) => {
+          if (e.target === modalEl.uploadModal) {
+            modalEl.uploadModal.classList.remove('show');
+          }
+        };
+      }
+
+      function openManageModsModal() {
+        if (!modalEl.manageModal) return;
+        renderManageMods();
+        modalEl.manageModal.classList.add('show');
+      }
+
+      function closeManageModsModal() {
+        if (!modalEl.manageModal) return;
+        modalEl.manageModal.classList.remove('show');
+      }
+
+      if (headerEl.manageModsBtn) {
+        headerEl.manageModsBtn.onclick = () => {
+          openManageModsModal();
+        };
+      }
+
+      if (modalEl.closeManageModal) {
+        modalEl.closeManageModal.onclick = () => closeManageModsModal();
+      }
+
+      if (modalEl.closeManageModalBtn) {
+        modalEl.closeManageModalBtn.onclick = () => closeManageModsModal();
+      }
+
+      if (modalEl.manageModal) {
+        modalEl.manageModal.addEventListener('click', (e) => {
+          if (e.target === modalEl.manageModal) {
+            closeManageModsModal();
+          }
+        });
+      }
+
+      // ======================
+      // JSON Upload Handlers
+      // ======================
+      
+      if (modalEl.fileUploadAreaJSON) {
+        modalEl.fileUploadAreaJSON.onclick = () => {
+          modalEl.fileInputJSON.click();
+        };
+        
+        modalEl.fileUploadAreaJSON.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          modalEl.fileUploadAreaJSON.classList.add('drag-over');
+        });
+        
+        modalEl.fileUploadAreaJSON.addEventListener('dragleave', () => {
+          modalEl.fileUploadAreaJSON.classList.remove('drag-over');
+        });
+        
+        modalEl.fileUploadAreaJSON.addEventListener('drop', (e) => {
+          e.preventDefault();
+          modalEl.fileUploadAreaJSON.classList.remove('drag-over');
+          if (e.dataTransfer.files.length > 0) {
+            handleJSONUpload(e.dataTransfer.files[0]);
+          }
+        });
+      }
+      
+      if (modalEl.fileInputJSON) {
+        modalEl.fileInputJSON.addEventListener('change', (e) => {
+          if (e.target.files.length > 0) {
+            handleJSONUpload(e.target.files[0]);
+          }
+        });
+      }
+
+      function handleJSONUpload(file) {
+        if (!file.name.endsWith('.json')) {
+          showToast('Please upload a JSON file', 'error');
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const pkg = JSON.parse(e.target.result);
+            const validation = validateImport(pkg);
+            
+            if (!validation.valid) {
+              showToast(validation.error, 'error');
+              return;
+            }
+
+            const importMode = modalEl.importLocationSelectJSON.value;
+            const result = importJSON(pkg, importMode);
+            
+            if (result.success) {
+              modalEl.uploadModal.classList.remove('show');
+              modalEl.fileInputJSON.value = '';
+              
+              showToast(`Successfully imported ${result.cardCount} card${result.cardCount > 1 ? 's' : ''}`, 'success');
+              
+              if (importMode === 'root') {
+                goTo('list', { cardId: null });
+              } else {
+                goTo('list', { cardId: importMode });
+              }
+              // Don't call render() - goTo() already does it
+            }
+          } catch (err) {
+            showToast('Invalid JSON file: ' + err.message, 'error');
+          }
+        };
+        
+        reader.onerror = () => {
+          showToast('Failed to read file', 'error');
+        };
+        
+        reader.readAsText(file);
+      }
+
+      // ======================
+      // TXT Upload Handlers
+      // ======================
+      
+      if (modalEl.fileUploadAreaTXT) {
+        modalEl.fileUploadAreaTXT.onclick = () => {
+          modalEl.fileInputTXT.click();
+        };
+        
+        modalEl.fileUploadAreaTXT.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          modalEl.fileUploadAreaTXT.classList.add('drag-over');
+        });
+        
+        modalEl.fileUploadAreaTXT.addEventListener('dragleave', () => {
+          modalEl.fileUploadAreaTXT.classList.remove('drag-over');
+        });
+        
+        modalEl.fileUploadAreaTXT.addEventListener('drop', (e) => {
+          e.preventDefault();
+          modalEl.fileUploadAreaTXT.classList.remove('drag-over');
+          if (e.dataTransfer.files.length > 0) {
+            handleTXTUpload(e.dataTransfer.files[0]);
+          }
+        });
+      }
+      
+      if (modalEl.fileInputTXT) {
+        modalEl.fileInputTXT.addEventListener('change', (e) => {
+          if (e.target.files.length > 0) {
+            handleTXTUpload(e.target.files[0]);
+          }
+        });
+      }
+
+      function handleTXTUpload(file) {
+        if (!file.name.endsWith('.txt')) {
+          showToast('Please upload a TXT file', 'error');
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const text = e.target.result;
+            const mode = document.querySelector('input[name="txtImportMode"]:checked').value;
+            const location = modalEl.importLocationSelectTXT.value;
+            
+            if (mode === 'outline') {
+              // Create cards from outline
+              const parentId = location === 'root' ? null : location;
+              const result = importTXTOutline(text, parentId);
+              
+              if (result.success) {
+                modalEl.uploadModal.classList.remove('show');
+                modalEl.fileInputTXT.value = '';
+                
+                showToast(`Successfully imported ${result.cardCount} card${result.cardCount > 1 ? 's' : ''}`, 'success');
+                
+                if (parentId === null) {
+                  goTo('list', { cardId: null });
+                } else {
+                  goTo('list', { cardId: parentId });
+                }
+                // Don't call render() - goTo() already does it
+              }
+            } else if (mode === 'append') {
+              // Append to card body
+              if (location === 'root') {
+                showToast('Please select a specific card to append text to', 'error');
+                return;
+              }
+              
+              const result = appendTXTToDetails(location, text);
+              
+              if (result.success) {
+                modalEl.uploadModal.classList.remove('show');
+                modalEl.fileInputTXT.value = '';
+                
+                showToast('Text appended to card successfully', 'success');
+                goTo('read', { cardId: location });
+                // Don't call render() - goTo() already does it
+              } else {
+                showToast(result.error || 'Failed to append text', 'error');
+              }
+            }
+          } catch (err) {
+            showToast('Failed to process TXT file: ' + err.message, 'error');
+          }
+        };
+        
+        reader.onerror = () => {
+          showToast('Failed to read file', 'error');
+        };
+        
+        reader.readAsText(file);
+      }
+
+      // ======================
+      // Mod Upload Handlers
+      // ======================
+
+      function inferModIdFromScript(script) {
+        if (typeof script !== 'string') return '';
+        const directMatch = script.match(/CIB_MODS\.register\s*\(\s*['"]([^'"]+)['"]/);
+        if (directMatch && directMatch[1]) return directMatch[1].trim();
+        const constMatch = script.match(/const\s+MOD_ID\s*=\s*['"]([^'"]+)['"]/);
+        if (constMatch && constMatch[1]) return constMatch[1].trim();
+        const varMatch = script.match(/let\s+MOD_ID\s*=\s*['"]([^'"]+)['"]/);
+        if (varMatch && varMatch[1]) return varMatch[1].trim();
+        return '';
+      }
+
+      function inferModMetaFromScript(script) {
+        const meta = {};
+        if (typeof script !== 'string') return meta;
+        const metaBlock = script.match(/meta\s*:\s*{([\s\S]*?)}/);
+        if (!metaBlock) return meta;
+        const block = metaBlock[1];
+        const nameMatch = block.match(/name\s*:\s*['"]([^'"]+)['"]/);
+        const versionMatch = block.match(/version\s*:\s*['"]([^'"]+)['"]/);
+        const authorMatch = block.match(/author\s*:\s*['"]([^'"]+)['"]/);
+        const descriptionMatch = block.match(/description\s*:\s*['"]([^'"]+)['"]/);
+        if (nameMatch && nameMatch[1]) meta.name = nameMatch[1].trim();
+        if (versionMatch && versionMatch[1]) meta.version = versionMatch[1].trim();
+        if (authorMatch && authorMatch[1]) meta.author = authorMatch[1].trim();
+        if (descriptionMatch && descriptionMatch[1]) meta.description = descriptionMatch[1].trim();
+        return meta;
+      }
+
+      function inferModNameFromFile(filename) {
+        if (!filename) return '';
+        const base = filename.replace(/\.mod\.js$/i, '').replace(/\.js$/i, '').replace(/_/g, ' ').replace(/-/g, ' ').trim();
+        if (!base) return '';
+        return base.replace(/\s+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      }
+
+      async function handleModUpload(file) {
+        const lowerName = file.name.toLowerCase();
+        let pkg;
+        try {
+          const text = await readFileAsText(file);
+          if (lowerName.endsWith('.json')) {
+            pkg = JSON.parse(text);
+          } else if (lowerName.endsWith('.js')) {
+            const script = text;
+            let modId = inferModIdFromScript(script);
+            if (!modId) {
+              const fallbackId = file.name.replace(/\.mod\.js$/i, '').replace(/\.js$/i, '');
+              const promptValue = prompt('Enter an extension id (e.g. example.mod@1.0.0):', fallbackId);
+              if (!promptValue) {
+                showToast('Extension installation cancelled.', 'error');
+                return;
+              }
+              modId = promptValue.trim();
+            }
+            const inferredMeta = inferModMetaFromScript(script);
+            const defaultName = inferModNameFromFile(file.name) || modId.split('@')[0] || modId;
+            const meta = {
+              name: inferredMeta.name || defaultName,
+              version: inferredMeta.version || (modId.includes('@') ? modId.split('@')[1] : ''),
+              author: inferredMeta.author || '',
+              description: inferredMeta.description || ''
+            };
+            pkg = { id: modId, js: script, css: '', enabled: true, meta };
+          } else {
+            showToast('Please choose a JSON or JS extension file', 'error');
+            return;
+          }
+          const result = installModPackage(pkg, 'upload');
+          if (!result.success) {
+            if (result.cancelled) return;
+            showToast(result.error || 'Unable to install extension', 'error');
+            return;
+          }
+          const summary = getModSummary(result.modId, store.mods[result.modId]);
+          showToast(`${summary.title} installed.`, 'success');
+          modalEl.fileInputMods.value = '';
+        } catch (err) {
+          showToast('Unable to install extension: ' + err.message, 'error');
+        }
+      }
+
+      if (modalEl.fileUploadAreaMods) {
+        modalEl.fileUploadAreaMods.onclick = () => {
+          if (modalEl.fileInputMods) modalEl.fileInputMods.click();
+        };
+        modalEl.fileUploadAreaMods.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          modalEl.fileUploadAreaMods.classList.add('drag-over');
+        });
+        modalEl.fileUploadAreaMods.addEventListener('dragleave', () => {
+          modalEl.fileUploadAreaMods.classList.remove('drag-over');
+        });
+        modalEl.fileUploadAreaMods.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          modalEl.fileUploadAreaMods.classList.remove('drag-over');
+          if (e.dataTransfer.files.length > 0) {
+            await handleModUpload(e.dataTransfer.files[0]);
+          }
+        });
+      }
+
+      if (modalEl.fileInputMods) {
+        modalEl.fileInputMods.addEventListener('change', async (e) => {
+          if (e.target.files.length > 0) {
+            await handleModUpload(e.target.files[0]);
+          }
+        });
+      }
+
+      if (modalEl.modCodeForm) {
+        modalEl.modCodeForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const pkg = {
+            id: modalEl.modCodeId.value.trim(),
+            js: modalEl.modCodeJS.value,
+            css: modalEl.modCodeCSS.value,
+            enabled: modalEl.modCodeEnabled.checked,
+            meta: {
+              name: modalEl.modCodeName.value.trim(),
+              version: modalEl.modCodeVersion.value.trim(),
+              author: modalEl.modCodeAuthor.value.trim()
+            }
+          };
+          // Normalize/auto-detect ID from JS so users don't have to double-enter it
+          (function normalizePkgIdFromJS() {
+            try {
+              const js = pkg && pkg.js ? String(pkg.js) : "";
+              let extracted = null;
+              let m = js.match(/(?:window\.)?CIB_MODS\.register\(\s*(['"])([^'"]+)\1/);
+              if (m) extracted = m[2];
+              if (!extracted) {
+                m = js.match(/(?:window\.)?CIB_MODS\.register\(\s*([A-Za-z_$][\w$]*)\s*,/);
+                if (m) {
+                  const varName = m[1];
+                  const declRe = new RegExp(String.raw`(?:const|let|var)\s+${varName}\s*=\s*(['"])([^'"]+)\1`);
+                  const m2 = js.match(declRe);
+                  if (m2) extracted = m2[2];
+                }
+              }
+              if (!extracted) {
+                m = js.match(/const\s+MOD_ID\s*=\s*(['"])([^'"]+)\1/);
+                if (m) extracted = m[2];
+              }
+              if (extracted) {
+                if (pkg.id && pkg.id !== extracted) console.warn('[Mods] Provided ID differs; using JS ID:', extracted);
+                pkg.id = extracted;
+              }
+              if (!pkg.id) {
+                pkg.id = 'mod-' + Math.random().toString(36).slice(2, 10);
+                console.warn('[Mods] Generated ID:', pkg.id);
+              }
+            } catch (err) {
+              console.error('[Mods] normalizePkgIdFromJS failed', err);
+              if (!pkg.id) pkg.id = 'mod-' + Math.random().toString(36).slice(2, 10);
+            }
+          })();
+    
+          
+          // Normalize/auto-detect ID from JS so users don't have to double-enter it
+          (function normalizePkgIdFromJS() {
+            try {
+              const js = pkg && pkg.js ? String(pkg.js) : "";
+              let extracted = null;
+              // 1) Direct string literal in CIB_MODS.register("id", ...)
+              let m = js.match(/(?:window\.)?CIB_MODS\.register\(\s*(['"])([^'"]+)\1/);
+              if (m) extracted = m[2];
+              // 2) Identifier form: CIB_MODS.register(VAR, ...); then find const/let/var VAR = "id"
+              if (!extracted) {
+                m = js.match(/(?:window\.)?CIB_MODS\.register\(\s*([A-Za-z_$][\w$]*)\s*,/);
+                if (m) {
+                  const varName = m[1];
+                  const declRe = new RegExp(String.raw`(?:const|let|var)\s+${varName}\s*=\s*(['"])([^'"]+)\1`);
+                  const m2 = js.match(declRe);
+                  if (m2) extracted = m2[2];
+                }
+              }
+              // 3) Fallback: const MOD_ID = "id"
+              if (!extracted) {
+                m = js.match(/const\s+MOD_ID\s*=\s*(['"])([^'"]+)\1/);
+                if (m) extracted = m[2];
+              }
+              // Apply precedence: code ID wins
+              if (extracted) {
+                if (pkg.id && pkg.id !== extracted) {
+                  console.warn('[Mods] Provided ID differs from JS code ID. Using code ID:', extracted);
+                }
+                pkg.id = extracted;
+              }
+              // Last resort: generate an ID
+              if (!pkg.id) {
+                pkg.id = 'mod-' + Math.random().toString(36).slice(2, 10);
+                console.warn('[Mods] No ID provided or found in code. Generated:', pkg.id);
+              }
+            } catch (err) {
+              console.error('[Mods] normalizePkgIdFromJS failed', err);
+              if (!pkg.id) pkg.id = 'mod-' + Math.random().toString(36).slice(2, 10);
+            }
+          })();
+const result = installModPackage(pkg, 'code');
+          if (!result.success) {
+            if (result.cancelled) return;
+            showToast(result.error || 'Unable to install extension', 'error');
+            return;
+          }
+          const summary = getModSummary(result.modId, store.mods[result.modId]);
+          showToast(`${summary.title} installed.`, 'success');
+          // Immediate activation after install
+          try {
+            const modId = result.modId;
+            const meta = store.mods[modId];
+            const enabled = !!(meta && (meta.enabled === true || meta.meta?.enabled === true));
+            if (enabled && window.CIB_MODS) {
+              if (typeof window.CIB_MODS.ensureRegistered === 'function') {
+                window.CIB_MODS.ensureRegistered(modId, meta);
+              } else if (typeof window.CIB_MODS.enable === 'function') {
+                window.CIB_MODS.enable(modId);
+              }
+              const css = meta && (meta.css || meta.meta?.css);
+              if (css && typeof window.CIB_MODS.ensureStyle === 'function') {
+                window.CIB_MODS.ensureStyle(modId, css);
+              }
+            }
+          } catch (e) {
+            console.error('[Mods] post-install activation failed', e);
+          }
+        
+          // Strong activation: register + style right after install (no reload)
+          try {
+            const modId = result.modId;
+            const meta = store.mods[modId];
+            const enabled = !!(meta && (meta.enabled === true || meta.meta?.enabled === true));
+            if (enabled && window.CIB_MODS) {
+              if (typeof window.CIB_MODS.ensureRegistered === 'function') {
+                window.CIB_MODS.ensureRegistered(modId, meta);
+              } else if (typeof window.CIB_MODS.enable === 'function') {
+                window.CIB_MODS.enable(modId);
+              }
+              const css = meta && (meta.css || meta.meta?.css);
+              if (css && typeof window.CIB_MODS.ensureStyle === 'function') {
+                window.CIB_MODS.ensureStyle(modId, css);
+              }
+            }
+          } catch (e) {
+            console.error('[Mods] ensureRegistered/ensureStyle failed', e);
+          }
+
+          modalEl.modCodeForm.reset();
+          if (modalEl.modCodeEnabled) {
+            modalEl.modCodeEnabled.checked = true;
+          }
+        });
+      }
+
+      if (modalEl.modsList) {
+        modalEl.modsList.addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-mod-action]');
+          if (!btn) return;
+          const modId = btn.getAttribute('data-mod-id');
+          const action = btn.getAttribute('data-mod-action');
+          if (!modId || !action) return;
+          if (action === 'toggle') {
+            toggleMod(modId);
+          } else if (action === 'remove') {
+            removeMod(modId);
+          }
+        });
+      }
+
+      // ======================
+      // DOCX Upload Handlers
+      // ======================
+      
+      if (modalEl.fileUploadAreaDOCX) {
+        modalEl.fileUploadAreaDOCX.onclick = () => {
+          modalEl.fileInputDOCX.click();
+        };
+        
+        modalEl.fileUploadAreaDOCX.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          modalEl.fileUploadAreaDOCX.classList.add('drag-over');
+        });
+        
+        modalEl.fileUploadAreaDOCX.addEventListener('dragleave', () => {
+          modalEl.fileUploadAreaDOCX.classList.remove('drag-over');
+        });
+        
+        modalEl.fileUploadAreaDOCX.addEventListener('drop', (e) => {
+          e.preventDefault();
+          modalEl.fileUploadAreaDOCX.classList.remove('drag-over');
+          if (e.dataTransfer.files.length > 0) {
+            handleDOCXUpload(e.dataTransfer.files[0]);
+          }
+        });
+      }
+      
+      if (modalEl.fileInputDOCX) {
+        modalEl.fileInputDOCX.addEventListener('change', (e) => {
+          if (e.target.files.length > 0) {
+            handleDOCXUpload(e.target.files[0]);
+          }
+        });
+      }
+
+      async function handleDOCXUpload(file) {
+        if (!file.name.endsWith('.docx')) {
+          showToast('Please upload a DOCX file', 'error');
+          return;
+        }
+
+        const mode = document.querySelector('input[name="docxImportMode"]:checked').value;
+        const cardId = modalEl.importLocationSelectDOCX.value;
+        
+        if (!cardId) {
+          showToast('Please select a card', 'error');
+          return;
+        }
+        
+        try {
+          const result = await importDocxToCard(file, cardId, mode);
+          
+          if (result.success) {
+            modalEl.uploadModal.classList.remove('show');
+            modalEl.fileInputDOCX.value = '';
+            
+            const action = mode === 'replace' ? 'replaced' : 'appended';
+            showToast(`Text ${action} successfully`, 'success');
+            goTo('read', { cardId: cardId });
+            // Don't call render() - goTo() already does it
+          } else {
+            showToast(result.error || 'Failed to import DOCX', 'error');
+          }
+        } catch (err) {
+          showToast('Failed to process DOCX file: ' + err.message, 'error');
+        }
+      }
+
+      // Boot
+      // Wrap boot logic into initApp so we can wait for StorageManager
+      function initApp() {
+        // Prompt for instance selection before loading data
+        chooseInstance(true);
+        load();
+        if (window.CIB_MODS) {
+          window.CIB_MODS.syncFromStore();
+          window.CIB_MODS.runHook('onAppInit');
+        }
+        goTo('list', { cardId: null });
+      }
+
+      // If storage is already chosen (e.g. returning user), run immediately
+      if (window.StorageManager && window.StorageManager.initialized) {
+        console.log('[App] Storage already initialized');
+        initApp();
+      } else {
+        // Wait until storage picker signals readiness
+        console.log('[App] Waiting for storage selection...');
+        window.addEventListener('storageReady', function(e) {
+          console.log('[App] Storage ready:', e.detail.mode);
+          initApp();
+        });
+      }
+    } catch (e) {
+      bootError(e.message || String(e));
+    }
+  });
+  
+
+
+/**
+ * Build a standalone HTML string of the current app.
+ * Options:
+ *  - includeData: boolean (default true)
+ *  - modsScope: 'enabled' | 'all' | 'none' (default 'enabled')
+ */
+
+function exportAppWithMods(options={}) {
+  const includeData = options.includeData !== false;
+  const modsScope = options.modsScope || 'enabled';
+
+  // CRITICAL FIX: Force sync from registry to store BEFORE reading
+  console.log('[Bake] ========== PRE-EXPORT DIAGNOSTICS ==========');
+  
+  // FIRST: Check localStorage directly and reload if needed
+  try {
+    const lsData = localStorage.getItem('nested_cards_store');
+    if (lsData) {
+      const parsed = JSON.parse(lsData);
+      console.log('[Bake] localStorage keys:', Object.keys(parsed));
+      console.log('[Bake] localStorage.mods:', parsed.mods ? Object.keys(parsed.mods) : 'none');
+      
+      // If window.store is missing mods but localStorage has them, reload!
+      const storeMods = window.store && window.store.mods ? Object.keys(window.store.mods) : [];
+      const lsMods = parsed.mods ? Object.keys(parsed.mods) : [];
+      
+      if (lsMods.length > storeMods.length) {
+        console.warn('[Bake] RELOADING: localStorage has', lsMods.length, 'mods but window.store has', storeMods.length);
+        window.store = parsed;
+      }
+    } else {
+      console.warn('[Bake] localStorage is empty!');
+    }
+  } catch (e) {
+    console.error('[Bake] localStorage check failed:', e);
+  }
+  
+  console.log('[Bake] Pre-export diagnostics:');
+  console.log('[Bake] - window.store exists?', !!window.store);
+  console.log('[Bake] - window.store.mods exists?', !!(window.store && window.store.mods));
+  console.log('[Bake] - window.store.mods keys:', window.store && window.store.mods ? Object.keys(window.store.mods) : 'N/A');
+  console.log('[Bake] - window.CIB_MODS exists?', !!window.CIB_MODS);
+  console.log('[Bake] - window.CIB_MODS.registry exists?', !!(window.CIB_MODS && window.CIB_MODS.registry));
+  console.log('[Bake] - window.CIB_MODS.registry keys:', window.CIB_MODS && window.CIB_MODS.registry ? Object.keys(window.CIB_MODS.registry) : 'N/A');
+  
+  // Force sync registry to store if store is empty but registry has mods
+  if (window.CIB_MODS && window.CIB_MODS.registry) {
+    const regKeys = Object.keys(window.CIB_MODS.registry);
+    const storeKeys = window.store && window.store.mods ? Object.keys(window.store.mods) : [];
+    
+    console.log('[Bake] Registry has', regKeys.length, 'mods:', regKeys);
+    console.log('[Bake] Store has', storeKeys.length, 'mods:', storeKeys);
+    
+    if (regKeys.length > 0 && storeKeys.length === 0) {
+      console.warn('[Bake] CRITICAL: Registry has mods but store is empty! Attempting emergency sync...');
+      
+      if (!window.store) window.store = { cards: {}, mods: {}, rootOrder: [] };
+      if (!window.store.mods) window.store.mods = {};
+      
+      // Copy from registry to store
+      regKeys.forEach(modId => {
+        const regEntry = window.CIB_MODS.registry[modId];
+        // Try to find the actual JS/CSS from store first, then fall back to recreating
+        if (!window.store.mods[modId]) {
+          console.log('[Bake] Emergency: Creating store entry for', modId);
+          window.store.mods[modId] = {
+            enabled: true,
+            js: regEntry.js || "",
+            css: regEntry.css || "",
+            meta: regEntry.meta || {}
+          };
+        }
+      });
+      
+      // Save to localStorage
+      if (typeof window.save === 'function') {
+        window.save();
+        console.log('[Bake] Emergency save completed');
+      }
+    }
+  }
+
+  // CRITICAL FIX: Try multiple sources for mods data
+  // Issue: window.store.mods can be empty even when mods are active in CIB_MODS
+  let mods = {};
+  let modsSource = 'none';
+  
+  // Source 1: window.store.mods (preferred - has persistent state)
+  if (window.store && window.store.mods && Object.keys(window.store.mods).length > 0) {
+    mods = window.store.mods;
+    modsSource = 'window.store.mods';
+  }
+  
+  // Source 2: CIB_MODS registry (fallback - has active mods)
+  else if (window.CIB_MODS) {
+    const reg = window.CIB_MODS._registry || window.CIB_MODS.registry;
+    if (reg && Object.keys(reg).length > 0) {
+      console.warn('[Bake] window.store.mods is empty! Using CIB_MODS registry as fallback');
+      mods = reg;
+      modsSource = 'CIB_MODS.registry';
+    }
+  }
+  
+  // Source 3: Last resort - empty object
+  else {
+    console.warn('[Bake] No mods found in either window.store.mods or CIB_MODS._registry');
+    mods = {};
+    modsSource = 'none';
+  }
+  
+  console.log('[Bake] Mod source:', modsSource, '| Found mods:', Object.keys(mods));
+
+  const entries = Object.entries(mods);
+  const modsToBake = entries.filter(([id, meta]) => {
+    if (modsScope === 'none') return false;
+    if (modsScope === 'all') return true;
+    // Check both enabled flag and meta.enabled for compatibility
+    const isEnabled = !!(meta && (meta.enabled === true || meta.meta?.enabled === true));
+    return isEnabled;
+  });
+
+  console.log('[Bake] Mods selected for baking:', modsToBake.map(([id]) => id));
+
+  function makeStoreSnapshot() {
+    if (!includeData) return null;
+    
+    // DIAGNOSTIC: Log what's actually in window.store
+    console.log('[Bake] Creating store snapshot...');
+    console.log('[Bake] window.store:', window.store);
+    console.log('[Bake] window.store keys:', window.store ? Object.keys(window.store) : 'null');
+    if (window.store) {
+      console.log('[Bake] - cards:', window.store.cards ? Object.keys(window.store.cards).length + ' cards' : 'none');
+      console.log('[Bake] - mods:', window.store.mods ? Object.keys(window.store.mods) : 'none');
+      console.log('[Bake] - rootOrder:', window.store.rootOrder ? window.store.rootOrder.length + ' items' : 'none');
+    }
+    
+    try {
+      const snapshot = JSON.parse(JSON.stringify(window.store || {}));
+      delete snapshot.__cache;
+      delete snapshot.__temp;
+      
+      console.log('[Bake] Snapshot created, keys:', Object.keys(snapshot));
+      console.log('[Bake] Snapshot mods:', snapshot.mods ? Object.keys(snapshot.mods) : 'none');
+      
+      return snapshot;
+    } catch (e) {
+      console.warn('[Bake] Could not deep-copy store; using minimal snapshot', e);
+      return { cards: (window.store && window.store.cards) || {}, settings: (window.store && window.store.settings) || {}, mods: (window.store && window.store.mods) || {} };
+    }
+  }
+
+  // Remove transient mod DOM so we don't bake dead buttons/elements
+  (function pruneModDomBeforeCapture(){
+    try {
+      document.querySelectorAll('[data-mod-owner]').forEach(n => n.remove());
+      document.querySelectorAll('style[data-mod-style],style[data-baked-mod],script[data-baked-mod]').forEach(n => n.remove());
+      // Ensure Bake modal not captured open
+      const m = document.getElementById('bakeAppModal');
+      if (m) { m.classList.remove('show'); m.style.display='none'; m.setAttribute('aria-hidden','true'); }
+    } catch(e) {
+      console.warn('[Bake] DOM prune failed', e);
+    }
+  })();
+
+  const bakedModsPayload = modsToBake.map(([id, m]) => {
+    // CRITICAL FIX: Handle different mod data structures
+    // Mods can be stored differently in window.store.mods vs CIB_MODS._registry
+    let js = "";
+    let css = "";
+    let enabled = false;
+    
+    // Extract js
+    if (m && m.js) {
+      js = String(m.js);
+    } else if (m && m.meta && m.meta.js) {
+      js = String(m.meta.js);
+    }
+    
+    // Extract css
+    if (m && m.css) {
+      css = String(m.css);
+    } else if (m && m.meta && m.meta.css) {
+      css = String(m.meta.css);
+    }
+    
+    // Extract enabled state
+    if (m && m.enabled === true) {
+      enabled = true;
+    } else if (m && m.meta && m.meta.enabled === true) {
+      enabled = true;
+    }
+    
+    console.log('[Bake] Packaging mod "' + id + '" - js:', js.length, 'chars | css:', css.length, 'chars | enabled:', enabled);
+    
+    if (!js || js.length === 0) {
+      console.warn('[Bake] WARNING: Mod "' + id + '" has no JavaScript code!');
+    }
+    
+    return {
+      id,
+      enabled: !!enabled,
+      js: js,
+      css: css
+    };
+  });
+
+  const payloadObj = {
+    version: (typeof APP_VERSION !== 'undefined') ? APP_VERSION : '0.0.0',
+    bakedAt: new Date().toISOString(),
+    includeData: includeData,
+    store: includeData ? makeStoreSnapshot() : null,
+    mods: bakedModsPayload
+  };
+
+  console.log('[Bake] ========== EXPORT SUMMARY ==========');
+  console.log('[Bake] Mods in payload:', bakedModsPayload.length);
+  console.log('[Bake] Mod IDs:', bakedModsPayload.map(m => m.id).join(', '));
+  console.log('[Bake] Store snapshot included?', !!payloadObj.store);
+  if (payloadObj.store && payloadObj.store.mods) {
+    console.log('[Bake] Store.mods keys:', Object.keys(payloadObj.store.mods).join(', '));
+  }
+  bakedModsPayload.forEach(mod => {
+    if (mod.js && mod.js.length > 0) {
+      console.log('[Bake] ✓ Mod "' + mod.id + '" has code (' + mod.js.length + ' chars)');
+    } else {
+      console.error('[Bake] ✗ Mod "' + mod.id + '" is MISSING JavaScript code!');
+    }
+  });
+  console.log('[Bake] =====================================');
+
+  // ========== MARKER-BASED INJECTION ==========
+  // Instead of JSON payload, inject mod scripts directly into markers
+  console.log('[Bake] Using marker-based injection');
+  
+  let modScriptsInjection = '\n';
+  bakedModsPayload.forEach(mod => {
+    if (mod.js && mod.js.length > 0) {
+      modScriptsInjection += `<!-- Mod: ${mod.id} -->\n`;
+      modScriptsInjection += `<script data-baked-mod="${mod.id}">\n`;
+      modScriptsInjection += `console.log('[Baked Mod] Initializing ${mod.id}');\n`;
+      modScriptsInjection += `(function(){\n`;
+      modScriptsInjection += `  try {\n`;
+      modScriptsInjection += `    ${mod.js}\n`;
+      modScriptsInjection += `    console.log('[Baked Mod] ${mod.id} initialized successfully');\n`;
+      modScriptsInjection += `  } catch(e) {\n`;
+      modScriptsInjection += `    console.error('[Baked Mod] ${mod.id} failed:', e);\n`;
+      modScriptsInjection += `  }\n`;
+      modScriptsInjection += `})();\n`;
+      // Escape closing script tag to prevent premature script termination
+      modScriptsInjection += `<\/script>\n`;
+    }
+  });
+
+  // Get current DOM
+  let doc = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  
+  // Inject mods into markers
+  const modMarkerStart = '<!-- MOD_SCRIPTS_START -->';
+  const modMarkerEnd = '<!-- MOD_SCRIPTS_END -->';
+  
+  const markerStartPos = doc.indexOf(modMarkerStart);
+  const markerEndPos = doc.indexOf(modMarkerEnd);
+  
+  if (markerStartPos !== -1 && markerEndPos !== -1) {
+    console.log('[Bake] Found mod markers, injecting scripts');
+    const before = doc.substring(0, markerStartPos + modMarkerStart.length);
+    const after = doc.substring(markerEndPos);
+    doc = before + modScriptsInjection + after;
+  } else {
+    console.warn('[Bake] Mod markers not found! Falling back to end of document');
+    // Fallback: try to insert before </body>, then before </html>, else append to end of document
+    const lower = doc.toLowerCase();
+    let insertPos = lower.lastIndexOf('</body>');
+    if (insertPos === -1) {
+      insertPos = lower.lastIndexOf('</html>');
+    }
+    if (insertPos === -1) {
+      insertPos = doc.length;
+    }
+    doc = doc.slice(0, insertPos) + modScriptsInjection + doc.slice(insertPos);
+  }
+  
+  // ALSO inject store data if needed
+  if (includeData && payloadObj.store) {
+    // Convert store to JSON and escape closing tags and comments to prevent premature termination
+    const rawStoreJson = JSON.stringify(payloadObj.store);
+    const safeStoreJson = rawStoreJson
+      .replace(/<\/script/ig, '<\\/script')
+      .replace(/<!--/g, '<\\!--')
+      .replace(/-->/g, '--\\>');
+    // Compose script using array join to avoid accidental string concatenation issues
+    const storeScript = [
+      '<script data-baked-store="true">',
+      '(function(){',
+      '  try {',
+      '    // Flag baked mode so storage picker will not show',
+      '    window.__IS_BAKED__ = true;',
+      '    // Set baked mode on StorageManager if it exists',
+      '    if (window.StorageManager) {',
+      '      window.StorageManager.mode = "baked";',
+      '      window.StorageManager.initialized = true;',
+      '    }',
+      '    // Restore the store snapshot',
+      '    var bakedStore = ' + safeStoreJson + ';',
+      '    window.store = bakedStore;',
+      '    // Persist store using save() if available',
+      '    if (typeof window.save === "function") window.save();',
+      '    console.log("[Bake] Store restored");',
+      '  } catch(e) {',
+      '    console.error("[Bake] Store restoration failed:", e);',
+      '  }',
+      '})();',
+      '<\\/script>'
+    ].join('\n');
+    
+    // Inject store script right after MOD_SCRIPTS_END if markers found, otherwise append to document
+    const afterMarkerPos = doc.indexOf(modMarkerEnd) + modMarkerEnd.length;
+    if (afterMarkerPos > modMarkerEnd.length) {
+      doc = doc.slice(0, afterMarkerPos) + storeScript + doc.slice(afterMarkerPos);
+    } else {
+      doc += storeScript;
+    }
+  }
+  
+  console.log('[Bake] Export complete using marker-based injection');
+  return doc;
+}
+
+// Immediately expose on window (defensive)
+window.exportAppWithMods = exportAppWithMods;
+console.log('[Init] exportAppWithMods defined and exposed on window');
+console.log('[Init] typeof window.exportAppWithMods:', typeof window.exportAppWithMods);
+
+
+
+
+(function attachBakeEntrypoints(){
+  function openBakeModal(){ var m = document.getElementById('bakeAppModal'); if (m) m.classList.add('show'); }
+  function setupButtons(){
+    var fab = document.getElementById('bakeAppFab');
+    if (fab && !fab.__wired){ fab.addEventListener('click', openBakeModal); fab.__wired = true; }
+    var hdr = document.getElementById('header-actions') || document.querySelector('.header-actions');
+    if (hdr && !document.getElementById('btnBakeAppHeader')){
+      var b = document.createElement('button'); b.id='btnBakeAppHeader'; b.className='btn btn-secondary';
+      b.textContent='Bake App'; b.style.marginLeft='8px'; b.addEventListener('click', openBakeModal);
+      hdr.appendChild(b);
+    }
+    // Also wire any existing export menu/alt buttons
+    var btn = document.getElementById('btnBakeApp'); if (btn && !btn.__wired){ btn.addEventListener('click', openBakeModal); btn.__wired = true; }
+    var btn2 = document.getElementById('btnBakeApp2'); if (btn2 && !btn2.__wired){ btn2.addEventListener('click', openBakeModal); btn2.__wired = true; }
+    var btnMods = document.getElementById('btnBakeFromMods'); if (btnMods && !btnMods.__wired){ btnMods.addEventListener('click', openBakeModal); btnMods.__wired = true; }
+  }
+  // Keyboard shortcut: Ctrl+Shift+B
+  window.addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'B' || e.key === 'b')) { e.preventDefault(); openBakeModal(); }
+  });
+
+  // Wire now and after small delay in case header renders later
+  setupButtons();
+  setTimeout(setupButtons, 200);
+})();
+
+
+
+(function robustBakeWiring(){
+  function openBakeModal(){
+    try {
+      var m = document.getElementById('bakeAppModal');
+      if (!m) throw new Error('Bake modal missing');
+      m.classList.add('show');
+      if (typeof window.showToast === 'function') window.showToast('Bake App ready', 'info');
+    } catch (e) {
+      console.error('[Bake] openBakeModal failed:', e);
+      alert('Bake App UI failed to open: ' + (e.message||e));
+    }
+  }
+
+  function attachOnce(el, type, fn){
+    if (!el) return;
+    var key = '__wired_' + type;
+    if (el[key]) return;
+    el.addEventListener(type, fn);
+    el[key] = true;
+  }
+
+  function setup(){
+    var fab = document.getElementById('bakeAppFab');
+    attachOnce(fab, 'click', openBakeModal);
+
+    // Header actions
+    var hdr = document.getElementById('header-actions') || document.querySelector('.header-actions');
+    if (hdr && !document.getElementById('btnBakeAppHeader')){
+      var b = document.createElement('button'); b.id='btnBakeAppHeader'; b.className='btn btn-secondary';
+      b.textContent='Bake App'; b.style.marginLeft='8px'; attachOnce(b, 'click', openBakeModal); hdr.appendChild(b);
+    }
+
+    // Any existing buttons (if previously injected)
+    attachOnce(document.getElementById('btnBakeApp'), 'click', openBakeModal);
+    attachOnce(document.getElementById('btnBakeApp2'), 'click', openBakeModal);
+    attachOnce(document.getElementById('btnBakeFromMods'), 'click', openBakeModal);
+
+    // Confirm export wiring (idempotent)
+    var confirm = document.getElementById('bakeAppConfirm');
+    if (confirm && !confirm.__wired) {
+      confirm.addEventListener('click', function(){
+        try {
+          var includeData = document.getElementById('bakeIncludeData')?.checked ?? true;
+          var scopeEl = document.querySelector('input[name="bakeModsScope"]:checked');
+          var scope = scopeEl ? scopeEl.value : 'enabled';
+          if (typeof window.exportAppWithMods !== 'function') throw new Error('exportAppWithMods not found');
+          
+          // Close modal BEFORE exporting to avoid capturing it in "show" state
+          document.getElementById('bakeAppModal').classList.remove('show');
+          
+          // Small delay to ensure DOM updates before capture
+          setTimeout(function(){
+            var html = window.exportAppWithMods({ includeData: includeData, modsScope: scope });
+            var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+            var a = document.createElement('a');
+            var fn = 'card-info-base-standalone-v' + (window.APP_VERSION || '0.0.0') + '.html';
+            a.href = URL.createObjectURL(blob);
+            a.download = fn;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+            if (typeof window.showToast === 'function') window.showToast('Standalone HTML exported', 'success');
+          }, 100);
+        } catch (e) {
+          console.error('[Bake] Export failed:', e);
+          alert('Export failed: ' + (e.message||e));
+        }
+      });
+      confirm.__wired = true;
+    }
+  }
+
+  // Keyboard shortcut: Ctrl/Cmd+Shift+B
+  window.addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'B' || e.key === 'b')) { e.preventDefault(); openBakeModal(); }
+  });
+
+  // Run now & retry a few times in case header renders late
+  setup();
+  setTimeout(setup, 150);
+  setTimeout(setup, 600);
+  document.addEventListener('DOMContentLoaded', setup);
+  window.addEventListener('load', setup);
+})();
+
+
+
+function removeModArtifacts(modId){
+  try {
+    document.querySelectorAll('[data-mod-owner="'+modId+'"]').forEach(n=>{ try{ n.remove(); }catch(_e){} });
+    document.querySelectorAll('style[data-mod-style="'+modId+'"],style[data-baked-mod="'+modId+'"],script[data-baked-mod="'+modId+'"]')
+      .forEach(n=>{ try{ n.remove(); }catch(_e){} });
+  } catch(e){ console.warn('[Mods] cleanup failed', modId, e); }
+}
+(function wrapRenderForModSweep(){
+  if (typeof window.render === 'function' && !window.render.__sweepWrapped){
+    var _render = window.render;
+    window.render = function(){
+      var r = _render.apply(this, arguments);
+      try {
+        var mods = (window.store && window.store.mods) || {};
+        document.querySelectorAll('[data-mod-owner], style[data-mod-style], style[data-baked-mod], script[data-baked-mod]').forEach(function(node){
+          var id = node.getAttribute('data-mod-style') || node.getAttribute('data-baked-mod') || node.getAttribute('data-mod-owner');
+          if (!id) return;
+          var meta = mods[id];
+          var enabled = !!(meta && (meta.enabled===true || meta.meta?.enabled===true));
+          if (!meta || !enabled) { try{ node.remove(); }catch(_e){} }
+        });
+      } catch(e){ console.warn('[Mods] sweep failed', e); }
+      return r;
+    };
+    window.render.__sweepWrapped = true;
+  }
+})();
+
+
+
+(function bakeUI(){
+  function openBakeModal(){
+    try{
+      var m=document.getElementById('bakeAppModal');
+      if(!m) throw new Error('Bake modal missing');
+      m.classList.add('show'); m.style.display='flex'; m.setAttribute('aria-hidden','false');
+      if(!m.__backdrop){ m.addEventListener('click', function(ev){ if(ev.target===m){ closeBakeModal(); } }); m.__backdrop=true; }
+    }catch(e){ console.error('[Bake] openBakeModal failed', e); alert('Bake App failed to open: '+(e.message||e)); }
+  }
+
+  // Expose the openBakeModal function on the window so it can be
+  // referenced directly from the Bake App button's onclick
+  // attribute.  Without this, the function remains scoped to
+  // bakeUI's closure and may not be available when the button
+  // renders (especially in baked/exported builds where event
+  // wiring can break).  Exposing it here ensures the button
+  // always finds the function.
+  window.openBakeModal = openBakeModal;
+  function closeBakeModal(){
+    var m=document.getElementById('bakeAppModal'); if(!m) return;
+    m.classList.remove('show'); m.style.display='none'; m.setAttribute('aria-hidden','true');
+    document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove());
+    document.body.classList.remove('modal-open');
+  }
+  function getExporter(){
+    console.log('[Bake] getExporter called');
+    console.log('[Bake] typeof window.exportAppWithMods:', typeof window.exportAppWithMods);
+    
+    if (typeof window.exportAppWithMods === 'function') {
+      console.log('[Bake] Found window.exportAppWithMods!');
+      return window.exportAppWithMods;
+    }
+    
+    console.warn('[Bake] window.exportAppWithMods not found, trying global...');
+    if (typeof exportAppWithMods === 'function') { 
+      console.log('[Bake] Found global exportAppWithMods, exposing on window');
+      window.exportAppWithMods = exportAppWithMods; 
+      return window.exportAppWithMods; 
+    }
+    
+    console.warn('[Bake] Searching script tags for exportAppWithMods...');
+    for (const s of document.querySelectorAll('script')){
+      const t = s.textContent || '';
+      if (t.includes('function exportAppWithMods(')){
+        console.log('[Bake] Found exportAppWithMods in script tag, evaluating...');
+        try{ eval(t); }catch(e){ console.warn('[Bake] eval fallback failed', e); }
+        if (typeof exportAppWithMods === 'function'){ 
+          window.exportAppWithMods = exportAppWithMods; 
+          console.log('[Bake] Successfully eval\'d and exposed exportAppWithMods');
+          return window.exportAppWithMods; 
+        }
+      }
+    }
+    console.error('[Bake] Could not find exportAppWithMods anywhere!');
+    return null;
+  }
+  function wire(){
+    var fab = document.getElementById('bakeAppFab'); if (fab && !fab.__wired){ fab.addEventListener('click', openBakeModal); fab.__wired = true; }
+    var hdr = document.getElementById('header-actions') || document.querySelector('.header-actions');
+    if (hdr && !document.getElementById('btnBakeAppHeader')){
+      var b = document.createElement('button'); b.id='btnBakeAppHeader'; b.className='btn btn-secondary';
+      b.textContent='Bake App'; b.style.marginLeft='8px'; b.addEventListener('click', openBakeModal); hdr.appendChild(b);
+    }
+    var btn = document.getElementById('bakeAppConfirm');
+    if (btn && !btn.__wired){
+      btn.addEventListener('click', function(){
+        try{
+          closeBakeModal();
+          var includeData = document.getElementById('bakeIncludeData')?.checked ?? true;
+          var scope = (document.querySelector('input[name="bakeModsScope"]:checked')?.value) || 'enabled';
+          var exporter = getExporter();
+          if (!exporter) throw new Error('exportAppWithMods not found');
+          var out = exporter({ includeData: includeData, modsScope: scope });
+          var blob = new Blob([out], { type:'text/html;charset=utf-8' });
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'card-info-base-standalone-v' + (window.APP_VERSION || '0.0.0') + '.html';
+          document.body.appendChild(a); a.click();
+          setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        }catch(e){ console.error('[Bake] Export failed:', e); alert('Export failed: ' + (e.message||e)); }
+      });
+      btn.__wired = true;
+    }
+  }
+  // Hide modal at boot to avoid baking it open
+  function hide(){ var m=document.getElementById('bakeAppModal'); if(m){ m.classList.remove('show'); m.style.display='none'; m.setAttribute('aria-hidden','true'); } }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ hide(); wire(); });
+  else { hide(); wire(); }
+  window.addEventListener('load', wire);
+  // Shortcut
+  window.addEventListener('keydown', function(e){ if ((e.ctrlKey||e.metaKey) && e.shiftKey && (e.key==='B'||e.key==='b')){ e.preventDefault(); openBakeModal(); } });
+  
+  // Verify exportAppWithMods is available
+  console.log('[BakeUI] Initialization complete');
+  console.log('[BakeUI] exportAppWithMods available?', typeof window.exportAppWithMods === 'function');
+  if (typeof window.exportAppWithMods !== 'function') {
+    console.error('[BakeUI] WARNING: exportAppWithMods is not available!');
+  }
+})();
