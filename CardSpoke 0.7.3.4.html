@@ -1445,6 +1445,16 @@
             cards: parsed.cards || {},
             mods: parsed.mods || {}
           };
+
+          // Data migration: rebuild rootOrder if it's empty but cards exist
+          if (store.rootOrder.length === 0 && Object.keys(store.cards).length > 0) {
+            const rootCards = Object.values(store.cards).filter(card => !card.parentId);
+            store.rootOrder = rootCards.map(card => card.id);
+            if (store.rootOrder.length > 0) {
+              save();
+              showToast('Data migrated: rebuilt root order');
+            }
+          }
         } catch (e) {
           bootError('Corrupted data.');
         }
@@ -1642,7 +1652,7 @@
 
       // --- DATA (CRUD) ---
 
-      function createCard(title, body, parentId = null, skipSave = false) {
+      function createCard(title, body, parentId = null, skipSave = false, skipHooks = false) {
         const id = uid();
         const now = Date.now();
         store.cards[id] = {
@@ -1665,16 +1675,16 @@
           }
         }
         if (!skipSave) save();
-        runModHook('onCardSave', cloneCard(store.cards[id]), { isNew: true, source: 'create' });
+        if (!skipHooks) runModHook('onCardSave', cloneCard(store.cards[id]), { isNew: true, source: 'create' });
         return id;
       }
 
-      function updateCard(id, updates, skipSave = false) {
+      function updateCard(id, updates, skipSave = false, skipHooks = false) {
         const card = store.cards[id];
         if (!card) return;
         Object.assign(card, updates, { updatedAt: Date.now() });
         if (!skipSave) save();
-        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'update' });
+        if (!skipHooks) runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'update' });
       }
 
       function deleteCard(id) {
@@ -2254,26 +2264,28 @@
                 }
                 card.parentId = parentVal;
               }
-              updateCard(card.id, { title: titleVal, body: bodyVal, tags: tagsVal }, true);
+              updateCard(card.id, { title: titleVal, body: bodyVal, tags: tagsVal }, true, true);
               card.children.forEach(cid => {
                 const inp = childrenInpMap[cid];
-                if (inp) updateCard(cid, { title: inp.value.trim() }, true);
+                if (inp) updateCard(cid, { title: inp.value.trim() }, true, true);
               });
               const newKidRows = form.querySelectorAll('#addChildList .form-child-row input');
               newKidRows.forEach(inp => {
                 const t = inp.value.trim();
-                if (t) createCard(t, '', card.id, true);
+                if (t) createCard(t, '', card.id, true, true);
               });
               save();
+              runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'update' });
               goTo('read', { cardId: card.id });
             } else {
-              const newId = createCard(titleVal, bodyVal, parentVal, true);
+              const newId = createCard(titleVal, bodyVal, parentVal, true, true);
               const newKidRows = form.querySelectorAll('#addChildList .form-child-row input');
               newKidRows.forEach(inp => {
                 const t = inp.value.trim();
-                if (t) createCard(t, '', newId, true);
+                if (t) createCard(t, '', newId, true, true);
               });
               save();
+              runModHook('onCardSave', cloneCard(store.cards[newId]), { isNew: true, source: 'create' });
               goTo('read', { cardId: newId });
             }
           }
