@@ -11,7 +11,8 @@
     "open:ios": "npx cap open ios",
     "add:android": "npx cap add android",
     "add:ios": "npx cap add ios",
-    "copy": "npx cap copy"
+    "copy": "npx cap copy",
+    "validate": "node scripts/validate.js"
   },
   "keywords": [
     "knowledge-base",
