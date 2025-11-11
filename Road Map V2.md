@@ -1,11 +1,11 @@
-# Card Info Base — Road Map V2
+# CardSpoke — Road Map V2
 *(Updated with Pre-1.0 and Post-1.0 Feature Expansions)*
 
 ---
 
 ## 🧭 Project Overview
 
-**Card Info Base (CIB)** is a lightweight, extensible, multi-platform knowledge base framework that combines hierarchical notes (“cards”), modular extensions (“mods”), and local-first data design.
+**CardSpoke** is a lightweight, extensible, multi-platform knowledge base framework that combines hierarchical notes (“cards”), modular extensions (“mods”), and local-first data design.
 
 Its long-term goal is to be:
 - **A creative platform** for projects, stories, and experiments.
