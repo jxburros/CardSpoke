@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.7.4
+      // Version: 0.8.1
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -28,10 +28,10 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.8'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.8.1'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-11'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'Github Copilot'; // <-- AI: UPDATE THIS
-      // Version 0.8: Stable release with new, cleaner layout
+      // Version 0.8.1: Capacitor migration for cross-platform support
       const AI_CONTRIBUTORS = [
         'Anthropic\'s Claude', 
         'OpenAI\'s ChatGPT', 
