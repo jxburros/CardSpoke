@@ -4,7 +4,7 @@
   "description": "A lightweight, extensible, multi-platform knowledge base framework",
   "main": "www/index.html",
   "scripts": {
-    "dev": "npx cap serve",
+    "dev": "serve www -p 3000",
     "build": "echo 'Build step not needed - static files ready'",
     "sync": "npx cap sync",
     "open:android": "npx cap open android",
@@ -31,5 +31,8 @@
     "@capacitor/filesystem": "^7.1.4",
     "@capacitor/preferences": "^7.0.2",
     "@capacitor/splash-screen": "^7.0.3"
+  },
+  "devDependencies": {
+    "serve": "^14.2.5"
   }
 }

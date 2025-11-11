@@ -76,6 +76,8 @@ card-based-info-base/
 npm run dev
 ```
 
+This command starts a local development server using the `serve` package (since Capacitor 7.x removed the `cap serve` command). The app will be available at `http://localhost:3000`.
+
 ### Building for Platforms
 
 #### Web
@@ -120,7 +122,7 @@ Then build and run from Xcode.
 ```
 
 ### package.json Scripts
-- `npm run dev` - Start development server
+- `npm run dev` - Start development server (using `serve` package on port 3000)
 - `npm run sync` - Sync web assets to platforms
 - `npm run add:android` - Add Android platform
 - `npm run add:ios` - Add iOS platform
@@ -178,6 +180,14 @@ As outlined in the Road Map V1, future versions will add:
 4. Test native features like storage permissions
 
 ## Troubleshooting
+
+### "The serve command has been removed" error
+This occurs when using `npx cap serve` directly. In Capacitor 7.x, the `cap serve` command was removed.
+Solution: Use the npm script instead
+```bash
+npm run dev
+```
+The dev script now uses the `serve` package to host the development server.
 
 ### "Could not find the android platform" error
 Solution: Install the platform package
