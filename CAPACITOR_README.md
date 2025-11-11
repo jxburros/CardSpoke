@@ -33,7 +33,9 @@ Run the app in development mode:
 npm run dev
 ```
 
-This will start a local server and open the app in your browser.
+This will start a local development server using the `serve` package on port 3000. Open your browser to `http://localhost:3000` to view the app.
+
+**Note**: Capacitor 7.x removed the `cap serve` command, so we now use the `serve` package for local development.
 
 ### Building for Production
 
