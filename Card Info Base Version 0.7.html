@@ -8,26 +8,21 @@
   <!-- 
     =============================================================
     Card Info Base
-    Version: 0.6.9.13
+    Version: 0.7.0
     Released by: jxburros
-    Build date: 2025-11-07 (FIXED by Claude)
-    Notes: CRITICAL FIX: Mods now properly export in baked apps!
+    Build date: 2025-11-11
+    Notes: Version 0.7 - Foundation Overhaul
+           - Upgraded to Schema v4 with tags, meta, and attributes support
+           - Added mod type taxonomy (Theme, Patch, Plugin, Mod, Expansion)
+           - Enhanced card structure for extensibility
+           - Maintained backward compatibility with v3 data
+    Previous: CRITICAL FIX: Mods now properly export in baked apps!
            - Exposed CIB_MODS._registry so exportAppWithMods can access active mods
            - Added fallback to CIB_MODS._registry when window.store.mods is empty
            - Improved mod data extraction to handle different storage formats
-           - Added comprehensive debugging throughout export process
-           - Fixed issue where mods appeared active but weren't included in baked payload
-    Previous: Fix: Removed early runHook() call from baked mod script - it was executing before store was restored
-           Now relies on main app's syncFromStore() and runHook() after store restoration
-           This fixes baked mods not initializing in exported apps
-    Previous: Fix: Baked mods now properly trigger onAppInit hooks after registration, ensuring they initialize correctly in exported apps
-           Fix: Added proper DOM-ready checks and initialization flow for baked mods
-    Previous: Fix: Bake App button now works correctly - removed inline display:none that prevented modal from showing
-           Fix: Exported app no longer opens with Bake modal visible - modal is closed before DOM capture
-           Fix: Baked mods now properly register through CIB_MODS system ensuring they work correctly in exported apps
     =============================================================
   -->
-  <meta name="app:version" content="0.6.9.13">
+  <meta name="app:version" content="0.7.0">
   <meta name="app:author" content="jxburros">
 
   <style>
@@ -723,6 +718,16 @@
                   <span style="font-weight:600;">Author</span>
                   <input id="modCodeAuthor" type="text" placeholder="Your name" style="padding: 10px 13px; border: 1.5px solid var(--border); border-radius: calc(var(--radius) - 2px); background: var(--elev); color: var(--text); font: inherit;" />
                 </label>
+                <label style="display:flex; flex-direction:column; gap:6px; font-size:.95em;">
+                  <span style="font-weight:600;">Type</span>
+                  <select id="modCodeType" style="padding: 10px 13px; border: 1.5px solid var(--border); border-radius: calc(var(--radius) - 2px); background: var(--elev); color: var(--text); font: inherit;">
+                    <option value="Mod">Mod</option>
+                    <option value="Theme">Theme</option>
+                    <option value="Patch">Patch</option>
+                    <option value="Plugin">Plugin</option>
+                    <option value="Expansion">Expansion</option>
+                  </select>
+                </label>
               </div>
             </div>
 
@@ -783,8 +788,8 @@
   <script>
   document.addEventListener('DOMContentLoaded', () => {
     try {
-      const APP_VERSION = "0.6.9.13";
-      const SCHEMA_VERSION = 3;
+      const APP_VERSION = "0.7.0";
+      const SCHEMA_VERSION = 4;
       
       const headerEl = {
         themeToggle: document.getElementById('themeToggle'),
@@ -891,6 +896,7 @@
         modCodeName: document.getElementById('modCodeName'),
         modCodeVersion: document.getElementById('modCodeVersion'),
         modCodeAuthor: document.getElementById('modCodeAuthor'),
+        modCodeType: document.getElementById('modCodeType'),
         modCodeJS: document.getElementById('modCodeJS'),
         modCodeCSS: document.getElementById('modCodeCSS'),
         modCodeEnabled: document.getElementById('modCodeEnabled'),
@@ -1035,6 +1041,39 @@
         try {
           const parsed = JSON.parse(raw);
           store = { rootOrder: parsed.rootOrder || [], cards: parsed.cards || {}, mods: parsed.mods || {} };
+          
+          // Schema v4 migration: add tags, meta, and attributes to cards that don't have them
+          let migrated = false;
+          Object.values(store.cards).forEach(card => {
+            if (!card.tags) {
+              card.tags = [];
+              migrated = true;
+            }
+            if (!card.meta) {
+              card.meta = {};
+              migrated = true;
+            }
+            if (!card.attributes) {
+              card.attributes = {};
+              migrated = true;
+            }
+            if (!card.modsData) {
+              card.modsData = {};
+              migrated = true;
+            }
+          });
+          
+          // Schema v4 migration: add type to mods that don't have it
+          Object.values(store.mods).forEach(mod => {
+            if (mod.meta && !mod.meta.type) {
+              mod.meta.type = 'Mod';  // Default to 'Mod' type
+              migrated = true;
+            }
+          });
+          
+          if (migrated) {
+            save();  // Persist the migration
+          }
         } catch (e) {
           bootError('Corrupted data.');
         }
@@ -1303,6 +1342,7 @@
       function getModSummary(modId, modData) {
         const meta = modData?.meta || {};
         const parts = [];
+        if (meta.type) parts.push(`[${meta.type}]`);  // Schema v4: show mod type
         if (meta.version) parts.push(`v${meta.version}`);
         if (meta.author) parts.push(meta.author);
         return { title: meta.name ? `${meta.name}` : modId, subtitle: parts.join(' • '), description: meta.description || '' };
@@ -1381,6 +1421,9 @@
           body: body || '',
           parentId: parentId || null,
           children: [],
+          tags: [],              // Schema v4: array of string tags
+          meta: {},              // Schema v4: metadata field for custom data
+          attributes: {},        // Schema v4: additional attributes
           createdAt: Date.now(),
           updatedAt: Date.now(),
           modsData: {}
@@ -3043,7 +3086,8 @@
             meta: {
               name: modalEl.modCodeName.value.trim(),
               version: modalEl.modCodeVersion.value.trim(),
-              author: modalEl.modCodeAuthor.value.trim()
+              author: modalEl.modCodeAuthor.value.trim(),
+              type: modalEl.modCodeType.value || 'Mod'  // Schema v4: mod type taxonomy
             }
           };
           // Normalize/auto-detect ID from JS so users don't have to double-enter it
