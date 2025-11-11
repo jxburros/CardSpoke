@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>CardSpoke</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="app:version" content="0.8.2.2">
+  <meta name="app:version" content="0.7.4">
   <meta name="app:author" content="jxburros">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1318,24 +1318,35 @@
       'use strict';
       
       // =============================================================
+      // CardSpoke JavaScript Application
+      // Version: 0.7.4
+      // Creator: jxburros
+      // Schema: v4
+      // =============================================================
+      
+      // =============================================================
       // --- AI DEVELOPER INSTRUCTIONS ---
       //
       // 1. UPDATE VERSION & METADATA:
       //    Before saving, you MUST update the constants below.
-      //    - APP_VERSION: If user does not specify, append ".1" (e.g., "0.8.2" -> "0.8.2.1").
+      //    - APP_VERSION: If user does not specify, append ".1" (e.g., "0.7.4" -> "0.7.4.1").
       //    - APP_RELEASE_DATE: Set to today's date (YYYY-MM-DD).
       //    - APP_UPDATER: Add your AI name.
       //
       // 2. SIGN YOUR WORK:
       //    Add your AI name to the AI_CONTRIBUTORS list if it's not already there.
       //
+      // 3. MAINTAIN FUNCTIONALITY:
+      //    Do not remove or break existing features unless explicitly requested.
+      //    All changes should be additive or improvements.
+      //
       // =============================================================
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.8.2.2'; // <-- AI: UPDATE THIS
-      const APP_RELEASE_DATE = '2025-11-10'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'Google\'s Gemini'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.7.4'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-11-11'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'Github Copilot'; // <-- AI: UPDATE THIS
       const AI_CONTRIBUTORS = [
         'Anthropic\'s Claude', 
         'OpenAI\'s ChatGPT', 
@@ -1345,12 +1356,12 @@
       ];
       
       // --- CORE APP STATE ---
-      const SCHEMA_VERSION = 1;
+      const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
       let instanceKey = localStorage.getItem('activeInstance') || 'nested_cards_store';
-      let store = { rootOrder: [], cards: {}, mods: {} };
-      let navState = { page: 'list', cardId: null, parentId: null, searchQuery: '' };
-      let navHistory = [];
-      let dirty = false;
+      let store = { rootOrder: [], cards: {}, mods: {} }; // Main data store
+      let navState = { page: 'list', cardId: null, parentId: null, searchQuery: '' }; // Navigation state
+      let navHistory = []; // Navigation history for back button
+      let dirty = false; // Tracks unsaved changes
 
       // --- DOM ELEMENTS ---
       const header = {
@@ -1410,6 +1421,13 @@
 
       // --- UTILITIES ---
       
+      /**
+       * Helper function to create DOM elements
+       * @param {string} tag - HTML tag name
+       * @param {Object} props - Element properties and attributes
+       * @param {...(string|HTMLElement)} children - Child elements or text
+       * @returns {HTMLElement} Created DOM element
+       */
       function h(tag, props = {}, ...children) {
         const el = document.createElement(tag);
         Object.entries(props).forEach(([k, v]) => {
@@ -1427,16 +1445,30 @@
         return el;
       }
 
+      /**
+       * Generate unique ID based on timestamp and random string
+       * @returns {string} Unique identifier
+       */
       function uid() {
         return Date.now().toString(36) + Math.random().toString(36).substring(2);
       }
 
+      /**
+       * Format timestamp to human-readable date/time string
+       * @param {number} timestamp - Unix timestamp in milliseconds
+       * @returns {string} Formatted date and time
+       */
       function formatDate(timestamp) {
         if (!timestamp) return '';
         const d = new Date(timestamp);
         return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
       }
 
+      /**
+       * Show toast notification
+       * @param {string} message - Message to display
+       * @param {'success'|'error'|'info'} type - Type of notification
+       */
       function showToast(message, type = 'success') {
         const toast = h('div', { className: `toast ${type}` }, message);
         toastContainer.appendChild(toast);
@@ -1451,6 +1483,11 @@
         main.appendChild(h('div', { className: 'empty' }, 'Error: ' + msg));
       }
 
+      /**
+       * Clone a card object deeply to avoid reference issues
+       * @param {Object} card - Card object to clone
+       * @returns {Object|null} Cloned card object or null
+       */
       function cloneCard(card) {
         if (!card) return null;
         let modsData = {};
@@ -1654,11 +1691,26 @@
       
       // --- MODS API ---
       
+      // =============================================================
+      // --- MOD SYSTEM ---
+      // CardSpoke's extension/mod system allows users to add custom
+      // functionality through JavaScript hooks and CSS styles.
+      // =============================================================
+      
       const CIB_MODS = (() => {
+        // Registry of loaded mods
         const registry = {};
+        // Map of mod IDs to their <style> tags
         const styleTags = {};
+        // Set of mods that have run onAppInit
         const initializedMods = new Set();
 
+        /**
+         * Ensure a mod is registered and executed
+         * @param {string} modId - Unique mod identifier
+         * @param {Object} modData - Mod data (js, css, meta)
+         * @returns {Object|null} Registry entry or null on failure
+         */
         function ensureRegistered(modId, modData) {
           const existing = registry[modId];
           if (existing && existing.__loaded) return existing;
@@ -1686,6 +1738,11 @@
           }
         }
 
+        /**
+         * Inject mod CSS into the document
+         * @param {string} modId - Mod identifier
+         * @param {string} css - CSS code to inject
+         */
         function ensureStyle(modId, css) {
           if (!css || styleTags[modId]) return;
           const tag = document.createElement('style');
@@ -1695,12 +1752,21 @@
           styleTags[modId] = tag;
         }
 
+        /**
+         * Remove mod CSS from the document
+         * @param {string} modId - Mod identifier
+         */
         function removeStyle(modId) {
           const tag = styleTags[modId];
           if (tag && tag.parentNode) tag.parentNode.removeChild(tag);
           delete styleTags[modId];
         }
 
+        /**
+         * Create API object for mod to interact with app
+         * @param {string} modId - Mod identifier
+         * @returns {Object} API object with safe methods
+         */
         function createStoreAPI(modId) {
           return {
             getAppInfo() {
@@ -1730,6 +1796,11 @@
           };
         }
 
+        /**
+         * Build context object passed to mod hooks
+         * @param {string} modId - Mod identifier
+         * @returns {Object} Context with modId, versions, and API
+         */
         function buildContext(modId) {
           return {
             modId,
@@ -1739,9 +1810,25 @@
           };
         }
 
+        // --- PUBLIC MOD API ---
+        // The following methods are exposed for mod management
+        
         return {
           registry,
           _registry: registry,
+          
+          /**
+           * Register a mod with hooks
+           * Available hooks:
+           * - onAppInit(ctx): Called when app initializes
+           * - onCardRender(ctx, cardId, element): Called when card is rendered
+           * - onCardSave(ctx, card, changes): Called when card is saved
+           * - onCardDelete(ctx, cardId): Called when card is deleted
+           * 
+           * @param {string} modId - Unique mod identifier
+           * @param {Object} definition - Mod definition with hooks and meta
+           * @returns {Object} Registry entry
+           */
           register(modId, definition = {}) {
             if (!modId) throw new Error('CIB_MODS.register requires a mod id');
             const entry = registry[modId] || { id: modId, hooks: {}, meta: {} };
@@ -1824,6 +1911,15 @@
 
       // --- DATA (CRUD) ---
 
+      /**
+       * Create a new card
+       * @param {string} title - Card title
+       * @param {string} body - Card content/body
+       * @param {string|null} parentId - Parent card ID or null for root
+       * @param {boolean} skipSave - Skip saving to localStorage
+       * @param {boolean} skipHooks - Skip running mod hooks
+       * @returns {string} New card ID
+       */
       function createCard(title, body, parentId = null, skipSave = false, skipHooks = false) {
         const id = uid();
         const now = Date.now();
@@ -1851,6 +1947,13 @@
         return id;
       }
 
+      /**
+       * Update an existing card
+       * @param {string} id - Card ID to update
+       * @param {Object} updates - Fields to update
+       * @param {boolean} skipSave - Skip saving to localStorage
+       * @param {boolean} skipHooks - Skip running mod hooks
+       */
       function updateCard(id, updates, skipSave = false, skipHooks = false) {
         const card = store.cards[id];
         if (!card) return;
@@ -1859,6 +1962,10 @@
         if (!skipHooks) runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'update' });
       }
 
+      /**
+       * Delete a card and all its children recursively
+       * @param {string} id - Card ID to delete
+       */
       function deleteCard(id) {
         const card = store.cards[id];
         if (!card) return;
@@ -2243,8 +2350,14 @@
         return matches ? matches.slice(0, 5) : [];
       }
 
+      // =============================================================
       // --- RENDERING ---
+      // Functions for rendering UI components and pages
+      // =============================================================
 
+      /**
+       * Render breadcrumb navigation
+       */
       function renderBreadcrumbs() {
         breadcrumbs.innerHTML = '';
         if (navState.page === 'search') {
@@ -2277,6 +2390,9 @@
         }
       }
 
+      /**
+       * Render the list of cards (root level or children)
+       */
       function renderCardList() {
         const parentId = navState.cardId;
         let kids = [];
@@ -2309,6 +2425,11 @@
         }
       }
 
+      /**
+       * Render a single card tile in list view
+       * @param {Object} card - Card to render
+       * @returns {HTMLElement} Card tile element
+       */
       function renderCardTile(card) {
         const cardEl = h('div', { className: 'card', onclick: () => goTo('read', { cardId: card.id }) });
         cardEl.dataset.cardId = card.id;
@@ -2343,6 +2464,9 @@
         return cardEl;
       }
 
+      /**
+       * Render a card in read-only/detail view
+       */
       function renderReadOnlyCard() {
         searchContainer.style.display = 'none';
         const card = store.cards[navState.cardId];
@@ -2398,6 +2522,9 @@
         runModHook('onCardRender', cloneCard(card), detail);
       }
 
+      /**
+       * Render card edit form
+       */
       function renderEditCard() {
         searchContainer.style.display = 'none';
         const editing = !!navState.cardId;
@@ -2583,6 +2710,9 @@
         main.appendChild(form);
       }
 
+      /**
+       * Render search results page
+       */
       function renderSearchResults() {
         searchContainer.style.display = 'none';
         const query = navState.searchQuery.trim().toLowerCase();
@@ -2612,6 +2742,9 @@
         }
       }
 
+      /**
+       * Main render function - orchestrates page rendering
+       */
       function render() {
         try {
           renderBreadcrumbs();
@@ -2637,8 +2770,15 @@
         }
       }
 
-      // --- THEME ---
+      // =============================================================
+      // --- THEME MANAGEMENT ---
+      // Handle dark/light theme switching
+      // =============================================================
 
+      /**
+       * Apply theme (light or dark mode)
+       * @param {'light'|'dark'} theme - Theme to apply
+       */
       function applyTheme(theme) {
         if (theme === 'dark') {
           document.documentElement.classList.add('dark');
@@ -2657,8 +2797,14 @@
         if (header.themeToggle) header.themeToggle.innerHTML = theme === 'dark' ? sunIcon : moonIcon;
       }
       
+      // =============================================================
       // --- APP FOOTER ---
+      // Populate footer with version and attribution information
+      // =============================================================
       
+      /**
+       * Populate footer with app metadata
+       */
       function populateFooter() {
         const creatorEl = document.getElementById('app-creator');
         const versionEl = document.getElementById('app-version');
@@ -2671,11 +2817,17 @@
         if (updaterEl) updaterEl.textContent = APP_UPDATER;
       }
 
+      // =============================================================
       // --- INITIALIZATION & EVENT LISTENERS ---
+      // Set up event handlers for user interactions
+      // =============================================================
 
+      // Initialize theme
       const savedTheme = localStorage.getItem('cardspoke_theme') || 'light';
       applyTheme(savedTheme);
 
+      // --- Header Button Handlers ---
+      
       header.themeToggle.onclick = () => {
         const isDark = document.documentElement.classList.contains('dark');
         applyTheme(isDark ? 'light' : 'dark');
@@ -2685,8 +2837,9 @@
         themeSwitch.onchange = () => {
           applyTheme(themeSwitch.checked ? 'dark' : 'light');
         };
-      }
-
+      }      
+      // --- Menu Handlers ---
+      
       header.menuBtn.onclick = () => {
         menu.overlay.classList.add('show');
       };
@@ -2955,14 +3108,18 @@
         uploadModal.manualModCSS.value = '';
       };
 
-      // --- BOOT ---
+      // =============================================================
+      // --- APPLICATION BOOT ---
+      // Initialize and start the application
+      // =============================================================
       
-      load();
-      populateFooter(); // *** ADDED: Populate footer on load ***
-      CIB_MODS.syncFromStore();
-      CIB_MODS.runHook('onAppInit');
-      render();
+      load();                          // Load data from localStorage
+      populateFooter();                // Populate footer with metadata
+      CIB_MODS.syncFromStore();        // Initialize mods from store
+      CIB_MODS.runHook('onAppInit');   // Run mod initialization hooks
+      render();                        // Initial render
 
+      // Warn user about unsaved changes before leaving
       window.addEventListener('beforeunload', (e) => {
         if (dirty) {
           e.preventDefault();
