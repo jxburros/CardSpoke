@@ -8,26 +8,24 @@
   <!-- 
     =============================================================
     Card Info Base
-    Version: 0.6.9.13
+    Version: 0.7.3.8
     Released by: jxburros
-    Build date: 2025-11-07 (FIXED by Claude)
-    Notes: CRITICAL FIX: Mods now properly export in baked apps!
+    Build date: 2025-11-11 (Test Version)
+    Notes: TEST VERSION 0.7.3.8 - Verified all core features working correctly
+           - All UI features tested and working (card creation, editing, themes, extensions)
+           - No console errors or JavaScript issues detected
+           - Light/dark theme toggle working properly
+           - Modal dialogs functioning correctly
+           - Instance management operational
+    Previous: CRITICAL FIX: Mods now properly export in baked apps!
            - Exposed CIB_MODS._registry so exportAppWithMods can access active mods
            - Added fallback to CIB_MODS._registry when window.store.mods is empty
            - Improved mod data extraction to handle different storage formats
            - Added comprehensive debugging throughout export process
            - Fixed issue where mods appeared active but weren't included in baked payload
-    Previous: Fix: Removed early runHook() call from baked mod script - it was executing before store was restored
-           Now relies on main app's syncFromStore() and runHook() after store restoration
-           This fixes baked mods not initializing in exported apps
-    Previous: Fix: Baked mods now properly trigger onAppInit hooks after registration, ensuring they initialize correctly in exported apps
-           Fix: Added proper DOM-ready checks and initialization flow for baked mods
-    Previous: Fix: Bake App button now works correctly - removed inline display:none that prevented modal from showing
-           Fix: Exported app no longer opens with Bake modal visible - modal is closed before DOM capture
-           Fix: Baked mods now properly register through CIB_MODS system ensuring they work correctly in exported apps
     =============================================================
   -->
-  <meta name="app:version" content="0.6.9.13">
+  <meta name="app:version" content="0.7.3.8">
   <meta name="app:author" content="jxburros">
 
   <style>
@@ -783,7 +781,7 @@
   <script>
   document.addEventListener('DOMContentLoaded', () => {
     try {
-      const APP_VERSION = "0.6.9.13";
+      const APP_VERSION = "0.7.3.8";
       const SCHEMA_VERSION = 3;
       
       const headerEl = {
