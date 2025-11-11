@@ -1,0 +1,35 @@
+{
+  "name": "card-based-info-base",
+  "version": "0.7.0",
+  "description": "A lightweight, extensible, multi-platform knowledge base framework",
+  "main": "www/index.html",
+  "scripts": {
+    "dev": "npx cap serve",
+    "build": "echo 'Build step not needed - static files ready'",
+    "sync": "npx cap sync",
+    "open:android": "npx cap open android",
+    "open:ios": "npx cap open ios",
+    "add:android": "npx cap add android",
+    "add:ios": "npx cap add ios",
+    "copy": "npx cap copy",
+    "validate": "node scripts/validate.js"
+  },
+  "keywords": [
+    "knowledge-base",
+    "notes",
+    "cards",
+    "capacitor",
+    "cross-platform"
+  ],
+  "author": "jxburros",
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/app": "^7.1.0",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/filesystem": "^7.1.4",
+    "@capacitor/preferences": "^7.0.2",
+    "@capacitor/splash-screen": "^7.0.3"
+  }
+}

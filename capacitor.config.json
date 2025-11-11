@@ -1,0 +1,16 @@
+{
+  "appId": "com.cardinfo.base",
+  "appName": "Card Info Base",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "cleartext": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#0b0f18",
+      "showSpinner": false
+    }
+  }
+}

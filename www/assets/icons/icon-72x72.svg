@@ -1,0 +1,20 @@
+<svg width="72" height="72" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="72" height="72" fill="#0b0f18" rx="9"/>
+  
+  <!-- Card representation -->
+  <g transform="translate(18, 18)">
+    <!-- Main card -->
+    <rect x="0" y="0" width="36" height="36" fill="#131a2a" stroke="#86a8ff" stroke-width="3" rx="8"/>
+    
+    <!-- Title line -->
+    <rect x="4" y="4" width="18" height="2" fill="#86a8ff" rx="2"/>
+    
+    <!-- Content lines -->
+    <rect x="4" y="9" width="24" height="1" fill="#b7c2d9" rx="1"/>
+    <rect x="4" y="12" width="18" height="1" fill="#b7c2d9" rx="1"/>
+    
+    <!-- Info badge -->
+    <circle cx="30" cy="6" r="3" fill="#67e2bc"/>
+  </g>
+</svg>

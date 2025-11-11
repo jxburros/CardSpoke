@@ -1,0 +1,531 @@
+
+    /* =============================================================
+       DESIGN TOKENS
+       ============================================================= */
+    :root {
+      /* Color */
+      --bg: #0b0f18; --panel: #131a2a; --card: #101724; --elev: #0f1522;
+      --border: #3a4561; --ring: #86b7ff; --text: #f2f6ff; --muted: #b7c2d9;
+      --accent: #86a8ff; --success: #67e2bc; --danger-bg: #351820; --danger: #ff9fb1;
+
+      /* Typography */
+      --ff: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      --fs-0: 14px; --fs-1: 16px; --fs-2: 18px; --fs-3: 20px; --fs-4: 24px; --lh: 1.6;
+
+      /* Geometry */
+      --radius: 14px; --radius-pill: 999px;
+      --space-1: 6px; --space-2: 10px; --space-3: 14px; --space-4: 20px;
+
+      /* Shadows & layout */
+      --shadow-1: 0 12px 30px rgba(0,0,0,.35);
+      --grid-min: 250px;
+    }
+    :root.light {
+      --bg: #f6f7fb; --panel: #ffffff; --card: #ffffff; --elev: #ffffff; --border: #e7eaf1;
+      --ring: #2b59ff; --text: #0e1220; --muted: #5b6275; --accent: #2b59ff; --success: #1ea97c;
+      --danger-bg: #fff0f3; --danger: #c22644; --shadow-1: 0 10px 30px rgba(18,18,18,.06);
+    }
+
+    /* === Minimal mode overrides (applied when :root.minimal) === */
+    :root.minimal {
+      /* Subtler surfaces */
+      --panel: #0e1422; --card: #0d1220; --elev: #0c111d; --border: #2a3550;
+      --accent: #7e9bff; --muted: #99a6c4;
+
+      /* Typography: crisper, slightly smaller & tighter */
+      --ff: system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans";
+      --fs-0: 13px; --fs-1: 15px; --fs-2: 17px; --fs-3: 19px; --fs-4: 22px; --lh: 1.5;
+
+      /* Geometry: tighter */
+      --radius: 10px; --radius-pill: 18px;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+
+      /* Layout: less shadow, wider grid min for cleaner lists */
+      --shadow-1: none;
+      --grid-min: 300px;
+    }
+    :root.light.minimal {
+      --panel: #ffffff; --card: #ffffff; --elev: #ffffff; --border: #e5e8f0;
+      --accent: #2b59ff; --muted: #626a7e; --shadow-1: none;
+    }
+
+    /* =============================================================
+       BASE ELEMENTS
+       ============================================================= */
+    * { box-sizing: border-box }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: var(--fs-1)/var(--lh) var(--ff);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    .app { max-width: 900px; margin: 0 auto; padding: calc(var(--space-4) + 8px) 10px 40px; }
+
+    header.appbar {
+      position: sticky; top: 0; z-index: 10;
+      padding: var(--space-2) 0;
+      margin-bottom: var(--space-3);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(8px) saturate(1.1);
+      /* Add vendor-prefixed backdrop-filter for broader browser support */
+      -webkit-backdrop-filter: blur(8px) saturate(1.1);
+    }
+    :root.minimal header.appbar { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+    .appbar-inner {
+      display: flex; gap: var(--space-2); align-items: center;
+      max-width: 900px; margin: 0 auto;
+    }
+    .brand { font-weight: 700; letter-spacing: .3px; font-size: 1.2rem; }
+    .spacer { flex: 1 }
+    .crumbs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    .chip, .chip-current {
+      border: 1px solid var(--border); border-radius: var(--radius-pill);
+      background: var(--panel); color: var(--text);
+      font-weight: 600; padding: 6px 13px; cursor: pointer; display: inline-flex; align-items: center;
+    }
+    .chip-current { background: var(--accent); color: #0a0f1a; border-color: var(--accent) }
+
+    .btn {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      padding: 9px 15px;
+      border-radius: var(--radius);
+      font: inherit; font-weight: 600; cursor: pointer; box-shadow: var(--shadow-1);
+      transition: border-color .15s ease, background-color .15s ease;
+    }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #0a0f1a }
+    .btn.ghost { background: transparent }
+    .btn.danger { background: var(--danger-bg); border-color: var(--danger); color: var(--danger) }
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    :root.minimal .btn { box-shadow: none; padding: 8px 12px; }
+
+    /* Dropdown button styles */
+    .dropdown {
+      position: relative;
+      display: inline-block;
+    }
+    .dropdown-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .dropdown-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 4px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-1);
+      min-width: 200px;
+      z-index: 1000;
+    }
+    .dropdown-menu.show {
+      display: block;
+    }
+    .dropdown-item {
+      display: block;
+      width: 100%;
+      padding: 10px 14px;
+      border: none;
+      background: none;
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 500;
+      transition: background-color .15s ease;
+    }
+    .dropdown-item:hover {
+      background: var(--elev);
+    }
+    .dropdown-item:first-child {
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .dropdown-item:last-child {
+      border-radius: 0 0 var(--radius) var(--radius);
+    }
+    .dropdown-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 0;
+    }
+
+    .search {
+      display: flex; align-items: center; gap: 7px;
+      padding: var(--space-2) 11px; border: 1px solid var(--border);
+      border-radius: calc(var(--radius) - 2px); background: var(--elev)
+    }
+    .search input[type="search"] {
+      border: 0; outline: 0; background: transparent; color: var(--text);
+      width: 180px; font-size: 1em
+    }
+    .search button { border: 0; background: transparent; color: var(--muted); cursor: pointer }
+
+    .card-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--grid-min), 1fr)); gap: 15px }
+    .card-tile {
+      background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius);
+      padding: var(--space-3) var(--space-3); cursor: pointer; box-shadow: var(--shadow-1);
+      display: flex; flex-direction: column; gap: 8px; min-height: 80px
+    }
+    :root.minimal .card-tile { border-width: 1px; }
+
+    .card-title-row { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+    .ct-title { font-weight: 700; font-size: 1.06rem }
+    .ct-kid-count, .ct-preview, .ct-meta { color: var(--muted); font-size: .98em }
+    .subhead { text-transform: uppercase; letter-spacing: .06em; font-size: 12px; color: var(--muted); margin: 7px 0 10px 2px }
+    .empty { color: var(--muted); padding: 12px; text-align: center }
+    .card-main-title { font-size: var(--fs-3); font-weight: 700; margin-bottom: 3px }
+    .card-parent-ref { color: var(--text); font-size: .95em; margin-bottom: 14px; padding: 8px 12px; background: var(--elev); border: 1px solid var(--border); border-radius: 8px; display: inline-block }
+    .card-parent-ref a { color: var(--accent); text-decoration: none; font-weight: 600 }
+    .card-parent-ref a:hover { text-decoration: underline }
+    .details { white-space: pre-wrap; margin-top: .6em; min-height: 36px }
+
+    .children-preview-list { margin: 8px 0 3px 0; display: flex; gap: 13px; flex-wrap: wrap }
+    .children-preview-tile { padding: 5px 12px; background: var(--elev); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: .99em; display: flex; align-items: center; gap: 6px; cursor: pointer }
+
+    .action-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 21px 0 10px 0 }
+
+    form label { display: block; color: var(--muted); font-size: .92em; text-transform: uppercase; letter-spacing: .04em; margin: 15px 0 6px }
+    form input, form textarea, form select {
+      display: block; width: 100%; padding: 10px 13px; border: 1.5px solid var(--border); border-radius: calc(var(--radius) - 2px);
+      background: var(--elev); color: var(--text); font: inherit; outline: 0
+    }
+    form input:focus, form textarea:focus, form select:focus { border-color: var(--ring) }
+    form textarea { min-height: 140px; resize: vertical; line-height: 1.5 }
+    .form-children-inline { display: flex; flex-direction: column; gap: 7px }
+    .form-child-row { display: flex; gap: 6px; align-items: center }
+    .form-child-row input { flex: 1; margin: 0 }
+    .form-child-del { border: 0; background: var(--danger-bg); color: var(--danger); cursor: pointer; padding: 8px 12px; border-radius: 7px; font-size: .9em; font-weight: 600 }
+
+    /* Sorting control */
+    .sort-control {
+      margin: 10px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sort-control label {
+      color: var(--muted);
+      font-size: .9em;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin: 0;
+    }
+    .sort-control select {
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) - 4px);
+      background: var(--elev);
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    /* Modal styles */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.show {
+      display: flex;
+    }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: var(--space-4);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-3);
+    }
+    .modal-title {
+      font-size: var(--fs-3);
+      font-weight: 700;
+    }
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+    }
+    .modal-close:hover {
+      background: var(--elev);
+      color: var(--text);
+    }
+    .modal-body {
+      margin-bottom: var(--space-3);
+    }
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    .mod-row {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-radius: var(--radius);
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
+    .mod-info {
+      flex: 1;
+      display: grid;
+      gap: 6px;
+    }
+    .mod-title {
+      font-size: 1.05em;
+      font-weight: 600;
+    }
+    .mod-meta {
+      color: var(--muted);
+      font-size: .9em;
+    }
+    .mod-description {
+      color: var(--muted);
+      font-size: .92em;
+    }
+    .mod-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .mod-row.disabled {
+      opacity: 0.6;
+    }
+    .file-upload-area {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: var(--space-4);
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s ease;
+      margin: var(--space-3) 0;
+    }
+    .file-upload-area:hover {
+      border-color: var(--accent);
+    }
+    .file-upload-area.drag-over {
+      border-color: var(--accent);
+      background: var(--elev);
+    }
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    .upload-text {
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .upload-hint {
+      color: var(--muted);
+      font-size: 0.9em;
+    }
+
+    /* Modal tabs */
+    .modal-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: var(--space-3);
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-tab {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      padding: 10px 16px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 600;
+      border-bottom: 2px solid transparent;
+      transition: color 0.2s ease, border-color 0.2s ease;
+    }
+    .modal-tab:hover {
+      color: var(--text);
+    }
+    .modal-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Radio options */
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: var(--space-3) 0;
+    }
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) - 4px);
+      cursor: pointer;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
+    }
+    .radio-option:hover {
+      border-color: var(--accent);
+      background: var(--elev);
+    }
+    .radio-option input[type="radio"] {
+      cursor: pointer;
+    }
+    .radio-label {
+      cursor: pointer;
+      flex: 1;
+    }
+    .radio-description {
+      color: var(--muted);
+      font-size: 0.9em;
+      margin-top: 4px;
+    }
+
+    /* Toast notification */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-1);
+      padding: 14px 18px;
+      min-width: 250px;
+      z-index: 2000;
+      display: none;
+      align-items: center;
+      gap: 10px;
+    }
+    .toast.show {
+      display: flex;
+      animation: slideIn 0.3s ease;
+    }
+    .toast.success {
+      border-color: var(--success);
+    }
+    .toast.error {
+      border-color: var(--danger);
+    }
+    .toast-icon {
+      font-size: 20px;
+    }
+    .toast-message {
+      flex: 1;
+    }
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+  
+
+
+  /* Bake Modal visibility control */
+  #bakeAppModal { display: none; position: fixed; left: 0; top: 0; right: 0; bottom: 0;
+           background: rgba(0,0,0,0.35); align-items: center; justify-content: center; }
+  #bakeAppModal .modal-dialog { background: #fff; border-radius: 10px; max-width: 520px; width: 92%; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+  #bakeAppModal .modal-header, #bakeAppModal .modal-footer { padding: 12px 16px; border-bottom: 1px solid #eee; }
+  #bakeAppModal .modal-footer { border-top: 1px solid #eee; border-bottom: none; }
+  #bakeAppModal .modal-body { padding: 16px; }
+  #bakeAppModal.show { display: flex; }
+  #bakeAppModal .close { background: transparent; border: 0; font-size: 20px; line-height: 1; cursor: pointer; }
+  .dropdown-item { cursor: pointer; }
+
+
+
+  /* Bake App UI (scoped) */
+  #bakeAppModal { display:none; position: fixed; inset: 0; background: rgba(0,0,0,.35);
+                  align-items: center; justify-content: center; }
+  #bakeAppModal.show { display:flex; }
+  #bakeAppModal .modal-dialog { background:#fff; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.25);
+                                width: min(520px, 92%); margin:auto; overflow:hidden; }
+  #bakeAppModal .modal-header, #bakeAppModal .modal-footer { padding: 12px 16px; border-bottom: 1px solid #eee; }
+  #bakeAppModal .modal-footer { border-top: 1px solid #eee; border-bottom: none; }
+  #bakeAppModal .modal-body { padding: 16px; }
+
+  /* Floating action button to open Bake modal anywhere */
+  #bakeAppFab { position: fixed; bottom: 18px; left: 18px; z-index: 2147483647;
+                padding: 10px 14px; border-radius: 999px; border: 1px solid rgba(0,0,0,.2);
+                background:#fff; box-shadow: 0 2px 6px rgba(0,0,0,.15); cursor:pointer; }
+  #bakeAppFab span { font-weight:600; }
+
+
+
+  #bakeAppModal { display:none; position:fixed; inset:0; background: rgba(0,0,0,.45);
+                  align-items:center; justify-content:center; z-index: 2147483600; }
+  #bakeAppModal.show { display:flex; }
+  #bakeAppModal .modal-dialog { background:#fff; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.25);
+                                width:min(560px, 92%); margin:auto; overflow:hidden; }
+  #bakeAppModal .modal-header, #bakeAppModal .modal-footer { padding:12px 16px; border-bottom:1px solid #eee; }
+  #bakeAppModal .modal-footer { border-top:1px solid #eee; border-bottom:none; }
+  #bakeAppModal .modal-body { padding:16px; }
+  #bakeAppFab { position:fixed; bottom:18px; left:18px; z-index: 2147483600;
+                padding:10px 14px; border-radius:999px; border:1px solid rgba(0,0,0,.2);
+                background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.15); cursor:pointer; }
+
+
+
+    /* Hide bake/export UI elements since the standalone compiler feature has been removed */
+    #bakeAppModal,
+    #bakeAppFab,
+    #btnBakeAppHeader,
+    #btnBakeApp,
+    #btnBakeApp2,
+    #btnBakeFromMods {
+      display: none !important;
+    }
+  
