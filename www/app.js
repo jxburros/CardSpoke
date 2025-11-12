@@ -143,11 +143,6 @@
        * @param {number} timestamp - Unix timestamp in milliseconds
        * @returns {string} Formatted date and time
        */
-      function formatDate(timestamp) {
-        if (!timestamp) return '';
-        const d = new Date(timestamp);
-        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
-      }
 
       /**
        * Show toast notification
