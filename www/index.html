@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CardSpoke</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="app:version" content="0.8.1">
+  <meta name="app:author" content="jxburros">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="brand">CardSpoke</div>
+      <div class="spacer"></div>
+      <span id="saveStatus" class="save-status" title=""></span>
+      <button class="header-btn" id="homeBtn" title="Home">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+      </button>
+      <button class="header-btn" id="themeToggle" title="Toggle dark mode">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      </button>
+      <button class="header-btn" id="menuBtn" title="Menu">☰</button>
+    </div>
+  </header>
+
+  <div class="menu-overlay" id="menuOverlay">
+    <div class="menu-panel">
+      <div class="menu-header">
+        <div class="menu-title">Menu</div>
+        <button class="menu-close" id="menuClose">✕</button>
+      </div>
+      
+      <div class="menu-section">
+        <div class="menu-section-title">Actions</div>
+        <button class="menu-item" id="menuNewCard">
+          New Card
+        </button>
+        <button class="menu-item" id="menuUpload">
+          Upload
+        </button>
+        <button class="menu-item" id="menuExtensions">
+          Extensions
+        </button>
+      </div>
+      
+      <div class="menu-section">
+        <div class="menu-section-title">Data</div>
+        <button class="menu-item" id="menuInstance">
+          Instance Manager
+        </button>
+        <button class="menu-item" id="menuDownloadJSON">
+          Download All Data (JSON)
+        </button>
+        <button class="menu-item" id="menuDownloadTXT">
+          Download All Cards (TXT)
+        </button>
+        <button class="menu-item" id="menuDownloadMods">
+          Download Mods (JSON)
+        </button>
+        <button class="menu-item menu-item-danger" id="menuClearAll">
+          ⚠️ Clear All Data
+        </button>
+      </div>
+
+      <div class="menu-section">
+        <div class="menu-section-title">View</div>
+        <div class="menu-item-toggle">
+          <label for="themeSwitch" class="menu-item-label">Dark Mode</label>
+          <label class="switch-toggle">
+            <input type="checkbox" id="themeSwitch">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="breadcrumbs" id="breadcrumbs"></div>
+    
+    <main id="main"></main>
+
+    <footer class="app-footer">
+      <p>Creator: <span id="app-creator"></span></p>
+      <p>Version: <span id="app-version"></span> (<span id="app-release-date"></span>) &mdash; Last update by: <span id="app-updater"></span></p>
+    </footer>
+    
+  </div>
+
+  <div class="search-container" id="searchContainer" style="display: none;">
+    <div class="search-input-wrapper">
+      <span class="search-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      </span>
+      <input type="search" class="search-input" id="searchInput" placeholder="Search cards..." />
+      <button class="search-clear" id="searchClear">✕</button>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="modal-overlay" id="uploadModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Upload Content</div>
+        <button class="modal-close" id="closeUploadModal">✕</button>
+      </div>
+      
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-tab="json">JSON</button>
+        <button class="modal-tab" data-tab="txt">TXT</button>
+        <button class="modal-tab" data-tab="docx">DOCX</button>
+        <button class="modal-tab" data-tab="mods">Mods</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="tab-content active" id="tab-json">
+          <div class="file-upload-area" id="fileUploadAreaJSON">
+            <div class="upload-text">Click to select or drag & drop JSON file</div>
+            <div class="upload-hint">Supports card, subtree, and instance exports</div>
+          </div>
+          <input type="file" id="fileInputJSON" accept=".json" style="display: none;" />
+          
+          <div class="form-group">
+            <label class="form-label">Import Location</label>
+            <select id="importLocationSelectJSON" class="form-select">
+              <option value="root">Add as Root Cards</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="tab-content" id="tab-txt">
+          <div class="file-upload-area" id="fileUploadAreaTXT">
+            <div class="upload-text">Click to select or drag & drop TXT file</div>
+            <div class="upload-hint">Plain text or hierarchical outline</div>
+          </div>
+          <input type="file" id="fileInputTXT" accept=".txt" style="display: none;" />
+          
+          <div class="form-group">
+            <label class="form-label">Import Mode</label>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="txtImportMode" value="outline" checked />
+                <div class="radio-label">
+                  <div>Create Cards from Outline</div>
+                  <div class="radio-description">Parse hierarchical structure into cards</div>
+                </div>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="txtImportMode" value="append" />
+                <div class="radio-label">
+                  <div>Append to Card Body</div>
+                  <div class="radio-description">Add text to existing card details</div>
+                </div>
+              </label>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label">Import Location</label>
+            <select id="importLocationSelectTXT" class="form-select">
+              <option value="root">Add as Root Cards (Outline Mode)</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="tab-content" id="tab-docx">
+          <div class="file-upload-area" id="fileUploadAreaDOCX">
+            <div class="upload-text">Click to select or drag & drop DOCX file</div>
+            <div class="upload-hint">Extract text from Word documents (Beta)</div>
+          </div>
+          <input type="file" id="fileInputDOCX" accept=".docx" style="display: none;" />
+          
+          <div class="form-group">
+            <label class="form-label">Import Mode</label>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="docxImportMode" value="append" checked />
+                <div class="radio-label">
+                  <div>Append to Card Body</div>
+                  <div class="radio-description">Add extracted text to card details</div>
+                </div>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="docxImportMode" value="replace" />
+                <div class="radio-label">
+                  <div>Replace Card Body</div>
+                  <div class="radio-description">Replace card details with extracted text</div>
+                </div>
+              </label>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label">Target Card</label>
+            <select id="importLocationSelectDOCX" class="form-select">
+              <option value="">Select a card...</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="tab-content" id="tab-mods">
+          <div class="file-upload-area" id="fileUploadAreaMods">
+            <div class="upload-text">Install Extension (.json or .js)</div>
+            <div class="upload-hint">Load a packaged mod file or a standalone script</div>
+          </div>
+          <input type="file" id="fileInputMods" accept=".json,.js" style="display: none;" />
+          
+          <p style="margin: var(--space-md) 0; color: var(--text-muted); font-size: var(--text-sm);">Or paste code below to create a mod directly.</p>
+          
+          <div class="form-group">
+            <label class="form-label">Mod Name</label>
+            <input type="text" id="manualModName" class="form-input" placeholder="my-custom-mod" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Creator</label>
+            <input type="text" id="manualModCreator" class="form-input" placeholder="Your Name" />
+          </div>
+          <div style="display: flex; gap: var(--space-md); width: 100%;">
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">Version</label>
+              <input type="text" id="manualModVersion" class="form-input" placeholder="1.0.0" />
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">Release Date</label>
+              <input type="text" id="manualModReleaseDate" class="form-input" placeholder="YYYY-MM-DD" />
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label">JavaScript Code</label>
+            <textarea id="manualModJS" class="form-textarea" placeholder="CIB_MODS.register('my-mod', { ... });"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">CSS (Optional)</label>
+            <textarea id="manualModCSS" class="form-textarea" placeholder=".my-class { ... }"></textarea>
+          </div>
+          <button class="btn btn-primary" id="installManualMod">Install Mod</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Capacitor script - must be loaded before app scripts -->
+  <script type="module" src="capacitor.js"></script>
+  
+  <!-- Application script -->
+  <script src="app.js"></script>
+</body>
+</html>
