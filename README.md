@@ -4,9 +4,23 @@
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.8.1
+## 🌟 Current Version: 0.8.2
 
-Version 0.8.1 introduces **Capacitor support** for cross-platform deployment, allowing CardSpoke to run as a native-capable standalone app on Web, Android, and iOS.
+Version 0.8.2 introduces **responsive layout design** for optimal viewing on all devices (mobile, tablet, desktop) and integrates the **Navigator Suite** features for enhanced navigation and organization.
+
+### What's New in 0.8.2
+
+**Responsive Design**
+- Mobile-first responsive layout with breakpoints for phones, tablets, and desktops
+- Touch-friendly UI elements optimized for mobile interaction
+- Adaptive font sizes and spacing for different screen sizes
+
+**Navigator Suite Features**
+- **Card Duplication**: Clone cards with or without children for quick content reuse
+- **Bookmarks**: Star important cards for quick access
+- **Recent Cards**: Track recently viewed/edited cards
+- **Compact View**: Switch between normal and compact card display modes
+- **Enhanced Save Status**: Improved save status indicators and feedback
 
 ## ✨ Key Features
 
@@ -18,6 +32,8 @@ Version 0.8.1 introduces **Capacitor support** for cross-platform deployment, al
 - **🎯 Lightweight & Fast**: Minimal dependencies, quick load times, responsive UI
 - **🔍 Search & Tags**: Global search and flexible tagging system
 - **🌙 Dark Mode**: Built-in theme support with customizable appearance
+- **⭐ Navigator Suite**: Bookmarks, recent cards, card duplication, and compact view
+- **📱 Responsive Design**: Optimized for mobile, tablet, and desktop devices
 
 ## 🚀 Quick Start
 
@@ -75,7 +91,7 @@ CardSpoke is built on these principles:
 CardSpoke is actively developed with a clear path to version 1.0. Current focus areas:
 
 - ✅ **v0.7**: Foundation Overhaul - UI redesign, Schema v4
-- ✅ **v0.8**: Capacitor Migration - Cross-platform support (Current)
+- ✅ **v0.8**: Capacitor Migration & Navigator Suite - Cross-platform support, responsive design (Current)
 - 🚧 **v0.9**: Dataset Architecture - Multi-dataset support, local storage
 - 📅 **v0.10**: Extensions Framework - Mod/Theme Manager, tagging, search
 - 📅 **v0.11**: Developer Ecosystem - Wizard, Playground, utilities

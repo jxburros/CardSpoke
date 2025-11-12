@@ -1,6 +1,6 @@
 {
   "name": "cardspoke",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "A lightweight, extensible, multi-platform knowledge base framework",
   "main": "index.js",
   "scripts": {
@@ -16,7 +16,9 @@
     "knowledge-base",
     "notes",
     "capacitor",
-    "cross-platform"
+    "cross-platform",
+    "responsive",
+    "mobile"
   ],
   "author": "jxburros",
   "license": "ISC",
