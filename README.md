@@ -4,11 +4,11 @@
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.9.2
+## 🌟 Current Version: 0.9.3
 
-Version 0.9.2 adds **comprehensive keyboard shortcuts** for power users, test infrastructure with 37 passing tests, and improved documentation.
+Version 0.9.3 adds **comprehensive keyboard shortcuts** for power users, test infrastructure with 37 passing tests, and improved documentation.
 
-### What's New in 0.9.2
+### What's New in 0.9.3
 
 **Keyboard Shortcuts**
 - Comprehensive keyboard navigation system
