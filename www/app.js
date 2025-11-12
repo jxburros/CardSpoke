@@ -25,11 +25,12 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.9.1'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.9.2'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-12'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'Github Copilot'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'Github Copilot - Showrunner'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
+      // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -2113,6 +2114,151 @@
         uploadModal.manualModJS.value = '';
         uploadModal.manualModCSS.value = '';
       };
+
+
+      // =============================================================
+      // --- KEYBOARD SHORTCUTS ---
+      // Global keyboard shortcuts for navigation and actions
+      // =============================================================
+      
+      const shortcuts = {
+        'ctrl+h': { action: () => goTo('list'), description: 'Go to Home (card list)' },
+        'ctrl+n': { action: () => { menu.newCard.click(); }, description: 'New card' },
+        'ctrl+f': { action: () => { searchInput.focus(); }, description: 'Focus search' },
+        'ctrl+b': { action: () => { menu.bookmarks.click(); closeMenu(); }, description: 'Show bookmarks' },
+        'ctrl+r': { action: () => { menu.recentCards.click(); closeMenu(); }, description: 'Show recent cards' },
+        'ctrl+e': { action: () => { menu.extensions.click(); closeMenu(); }, description: 'Show extensions' },
+        'ctrl+u': { action: () => { menu.upload.click(); closeMenu(); }, description: 'Upload data' },
+        'ctrl+/': { action: () => showKeyboardHelp(), description: 'Show this help' },
+        'escape': { action: () => handleEscape(), description: 'Close modals/go back' },
+        'alt+t': { action: () => { header.themeToggle.click(); }, description: 'Toggle theme' },
+        'alt+c': { action: () => toggleViewMode(), description: 'Toggle compact view' }
+      };
+      
+      function handleEscape() {
+        // Close menu if open
+        if (menu.overlay.classList.contains('show')) {
+          closeMenu();
+          return;
+        }
+        // Close upload modal if open
+        if (uploadModal.overlay.classList.contains('show')) {
+          uploadModal.overlay.classList.remove('show');
+          return;
+        }
+        // Close help if open
+        const helpModal = document.getElementById('keyboardHelpModal');
+        if (helpModal && helpModal.classList.contains('show')) {
+          helpModal.classList.remove('show');
+          return;
+        }
+        // Otherwise go back if we can
+        if (navHistory.length > 0) {
+          goBack();
+        }
+      }
+      
+      function closeMenu() {
+        menu.overlay.classList.remove('show');
+      }
+      
+      function showKeyboardHelp() {
+        let helpModal = document.getElementById('keyboardHelpModal');
+        
+        if (!helpModal) {
+          // Create help modal
+          helpModal = h('div', { 
+            id: 'keyboardHelpModal', 
+            className: 'menu-overlay',
+            onclick: (e) => { if (e.target === helpModal) helpModal.classList.remove('show'); }
+          },
+            h('div', { className: 'menu-panel' },
+              h('div', { className: 'menu-header' },
+                h('div', { className: 'menu-title' }, '⌨️ Keyboard Shortcuts'),
+                h('button', { 
+                  className: 'menu-close',
+                  onclick: () => helpModal.classList.remove('show')
+                }, '✕')
+              ),
+              h('div', { className: 'keyboard-shortcuts' },
+                h('div', { className: 'shortcuts-section' },
+                  h('div', { className: 'shortcuts-section-title' }, 'Navigation'),
+                  ...Object.entries(shortcuts)
+                    .filter(([key]) => ['ctrl+h', 'ctrl+b', 'ctrl+r', 'escape'].includes(key))
+                    .map(([key, { description }]) => 
+                      h('div', { className: 'shortcut-item' },
+                        h('kbd', {}, key.replace('ctrl+', 'Ctrl+')),
+                        h('span', {}, description)
+                      )
+                    )
+                ),
+                h('div', { className: 'shortcuts-section' },
+                  h('div', { className: 'shortcuts-section-title' }, 'Actions'),
+                  ...Object.entries(shortcuts)
+                    .filter(([key]) => ['ctrl+n', 'ctrl+f', 'ctrl+u', 'ctrl+e'].includes(key))
+                    .map(([key, { description }]) => 
+                      h('div', { className: 'shortcut-item' },
+                        h('kbd', {}, key.replace('ctrl+', 'Ctrl+')),
+                        h('span', {}, description)
+                      )
+                    )
+                ),
+                h('div', { className: 'shortcuts-section' },
+                  h('div', { className: 'shortcuts-section-title' }, 'View'),
+                  ...Object.entries(shortcuts)
+                    .filter(([key]) => ['alt+t', 'alt+c'].includes(key))
+                    .map(([key, { description }]) => 
+                      h('div', { className: 'shortcut-item' },
+                        h('kbd', {}, key.replace('alt+', 'Alt+')),
+                        h('span', {}, description)
+                      )
+                    )
+                ),
+                h('div', { className: 'shortcuts-section' },
+                  h('div', { className: 'shortcuts-section-title' }, 'Help'),
+                  h('div', { className: 'shortcut-item' },
+                    h('kbd', {}, 'Ctrl+/'),
+                    h('span', {}, 'Show this help')
+                  )
+                )
+              )
+            )
+          );
+          document.body.appendChild(helpModal);
+        }
+        
+        helpModal.classList.add('show');
+      }
+      
+      // Global keyboard event handler
+      document.addEventListener('keydown', (e) => {
+        // Don't trigger shortcuts when typing in inputs
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+          // Allow Escape to work in inputs
+          if (e.key === 'Escape') {
+            e.target.blur();
+            handleEscape();
+          }
+          return;
+        }
+        
+        // Build shortcut key string
+        let key = e.key.toLowerCase();
+        if (e.ctrlKey || e.metaKey) key = 'ctrl+' + key;
+        if (e.altKey) key = 'alt+' + key;
+        
+        // Execute shortcut if it exists
+        const shortcut = shortcuts[key];
+        if (shortcut) {
+          e.preventDefault();
+          try {
+            shortcut.action();
+          } catch (error) {
+            console.error('Keyboard shortcut error:', error);
+            showToast('Shortcut failed: ' + key, 'error');
+          }
+        }
+      });
 
       // =============================================================
       // --- APPLICATION BOOT ---
