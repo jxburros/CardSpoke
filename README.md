@@ -93,6 +93,10 @@ Simply open `www/index.html` in any modern web browser.
    npm run sync:android   # Android only
    npm run sync:ios       # iOS only
    ```
+To run this file in Android Studio:
+   ```bash
+   npx cap open android
+   ```
 
 For detailed build instructions and platform-specific guides, see [README-CAPACITOR.md](README-CAPACITOR.md).
 
