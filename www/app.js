@@ -25,10 +25,11 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.8.2'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.9.1'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-12'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'Github Copilot'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
+      // Version 0.9.1: Added user-facing error notifications for mod execution failures
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -600,6 +601,7 @@
                 if (hookName === 'onAppInit') initializedMods.add(modId);
               } catch (err) {
                 console.error(`[Mods] Error in ${modId}.${hookName}:`, err);
+                showToast(`Extension error: ${modId} (${hookName})`, 'error');
               }
             });
           },

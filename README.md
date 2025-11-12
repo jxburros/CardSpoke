@@ -4,11 +4,20 @@
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.8.2
+## 🌟 Current Version: 0.9.1
 
 Version 0.8.2 introduces **responsive layout design** for optimal viewing on all devices (mobile, tablet, desktop) and integrates the **Navigator Suite** features for enhanced navigation and organization.
 
 ### What's New in 0.8.2
+
+### What's New in 0.9.1
+
+**Extension Error Handling**
+- User-facing error notifications when extensions malfunction
+- Toast notifications display mod ID and hook name for easy debugging
+- Improved stability with better error isolation for extensions
+- Enhanced developer experience with clear error context
+
 
 **Responsive Design**
 - Mobile-first responsive layout with breakpoints for phones, tablets, and desktops
@@ -62,6 +71,64 @@ Simply open `www/index.html` in any modern web browser.
 
 For detailed build instructions and platform-specific guides, see [README-CAPACITOR.md](README-CAPACITOR.md).
 
+## ⭐ Navigator Suite
+
+The Navigator Suite provides powerful features for navigating and organizing your cards efficiently.
+
+### 📌 Bookmarks
+
+Star your most important cards for quick access:
+
+- **Add Bookmark**: Click the star icon (★) in the card header when viewing any card
+- **View Bookmarks**: Open the menu (☰) and select "★ Bookmarks"
+- **Remove Bookmark**: Click the "Remove" button next to any bookmarked card, or click the filled star (★) in the card header
+
+Bookmarks persist across sessions and sync with your instance data.
+
+### ⏱ Recent Cards
+
+Automatically track your recently viewed or edited cards:
+
+- **View Recent Cards**: Open the menu (☰) and select "⏱ Recent Cards"
+- **Access History**: Up to 10 most recent cards are kept in chronological order
+- **Quick Navigation**: Click any card in the recent list to jump directly to it
+
+Recent cards update automatically as you navigate and are stored with your instance.
+
+### 📋 Card Duplication
+
+Clone cards to reuse content and structure:
+
+- **Duplicate a Card**: When viewing a card, click the "Duplicate Card" button
+- **Choose Clone Depth**: 
+  - Select "Card Only" to copy just the card content
+  - Select "With Children" to recursively copy all descendant cards
+- **Result**: A new card is created with "[COPY]" appended to the title
+
+Perfect for templates, repetitive structures, or branching ideas.
+
+### 🎨 Compact View Mode
+
+Switch between display modes to suit your workflow:
+
+- **Toggle View Mode**: Open the menu (☰) and use the "Compact View" toggle switch
+- **Normal Mode**: Full card display with complete content preview
+- **Compact Mode**: Condensed layout showing more cards at once
+- **Persistence**: View mode preference is saved to your instance
+
+Ideal for browsing large collections or focusing on card titles.
+
+### 💾 Save Status Indicator
+
+Real-time feedback on data persistence:
+
+- **Saving (●)**: Orange indicator appears when changes are being saved
+- **Saved (✓)**: Green checkmark confirms successful save
+- **Error (✕)**: Red X indicates save failure with error details
+
+Located in the header next to the home button, hover over the indicator to see the last save time.
+
+
 ## 📱 Platform Support
 
 - ✅ **Web**: Modern browsers (Chrome, Firefox, Safari, Edge)
@@ -91,8 +158,8 @@ CardSpoke is built on these principles:
 CardSpoke is actively developed with a clear path to version 1.0. Current focus areas:
 
 - ✅ **v0.7**: Foundation Overhaul - UI redesign, Schema v4
-- ✅ **v0.8**: Capacitor Migration & Navigator Suite - Cross-platform support, responsive design (Current)
-- 🚧 **v0.9**: Dataset Architecture - Multi-dataset support, local storage
+- ✅ **v0.8**: Capacitor Migration & Navigator Suite - Cross-platform support, responsive design
+- 🚧 **v0.9**: Dataset Architecture - Multi-dataset support, local storage (Current)
 - 📅 **v0.10**: Extensions Framework - Mod/Theme Manager, tagging, search
 - 📅 **v0.11**: Developer Ecosystem - Wizard, Playground, utilities
 - 📅 **v0.12**: Safety & Governance - Mod safety, Rewind, Deviations
