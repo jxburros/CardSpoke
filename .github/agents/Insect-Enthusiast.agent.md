@@ -4,7 +4,7 @@
 # To make this agent available, merge this file into the default repository branch.
 # For format details, see: https://gh.io/customagents/config
 
-name: Check for bugs
+name: Insect Enthusiast
 description: When things just don't work
 ---
 
