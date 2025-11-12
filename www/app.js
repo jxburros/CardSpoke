@@ -39,6 +39,8 @@
       let navState = { page: 'list', cardId: null, parentId: null, searchQuery: '' }; // Navigation state
       let navHistory = []; // Navigation history for back button
       let dirty = false; // Tracks unsaved changes
+      let batchMode = false; // Batch operations mode
+      let selectedCards = new Set(); // Selected card IDs
 
       // --- DOM ELEMENTS ---
       const header = {
@@ -58,6 +60,8 @@
         instance: document.getElementById('menuInstance'),
         downloadJSON: document.getElementById('menuDownloadJSON'),
         downloadTXT: document.getElementById('menuDownloadTXT'),
+        downloadMarkdown: document.getElementById('menuDownloadMarkdown'),
+        downloadCSV: document.getElementById('menuDownloadCSV'),
         downloadMods: document.getElementById('menuDownloadMods'),
         clearAll: document.getElementById('menuClearAll')
       };
@@ -72,6 +76,7 @@
       
       const themeSwitch = document.getElementById('themeSwitch');
       const viewModeSwitch = document.getElementById('viewModeSwitch');
+      const highContrastSwitch = document.getElementById('highContrastSwitch');
 
       const uploadModal = {
         overlay: document.getElementById('uploadModal'),
@@ -174,6 +179,110 @@
         };
       }
 
+
+      // =============================================================
+      // --- FUZZY SEARCH ---
+      // Typo-tolerant search using Levenshtein distance
+      // =============================================================
+
+      /**
+       * Calculate Levenshtein distance between two strings
+       * @param {string} a - First string
+       * @param {string} b - Second string
+       * @returns {number} - Edit distance
+       */
+      function levenshteinDistance(a, b) {
+        const matrix = [];
+        
+        for (let i = 0; i <= b.length; i++) {
+          matrix[i] = [i];
+        }
+        
+        for (let j = 0; j <= a.length; j++) {
+          matrix[0][j] = j;
+        }
+        
+        for (let i = 1; i <= b.length; i++) {
+          for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+              matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+              matrix[i][j] = Math.min(
+                matrix[i - 1][j - 1] + 1, // substitution
+                matrix[i][j - 1] + 1,     // insertion
+                matrix[i - 1][j] + 1      // deletion
+              );
+            }
+          }
+        }
+        
+        return matrix[b.length][a.length];
+      }
+
+      /**
+       * Calculate fuzzy match score (0-100, higher is better)
+       * @param {string} query - Search query
+       * @param {string} text - Text to match against
+       * @returns {number} - Match score
+       */
+      function fuzzyMatchScore(query, text) {
+        const queryLower = query.toLowerCase();
+        const textLower = text.toLowerCase();
+        
+        // Exact match gets highest score
+        if (textLower.includes(queryLower)) {
+          const position = textLower.indexOf(queryLower);
+          // Bonus for matches at start of text
+          return 100 - (position * 0.5);
+        }
+        
+        // Calculate fuzzy score based on edit distance
+        const distance = levenshteinDistance(queryLower, textLower.substring(0, query.length + 5));
+        const maxLen = Math.max(queryLower.length, text.length);
+        const similarity = 1 - (distance / maxLen);
+        
+        return Math.max(0, similarity * 70); // Fuzzy matches get up to 70 points
+      }
+
+      /**
+       * Fuzzy search cards
+       * @param {Object} store - Card store
+       * @param {string} query - Search query
+       * @returns {Array} - Sorted results with scores
+       */
+      function fuzzySearchCards(store, query) {
+        if (!query || query.trim() === '') {
+          return [];
+        }
+        
+        const results = [];
+        const queryLower = query.toLowerCase().trim();
+        
+        Object.values(store.cards).forEach(card => {
+          const titleScore = fuzzyMatchScore(queryLower, card.title || '');
+          const bodyScore = fuzzyMatchScore(queryLower, card.body || '') * 0.7; // Body matches worth less
+          const tagScore = card.tags ? card.tags.some(tag => 
+            fuzzyMatchScore(queryLower, tag) > 50
+          ) ? 30 : 0 : 0;
+          
+          const totalScore = Math.max(titleScore, bodyScore) + tagScore;
+          
+          // Only include results with score > 30 (reasonable match threshold)
+          if (totalScore > 30) {
+            results.push({
+              card,
+              score: totalScore,
+              titleMatch: titleScore > 50,
+              bodyMatch: bodyScore > 35
+            });
+          }
+        });
+        
+        // Sort by score (highest first)
+        results.sort((a, b) => b.score - a.score);
+        
+        return results;
+      }
       // --- LOCAL STORAGE ---
 
       // Save state tracking
@@ -887,6 +996,75 @@
         showToast('Exported TXT successfully');
       }
 
+
+      /**
+       * Export cards to Markdown format with hierarchy
+       */
+      function exportMarkdown() {
+        let markdown = '# CardSpoke Export\n\n';
+        markdown += `*Exported: ${new Date().toLocaleString()}*\n\n`;
+        markdown += '---\n\n';
+        
+        function writeCardMD(cardId, depth = 0) {
+          const card = store.cards[cardId];
+          if (!card) return;
+          
+          const heading = '#'.repeat(Math.min(depth + 1, 6));
+          markdown += `${heading} ${card.title || '(Untitled)'}\n\n`;
+          
+          if (card.tags && card.tags.length > 0) {
+            markdown += `*Tags: ${card.tags.map(t => `\`${t}\``).join(', ')}*\n\n`;
+          }
+          
+          if (card.body) {
+            markdown += `${card.body}\n\n`;
+          }
+          
+          if (card.children && card.children.length > 0) {
+            (card.children || []).forEach(cid => writeCardMD(cid, depth + 1));
+          }
+        }
+        
+        store.rootOrder.forEach(id => writeCardMD(id));
+        
+        const blob = new Blob([markdown], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cardspoke-${Date.now()}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('✓ Exported to Markdown');
+      }
+
+      /**
+       * Export cards to CSV format (flat structure)
+       */
+      function exportCSV() {
+        let csv = 'ID,Title,Body,Parent ID,Tags,Children Count,Created,Updated\n';
+        
+        Object.values(store.cards).forEach(card => {
+          const id = card.id || '';
+          const title = (card.title || '').replace(/"/g, '""');
+          const body = (card.body || '').replace(/"/g, '""').replace(/\n/g, ' ');
+          const parentId = card.parentId || '';
+          const tags = (card.tags || []).join(';');
+          const childrenCount = (card.children || []).length;
+          const created = card.createdAt || '';
+          const updated = card.updatedAt || '';
+          
+          csv += `"${id}","${title}","${body}","${parentId}","${tags}",${childrenCount},"${created}","${updated}"\n`;
+        });
+        
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cardspoke-${Date.now()}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('✓ Exported to CSV');
+      }
       function handleExport(type) {
         if (type === 'instance-json') exportJSON('instance');
         else if (type === 'instance-txt') exportTXT();
@@ -1703,32 +1881,48 @@
        */
       function renderSearchResults() {
         searchContainer.style.display = 'none';
-        const query = navState.searchQuery.trim().toLowerCase();
+        const query = navState.searchQuery.trim();
         if (!query) {
           main.appendChild(h('div', { className: 'empty' }, 'Please enter a search term.'));
           return;
         }
-        let results = Object.values(store.cards).filter(c =>
-          (c.title + ' ' + c.body).toLowerCase().includes(query)
-        );
-        results = results.sort((a, b) => {
-          const A = (a.title || '').toLowerCase();
-          const B = (b.title || '').toLowerCase();
-          return A.localeCompare(B);
-        });
+        
+        // Use fuzzy search for typo-tolerant results
+        const fuzzyResults = fuzzySearchCards(store, query);
+        
         main.appendChild(h('div', { className: 'page-title' }, `Search: "${navState.searchQuery}"`));
-        if (results.length === 0) {
-          main.appendChild(h('div', { className: 'empty' }, 'No results found.'));
+        
+        if (fuzzyResults.length === 0) {
+          main.appendChild(h('div', { className: 'empty' }, 'No results found. Try different keywords.'));
         } else {
+          // Show result count with fuzzy indicator
+          const resultInfo = h('div', { 
+            className: 'search-info',
+            style: 'padding: 12px; margin-bottom: 12px; background: var(--bg-secondary); border-radius: 8px; font-size: 14px; color: var(--text-secondary);'
+          }, `Found ${fuzzyResults.length} result${fuzzyResults.length === 1 ? '' : 's'} (fuzzy matching enabled)`);
+          main.appendChild(resultInfo);
+          
           const grid = h('div', { className: 'card-grid' });
-          results.forEach(card => {
+          fuzzyResults.forEach(result => {
+            const card = result.card;
             const cardEl = renderCardTile(card);
+            
+            // Add match quality indicator
+            if (result.score < 60) {
+              const matchBadge = h('span', {
+                style: 'position: absolute; top: 8px; right: 8px; background: #fbbf24; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;'
+              }, '~');
+              cardEl.style.position = 'relative';
+              cardEl.appendChild(matchBadge);
+            }
+            
             grid.appendChild(cardEl);
             runModHook('onCardRender', cloneCard(card), cardEl);
           });
           main.appendChild(grid);
         }
       }
+
 
       /**
        * Main render function - orchestrates page rendering
@@ -1834,6 +2028,21 @@
           viewModeSwitch.checked = (store.viewMode === 'compact');
         };
       }
+
+      if (highContrastSwitch) {
+        const savedHC = localStorage.getItem('cardspoke_highcontrast') === 'true';
+        if (savedHC) document.documentElement.classList.add('high-contrast');
+        highContrastSwitch.checked = savedHC;
+        highContrastSwitch.onchange = () => {
+          const enabled = highContrastSwitch.checked;
+          if (enabled) {
+            document.documentElement.classList.add('high-contrast');
+          } else {
+            document.documentElement.classList.remove('high-contrast');
+          }
+          localStorage.setItem('cardspoke_highcontrast', enabled);
+        };
+      }
       
       // --- Menu Handlers ---
       
@@ -1919,6 +2128,16 @@
       menu.downloadTXT.onclick = () => {
         menu.overlay.classList.remove('show');
         handleExport('instance-txt');
+      };
+
+      menu.downloadMarkdown.onclick = () => {
+        menu.overlay.classList.remove('show');
+        exportMarkdown();
+      };
+
+      menu.downloadCSV.onclick = () => {
+        menu.overlay.classList.remove('show');
+        exportCSV();
       };
 
       menu.downloadMods.onclick = () => {

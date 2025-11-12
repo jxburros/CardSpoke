@@ -1318,3 +1318,43 @@ body.dark-mode .shortcut-item kbd {
 body.dark-mode .shortcut-item:hover {
   background-color: rgba(255, 255, 255, 0.03);
 }
+
+/* High Contrast Mode */
+.high-contrast {
+  --bg-primary: #000000;
+  --bg-secondary: #000000;
+  --bg-tertiary: #1a1a1a;
+  --text-primary: #ffffff;
+  --text-secondary: #ffffff;
+  --border-color: #ffffff;
+  --accent-color: #ffff00;
+  --accent-hover: #ffff33;
+}
+
+.high-contrast .card-tile {
+  border: 3px solid #ffffff !important;
+  background: #000000 !important;
+}
+
+.high-contrast button {
+  border: 2px solid #ffffff !important;
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast button:hover {
+  background: #333333 !important;
+  border-color: #ffff00 !important;
+}
+
+.high-contrast input,
+.high-contrast textarea {
+  border: 2px solid #ffffff !important;
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast .menu-overlay {
+  background: #000000 !important;
+  border: 3px solid #ffffff !important;
+}

@@ -10,6 +10,32 @@ Version 0.9.3 adds **comprehensive keyboard shortcuts** for power users, test in
 
 ### What's New in 0.9.3
 
+**Fuzzy Search**
+- Typo-tolerant search using Levenshtein distance algorithm
+- Find cards even with misspellings or variations
+- Results ranked by relevance with fuzzy match indicators
+- Improved search accuracy and user experience
+
+**Export Options**
+- Export to Markdown (.md) with hierarchical structure
+- Export to CSV (.csv) for spreadsheet analysis
+- Maintain existing JSON and TXT export options
+- Preserve metadata and tags in exports
+
+**High Contrast Mode**
+- WCAG AAA compliant accessibility theme
+- Pure black background with white text and borders
+- Toggle in menu for vision accessibility
+- Improved readability for users with visual impairments
+
+**Enhanced Testing**
+- 62 comprehensive tests (up from 37)
+- Navigator Suite and UI State test coverage
+- ES Module support throughout
+- 100% test pass rate in <7ms
+
+### What's New in 0.9.2
+
 **Keyboard Shortcuts**
 - Comprehensive keyboard navigation system
 - Press `Ctrl+/` (or `Cmd+/` on Mac) to see all available shortcuts
