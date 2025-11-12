@@ -79,8 +79,15 @@ Simply open `www/index.html` in any modern web browser.
    ```bash
    npm install
    ```
-
-3. Sync to native platforms (optional):
+3. Install the @capacitor/android package.
+   ```bash
+   npm install @capacitor/android
+   ```
+4. Add the Android platform.
+   ```bash
+   npx cap add android
+   ```
+5. Sync to native platforms (optional):
    ```bash
    npm run sync           # All platforms
    npm run sync:android   # Android only
