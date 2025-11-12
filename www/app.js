@@ -25,15 +25,15 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.8.1'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-11'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.8.1.1'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-11-12'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'Github Copilot'; // <-- AI: UPDATE THIS
-      // Version 0.8.1: Capacitor migration for cross-platform support
+      // Version 0.8.1.1: Navigator Suite - Card duplication, bookmarks, recent cards, compact view, enhanced save status
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
       let instanceKey = localStorage.getItem('activeInstance') || 'nested_cards_store';
-      let store = { rootOrder: [], cards: {}, mods: {} }; // Main data store
+      let store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal' }; // Main data store
       let navState = { page: 'list', cardId: null, parentId: null, searchQuery: '' }; // Navigation state
       let navHistory = []; // Navigation history for back button
       let dirty = false; // Tracks unsaved changes
@@ -51,6 +51,8 @@
         newCard: document.getElementById('menuNewCard'),
         upload: document.getElementById('menuUpload'),
         extensions: document.getElementById('menuExtensions'),
+        bookmarks: document.getElementById('menuBookmarks'),
+        recentCards: document.getElementById('menuRecentCards'),
         instance: document.getElementById('menuInstance'),
         downloadJSON: document.getElementById('menuDownloadJSON'),
         downloadTXT: document.getElementById('menuDownloadTXT'),
@@ -67,6 +69,7 @@
       const toastContainer = document.getElementById('toastContainer');
       
       const themeSwitch = document.getElementById('themeSwitch');
+      const viewModeSwitch = document.getElementById('viewModeSwitch');
 
       const uploadModal = {
         overlay: document.getElementById('uploadModal'),
@@ -253,18 +256,21 @@
         if (!indicator) return;
 
         indicator.className = 'save-status ' + status;
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        
         switch (status) {
           case 'pending':
             indicator.textContent = '●';
-            indicator.title = 'Save pending...';
+            indicator.title = `Saving... (${timeStr})`;
             break;
           case 'saved':
             indicator.textContent = '✓';
-            indicator.title = 'Saved';
+            indicator.title = `Last saved at ${timeStr}`;
             break;
           case 'error':
             indicator.textContent = '✕';
-            indicator.title = 'Save failed';
+            indicator.title = `Save failed at ${timeStr}`;
             break;
           default:
             indicator.textContent = '';
@@ -307,7 +313,7 @@
         const key = instanceKey || 'nested_cards_store';
         const raw = localStorage.getItem(key);
         if (!raw) {
-          store = { rootOrder: [], cards: {}, mods: {} };
+          store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal' };
           save();
           return;
         }
@@ -316,7 +322,10 @@
           store = {
             rootOrder: parsed.rootOrder || [],
             cards: parsed.cards || {},
-            mods: parsed.mods || {}
+            mods: parsed.mods || {},
+            bookmarks: parsed.bookmarks || [],
+            recentCards: parsed.recentCards || [],
+            viewMode: parsed.viewMode || 'normal'
           };
 
           // Data migration: rebuild rootOrder if needed
@@ -374,6 +383,12 @@
           parentId: opts.parentId ?? null,
           searchQuery: opts.searchQuery ?? ''
         };
+        
+        // Add to recent cards when viewing a card
+        if (page === 'read' && opts.cardId) {
+          addToRecentCards(opts.cardId);
+        }
+        
         render();
       }
 
@@ -676,6 +691,144 @@
         save();
       }
 
+      /**
+       * Duplicate a card with option to clone children
+       * @param {string} id - Card ID to duplicate
+       * @param {boolean} withChildren - Whether to clone children recursively
+       * @returns {string} New card ID
+       */
+      function duplicateCard(id, withChildren = false) {
+        const original = store.cards[id];
+        if (!original) return null;
+        
+        const newId = uid();
+        const now = Date.now();
+        
+        // Create duplicate with new ID and title suffix
+        store.cards[newId] = {
+          ...cloneCard(original),
+          id: newId,
+          title: (original.title || 'Untitled') + ' (Copy)',
+          children: [],
+          createdAt: now,
+          updatedAt: now
+        };
+        
+        // Add to parent or root
+        if (original.parentId) {
+          const parent = store.cards[original.parentId];
+          if (parent && !parent.children.includes(newId)) {
+            parent.children.push(newId);
+          }
+        } else {
+          store.rootOrder.push(newId);
+        }
+        
+        // Recursively duplicate children if requested
+        if (withChildren && original.children.length > 0) {
+          original.children.forEach(childId => {
+            const newChildId = duplicateCardAsChild(childId, newId, true);
+          });
+        }
+        
+        save();
+        runModHook('onCardSave', cloneCard(store.cards[newId]), { isNew: true, source: 'duplicate' });
+        return newId;
+      }
+
+      /**
+       * Helper to duplicate a card as child of another card
+       * @param {string} id - Card ID to duplicate
+       * @param {string} newParentId - New parent card ID
+       * @param {boolean} withChildren - Whether to clone children recursively
+       * @returns {string} New card ID
+       */
+      function duplicateCardAsChild(id, newParentId, withChildren = false) {
+        const original = store.cards[id];
+        if (!original) return null;
+        
+        const newId = uid();
+        const now = Date.now();
+        
+        store.cards[newId] = {
+          ...cloneCard(original),
+          id: newId,
+          parentId: newParentId,
+          children: [],
+          createdAt: now,
+          updatedAt: now
+        };
+        
+        const parent = store.cards[newParentId];
+        if (parent && !parent.children.includes(newId)) {
+          parent.children.push(newId);
+        }
+        
+        if (withChildren && original.children.length > 0) {
+          original.children.forEach(childId => {
+            duplicateCardAsChild(childId, newId, true);
+          });
+        }
+        
+        return newId;
+      }
+
+      /**
+       * Toggle bookmark status for a card
+       * @param {string} cardId - Card ID to bookmark/unbookmark
+       */
+      function toggleBookmark(cardId) {
+        if (!store.bookmarks) store.bookmarks = [];
+        const idx = store.bookmarks.indexOf(cardId);
+        if (idx >= 0) {
+          store.bookmarks.splice(idx, 1);
+          showToast('Bookmark removed', 'info');
+        } else {
+          store.bookmarks.push(cardId);
+          showToast('Card bookmarked', 'success');
+        }
+        save();
+        render();
+      }
+
+      /**
+       * Check if a card is bookmarked
+       * @param {string} cardId - Card ID to check
+       * @returns {boolean} True if bookmarked
+       */
+      function isBookmarked(cardId) {
+        if (!store.bookmarks) store.bookmarks = [];
+        return store.bookmarks.includes(cardId);
+      }
+
+      /**
+       * Add card to recent history
+       * @param {string} cardId - Card ID to add to recent history
+       */
+      function addToRecentCards(cardId) {
+        if (!store.recentCards) store.recentCards = [];
+        // Remove if already in list
+        store.recentCards = store.recentCards.filter(id => id !== cardId);
+        // Add to front
+        store.recentCards.unshift(cardId);
+        // Keep only last 10
+        if (store.recentCards.length > 10) {
+          store.recentCards = store.recentCards.slice(0, 10);
+        }
+        save(true); // Save immediately but don't show toast
+      }
+
+      /**
+       * Toggle view mode between normal and compact
+       */
+      function toggleViewMode() {
+        if (!store.viewMode) store.viewMode = 'normal';
+        store.viewMode = store.viewMode === 'normal' ? 'compact' : 'normal';
+        save();
+        render();
+        showToast(`View mode: ${store.viewMode}`, 'info');
+      }
+
       // --- DATA (IMPORT/EXPORT) ---
 
       function exportJSON(type = 'instance') {
@@ -966,6 +1119,108 @@
         document.body.appendChild(overlay);
       }
 
+      function showBookmarks() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, '★ Bookmarked Cards'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        const modalBody = h('div', { className: 'modal-body' });
+        
+        if (!store.bookmarks || store.bookmarks.length === 0) {
+          modalBody.appendChild(h('div', { className: 'empty' }, 'No bookmarked cards yet'));
+        } else {
+          const bookmarkList = store.bookmarks
+            .map(cardId => store.cards[cardId])
+            .filter(card => card) // Filter out deleted cards
+            .map(card => {
+              const cardItem = h('div', { 
+                style: 'padding: var(--space-lg); border: 1px solid var(--border); margin-bottom: var(--space-md); cursor: pointer;',
+                onclick: () => {
+                  overlay.remove();
+                  goTo('read', { cardId: card.id });
+                }
+              });
+              
+              const cardHeader = h('div', { style: 'display: flex; justify-content: space-between; align-items: center;' });
+              cardHeader.appendChild(h('div', { style: 'font-weight: 700;' }, card.title || '(Untitled)'));
+              
+              const unbookmarkBtn = h('button', {
+                className: 'btn btn-danger',
+                style: 'font-size: var(--text-sm);',
+                onclick: (e) => {
+                  e.stopPropagation();
+                  toggleBookmark(card.id);
+                  overlay.remove();
+                  showBookmarks();
+                }
+              }, 'Remove');
+              cardHeader.appendChild(unbookmarkBtn);
+              cardItem.appendChild(cardHeader);
+              
+              if (card.body) {
+                const preview = card.body.substring(0, 100) + (card.body.length > 100 ? '...' : '');
+                cardItem.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); margin-top: var(--space-sm);' }, preview));
+              }
+              
+              return cardItem;
+            });
+          
+          bookmarkList.forEach(item => modalBody.appendChild(item));
+        }
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+      }
+
+      function showRecentCards() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, '⏱ Recent Cards'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        const modalBody = h('div', { className: 'modal-body' });
+        
+        if (!store.recentCards || store.recentCards.length === 0) {
+          modalBody.appendChild(h('div', { className: 'empty' }, 'No recently viewed cards'));
+        } else {
+          const recentList = store.recentCards
+            .map(cardId => store.cards[cardId])
+            .filter(card => card) // Filter out deleted cards
+            .map((card, index) => {
+              const cardItem = h('div', { 
+                style: 'padding: var(--space-lg); border: 1px solid var(--border); margin-bottom: var(--space-md); cursor: pointer;',
+                onclick: () => {
+                  overlay.remove();
+                  goTo('read', { cardId: card.id });
+                }
+              });
+              
+              const cardHeader = h('div', { style: 'display: flex; justify-content: space-between; align-items: center;' });
+              cardHeader.appendChild(h('div', { style: 'font-weight: 700;' }, `${index + 1}. ${card.title || '(Untitled)'}`));
+              cardItem.appendChild(cardHeader);
+              
+              if (card.body) {
+                const preview = card.body.substring(0, 100) + (card.body.length > 100 ? '...' : '');
+                cardItem.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); margin-top: var(--space-sm);' }, preview));
+              }
+              
+              return cardItem;
+            });
+          
+          recentList.forEach(item => modalBody.appendChild(item));
+        }
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+      }
+
       function openUploadModalForCard(cardId, tabName) {
         // 1. Update all the select dropdowns
         updateImportLocationOptions();
@@ -1126,22 +1381,33 @@
        * @returns {HTMLElement} Card tile element
        */
       function renderCardTile(card) {
-        const cardEl = h('div', { className: 'card', onclick: () => goTo('read', { cardId: card.id }) });
+        const isCompact = store.viewMode === 'compact';
+        const cardClasses = isCompact ? 'card card-compact' : 'card';
+        const cardEl = h('div', { className: cardClasses, onclick: () => goTo('read', { cardId: card.id }) });
         cardEl.dataset.cardId = card.id;
         cardEl.dataset.renderType = 'list';
 
         // Left side content
         const contentEl = h('div', { className: 'card-content' });
         
-        contentEl.appendChild(h('div', { className: 'card-title' }, card.title || '(Untitled)'));
+        // Add bookmark indicator if bookmarked
+        const titleWrapper = h('div', { style: 'display: flex; align-items: center; gap: 8px;' });
+        if (isBookmarked(card.id)) {
+          titleWrapper.appendChild(h('span', { 
+            style: 'color: gold; font-size: 18px;',
+            title: 'Bookmarked'
+          }, '★'));
+        }
+        titleWrapper.appendChild(h('div', { className: 'card-title' }, card.title || '(Untitled)'));
+        contentEl.appendChild(titleWrapper);
         
-        if (card.body) {
+        if (card.body && !isCompact) {
           const preview = card.body.substring(0, 140) + (card.body.length > 140 ? '...' : '');
           contentEl.appendChild(h('div', { className: 'card-description' }, preview));
         }
         
         const tags = (card.tags && card.tags.length ? card.tags : extractTags(card.body));
-        if (tags.length > 0) {
+        if (tags.length > 0 && !isCompact) {
           const tagsEl = h('div', { className: 'card-tags' });
           tags.forEach(tag => {
             tagsEl.appendChild(h('span', { className: 'card-tag' }, tag));
@@ -1183,6 +1449,30 @@
         }
         const actions = h('div', { className: 'card-detail-actions' });
         actions.appendChild(h('button', { className: 'btn btn-primary', onclick: () => goTo('edit', { cardId: card.id }) }, 'Edit'));
+        
+        // Bookmark button
+        const bookmarkBtnText = isBookmarked(card.id) ? '★ Unbookmark' : '☆ Bookmark';
+        actions.appendChild(h('button', { 
+          className: 'btn', 
+          onclick: (e) => {
+            e.stopPropagation();
+            toggleBookmark(card.id);
+          }
+        }, bookmarkBtnText));
+        
+        // Duplicate button with dropdown-like behavior
+        actions.appendChild(h('button', { 
+          className: 'btn', 
+          onclick: () => {
+            const choice = confirm('Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)');
+            const newId = duplicateCard(card.id, choice);
+            if (newId) {
+              showToast('Card duplicated successfully');
+              goTo('read', { cardId: newId });
+            }
+          }
+        }, 'Duplicate'));
+        
         actions.appendChild(h('button', { className: 'btn', onclick: () => {
           const newId = createCard('', '', card.id);
           goTo('edit', { cardId: newId });
@@ -1532,7 +1822,16 @@
         themeSwitch.onchange = () => {
           applyTheme(themeSwitch.checked ? 'dark' : 'light');
         };
-      }      
+      }
+      
+      if (viewModeSwitch) {
+        viewModeSwitch.checked = (store.viewMode === 'compact');
+        viewModeSwitch.onchange = () => {
+          toggleViewMode();
+          viewModeSwitch.checked = (store.viewMode === 'compact');
+        };
+      }
+      
       // --- Menu Handlers ---
       
       header.menuBtn.onclick = () => {
@@ -1592,6 +1891,16 @@
       menu.extensions.onclick = () => {
         menu.overlay.classList.remove('show');
         showModsManager();
+      };
+
+      menu.bookmarks.onclick = () => {
+        menu.overlay.classList.remove('show');
+        showBookmarks();
+      };
+
+      menu.recentCards.onclick = () => {
+        menu.overlay.classList.remove('show');
+        showRecentCards();
       };
 
       menu.instance.onclick = () => {
