@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Created for:** AI Programming Assistants  
 **Last Updated:** 2025-11-12  
-**Application Version:** 0.8.2
+**Application Version:** 0.9.1
 
 ---
 
@@ -510,6 +510,29 @@ try {
   // Recover if possible
 }
 ```
+
+### Mod Execution Error Handling
+
+Mod hooks are wrapped in try-catch blocks to prevent one failing mod from breaking the entire application. When a mod error occurs:
+
+1. The error is logged to console with mod ID and hook name context
+2. A user-facing toast notification is displayed
+3. Other mods continue to execute normally
+
+```javascript
+try {
+  entry.hooks[hookName](buildContext(modId), ...args);
+  if (hookName === 'onAppInit') initializedMods.add(modId);
+} catch (err) {
+  console.error(`[Mods] Error in ${modId}.${hookName}:`, err);
+  showToast(`Extension error: ${modId} (${hookName})`, 'error');
+}
+```
+
+This pattern ensures that:
+- Users are informed when extensions malfunction
+- The core application remains stable
+- Developers can debug issues using console logs
 
 ---
 

@@ -14,3 +14,5 @@ www/capacitor.js.map
 # OS files
 .DS_Store
 Thumbs.db
+*.backup
+*.backup2
