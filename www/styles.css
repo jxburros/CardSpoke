@@ -1063,3 +1063,25 @@
       background: rgba(244, 67, 54, 0.2) !important;
     }
 
+    /* =============================================================
+       COMPACT VIEW MODE
+       ============================================================= */
+    .card-compact {
+      padding: var(--space-md) var(--space-xl) !important;
+      min-height: auto !important;
+    }
+
+    .card-compact .card-title {
+      font-size: var(--text-base) !important;
+      margin-bottom: 0 !important;
+    }
+
+    .card-compact .card-description,
+    .card-compact .card-tags {
+      display: none !important;
+    }
+
+    .card-compact .card-count {
+      font-size: var(--text-sm) !important;
+    }
+
