@@ -105,3 +105,31 @@ Tests run automatically on every commit via GitHub Actions (when configured).
 
 **Last Updated:** 2025-11-12  
 **Test Count:** 37 tests
+
+## Required Files for Testing
+
+To run the test suite, you need:
+
+### Essential Files
+- `tests/helpers.js` - Test utilities and mock implementations
+- `tests/*.test.js` - Test files (all files ending in .test.js)
+- `package.json` - Contains test script configuration
+- `node_modules/` - Dependencies (uvu test framework)
+
+### Installation
+```bash
+# From repository root
+npm install    # Installs uvu and other dev dependencies
+```
+
+### Files NOT Required
+The test suite does NOT require:
+- `www/` directory (tests use extracted logic from helpers.js)
+- Browser environment (tests run in Node.js)
+- Capacitor dependencies
+- Native build tools
+
+### Test-Only Dependencies
+- `uvu` - Test framework (installed via `npm install`)
+
+The test suite is designed to be lightweight and run without the full application stack, focusing on pure data logic testing.

@@ -1247,3 +1247,74 @@
       }
     }
 
+
+/* ========================================
+   KEYBOARD SHORTCUTS HELP
+   ======================================== */
+
+.keyboard-shortcuts {
+  padding: var(--space-md);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.shortcuts-section {
+  margin-bottom: var(--space-lg);
+}
+
+.shortcuts-section-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm);
+  margin-bottom: var(--space-xs);
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s;
+}
+
+.shortcut-item:hover {
+  background-color: var(--bg-secondary);
+}
+
+.shortcut-item kbd {
+  font-family: var(--font-mono, 'Courier New', monospace);
+  font-size: 0.813rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 1px 0 var(--border-color);
+  min-width: 60px;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.shortcut-item span {
+  flex: 1;
+  margin-left: var(--space-md);
+  color: var(--text-primary);
+}
+
+/* Dark mode adjustments */
+body.dark-mode .shortcut-item kbd {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode .shortcut-item:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
