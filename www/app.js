@@ -17,10 +17,7 @@
       //    - APP_RELEASE_DATE: Set to today's date (YYYY-MM-DD).
       //    - APP_UPDATER: Add your AI name.
       //
-      // 2. SIGN YOUR WORK:
-      //    Add your AI name to the AI_CONTRIBUTORS list if it's not already there.
-      //
-      // 3. MAINTAIN FUNCTIONALITY:
+      // 2. MAINTAIN FUNCTIONALITY:
       //    Do not remove or break existing features unless explicitly requested.
       //    All changes should be additive or improvements.
       //
@@ -32,13 +29,6 @@
       const APP_RELEASE_DATE = '2025-11-11'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'Github Copilot'; // <-- AI: UPDATE THIS
       // Version 0.8.1: Capacitor migration for cross-platform support
-      const AI_CONTRIBUTORS = [
-        'Anthropic\'s Claude', 
-        'OpenAI\'s ChatGPT', 
-        'Google\'s Gemini', 
-        'Microsoft\'s Copilot', 
-        'Github\'s Copilot'
-      ];
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -137,12 +127,6 @@
       function uid() {
         return Date.now().toString(36) + Math.random().toString(36).substring(2);
       }
-
-      /**
-       * Format timestamp to human-readable date/time string
-       * @param {number} timestamp - Unix timestamp in milliseconds
-       * @returns {string} Formatted date and time
-       */
 
       /**
        * Show toast notification
