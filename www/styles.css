@@ -1085,3 +1085,165 @@
       font-size: var(--text-sm) !important;
     }
 
+    /* =============================================================
+       RESPONSIVE DESIGN - MOBILE & TABLET
+       ============================================================= */
+
+    /* Tablet and below (max-width: 1024px) */
+    @media (max-width: 1024px) {
+      .header-inner {
+        padding: var(--space-xl) var(--space-2xl);
+      }
+
+      .brand {
+        font-size: 40px;
+      }
+
+      #main {
+        padding: var(--space-2xl) var(--space-2xl);
+      }
+
+      .menu-panel {
+        width: 320px;
+      }
+
+      .modal-content {
+        width: 90%;
+      }
+    }
+
+    /* Mobile devices (max-width: 768px) */
+    @media (max-width: 768px) {
+      .header-inner {
+        padding: var(--space-lg) var(--space-xl);
+        gap: var(--space-md);
+      }
+
+      .brand {
+        font-size: 32px;
+      }
+
+      .header-btn {
+        width: 40px;
+        height: 40px;
+      }
+
+      .header-btn svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      #main {
+        padding: var(--space-xl) var(--space-xl);
+      }
+
+      .menu-panel {
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .search-container {
+        max-width: 100%;
+      }
+
+      .card {
+        padding: var(--space-xl);
+      }
+
+      .card-header {
+        flex-wrap: wrap;
+        gap: var(--space-sm);
+      }
+
+      .card-title {
+        font-size: var(--text-lg);
+        flex: 1 1 100%;
+      }
+
+      .card-actions {
+        gap: var(--space-sm);
+      }
+
+      .card-btn {
+        min-width: 36px;
+        height: 36px;
+        font-size: var(--text-sm);
+      }
+
+      .breadcrumbs {
+        padding: var(--space-lg) var(--space-xl);
+        flex-wrap: wrap;
+      }
+
+      .breadcrumb-item {
+        font-size: var(--text-sm);
+        max-width: 150px;
+      }
+
+      .modal-content {
+        width: 95%;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+
+      .modal-header {
+        padding: var(--space-xl);
+      }
+
+      .modal-body {
+        padding: var(--space-xl);
+      }
+
+      .form-group {
+        margin-bottom: var(--space-lg);
+      }
+
+      /* Make touch targets larger for mobile */
+      button, .btn {
+        min-height: 44px;
+      }
+
+      input, textarea, select {
+        font-size: 16px; /* Prevents zoom on iOS */
+      }
+    }
+
+    /* Small mobile devices (max-width: 480px) */
+    @media (max-width: 480px) {
+      .brand {
+        font-size: 24px;
+      }
+
+      .header-inner {
+        padding: var(--space-md) var(--space-lg);
+      }
+
+      #main {
+        padding: var(--space-lg) var(--space-lg);
+      }
+
+      .card {
+        padding: var(--space-lg);
+      }
+
+      .card-title {
+        font-size: var(--text-base);
+      }
+
+      .breadcrumb-item {
+        max-width: 100px;
+      }
+
+      .menu-section {
+        padding: var(--space-lg);
+      }
+
+      .modal-header {
+        padding: var(--space-lg);
+      }
+
+      .modal-body {
+        padding: var(--space-lg);
+      }
+    }
+
