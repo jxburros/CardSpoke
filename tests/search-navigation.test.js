@@ -3,9 +3,9 @@
  * Tests for searching cards, bookmarks, and recent cards tracking
  */
 
-const { test } = require('uvu');
-const assert = require('uvu/assert');
-const {
+import { test } from 'uvu';
+import * as assert from 'uvu/assert';
+import {
   createTestStore,
   createTestCard,
   addCardToStore,
@@ -13,7 +13,7 @@ const {
   toggleBookmark,
   isBookmarked,
   addToRecentCards
-} = require('./helpers');
+} from './helpers.js';
 
 // Search Tests
 test('searchCards finds cards by title', () => {

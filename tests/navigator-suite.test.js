@@ -1,12 +1,14 @@
 import { test } from 'uvu';
 import * as assert from 'uvu/assert';
-import { createMockStore, generateId } from './helpers.js';
+import { createTestStore, createTestCard, addCardToStore } from './helpers.js';
 
 // Navigator Suite Tests: Bookmarks, Recent Cards, View Mode, Card Duplication
 
 test('bookmark operations - add bookmark', () => {
-  const store = createMockStore();
-  const cardId = store.rootOrder[0];
+  const store = createTestStore();
+  const card = createTestCard('Test Card', 'Content');
+  addCardToStore(store, card);
+  const cardId = card.id;
   
   // Add bookmark
   if (!store.bookmarks.includes(cardId)) {
@@ -18,8 +20,10 @@ test('bookmark operations - add bookmark', () => {
 });
 
 test('bookmark operations - remove bookmark', () => {
-  const store = createMockStore();
-  const cardId = store.rootOrder[0];
+  const store = createTestStore();
+  const card = createTestCard('Test Card', 'Content');
+  addCardToStore(store, card);
+  const cardId = card.id;
   store.bookmarks = [cardId];
   
   // Remove bookmark
@@ -30,8 +34,10 @@ test('bookmark operations - remove bookmark', () => {
 });
 
 test('bookmark operations - toggle bookmark', () => {
-  const store = createMockStore();
-  const cardId = store.rootOrder[0];
+  const store = createTestStore();
+  const card = createTestCard('Test Card', 'Content');
+  addCardToStore(store, card);
+  const cardId = card.id;
   
   // Toggle on
   if (store.bookmarks.includes(cardId)) {
@@ -53,20 +59,24 @@ test('bookmark operations - toggle bookmark', () => {
 });
 
 test('bookmark operations - multiple bookmarks', () => {
-  const store = createMockStore();
-  const card1 = store.rootOrder[0];
-  const card2 = store.rootOrder[1];
+  const store = createTestStore();
+  const card1 = createTestCard('Card 1', 'Content 1');
+  const card2 = createTestCard('Card 2', 'Content 2');
+  addCardToStore(store, card1);
+  addCardToStore(store, card2);
   
-  store.bookmarks = [card1, card2];
+  store.bookmarks = [card1.id, card2.id];
   
   assert.is(store.bookmarks.length, 2);
-  assert.ok(store.bookmarks.includes(card1));
-  assert.ok(store.bookmarks.includes(card2));
+  assert.ok(store.bookmarks.includes(card1.id));
+  assert.ok(store.bookmarks.includes(card2.id));
 });
 
 test('bookmark operations - prevent duplicates', () => {
-  const store = createMockStore();
-  const cardId = store.rootOrder[0];
+  const store = createTestStore();
+  const card = createTestCard('Test Card', 'Content');
+  addCardToStore(store, card);
+  const cardId = card.id;
   
   // Add twice
   if (!store.bookmarks.includes(cardId)) {
@@ -80,8 +90,10 @@ test('bookmark operations - prevent duplicates', () => {
 });
 
 test('recent cards - add to recent', () => {
-  const store = createMockStore();
-  const cardId = store.rootOrder[0];
+  const store = createTestStore();
+  const card = createTestCard('Test Card', 'Content');
+  addCardToStore(store, card);
+  const cardId = card.id;
   
   // Add to recent (newest first)
   store.recentCards = [cardId, ...store.recentCards.filter(id => id !== cardId)];
@@ -91,7 +103,7 @@ test('recent cards - add to recent', () => {
 });
 
 test('recent cards - limit to 10 cards', () => {
-  const store = createMockStore();
+  const store = createTestStore();
   store.recentCards = [];
   
   // Add 15 cards
@@ -105,8 +117,10 @@ test('recent cards - limit to 10 cards', () => {
 });
 
 test('recent cards - no duplicates', () => {
-  const store = createMockStore();
-  const cardId = store.rootOrder[0];
+  const store = createTestStore();
+  const card = createTestCard('Test Card', 'Content');
+  addCardToStore(store, card);
+  const cardId = card.id;
   
   // Add same card twice
   store.recentCards = [cardId, ...store.recentCards.filter(id => id !== cardId)];
@@ -116,20 +130,22 @@ test('recent cards - no duplicates', () => {
 });
 
 test('recent cards - moves to front on re-visit', () => {
-  const store = createMockStore();
-  const card1 = 'card-1';
-  const card2 = 'card-2';
-  store.recentCards = [card2, card1];
+  const store = createTestStore();
+  const card1 = createTestCard('Card 1', 'Content 1');
+  const card2 = createTestCard('Card 2', 'Content 2');
+  addCardToStore(store, card1);
+  addCardToStore(store, card2);
+  store.recentCards = [card2.id, card1.id];
   
   // Visit card1 again
-  store.recentCards = [card1, ...store.recentCards.filter(id => id !== card1)];
+  store.recentCards = [card1.id, ...store.recentCards.filter(id => id !== card1.id)];
   
-  assert.is(store.recentCards[0], card1);
-  assert.is(store.recentCards[1], card2);
+  assert.is(store.recentCards[0], card1.id);
+  assert.is(store.recentCards[1], card2.id);
 });
 
 test('view mode - toggle between normal and compact', () => {
-  const store = createMockStore();
+  const store = createTestStore();
   store.viewMode = 'normal';
   
   // Toggle to compact
@@ -142,60 +158,51 @@ test('view mode - toggle between normal and compact', () => {
 });
 
 test('view mode - default is normal', () => {
-  const store = createMockStore();
+  const store = createTestStore();
   assert.is(store.viewMode, 'normal');
 });
 
 test('card duplication - clone card only', () => {
-  const store = createMockStore();
-  const originalCard = store.cards[store.rootOrder[0]];
+  const store = createTestStore();
+  const originalCard = createTestCard('Original Card', 'Original content');
+  addCardToStore(store, originalCard);
   
   // Duplicate card
-  const newCard = {
-    id: generateId(),
-    title: originalCard.title + ' [COPY]',
-    body: originalCard.body,
-    parentId: originalCard.parentId,
-    children: [], // No children in card-only copy
-    tags: [...originalCard.tags],
-    createdAt: Date.now(),
-    updatedAt: Date.now()
-  };
-  
-  store.cards[newCard.id] = newCard;
-  if (newCard.parentId === null) {
-    store.rootOrder.push(newCard.id);
-  }
+  const newCard = createTestCard(
+    originalCard.title + ' [COPY]',
+    originalCard.body
+  );
+  newCard.tags = [...originalCard.tags];
+  addCardToStore(store, newCard);
   
   assert.ok(store.cards[newCard.id]);
-  assert.is(newCard.title, originalCard.title + ' [COPY]');
+  assert.ok(newCard.title.includes('[COPY]'));
   assert.is(newCard.children.length, 0);
 });
 
 test('card duplication - includes copy marker', () => {
-  const store = createMockStore();
-  const originalCard = store.cards[store.rootOrder[0]];
+  const store = createTestStore();
+  const originalCard = createTestCard('My Card', 'Content');
+  addCardToStore(store, originalCard);
   
   const duplicateTitle = originalCard.title + ' [COPY]';
   
   assert.ok(duplicateTitle.includes('[COPY]'));
-  assert.not.is(duplicateTitle, originalCard.title);
+  assert.is.not(duplicateTitle, originalCard.title);
 });
 
 test('card duplication - preserves tags', () => {
-  const store = createMockStore();
-  const originalCard = store.cards[store.rootOrder[0]];
+  const store = createTestStore();
+  const originalCard = createTestCard('Tagged Card', 'Content');
   originalCard.tags = ['tag1', 'tag2'];
+  addCardToStore(store, originalCard);
   
-  const newCard = {
-    ...originalCard,
-    id: generateId(),
-    title: originalCard.title + ' [COPY]',
-    tags: [...originalCard.tags]
-  };
+  const newCard = createTestCard(originalCard.title + ' [COPY]', originalCard.body);
+  newCard.tags = [...originalCard.tags];
+  addCardToStore(store, newCard);
   
   assert.equal(newCard.tags, originalCard.tags);
-  assert.not.is(newCard.tags, originalCard.tags); // Different array instance
+  assert.is.not(newCard.tags, originalCard.tags); // Different array instance
 });
 
 test.run();
