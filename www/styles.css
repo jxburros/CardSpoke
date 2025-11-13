@@ -1332,29 +1332,29 @@ body.dark-mode .shortcut-item:hover {
 }
 
 .high-contrast .card-tile {
-  border: 3px solid #ffffff !important;
-  background: #000000 !important;
+  border: 3px solid #ffffff;
+  background: #000000;
 }
 
 .high-contrast button {
-  border: 2px solid #ffffff !important;
-  background: #000000 !important;
-  color: #ffffff !important;
+  border: 2px solid #ffffff;
+  background: #000000;
+  color: #ffffff;
 }
 
 .high-contrast button:hover {
-  background: #333333 !important;
-  border-color: #ffff00 !important;
+  background: #333333;
+  border-color: #ffff00;
 }
 
 .high-contrast input,
 .high-contrast textarea {
-  border: 2px solid #ffffff !important;
-  background: #000000 !important;
-  color: #ffffff !important;
+  border: 2px solid #ffffff;
+  background: #000000;
+  color: #ffffff;
 }
 
 .high-contrast .menu-overlay {
-  background: #000000 !important;
-  border: 3px solid #ffffff !important;
+  background: #000000;
+  border: 3px solid #ffffff;
 }
