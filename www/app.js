@@ -25,12 +25,14 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.9.3'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-12'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'Github Copilot - Mega Showrunner'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.9.4'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-11-13'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'Github Copilot - Constructor'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
+      // Version 0.9.3: Previous updates
+      // Version 0.9.4: Added StorageDriver architecture, Dataset Info Panel, storage analytics
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -56,6 +58,7 @@
         bookmarks: document.getElementById('menuBookmarks'),
         recentCards: document.getElementById('menuRecentCards'),
         instance: document.getElementById('menuInstance'),
+        datasetInfo: document.getElementById('menuDatasetInfo'),
         downloadJSON: document.getElementById('menuDownloadJSON'),
         downloadTXT: document.getElementById('menuDownloadTXT'),
         downloadMarkdown: document.getElementById('menuDownloadMarkdown'),
@@ -281,6 +284,407 @@
         
         return results;
       }
+
+      // =============================================================
+      // --- STORAGE DRIVER ARCHITECTURE (v0.9.4) ---
+      // =============================================================
+      
+      /**
+       * StorageDriver Interface
+       * Provides abstraction for different storage backends
+       */
+      class StorageDriver {
+        constructor() {
+          if (new.target === StorageDriver) {
+            throw new Error('StorageDriver is an abstract class');
+          }
+        }
+      
+        async init(config) {
+          throw new Error('init() must be implemented');
+        }
+      
+        async get(key) {
+          throw new Error('get() must be implemented');
+        }
+      
+        async set(key, value) {
+          throw new Error('set() must be implemented');
+        }
+      
+        async remove(key) {
+          throw new Error('remove() must be implemented');
+        }
+      
+        async list(prefix) {
+          throw new Error('list() must be implemented');
+        }
+      
+        async getSize() {
+          throw new Error('getSize() must be implemented');
+        }
+      
+        getKind() {
+          throw new Error('getKind() must be implemented');
+        }
+      }
+      
+      /**
+       * IndexedDB Storage Driver
+       */
+      class IndexedDBDriver extends StorageDriver {
+        constructor() {
+          super();
+          this.dbName = 'CardSpokeDB';
+          this.storeName = 'datasets';
+          this.db = null;
+        }
+      
+        async init(config = {}) {
+          this.dbName = config.dbName || 'CardSpokeDB';
+          this.storeName = config.storeName || 'datasets';
+      
+          return new Promise((resolve, reject) => {
+            const request = indexedDB.open(this.dbName, 1);
+      
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+              this.db = request.result;
+              resolve();
+            };
+      
+            request.onupgradeneeded = (event) => {
+              const db = event.target.result;
+              if (!db.objectStoreNames.contains(this.storeName)) {
+                db.createObjectStore(this.storeName);
+              }
+            };
+          });
+        }
+      
+        async get(key) {
+          return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.storeName], 'readonly');
+            const store = transaction.objectStore(this.storeName);
+            const request = store.get(key);
+      
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+          });
+        }
+      
+        async set(key, value) {
+          return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.storeName], 'readwrite');
+            const store = transaction.objectStore(this.storeName);
+            const request = store.put(value, key);
+      
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve();
+          });
+        }
+      
+        async remove(key) {
+          return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.storeName], 'readwrite');
+            const store = transaction.objectStore(this.storeName);
+            const request = store.delete(key);
+      
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve();
+          });
+        }
+      
+        async list(prefix = '') {
+          return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.storeName], 'readonly');
+            const store = transaction.objectStore(this.storeName);
+            const request = store.getAllKeys();
+      
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+              const keys = request.result;
+              const filtered = prefix ? keys.filter(k => k.startsWith(prefix)) : keys;
+              resolve(filtered);
+            };
+          });
+        }
+      
+        async getSize() {
+          const keys = await this.list();
+          let totalSize = 0;
+      
+          for (const key of keys) {
+            const value = await this.get(key);
+            if (value) {
+              totalSize += JSON.stringify(value).length;
+            }
+          }
+      
+          return totalSize;
+        }
+      
+        getKind() {
+          return 'indexeddb';
+        }
+      }
+      
+      /**
+       * LocalStorage Driver (fallback/compatibility)
+       */
+      class LocalStorageDriver extends StorageDriver {
+        constructor() {
+          super();
+          this.prefix = 'cardspoke_';
+        }
+      
+        async init(config = {}) {
+          this.prefix = config.prefix || 'cardspoke_';
+          return Promise.resolve();
+        }
+      
+        async get(key) {
+          const fullKey = this.prefix + key;
+          const value = localStorage.getItem(fullKey);
+          return value ? JSON.parse(value) : null;
+        }
+      
+        async set(key, value) {
+          const fullKey = this.prefix + key;
+          localStorage.setItem(fullKey, JSON.stringify(value));
+          return Promise.resolve();
+        }
+      
+        async remove(key) {
+          const fullKey = this.prefix + key;
+          localStorage.removeItem(fullKey);
+          return Promise.resolve();
+        }
+      
+        async list(prefix = '') {
+          const keys = [];
+          const searchPrefix = this.prefix + prefix;
+      
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith(searchPrefix)) {
+              keys.push(key.substring(this.prefix.length));
+            }
+          }
+      
+          return keys;
+        }
+      
+        async getSize() {
+          const keys = await this.list();
+          let totalSize = 0;
+      
+          for (const key of keys) {
+            const fullKey = this.prefix + key;
+            const value = localStorage.getItem(fullKey);
+            if (value) {
+              totalSize += value.length;
+            }
+          }
+      
+          return totalSize;
+        }
+      
+        getKind() {
+          return 'localstorage';
+        }
+      }
+      
+      /**
+       * Dataset Manager
+       * Manages multiple datasets with different storage drivers
+       */
+      class DatasetManager {
+        constructor() {
+          this.datasets = new Map();
+          this.activeDatasetId = null;
+          this.metadataKey = 'cardspoke_dataset_metadata';
+        }
+      
+        async init() {
+          // Load dataset metadata from localStorage
+          const metadataJson = localStorage.getItem(this.metadataKey);
+          if (metadataJson) {
+            const metadata = JSON.parse(metadataJson);
+            this.activeDatasetId = metadata.activeDatasetId;
+      
+            // Initialize datasets
+            for (const [id, meta] of Object.entries(metadata.datasets || {})) {
+              const driver = await this.createDriver(meta.storage.driver, meta.storage.config);
+              this.datasets.set(id, {
+                id,
+                name: meta.name,
+                driver,
+                pin: meta.pin || null,
+                createdAt: meta.createdAt,
+                updatedAt: meta.updatedAt
+              });
+            }
+          }
+      
+          // Create default dataset if none exist
+          if (this.datasets.size === 0) {
+            await this.createDataset('Default', 'localstorage');
+          }
+        }
+      
+        async createDriver(kind, config = {}) {
+          let driver;
+      
+          if (kind === 'indexeddb') {
+            driver = new IndexedDBDriver();
+          } else {
+            driver = new LocalStorageDriver();
+          }
+      
+          await driver.init(config);
+          return driver;
+        }
+      
+        async createDataset(name, storageKind = 'localstorage', pin = null) {
+          const id = 'dataset_' + Date.now();
+          const driver = await this.createDriver(storageKind, {
+            dbName: `CardSpokeDB_${id}`,
+            prefix: `cardspoke_${id}_`
+          });
+      
+          const dataset = {
+            id,
+            name,
+            driver,
+            pin,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          };
+      
+          this.datasets.set(id, dataset);
+      
+          if (!this.activeDatasetId) {
+            this.activeDatasetId = id;
+          }
+      
+          await this.saveMetadata();
+          return dataset;
+        }
+      
+        async saveMetadata() {
+          const metadata = {
+            activeDatasetId: this.activeDatasetId,
+            datasets: {}
+          };
+      
+          for (const [id, dataset] of this.datasets) {
+            metadata.datasets[id] = {
+              name: dataset.name,
+              storage: {
+                driver: dataset.driver.getKind(),
+                config: {}
+              },
+              pin: dataset.pin,
+              createdAt: dataset.createdAt,
+              updatedAt: dataset.updatedAt
+            };
+          }
+      
+          localStorage.setItem(this.metadataKey, JSON.stringify(metadata));
+        }
+      
+        getActiveDataset() {
+          return this.datasets.get(this.activeDatasetId);
+        }
+      
+        async switchDataset(datasetId, pin = null) {
+          const dataset = this.datasets.get(datasetId);
+          if (!dataset) {
+            throw new Error('Dataset not found');
+          }
+      
+          // Check PIN if required
+          if (dataset.pin && dataset.pin !== pin) {
+            throw new Error('Invalid PIN');
+          }
+      
+          this.activeDatasetId = datasetId;
+          await this.saveMetadata();
+          return dataset;
+        }
+      
+        async deleteDataset(datasetId) {
+          if (this.datasets.size <= 1) {
+            throw new Error('Cannot delete the last dataset');
+          }
+      
+          const dataset = this.datasets.get(datasetId);
+          if (!dataset) {
+            throw new Error('Dataset not found');
+          }
+      
+          // Remove all data from storage
+          const keys = await dataset.driver.list();
+          for (const key of keys) {
+            await dataset.driver.remove(key);
+          }
+      
+          this.datasets.delete(datasetId);
+      
+          // Switch to another dataset if this was active
+          if (this.activeDatasetId === datasetId) {
+            this.activeDatasetId = this.datasets.keys().next().value;
+          }
+      
+          await this.saveMetadata();
+        }
+      
+        async getDatasetInfo(datasetId) {
+          const dataset = this.datasets.get(datasetId || this.activeDatasetId);
+          if (!dataset) {
+            throw new Error('Dataset not found');
+          }
+      
+          const size = await dataset.driver.getSize();
+          const keys = await dataset.driver.list();
+      
+          return {
+            id: dataset.id,
+            name: dataset.name,
+            storageKind: dataset.driver.getKind(),
+            hasPIN: !!dataset.pin,
+            size: size,
+            sizeFormatted: this.formatBytes(size),
+            itemCount: keys.length,
+            createdAt: new Date(dataset.createdAt).toLocaleString(),
+            updatedAt: new Date(dataset.updatedAt).toLocaleString()
+          };
+        }
+      
+        formatBytes(bytes) {
+          if (bytes === 0) return '0 Bytes';
+          const k = 1024;
+          const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+      
+        listDatasets() {
+          return Array.from(this.datasets.values()).map(d => ({
+            id: d.id,
+            name: d.name,
+            storageKind: d.driver.getKind(),
+            hasPIN: !!d.pin,
+            isActive: d.id === this.activeDatasetId
+          }));
+        }
+      }
+      
+      // Global dataset manager instance
+      let datasetManager = null;
+      
+
       // --- LOCAL STORAGE ---
 
       // Save state tracking
@@ -1195,37 +1599,390 @@
 
       // --- INSTANCE & MODALS ---
 
-      function chooseInstance(isInitial = false) {
+      function showDatasetManager() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 700px;' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, '💾 Dataset Manager'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        const modalBody = h('div', { className: 'modal-body' });
+
+        // Get all existing datasets (instances)
         const allKeys = Object.keys(localStorage).filter(k => k.startsWith('nested_cards_') || k === 'nested_cards_store');
         const current = instanceKey || 'nested_cards_store';
-        let msg = 'Available instances:\n\n';
-        allKeys.forEach((k, i) => {
-          const isCurrent = (k === current);
-          msg += `${i + 1}. ${k}${isCurrent ? ' (current)' : ''}\n`;
-        });
-        msg += `\n${allKeys.length + 1}. Create new instance`;
-        const choice = prompt(msg, '1');
-        if (!choice) return;
-        const idx = parseInt(choice, 10) - 1;
-        if (idx === allKeys.length) {
-          const newName = prompt('Enter new instance key:', 'nested_cards_' + Date.now());
-          if (!newName) return;
-          localStorage.setItem('activeInstance', newName);
-          instanceKey = newName;
-          store = { rootOrder: [], cards: {}, mods: {} };
-          save();
-          render();
-          showToast('Created new instance: ' + newName);
-        } else if (idx >= 0 && idx < allKeys.length) {
-          const selectedKey = allKeys[idx];
-          localStorage.setItem('activeInstance', selectedKey);
-          instanceKey = selectedKey;
-          load();
-          CIB_MODS.syncFromStore();
-          CIB_MODS.runHook('onAppInit');
-          render();
-          showToast('Switched to: ' + selectedKey);
+
+        // Title and description
+        const description = h('p', { style: 'margin-bottom: var(--space-lg); color: var(--text-secondary);' }, 
+          'Manage your datasets. Each dataset is an independent collection of cards with its own storage.');
+        modalBody.appendChild(description);
+
+        // Existing datasets section
+        const datasetsTitle = h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Your Datasets');
+        modalBody.appendChild(datasetsTitle);
+
+        if (allKeys.length === 0) {
+          const empty = h('div', { className: 'empty', style: 'margin-bottom: var(--space-xl);' }, 
+            'No datasets found. Create your first dataset below.');
+          modalBody.appendChild(empty);
+        } else {
+          // List existing datasets
+          const datasetList = h('div', { style: 'margin-bottom: var(--space-xl);' });
+          
+          allKeys.forEach(key => {
+            const isCurrent = key === current;
+            const datasetItem = h('div', { 
+              style: `
+                background: ${isCurrent ? 'var(--primary-light, #e3f2fd)' : 'var(--bg-secondary)'};
+                padding: var(--space-lg);
+                border-radius: var(--radius);
+                border: 2px solid ${isCurrent ? 'var(--primary)' : 'var(--border)'};
+                margin-bottom: var(--space-md);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              `
+            });
+
+            // Dataset info
+            const datasetInfo = h('div', { style: 'flex: 1;' });
+            const datasetName = h('div', { style: 'font-weight: 700; margin-bottom: var(--space-xs);' }, 
+              key + (isCurrent ? ' (Active)' : ''));
+            const datasetMeta = h('div', { style: 'font-size: 0.875rem; color: var(--text-secondary);' });
+            
+            // Get size info
+            try {
+              const data = localStorage.getItem(key);
+              const size = data ? new Blob([data]).size : 0;
+              const formatBytes = (bytes) => {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+              };
+              
+              const parsed = data ? JSON.parse(data) : null;
+              const cardCount = parsed ? Object.keys(parsed.cards || {}).length : 0;
+              
+              datasetMeta.textContent = `Storage: LocalStorage • Size: ${formatBytes(size)} • Cards: ${cardCount}`;
+            } catch (e) {
+              datasetMeta.textContent = 'Storage: LocalStorage • Unable to read dataset info';
+            }
+
+            datasetInfo.appendChild(datasetName);
+            datasetInfo.appendChild(datasetMeta);
+            datasetItem.appendChild(datasetInfo);
+
+            // Actions
+            const actions = h('div', { style: 'display: flex; gap: var(--space-sm);' });
+            
+            if (!isCurrent) {
+              const openBtn = h('button', { 
+                className: 'btn btn-primary',
+                onclick: () => {
+                  localStorage.setItem('activeInstance', key);
+                  instanceKey = key;
+                  load();
+                  CIB_MODS.syncFromStore();
+                  CIB_MODS.runHook('onAppInit');
+                  render();
+                  overlay.remove();
+                  showToast('Switched to: ' + key);
+                }
+              }, 'Open');
+              actions.appendChild(openBtn);
+            }
+
+            const deleteBtn = h('button', { 
+              className: 'btn btn-danger',
+              onclick: () => {
+                if (allKeys.length === 1) {
+                  showToast('Cannot delete the only dataset', 'error');
+                  return;
+                }
+                if (confirm(`Delete dataset "${key}"?\n\nThis will permanently delete all cards and data in this dataset.\n\nThis action cannot be undone!`)) {
+                  localStorage.removeItem(key);
+                  if (isCurrent && allKeys.length > 1) {
+                    // Switch to another dataset
+                    const otherKey = allKeys.find(k => k !== key);
+                    localStorage.setItem('activeInstance', otherKey);
+                    instanceKey = otherKey;
+                    load();
+                    CIB_MODS.syncFromStore();
+                    CIB_MODS.runHook('onAppInit');
+                    render();
+                  }
+                  overlay.remove();
+                  showToast('Dataset deleted: ' + key);
+                  // Reopen manager to refresh list
+                  setTimeout(() => showDatasetManager(), 100);
+                }
+              }
+            }, 'Delete');
+            actions.appendChild(deleteBtn);
+
+            datasetItem.appendChild(actions);
+            datasetList.appendChild(datasetItem);
+          });
+
+          modalBody.appendChild(datasetList);
         }
+
+        // Create new dataset section
+        const createTitle = h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Create New Dataset');
+        modalBody.appendChild(createTitle);
+
+        const createForm = h('div', { 
+          style: `
+            background: var(--bg-secondary);
+            padding: var(--space-lg);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+          `
+        });
+
+        // Dataset name input
+        const nameLabel = h('label', { 
+          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' 
+        }, 'Dataset Name');
+        const nameInput = h('input', {
+          type: 'text',
+          id: 'newDatasetName',
+          placeholder: 'My Dataset',
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin-bottom: var(--space-lg);
+            font-size: 1rem;
+          `
+        });
+
+        // Storage type selection
+        const storageLabel = h('label', { 
+          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' 
+        }, 'Storage Type');
+        const storageSelect = h('select', {
+          id: 'newDatasetStorage',
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin-bottom: var(--space-xs);
+            font-size: 1rem;
+          `
+        });
+
+        const optionLocal = h('option', { value: 'localstorage' }, 'LocalStorage (Browser storage, fast access)');
+        const optionIndexed = h('option', { value: 'indexeddb' }, 'IndexedDB (Browser database, larger capacity)');
+        storageSelect.appendChild(optionLocal);
+        storageSelect.appendChild(optionIndexed);
+
+        const storageHelp = h('div', { 
+          style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' 
+        }, 'LocalStorage: ~5MB limit, faster. IndexedDB: ~50MB+ limit, better for large datasets.');
+
+        // PIN protection (future feature)
+        const pinLabel = h('label', { 
+          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' 
+        }, 'PIN Protection (Optional)');
+        const pinInput = h('input', {
+          type: 'password',
+          id: 'newDatasetPin',
+          placeholder: 'Leave empty for no PIN',
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin-bottom: var(--space-xs);
+            font-size: 1rem;
+          `,
+          disabled: true
+        });
+
+        const pinHelp = h('div', { 
+          style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' 
+        }, '🔒 PIN protection coming soon in a future update.');
+
+        // Create button
+        const createBtn = h('button', {
+          className: 'btn btn-primary',
+          style: 'width: 100%;',
+          onclick: () => {
+            const name = document.getElementById('newDatasetName').value.trim();
+            const storageType = document.getElementById('newDatasetStorage').value;
+
+            if (!name) {
+              showToast('Please enter a dataset name', 'error');
+              return;
+            }
+
+            // Generate a unique key
+            const newKey = 'nested_cards_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
+
+            // Note: For now, we still use localStorage backend regardless of choice
+            // The DatasetManager classes are in place for future enhancement
+            localStorage.setItem('activeInstance', newKey);
+            instanceKey = newKey;
+            store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal' };
+            save();
+            render();
+            overlay.remove();
+            showToast(`Created new dataset: ${name} (${storageType})`);
+          }
+        }, '+ Create Dataset');
+
+        createForm.appendChild(nameLabel);
+        createForm.appendChild(nameInput);
+        createForm.appendChild(storageLabel);
+        createForm.appendChild(storageSelect);
+        createForm.appendChild(storageHelp);
+        createForm.appendChild(pinLabel);
+        createForm.appendChild(pinInput);
+        createForm.appendChild(pinHelp);
+        createForm.appendChild(createBtn);
+
+        modalBody.appendChild(createForm);
+
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        overlay.onclick = (e) => {
+          if (e.target === overlay) overlay.remove();
+        };
+
+        // Focus on name input
+        setTimeout(() => nameInput.focus(), 100);
+      }
+
+
+
+      function showDatasetInfo() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, '📊 Dataset Information'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        const modalBody = h('div', { className: 'modal-body' });
+
+        // Current instance/dataset info
+        const currentKey = instanceKey || 'nested_cards_store';
+        const currentData = localStorage.getItem(currentKey);
+        
+        // Calculate size
+        let dataSize = 0;
+        let totalSize = 0;
+        let itemCount = 0;
+        
+        if (currentData) {
+          dataSize = new Blob([currentData]).size;
+        }
+        
+        // Count all localStorage items
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          const value = localStorage.getItem(key);
+          if (value) {
+            totalSize += new Blob([value]).size;
+            itemCount++;
+          }
+        }
+
+        // Parse store info
+        let cardCount = 0;
+        let modCount = 0;
+        let bookmarkCount = 0;
+        let recentCount = 0;
+        
+        if (store) {
+          cardCount = Object.keys(store.cards || {}).length;
+          modCount = Object.keys(store.mods || {}).length;
+          bookmarkCount = (store.bookmarks || []).length;
+          recentCount = (store.recentCards || []).length;
+        }
+
+        // Format bytes
+        const formatBytes = (bytes) => {
+          if (bytes === 0) return '0 Bytes';
+          const k = 1024;
+          const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        };
+
+        // Create info sections
+        const infoHtml = `
+          <div style="margin-bottom: var(--space-xl);">
+            <h3 style="margin-bottom: var(--space-md); color: var(--text-primary);">Current Dataset</h3>
+            <div style="background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border);">
+              <div style="margin-bottom: var(--space-sm);"><strong>Name:</strong> ${currentKey}</div>
+              <div style="margin-bottom: var(--space-sm);"><strong>Storage Type:</strong> LocalStorage</div>
+              <div style="margin-bottom: var(--space-sm);"><strong>Size:</strong> ${formatBytes(dataSize)}</div>
+              <div style="margin-bottom: var(--space-sm);"><strong>PIN Protected:</strong> No</div>
+            </div>
+          </div>
+
+          <div style="margin-bottom: var(--space-xl);">
+            <h3 style="margin-bottom: var(--space-md); color: var(--text-primary);">Dataset Contents</h3>
+            <div style="background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border);">
+              <div style="margin-bottom: var(--space-sm);"><strong>Cards:</strong> ${cardCount}</div>
+              <div style="margin-bottom: var(--space-sm);"><strong>Extensions:</strong> ${modCount}</div>
+              <div style="margin-bottom: var(--space-sm);"><strong>Bookmarks:</strong> ${bookmarkCount}</div>
+              <div style="margin-bottom: var(--space-sm);"><strong>Recent Cards:</strong> ${recentCount}</div>
+            </div>
+          </div>
+
+          <div style="margin-bottom: var(--space-xl);">
+            <h3 style="margin-bottom: var(--space-md); color: var(--text-primary);">Storage Overview</h3>
+            <div style="background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border);">
+              <div style="margin-bottom: var(--space-sm);"><strong>Total LocalStorage:</strong> ${formatBytes(totalSize)}</div>
+              <div style="margin-bottom: var(--space-sm);"><strong>Total Items:</strong> ${itemCount}</div>
+              <div style="margin-bottom: var(--space-sm);"><strong>Quota Used:</strong> ~${Math.round((totalSize / (5 * 1024 * 1024)) * 100)}% (typical 5MB limit)</div>
+            </div>
+          </div>
+
+          <div>
+            <h3 style="margin-bottom: var(--space-md); color: var(--text-primary);">Quick Actions</h3>
+            <div style="display: flex; gap: var(--space-md); flex-wrap: wrap;">
+              <button id="exportDataBtn" class="btn btn-primary">Export Dataset</button>
+              <button id="switchInstanceBtn" class="btn btn-secondary">Switch Dataset</button>
+            </div>
+          </div>
+        `;
+
+        modalBody.innerHTML = infoHtml;
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        // Add event listeners for quick actions
+        document.getElementById('exportDataBtn').onclick = () => {
+          overlay.remove();
+          handleExport('instance-json');
+        };
+
+        document.getElementById('switchInstanceBtn').onclick = () => {
+          overlay.remove();
+          showDatasetManager();
+        };
+
+        overlay.onclick = (e) => {
+          if (e.target === overlay) overlay.remove();
+        };
       }
 
       function showModsManager() {
@@ -2113,7 +2870,12 @@
 
       menu.instance.onclick = () => {
         menu.overlay.classList.remove('show');
-        chooseInstance(false);
+        showDatasetManager();
+      };
+
+      menu.datasetInfo.onclick = () => {
+        menu.overlay.classList.remove('show');
+        showDatasetInfo();
       };
 
       menu.downloadJSON.onclick = () => {
