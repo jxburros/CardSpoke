@@ -39,8 +39,6 @@
       let navState = { page: 'list', cardId: null, parentId: null, searchQuery: '' }; // Navigation state
       let navHistory = []; // Navigation history for back button
       let dirty = false; // Tracks unsaved changes
-      let batchMode = false; // Batch operations mode
-      let selectedCards = new Set(); // Selected card IDs
 
       // --- DOM ELEMENTS ---
       const header = {
@@ -1021,7 +1019,7 @@
           }
           
           if (card.children && card.children.length > 0) {
-            (card.children || []).forEach(cid => writeCardMD(cid, depth + 1));
+            card.children.forEach(cid => writeCardMD(cid, depth + 1));
           }
         }
         
