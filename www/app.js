@@ -238,7 +238,7 @@
         
         // Calculate fuzzy score based on edit distance
         const distance = levenshteinDistance(queryLower, textLower.substring(0, query.length + 5));
-        const maxLen = Math.max(queryLower.length, text.length);
+        const maxLen = Math.max(queryLower.length, textLower.length);
         const similarity = 1 - (distance / maxLen);
         
         return Math.max(0, similarity * 70); // Fuzzy matches get up to 70 points
