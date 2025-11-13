@@ -4,9 +4,35 @@
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.9.2
+## 🌟 Current Version: 0.9.3
 
-Version 0.9.2 adds **comprehensive keyboard shortcuts** for power users, test infrastructure with 37 passing tests, and improved documentation.
+Version 0.9.3 adds **comprehensive keyboard shortcuts** for power users, enhanced test infrastructure (62 passing tests), and improved documentation.
+
+### What's New in 0.9.3
+
+**Fuzzy Search**
+- Typo-tolerant search using Levenshtein distance algorithm
+- Find cards even with misspellings or variations
+- Results ranked by relevance with fuzzy match indicators
+- Improved search accuracy and user experience
+
+**Export Options**
+- Export to Markdown (.md) with hierarchical structure
+- Export to CSV (.csv) for spreadsheet analysis
+- Maintain existing JSON and TXT export options
+- Preserve metadata and tags in exports
+
+**High Contrast Mode**
+- WCAG AAA compliant accessibility theme
+- Pure black background with white text and borders
+- Toggle in menu for vision accessibility
+- Improved readability for users with visual impairments
+
+**Enhanced Testing**
+- 62 comprehensive tests (up from 37)
+- Navigator Suite and UI State test coverage
+- ES Module support throughout
+- 100% test pass rate in <7ms
 
 ### What's New in 0.9.2
 

@@ -175,7 +175,7 @@ function addToRecentCards(store, cardId) {
   }
 }
 
-module.exports = {
+export {
   MockLocalStorage,
   uid,
   createTestCard,
@@ -187,3 +187,7 @@ module.exports = {
   isBookmarked,
   addToRecentCards
 };
+
+// Aliases for compatibility
+export const createMockStore = createTestStore;
+export const generateId = uid;

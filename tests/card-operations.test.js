@@ -3,14 +3,14 @@
  * Tests for creating, reading, updating, and deleting cards
  */
 
-const { test } = require('uvu');
-const assert = require('uvu/assert');
-const {
+import { test } from 'uvu';
+import * as assert from 'uvu/assert';
+import {
   createTestStore,
   createTestCard,
   addCardToStore,
   deleteCardFromStore
-} = require('./helpers');
+} from './helpers.js';
 
 test('createTestCard creates a valid card', () => {
   const card = createTestCard('Test Title', 'Test Body');
