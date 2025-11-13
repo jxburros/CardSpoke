@@ -4,9 +4,29 @@
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.9.3
+## 🌟 Current Version: 0.9.4
 
-Version 0.9.3 adds **comprehensive keyboard shortcuts** for power users, enhanced test infrastructure (62 passing tests), and improved documentation.
+Version 0.9.4 implements the **Dataset Architecture** from the v0.9 roadmap, adding storage management, dataset information panels, and infrastructure for advanced data features.
+
+### What's New in 0.9.4
+
+**Dataset Architecture**
+- StorageDriver interface with IndexedDB and LocalStorage implementations
+- DatasetManager class for managing multiple datasets
+- Infrastructure for PIN-protected datasets (ready for implementation)
+- Support for on-device storage choice between storage backends
+
+**Dataset Info Panel**
+- View detailed storage statistics and metadata
+- See card counts, extensions, bookmarks, and recent cards
+- Monitor storage usage and quota consumption
+- Quick access to export and dataset switching actions
+
+**Storage Analytics**
+- Real-time storage size calculations
+- Storage quota monitoring with percentage usage
+- Item counting across all localStorage data
+- Formatted byte display (Bytes, KB, MB, GB)
 
 ### What's New in 0.9.3
 

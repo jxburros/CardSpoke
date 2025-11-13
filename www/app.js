@@ -1599,38 +1599,274 @@
 
       // --- INSTANCE & MODALS ---
 
-      function chooseInstance(isInitial = false) {
+      function showDatasetManager() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 700px;' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, '💾 Dataset Manager'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        const modalBody = h('div', { className: 'modal-body' });
+
+        // Get all existing datasets (instances)
         const allKeys = Object.keys(localStorage).filter(k => k.startsWith('nested_cards_') || k === 'nested_cards_store');
         const current = instanceKey || 'nested_cards_store';
-        let msg = 'Available instances:\n\n';
-        allKeys.forEach((k, i) => {
-          const isCurrent = (k === current);
-          msg += `${i + 1}. ${k}${isCurrent ? ' (current)' : ''}\n`;
-        });
-        msg += `\n${allKeys.length + 1}. Create new instance`;
-        const choice = prompt(msg, '1');
-        if (!choice) return;
-        const idx = parseInt(choice, 10) - 1;
-        if (idx === allKeys.length) {
-          const newName = prompt('Enter new instance key:', 'nested_cards_' + Date.now());
-          if (!newName) return;
-          localStorage.setItem('activeInstance', newName);
-          instanceKey = newName;
-          store = { rootOrder: [], cards: {}, mods: {} };
-          save();
-          render();
-          showToast('Created new instance: ' + newName);
-        } else if (idx >= 0 && idx < allKeys.length) {
-          const selectedKey = allKeys[idx];
-          localStorage.setItem('activeInstance', selectedKey);
-          instanceKey = selectedKey;
-          load();
-          CIB_MODS.syncFromStore();
-          CIB_MODS.runHook('onAppInit');
-          render();
-          showToast('Switched to: ' + selectedKey);
+
+        // Title and description
+        const description = h('p', { style: 'margin-bottom: var(--space-lg); color: var(--text-secondary);' }, 
+          'Manage your datasets. Each dataset is an independent collection of cards with its own storage.');
+        modalBody.appendChild(description);
+
+        // Existing datasets section
+        const datasetsTitle = h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Your Datasets');
+        modalBody.appendChild(datasetsTitle);
+
+        if (allKeys.length === 0) {
+          const empty = h('div', { className: 'empty', style: 'margin-bottom: var(--space-xl);' }, 
+            'No datasets found. Create your first dataset below.');
+          modalBody.appendChild(empty);
+        } else {
+          // List existing datasets
+          const datasetList = h('div', { style: 'margin-bottom: var(--space-xl);' });
+          
+          allKeys.forEach(key => {
+            const isCurrent = key === current;
+            const datasetItem = h('div', { 
+              style: `
+                background: ${isCurrent ? 'var(--primary-light, #e3f2fd)' : 'var(--bg-secondary)'};
+                padding: var(--space-lg);
+                border-radius: var(--radius);
+                border: 2px solid ${isCurrent ? 'var(--primary)' : 'var(--border)'};
+                margin-bottom: var(--space-md);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              `
+            });
+
+            // Dataset info
+            const datasetInfo = h('div', { style: 'flex: 1;' });
+            const datasetName = h('div', { style: 'font-weight: 700; margin-bottom: var(--space-xs);' }, 
+              key + (isCurrent ? ' (Active)' : ''));
+            const datasetMeta = h('div', { style: 'font-size: 0.875rem; color: var(--text-secondary);' });
+            
+            // Get size info
+            try {
+              const data = localStorage.getItem(key);
+              const size = data ? new Blob([data]).size : 0;
+              const formatBytes = (bytes) => {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+              };
+              
+              const parsed = data ? JSON.parse(data) : null;
+              const cardCount = parsed ? Object.keys(parsed.cards || {}).length : 0;
+              
+              datasetMeta.textContent = `Storage: LocalStorage • Size: ${formatBytes(size)} • Cards: ${cardCount}`;
+            } catch (e) {
+              datasetMeta.textContent = 'Storage: LocalStorage • Unable to read dataset info';
+            }
+
+            datasetInfo.appendChild(datasetName);
+            datasetInfo.appendChild(datasetMeta);
+            datasetItem.appendChild(datasetInfo);
+
+            // Actions
+            const actions = h('div', { style: 'display: flex; gap: var(--space-sm);' });
+            
+            if (!isCurrent) {
+              const openBtn = h('button', { 
+                className: 'btn btn-primary',
+                onclick: () => {
+                  localStorage.setItem('activeInstance', key);
+                  instanceKey = key;
+                  load();
+                  CIB_MODS.syncFromStore();
+                  CIB_MODS.runHook('onAppInit');
+                  render();
+                  overlay.remove();
+                  showToast('Switched to: ' + key);
+                }
+              }, 'Open');
+              actions.appendChild(openBtn);
+            }
+
+            const deleteBtn = h('button', { 
+              className: 'btn btn-danger',
+              onclick: () => {
+                if (allKeys.length === 1) {
+                  showToast('Cannot delete the only dataset', 'error');
+                  return;
+                }
+                if (confirm(`Delete dataset "${key}"?\n\nThis will permanently delete all cards and data in this dataset.\n\nThis action cannot be undone!`)) {
+                  localStorage.removeItem(key);
+                  if (isCurrent && allKeys.length > 1) {
+                    // Switch to another dataset
+                    const otherKey = allKeys.find(k => k !== key);
+                    localStorage.setItem('activeInstance', otherKey);
+                    instanceKey = otherKey;
+                    load();
+                    CIB_MODS.syncFromStore();
+                    CIB_MODS.runHook('onAppInit');
+                    render();
+                  }
+                  overlay.remove();
+                  showToast('Dataset deleted: ' + key);
+                  // Reopen manager to refresh list
+                  setTimeout(() => showDatasetManager(), 100);
+                }
+              }
+            }, 'Delete');
+            actions.appendChild(deleteBtn);
+
+            datasetItem.appendChild(actions);
+            datasetList.appendChild(datasetItem);
+          });
+
+          modalBody.appendChild(datasetList);
         }
+
+        // Create new dataset section
+        const createTitle = h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Create New Dataset');
+        modalBody.appendChild(createTitle);
+
+        const createForm = h('div', { 
+          style: `
+            background: var(--bg-secondary);
+            padding: var(--space-lg);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+          `
+        });
+
+        // Dataset name input
+        const nameLabel = h('label', { 
+          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' 
+        }, 'Dataset Name');
+        const nameInput = h('input', {
+          type: 'text',
+          id: 'newDatasetName',
+          placeholder: 'My Dataset',
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin-bottom: var(--space-lg);
+            font-size: 1rem;
+          `
+        });
+
+        // Storage type selection
+        const storageLabel = h('label', { 
+          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' 
+        }, 'Storage Type');
+        const storageSelect = h('select', {
+          id: 'newDatasetStorage',
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin-bottom: var(--space-xs);
+            font-size: 1rem;
+          `
+        });
+
+        const optionLocal = h('option', { value: 'localstorage' }, 'LocalStorage (Browser storage, fast access)');
+        const optionIndexed = h('option', { value: 'indexeddb' }, 'IndexedDB (Browser database, larger capacity)');
+        storageSelect.appendChild(optionLocal);
+        storageSelect.appendChild(optionIndexed);
+
+        const storageHelp = h('div', { 
+          style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' 
+        }, 'LocalStorage: ~5MB limit, faster. IndexedDB: ~50MB+ limit, better for large datasets.');
+
+        // PIN protection (future feature)
+        const pinLabel = h('label', { 
+          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' 
+        }, 'PIN Protection (Optional)');
+        const pinInput = h('input', {
+          type: 'password',
+          id: 'newDatasetPin',
+          placeholder: 'Leave empty for no PIN',
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin-bottom: var(--space-xs);
+            font-size: 1rem;
+          `,
+          disabled: true
+        });
+
+        const pinHelp = h('div', { 
+          style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' 
+        }, '🔒 PIN protection coming soon in a future update.');
+
+        // Create button
+        const createBtn = h('button', {
+          className: 'btn btn-primary',
+          style: 'width: 100%;',
+          onclick: () => {
+            const name = document.getElementById('newDatasetName').value.trim();
+            const storageType = document.getElementById('newDatasetStorage').value;
+
+            if (!name) {
+              showToast('Please enter a dataset name', 'error');
+              return;
+            }
+
+            // Generate a unique key
+            const newKey = 'nested_cards_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
+
+            // Note: For now, we still use localStorage backend regardless of choice
+            // The DatasetManager classes are in place for future enhancement
+            localStorage.setItem('activeInstance', newKey);
+            instanceKey = newKey;
+            store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal' };
+            save();
+            render();
+            overlay.remove();
+            showToast(`Created new dataset: ${name} (${storageType})`);
+          }
+        }, '+ Create Dataset');
+
+        createForm.appendChild(nameLabel);
+        createForm.appendChild(nameInput);
+        createForm.appendChild(storageLabel);
+        createForm.appendChild(storageSelect);
+        createForm.appendChild(storageHelp);
+        createForm.appendChild(pinLabel);
+        createForm.appendChild(pinInput);
+        createForm.appendChild(pinHelp);
+        createForm.appendChild(createBtn);
+
+        modalBody.appendChild(createForm);
+
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        overlay.onclick = (e) => {
+          if (e.target === overlay) overlay.remove();
+        };
+
+        // Focus on name input
+        setTimeout(() => nameInput.focus(), 100);
       }
+
 
 
       function showDatasetInfo() {
@@ -1741,7 +1977,7 @@
 
         document.getElementById('switchInstanceBtn').onclick = () => {
           overlay.remove();
-          chooseInstance(false);
+          showDatasetManager();
         };
 
         overlay.onclick = (e) => {
@@ -2634,7 +2870,7 @@
 
       menu.instance.onclick = () => {
         menu.overlay.classList.remove('show');
-        chooseInstance(false);
+        showDatasetManager();
       };
 
       menu.datasetInfo.onclick = () => {
