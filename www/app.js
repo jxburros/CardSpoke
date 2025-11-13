@@ -1018,9 +1018,7 @@
             markdown += `${card.body}\n\n`;
           }
           
-          if (card.children && card.children.length > 0) {
-            card.children.forEach(cid => writeCardMD(cid, depth + 1));
-          }
+          (card.children || []).forEach(cid => writeCardMD(cid, depth + 1));
         }
         
         store.rootOrder.forEach(id => writeCardMD(id));
