@@ -169,3 +169,29 @@ The following files remain in the repository root as they are actively used:
 **Cleanup Status:** ✅ **COMPLETE**  
 **Safety Status:** ✅ **ALL FILES PRESERVED**  
 **Test Status:** ✅ **62/62 PASSING**
+
+---
+
+## Archive Branches Status
+
+The following branches contain the preserved files and have been updated locally:
+
+### Legacy-Versions Branch
+- **Commit:** bb4efb8
+- **Update:** Archive CardSpoke 0.8.html version
+- **Files added:** 1 (CardSpoke 0.8.html)
+- **Status:** Ready to push to remote
+- **Command:** `git push origin Legacy-Versions`
+
+### Documents Branch
+- **Commit:** 1a68f13
+- **Update:** Organize historical documentation into structured directories
+- **Files added:** 8 files in organized structure
+  - `historical/` - 3 files (BRANCH_INFO, CLEANUP_SUMMARY, CONVERSION_SUMMARY)
+  - `planning/` - 1 file (Extension Features)
+  - `objectives/` - 1 file (cardspoke_objectives_v_1)
+  - `versions/0.8.2/` - 3 files (feature comparison, objectives, release summary)
+- **Status:** Ready to push to remote
+- **Command:** `git push origin Documents`
+
+**Note:** These branches exist independently of the main working branch and serve as permanent archives. They should be pushed separately to preserve the cleanup history.
