@@ -2220,6 +2220,72 @@
         document.body.appendChild(overlay);
       }
 
+      function showAppearanceSettings() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Appearance Settings'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        const modalBody = h('div', { className: 'modal-body' });
+        
+        // Theme selector section
+        const themeSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
+        themeSection.appendChild(h('div', { 
+          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
+        }, 'Theme'));
+        
+        const currentTheme = store.activeTheme || 'light';
+        
+        // Light theme option
+        const lightOption = h('div', { 
+          className: 'theme-option',
+          style: `padding: var(--space-lg); border: 2px solid ${currentTheme === 'light' ? 'var(--primary)' : 'var(--border)'}; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: white; color: black;`,
+          onclick: () => {
+            applyTheme('light');
+            overlay.remove();
+          }
+        });
+        lightOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, '☀️ Light Theme'));
+        lightOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #666;' }, 'Default light color scheme'));
+        if (currentTheme === 'light') {
+          lightOption.appendChild(h('div', { style: 'margin-top: var(--space-sm); color: var(--primary); font-weight: 600;' }, '✓ Active'));
+        }
+        themeSection.appendChild(lightOption);
+        
+        // Dark theme option
+        const darkOption = h('div', { 
+          className: 'theme-option',
+          style: `padding: var(--space-lg); border: 2px solid ${currentTheme === 'dark' ? 'var(--primary)' : 'var(--border)'}; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: #1a1a1a; color: white;`,
+          onclick: () => {
+            applyTheme('dark');
+            overlay.remove();
+          }
+        });
+        darkOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, '🌙 Dark Theme'));
+        darkOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #aaa;' }, 'Dark color scheme for low-light environments'));
+        if (currentTheme === 'dark') {
+          darkOption.appendChild(h('div', { style: 'margin-top: var(--space-sm); color: #64b5f6; font-weight: 600;' }, '✓ Active'));
+        }
+        themeSection.appendChild(darkOption);
+        
+        modalBody.appendChild(themeSection);
+        
+        // Future: Theme extensions could be listed here
+        const extensionNote = h('div', { 
+          style: 'padding: var(--space-md); background: var(--bg-secondary); border-radius: 4px; font-size: var(--text-sm); color: var(--text-muted);'
+        });
+        extensionNote.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, '💡 Theme Extensions'));
+        extensionNote.appendChild(h('div', {}, 'Custom theme extensions can be installed via the Extensions Manager to add more color schemes.'));
+        modalBody.appendChild(extensionNote);
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+      }
+
       function showBookmarks() {
         const overlay = h('div', { className: 'modal-overlay show' });
         const modal = h('div', { className: 'modal' });
