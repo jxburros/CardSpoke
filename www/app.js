@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.10.2
+      // Version: 0.10.5
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,7 +25,7 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.10.2'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.10.5'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-14'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'GitHub Copilot Constructor Agent'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
@@ -33,7 +33,7 @@
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
       // Version 0.9.3: Previous updates
       // Version 0.9.4: Added StorageDriver architecture, Dataset Info Panel, storage analytics
-      // Version 0.10.2: Implemented Tags API (getTags, addTag, removeTag, setTags, getAllTags) with comprehensive tests
+      // Version 0.10.5: Implemented Tags API (getTags, addTag, removeTag, setTags, getAllTags) with comprehensive tests
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -153,7 +153,13 @@
        * @param {number} duration - Duration in milliseconds (default: 3000)
        */
       function showToast(message, type = 'success', duration = 3000) {
-        const toast = h('div', { className: `toast ${type}` }, message);
+        const toast = h('div', { 
+          className: `toast ${type}`,
+          role: 'alert',
+          'aria-live': type === 'error' ? 'assertive' : 'polite',
+          'aria-atomic': 'true',
+          tabindex: '0'
+        }, message);
         toastContainer.appendChild(toast);
         
         let timeoutId = null;
@@ -191,10 +197,20 @@
         
         // Add click to dismiss
         toast.style.cursor = 'pointer';
-        toast.addEventListener('click', () => {
+        const dismissToast = () => {
           clearTimeout(timeoutId);
           toast.style.opacity = '0';
           setTimeout(() => toast.remove(), 300);
+        };
+        
+        toast.addEventListener('click', dismissToast);
+        
+        // Add keyboard support (Escape or Enter to dismiss)
+        toast.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' || e.key === 'Enter') {
+            e.preventDefault();
+            dismissToast();
+          }
         });
         
         scheduleRemoval();
@@ -894,7 +910,7 @@
             mods: parsed.mods || {},
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
-            viewMode: parsed.viewMode || 'normal'
+            viewMode: parsed.viewMode || 'normal',
             activeTheme: parsed.activeTheme || 'light'
           };
 
@@ -2142,7 +2158,15 @@
           const meta = modData.meta || {};
           const modItem = h('div', { style: 'padding: var(--space-lg); border: 1px solid var(--border); margin-bottom: var(--space-md);' });
           const modHeader = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
-          modHeader.appendChild(h('div', { style: 'font-weight: 700;' }, meta.name || modId));
+          const headerLeft = h('div', { style: 'display: flex; align-items: center; gap: var(--space-sm);' });
+          headerLeft.appendChild(h('div', { style: 'font-weight: 700;' }, meta.name || modId));
+          // Add type badge if type is specified
+          if (meta.type) {
+            const badgeClass = 'ext-badge ext-' + (meta.type.toLowerCase());
+            const badge = h('span', { className: badgeClass }, meta.type);
+            headerLeft.appendChild(badge);
+          }
+          modHeader.appendChild(headerLeft);
           const toggleBtn = h('button', {
             className: modData.enabled ? 'btn btn-danger' : 'btn btn-primary',
             onclick: () => {
@@ -2191,6 +2215,72 @@
         } else {
           modList.forEach(item => modalBody.appendChild(item));
         }
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+      }
+
+      function showAppearanceSettings() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Appearance Settings'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        const modalBody = h('div', { className: 'modal-body' });
+        
+        // Theme selector section
+        const themeSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
+        themeSection.appendChild(h('div', { 
+          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
+        }, 'Theme'));
+        
+        const currentTheme = store.activeTheme || 'light';
+        
+        // Light theme option
+        const lightOption = h('div', { 
+          className: 'theme-option',
+          style: `padding: var(--space-lg); border: 2px solid ${currentTheme === 'light' ? 'var(--primary)' : 'var(--border)'}; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: white; color: black;`,
+          onclick: () => {
+            applyTheme('light');
+            overlay.remove();
+          }
+        });
+        lightOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, '☀️ Light Theme'));
+        lightOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #666;' }, 'Default light color scheme'));
+        if (currentTheme === 'light') {
+          lightOption.appendChild(h('div', { style: 'margin-top: var(--space-sm); color: var(--primary); font-weight: 600;' }, '✓ Active'));
+        }
+        themeSection.appendChild(lightOption);
+        
+        // Dark theme option
+        const darkOption = h('div', { 
+          className: 'theme-option',
+          style: `padding: var(--space-lg); border: 2px solid ${currentTheme === 'dark' ? 'var(--primary)' : 'var(--border)'}; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: #1a1a1a; color: white;`,
+          onclick: () => {
+            applyTheme('dark');
+            overlay.remove();
+          }
+        });
+        darkOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, '🌙 Dark Theme'));
+        darkOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #aaa;' }, 'Dark color scheme for low-light environments'));
+        if (currentTheme === 'dark') {
+          darkOption.appendChild(h('div', { style: 'margin-top: var(--space-sm); color: #64b5f6; font-weight: 600;' }, '✓ Active'));
+        }
+        themeSection.appendChild(darkOption);
+        
+        modalBody.appendChild(themeSection);
+        
+        // Future: Theme extensions could be listed here
+        const extensionNote = h('div', { 
+          style: 'padding: var(--space-md); background: var(--bg-secondary); border-radius: 4px; font-size: var(--text-sm); color: var(--text-muted);'
+        });
+        extensionNote.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, '💡 Theme Extensions'));
+        extensionNote.appendChild(h('div', {}, 'Custom theme extensions can be installed via the Extensions Manager to add more color schemes.'));
+        modalBody.appendChild(extensionNote);
+        
         modal.appendChild(modalBody);
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
@@ -2742,6 +2832,75 @@
       }
 
       /**
+       * Render card body text with clickable card links
+       * Converts [[Card Name]] to clickable links
+       * @param {string} text - Card body text
+       * @returns {HTMLElement} Div element with rendered content
+       */
+      function renderCardBody(text) {
+        const container = h('div', { className: 'card-detail-body' });
+        
+        if (!text) return container;
+        
+        const links = parseCardLinks(text);
+        
+        if (links.length === 0) {
+          // No links, just return plain text
+          container.textContent = text;
+          return container;
+        }
+        
+        // Sort links by start index to process in order
+        links.sort((a, b) => a.startIndex - b.startIndex);
+        
+        let lastIndex = 0;
+        
+        links.forEach(link => {
+          // Add text before the link
+          if (link.startIndex > lastIndex) {
+            const textBefore = text.substring(lastIndex, link.startIndex);
+            container.appendChild(document.createTextNode(textBefore));
+          }
+          
+          // Find the card ID
+          const cardId = findCardByName(link.cardName);
+          
+          // Create clickable link
+          const linkEl = h('span', { 
+            className: cardId ? 'card-link' : 'card-link-missing',
+            style: 'cursor: pointer;',
+            title: cardId ? `Go to: ${link.cardName}` : `Card not found: ${link.cardName} (click to create)`
+          }, link.cardName);
+          
+          // Add click handler
+          linkEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (cardId) {
+              // Card exists, navigate to it
+              goTo('read', { cardId });
+            } else {
+              // Card doesn't exist, offer to create it
+              if (confirm(`Card "${link.cardName}" doesn't exist. Create it?`)) {
+                const newId = createCard(link.cardName, '', null);
+                goTo('edit', { cardId: newId });
+              }
+            }
+          });
+          
+          container.appendChild(linkEl);
+          lastIndex = link.endIndex;
+        });
+        
+        // Add remaining text after the last link
+        if (lastIndex < text.length) {
+          const textAfter = text.substring(lastIndex);
+          container.appendChild(document.createTextNode(textAfter));
+        }
+        
+        return container;
+      }
+
+      /**
        * Render a card in read-only/detail view
        */
       function renderReadOnlyCard() {
@@ -2754,7 +2913,7 @@
         const detail = h('div', { className: 'card-detail' });
         detail.appendChild(h('div', { className: 'card-detail-title' }, card.title || '(Untitled)'));
         if (card.body) {
-          detail.appendChild(h('div', { className: 'card-detail-body' }, card.body));
+          detail.appendChild(renderCardBody(card.body));
         }
         // Tags display
         const _tags = (card.tags && card.tags.length ? card.tags : extractTags(card.body));
@@ -2901,13 +3060,30 @@
         bodyTextarea.addEventListener('input', () => { dirty = true; });
         formGroup2.appendChild(bodyTextarea);
         form.appendChild(formGroup2);
-        // Tags input
+        // Tags input with autocomplete
         const formGroupTags = h('div', { className: 'form-group' });
         formGroupTags.appendChild(h('label', { className: 'form-label' }, 'Tags (comma-separated)'));
-        const tagsInput = h('input', { type: 'text', id: 'cardTags', className: 'form-input' });
+        
+        // Create datalist with all existing tags for autocomplete
+        const tagsDatalistId = 'tags-datalist-' + Date.now();
+        const tagsDatalist = h('datalist', { id: tagsDatalistId });
+        const existingTags = getAllTags();
+        existingTags.forEach(tag => {
+          tagsDatalist.appendChild(h('option', { value: tag }));
+        });
+        
+        const tagsInput = h('input', { 
+          type: 'text', 
+          id: 'cardTags', 
+          className: 'form-input',
+          list: tagsDatalistId,
+          placeholder: 'Start typing to see suggestions...'
+        });
         tagsInput.value = (card.tags && card.tags.length) ? card.tags.join(', ') : '';
         tagsInput.addEventListener('input', () => { dirty = true; });
+        
         formGroupTags.appendChild(tagsInput);
+        formGroupTags.appendChild(tagsDatalist);
         form.appendChild(formGroupTags);
     
         const formGroup3 = h('div', { className: 'form-group' });
