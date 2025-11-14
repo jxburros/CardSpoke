@@ -1,6 +1,8 @@
 ---
 name: cardspoke-guru
 description: "Expert on CardSpoke architecture, API, and patterns - answers questions about the codebase."
+version: "2.0"
+updated: "2025-11-14"
 tools:
   - read
   - search
