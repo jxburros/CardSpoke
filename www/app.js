@@ -146,13 +146,58 @@
        * @param {string} message - Message to display
        * @param {'success'|'error'|'info'} type - Type of notification
        */
-      function showToast(message, type = 'success') {
+      /**
+       * Show a toast notification with auto-dismiss and pause on hover
+       * @param {string} message - Message to display
+       * @param {string} type - Toast type: 'success', 'error', 'warning', 'info'
+       * @param {number} duration - Duration in milliseconds (default: 3000)
+       */
+      function showToast(message, type = 'success', duration = 3000) {
         const toast = h('div', { className: `toast ${type}` }, message);
         toastContainer.appendChild(toast);
-        setTimeout(() => {
+        
+        let timeoutId = null;
+        let isPaused = false;
+        let remainingTime = duration;
+        let startTime = Date.now();
+        
+        const scheduleRemoval = () => {
+          startTime = Date.now();
+          timeoutId = setTimeout(() => {
+            if (!isPaused) {
+              toast.style.opacity = '0';
+              setTimeout(() => toast.remove(), 300);
+            }
+          }, remainingTime);
+        };
+        
+        const pauseTimer = () => {
+          if (!isPaused && timeoutId) {
+            clearTimeout(timeoutId);
+            remainingTime -= (Date.now() - startTime);
+            isPaused = true;
+          }
+        };
+        
+        const resumeTimer = () => {
+          if (isPaused) {
+            isPaused = false;
+            scheduleRemoval();
+          }
+        };
+        
+        toast.addEventListener('mouseenter', pauseTimer);
+        toast.addEventListener('mouseleave', resumeTimer);
+        
+        // Add click to dismiss
+        toast.style.cursor = 'pointer';
+        toast.addEventListener('click', () => {
+          clearTimeout(timeoutId);
           toast.style.opacity = '0';
           setTimeout(() => toast.remove(), 300);
-        }, 3000);
+        });
+        
+        scheduleRemoval();
       }
 
       /**
