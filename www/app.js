@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.10.5
+      // Version: 0.10.6
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,15 +25,16 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.10.5'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.10.6'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-14'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot Constructor Agent'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
       // Version 0.9.3: Previous updates
       // Version 0.9.4: Added StorageDriver architecture, Dataset Info Panel, storage analytics
       // Version 0.10.5: Implemented Tags API (getTags, addTag, removeTag, setTags, getAllTags) with comprehensive tests
+      // Version 0.10.6: Multi-Dataset Search - search across multiple datasets simultaneously
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -71,6 +72,7 @@
       const searchContainer = document.getElementById('searchContainer');
       const searchInput = document.getElementById('searchInput');
       const searchClear = document.getElementById('searchClear');
+      const datasetSelector = document.getElementById('datasetSelector');
       
       const breadcrumbs = document.getElementById('breadcrumbs');
       const main = document.getElementById('main');
@@ -139,6 +141,24 @@
        */
       function uid() {
         return Date.now().toString(36) + Math.random().toString(36).substring(2);
+      }
+
+      /**
+       * Debounce function - delays execution until after wait time has elapsed
+       * @param {Function} func - Function to debounce
+       * @param {number} wait - Wait time in milliseconds
+       * @returns {Function} Debounced function
+       */
+      function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+          const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+          };
+          clearTimeout(timeout);
+          timeout = setTimeout(later, wait);
+        };
       }
 
       /**
@@ -355,6 +375,102 @@
         results.sort((a, b) => b.score - a.score);
         
         return results;
+      }
+
+      /**
+       * Multi-dataset fuzzy search
+       * Search across multiple datasets with optional scope
+       * @param {string} query - Search query
+       * @param {string} scope - Dataset scope: 'current', 'all', or specific dataset ID
+       * @returns {Promise<Array>} - Sorted results with scores and dataset info
+       */
+      async function fuzzySearchMultiDataset(query, scope = 'current') {
+        if (!query || query.trim() === '') {
+          return [];
+        }
+        
+        if (!datasetManager) {
+          // Fallback to single dataset search if manager not initialized
+          return fuzzySearchCards(store, query);
+        }
+        
+        const allResults = [];
+        
+        if (scope === 'current') {
+          // Search only current dataset
+          const results = fuzzySearchCards(store, query);
+          const currentDataset = datasetManager.getActiveDataset();
+          results.forEach(result => {
+            allResults.push({
+              ...result,
+              datasetId: currentDataset.id,
+              datasetName: currentDataset.name
+            });
+          });
+        } else if (scope === 'all') {
+          // Search all datasets
+          const datasets = datasetManager.listDatasets();
+          const currentDatasetId = datasetManager.activeDatasetId;
+          
+          for (const dataset of datasets) {
+            try {
+              // Load dataset if not current
+              let datasetStore;
+              if (dataset.id === currentDatasetId) {
+                datasetStore = store;
+              } else {
+                // Load dataset store from storage
+                const driver = datasetManager.datasets.get(dataset.id).driver;
+                const storeData = await driver.get('store');
+                datasetStore = storeData || { cards: {} };
+              }
+              
+              // Search this dataset
+              const results = fuzzySearchCards(datasetStore, query);
+              results.forEach(result => {
+                allResults.push({
+                  ...result,
+                  datasetId: dataset.id,
+                  datasetName: dataset.name
+                });
+              });
+            } catch (err) {
+              console.warn(`Failed to search dataset ${dataset.name}:`, err);
+            }
+          }
+        } else {
+          // Search specific dataset
+          const dataset = datasetManager.datasets.get(scope);
+          if (dataset) {
+            try {
+              let datasetStore;
+              if (scope === datasetManager.activeDatasetId) {
+                datasetStore = store;
+              } else {
+                const storeData = await dataset.driver.get('store');
+                datasetStore = storeData || { cards: {} };
+              }
+              
+              const results = fuzzySearchCards(datasetStore, query);
+              results.forEach(result => {
+                allResults.push({
+                  ...result,
+                  datasetId: dataset.id,
+                  datasetName: dataset.name
+                });
+              });
+            } catch (err) {
+              console.warn(`Failed to search dataset ${dataset.name}:`, err);
+            }
+          }
+        }
+        
+        // Sort combined results by score
+        allResults.sort((a, b) => b.score - a.score);
+        
+        // Limit results to prevent performance issues
+        const MAX_RESULTS = 100;
+        return allResults.slice(0, MAX_RESULTS);
       }
 
       // =============================================================
@@ -3198,40 +3314,65 @@
           return;
         }
         
-        // Use fuzzy search for typo-tolerant results
-        const fuzzyResults = fuzzySearchCards(store, query);
+        // Get selected dataset scope
+        const scope = datasetSelector ? datasetSelector.value : 'current';
         
+        // Show loading indicator
         main.appendChild(h('div', { className: 'page-title' }, `Search: "${navState.searchQuery}"`));
+        const loadingDiv = h('div', { 
+          className: 'search-info',
+          style: 'padding: 12px; margin-bottom: 12px; background: var(--bg-secondary); border-radius: 8px; font-size: 14px; color: var(--text-secondary);'
+        }, 'Searching...');
+        main.appendChild(loadingDiv);
         
-        if (fuzzyResults.length === 0) {
-          main.appendChild(h('div', { className: 'empty' }, 'No results found. Try different keywords.'));
-        } else {
-          // Show result count with fuzzy indicator
-          const resultInfo = h('div', { 
-            className: 'search-info',
-            style: 'padding: 12px; margin-bottom: 12px; background: var(--bg-secondary); border-radius: 8px; font-size: 14px; color: var(--text-secondary);'
-          }, `Found ${fuzzyResults.length} result${fuzzyResults.length === 1 ? '' : 's'} (fuzzy matching enabled)`);
-          main.appendChild(resultInfo);
+        // Use multi-dataset fuzzy search for typo-tolerant results
+        fuzzySearchMultiDataset(query, scope).then(fuzzyResults => {
+          // Remove loading indicator
+          loadingDiv.remove();
           
-          const grid = h('div', { className: 'card-grid' });
-          fuzzyResults.forEach(result => {
-            const card = result.card;
-            const cardEl = renderCardTile(card);
+          if (fuzzyResults.length === 0) {
+            main.appendChild(h('div', { className: 'empty' }, 'No results found. Try different keywords.'));
+          } else {
+            // Show result count with fuzzy indicator
+            const scopeText = scope === 'all' ? ' across all datasets' : '';
+            const resultInfo = h('div', { 
+              className: 'search-info',
+              style: 'padding: 12px; margin-bottom: 12px; background: var(--bg-secondary); border-radius: 8px; font-size: 14px; color: var(--text-secondary);'
+            }, `Found ${fuzzyResults.length} result${fuzzyResults.length === 1 ? '' : 's'}${scopeText} (fuzzy matching enabled)`);
+            main.appendChild(resultInfo);
             
-            // Add match quality indicator
-            if (result.score < 60) {
-              const matchBadge = h('span', {
-                style: 'position: absolute; top: 8px; right: 8px; background: #fbbf24; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;'
-              }, '~');
-              cardEl.style.position = 'relative';
-              cardEl.appendChild(matchBadge);
-            }
-            
-            grid.appendChild(cardEl);
-            runModHook('onCardRender', cloneCard(card), cardEl);
-          });
-          main.appendChild(grid);
-        }
+            const grid = h('div', { className: 'card-grid' });
+            fuzzyResults.forEach(result => {
+              const card = result.card;
+              const cardEl = renderCardTile(card);
+              
+              // Add dataset badge for multi-dataset search
+              if (scope === 'all' && result.datasetName) {
+                const datasetBadge = h('span', {
+                  style: 'position: absolute; top: 8px; left: 8px; background: #3b82f6; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;'
+                }, result.datasetName);
+                cardEl.style.position = 'relative';
+                cardEl.appendChild(datasetBadge);
+              }
+              
+              // Add match quality indicator
+              if (result.score < 60) {
+                const matchBadge = h('span', {
+                  style: 'position: absolute; top: 8px; right: 8px; background: #fbbf24; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;'
+                }, '~');
+                cardEl.style.position = 'relative';
+                cardEl.appendChild(matchBadge);
+              }
+              
+              grid.appendChild(cardEl);
+              runModHook('onCardRender', cloneCard(card), cardEl);
+            });
+            main.appendChild(grid);
+          }
+        }).catch(err => {
+          loadingDiv.remove();
+          main.appendChild(h('div', { className: 'empty' }, 'Search error: ' + err.message));
+        });
       }
 
 
@@ -3316,6 +3457,45 @@
         if (versionEl) versionEl.textContent = APP_VERSION;
         if (dateEl) dateEl.textContent = APP_RELEASE_DATE;
         if (updaterEl) updaterEl.textContent = APP_UPDATER;
+      }
+
+      /**
+       * Update dataset selector options
+       */
+      function updateDatasetSelector() {
+        if (!datasetSelector || !datasetManager) return;
+        
+        // Clear existing options
+        datasetSelector.innerHTML = '';
+        
+        // Add "Current Dataset" option
+        const currentOption = document.createElement('option');
+        currentOption.value = 'current';
+        currentOption.textContent = 'Current Dataset';
+        datasetSelector.appendChild(currentOption);
+        
+        // Add "All Datasets" option if there are multiple datasets
+        const datasets = datasetManager.listDatasets();
+        if (datasets.length > 1) {
+          const allOption = document.createElement('option');
+          allOption.value = 'all';
+          allOption.textContent = 'All Datasets';
+          datasetSelector.appendChild(allOption);
+          
+          // Add separator
+          const separator = document.createElement('option');
+          separator.disabled = true;
+          separator.textContent = '───────────';
+          datasetSelector.appendChild(separator);
+          
+          // Add individual dataset options
+          datasets.forEach(dataset => {
+            const option = document.createElement('option');
+            option.value = dataset.id;
+            option.textContent = dataset.name + (dataset.isActive ? ' (active)' : '');
+            datasetSelector.appendChild(option);
+          });
+        }
       }
 
       // =============================================================
@@ -3821,6 +4001,7 @@
       
       load();                          // Load data from localStorage
       populateFooter();                // Populate footer with metadata
+      updateDatasetSelector();         // Update dataset selector options
       
       // Check for safe mode URL parameter (global for import/reset functions)
       const urlParams = new URLSearchParams(window.location.search);

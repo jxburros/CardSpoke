@@ -4,9 +4,41 @@
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.10.5
+## 🌟 Current Version: 0.10.6
 
-Version 0.10.5 introduces the **Tags API** with comprehensive tag management functionality, building on the solid foundation of the Dataset Architecture and testing infrastructure from v0.9.
+Version 0.10.6 introduces **Multi-Dataset Search** functionality, allowing users to search across multiple datasets simultaneously, building on the Tags API and Dataset Architecture from previous versions.
+
+### What's New in 0.10.6
+
+**Multi-Dataset Search**
+- Search across multiple datasets from a single search interface
+- Dataset selector dropdown in search bar with options:
+  - "Current Dataset" - search only the active dataset
+  - "All Datasets" - search across all available datasets
+  - Individual dataset selection
+- Visual indicators show which dataset each result comes from (blue badge)
+- Maintains fuzzy search algorithm with typo-tolerance
+- Performance optimized with result limiting (max 100 results)
+- Async search with loading indicator for smooth user experience
+
+**Enhanced Testing**
+- 127 comprehensive tests (up from 117 in v0.10.5)
+- 10 dedicated tests for Multi-Dataset Search
+- Tests cover current dataset, all datasets, metadata, sorting, and edge cases
+- Fast execution (<13ms) with uvu test framework
+- 100% test pass rate across all features
+
+**Testing Suite Breakdown**
+- Card Links: 20 tests
+- Tags API: 19 tests
+- Search & Navigation: 15 tests
+- Card Lookup: 14 tests
+- Navigator Suite: 14 tests
+- Store Structure: 12 tests
+- UI State: 11 tests
+- Multi-Dataset Search: 10 tests
+- Card Operations: 10 tests
+- Version Validation: 2 tests
 
 ### What's New in 0.10.5
 
@@ -133,7 +165,7 @@ Version 0.8.2 introduces **responsive layout design** for optimal viewing on all
 - **🔒 Privacy-Focused**: Optional PIN protection for sensitive datasets
 - **🌐 Cross-Platform**: Single codebase runs on Web, Desktop, Android, and iOS
 - **🎯 Lightweight & Fast**: Minimal dependencies, quick load times, responsive UI
-- **🔍 Search & Tags**: Global search and flexible tagging system
+- **🔍 Search & Tags**: Multi-dataset search with fuzzy matching and flexible tagging system
 - **🌙 Dark Mode**: Built-in theme support with customizable appearance
 - **⭐ Navigator Suite**: Bookmarks, recent cards, card duplication, and compact view
 - **📱 Responsive Design**: Optimized for mobile, tablet, and desktop devices

@@ -502,7 +502,7 @@
     
     .search-input {
       width: 100%;
-      padding: var(--space-md) var(--space-xl) var(--space-md) 50px;
+      padding: var(--space-md) 140px var(--space-md) 50px;
       border: none;
       border-bottom: 2px solid var(--border);
       border-radius: 0;
@@ -511,6 +511,31 @@
       color: var(--text);
       background: var(--surface);
       transition: border-color 0.15s;
+    }
+    
+    .dataset-selector {
+      position: absolute;
+      right: 40px;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--surface);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    
+    .dataset-selector:focus {
+      outline: none;
+      border-color: var(--text-medium);
+    }
+    
+    .dataset-selector:hover {
+      border-color: var(--text-muted);
     }
     
     .search-input:focus {
