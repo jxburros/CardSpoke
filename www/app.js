@@ -1091,6 +1091,22 @@
             },
             markDirty() {
               dirty = true;
+            },
+            // Tags API
+            getTags(cardId) {
+              return getTags(cardId);
+            },
+            addTag(cardId, tag) {
+              return addTag(cardId, tag);
+            },
+            removeTag(cardId, tag) {
+              return removeTag(cardId, tag);
+            },
+            setTags(cardId, tags) {
+              return setTags(cardId, tags);
+            },
+            getAllTags() {
+              return getAllTags();
             }
           };
         }
@@ -2313,6 +2329,121 @@
         const matches = body.match(/#\w+/g);
         return matches ? matches.slice(0, 5) : [];
       }
+      /**
+       * Get all tags for a card
+       * @param {string} cardId - Card ID
+       * @returns {string[]} Array of tags
+       */
+      function getTags(cardId) {
+        const card = store.cards[cardId];
+        if (!card) return [];
+        return card.tags || [];
+      }
+
+      /**
+       * Add a tag to a card
+       * @param {string} cardId - Card ID
+       * @param {string} tag - Tag to add
+       * @param {boolean} skipSave - Skip saving to localStorage
+       * @returns {boolean} True if tag was added, false otherwise
+       */
+      function addTag(cardId, tag, skipSave = false) {
+        const card = store.cards[cardId];
+        if (!card) return false;
+        
+        // Normalize tag (remove # if present, lowercase)
+        const normalizedTag = tag.replace(/^#/, '').toLowerCase().trim();
+        if (!normalizedTag) return false;
+        
+        // Initialize tags array if not present
+        if (!card.tags) card.tags = [];
+        
+        // Check if tag already exists (case-insensitive)
+        if (card.tags.some(t => t.toLowerCase() === normalizedTag)) {
+          return false;
+        }
+        
+        // Add the tag
+        card.tags.push(normalizedTag);
+        card.updatedAt = Date.now();
+        
+        if (!skipSave) save();
+        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'addTag' });
+        
+        return true;
+      }
+
+      /**
+       * Remove a tag from a card
+       * @param {string} cardId - Card ID
+       * @param {string} tag - Tag to remove
+       * @param {boolean} skipSave - Skip saving to localStorage
+       * @returns {boolean} True if tag was removed, false otherwise
+       */
+      function removeTag(cardId, tag, skipSave = false) {
+        const card = store.cards[cardId];
+        if (!card || !card.tags) return false;
+        
+        // Normalize tag (remove # if present, lowercase)
+        const normalizedTag = tag.replace(/^#/, '').toLowerCase().trim();
+        
+        // Find and remove the tag (case-insensitive)
+        const initialLength = card.tags.length;
+        card.tags = card.tags.filter(t => t.toLowerCase() !== normalizedTag);
+        
+        // Check if anything was removed
+        if (card.tags.length === initialLength) {
+          return false;
+        }
+        
+        card.updatedAt = Date.now();
+        
+        if (!skipSave) save();
+        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'removeTag' });
+        
+        return true;
+      }
+
+      /**
+       * Set all tags for a card (replaces existing tags)
+       * @param {string} cardId - Card ID
+       * @param {string[]} tags - Array of tags to set
+       * @param {boolean} skipSave - Skip saving to localStorage
+       * @returns {boolean} True if tags were set successfully
+       */
+      function setTags(cardId, tags, skipSave = false) {
+        const card = store.cards[cardId];
+        if (!card) return false;
+        
+        // Normalize all tags
+        const normalizedTags = tags
+          .map(tag => tag.replace(/^#/, '').toLowerCase().trim())
+          .filter(tag => tag.length > 0);
+        
+        // Remove duplicates
+        card.tags = [...new Set(normalizedTags)];
+        card.updatedAt = Date.now();
+        
+        if (!skipSave) save();
+        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'setTags' });
+        
+        return true;
+      }
+
+      /**
+       * Get all unique tags across all cards
+       * @returns {string[]} Array of all unique tags
+       */
+      function getAllTags() {
+        const allTags = new Set();
+        Object.values(store.cards).forEach(card => {
+          if (card.tags) {
+            card.tags.forEach(tag => allTags.add(tag));
+          }
+        });
+        return Array.from(allTags).sort();
+      }
+
 
       // =============================================================
       // --- RENDERING ---
