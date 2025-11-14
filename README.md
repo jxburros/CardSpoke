@@ -4,9 +4,39 @@
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.9.4
+## 🌟 Current Version: 0.10.5
 
-Version 0.9.4 implements the **Dataset Architecture** from the v0.9 roadmap, adding storage management, dataset information panels, and infrastructure for advanced data features.
+Version 0.10.5 introduces the **Tags API** with comprehensive tag management functionality, building on the solid foundation of the Dataset Architecture and testing infrastructure from v0.9.
+
+### What's New in 0.10.5
+
+**Tags API**
+- Comprehensive tag management system with five core functions
+- `getTags(cardId)` - Retrieve all tags for a specific card
+- `addTag(cardId, tag)` - Add a tag to a card with automatic normalization
+- `removeTag(cardId, tag)` - Remove a tag from a card
+- `setTags(cardId, tags)` - Set all tags for a card at once
+- `getAllTags()` - Get all unique tags across all cards
+- Tags are automatically normalized (lowercase, no # prefix required)
+- Duplicate tag prevention built-in
+
+**Enhanced Testing**
+- 117 comprehensive tests (up from 62 in v0.9.3)
+- 19 dedicated tests for Tags API coverage
+- Tests cover card operations, links, lookup, search, navigation, and UI state
+- Fast execution (<11ms) with uvu test framework
+- 100% test pass rate across all features
+
+**Testing Suite Breakdown**
+- Card Links: 20 tests
+- Tags API: 19 tests
+- Search & Navigation: 15 tests
+- Card Lookup: 14 tests
+- Navigator Suite: 14 tests
+- Store Structure: 12 tests
+- UI State: 11 tests
+- Card Operations: 10 tests
+- Version Validation: 2 tests
 
 ### What's New in 0.9.4
 
