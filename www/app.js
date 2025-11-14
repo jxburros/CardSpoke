@@ -1012,9 +1012,10 @@
             runner(window, document, CIB_MODS, storeAPI, console);
             if (modData.meta) registry[modId].meta = { ...modData.meta };
             registry[modId].__loaded = true;
+            console.log(`[Extensions] Loaded: ${modId}`, modData.meta || {});
             return registry[modId];
           } catch (err) {
-            console.error(`[Mods] Failed to evaluate ${modId}:`, err);
+            console.error(`[Extensions] Failed to load ${modId}:`, err);
             registry[modId] = registry[modId] || { id: modId, hooks: {}, meta: modData?.meta || {} };
             registry[modId].__loaded = false;
             registry[modId].__error = err;
@@ -1034,6 +1035,7 @@
           tag.textContent = css;
           document.head.appendChild(tag);
           styleTags[modId] = tag;
+          console.log(`[Extensions] Applied CSS for: ${modId}`);
         }
 
         /**
@@ -1042,7 +1044,10 @@
          */
         function removeStyle(modId) {
           const tag = styleTags[modId];
-          if (tag && tag.parentNode) tag.parentNode.removeChild(tag);
+          if (tag && tag.parentNode) {
+            tag.parentNode.removeChild(tag);
+            console.log(`[Extensions] Removed CSS for: ${modId}`);
+          }
           delete styleTags[modId];
         }
 
@@ -1595,7 +1600,7 @@
         }
         
         save();
-        if (window.CIB_MODS) {
+        if (window.CIB_MODS && !safeMode) {
           window.CIB_MODS.syncFromStore();
           window.CIB_MODS.runHook('onAppInit');
         }
@@ -1746,8 +1751,10 @@
                   localStorage.setItem('activeInstance', key);
                   instanceKey = key;
                   load();
-                  CIB_MODS.syncFromStore();
-                  CIB_MODS.runHook('onAppInit');
+                  if (!safeMode) {
+                    CIB_MODS.syncFromStore();
+                    CIB_MODS.runHook('onAppInit');
+                  }
                   render();
                   overlay.remove();
                   showToast('Switched to: ' + key);
@@ -3305,8 +3312,18 @@
       
       load();                          // Load data from localStorage
       populateFooter();                // Populate footer with metadata
-      CIB_MODS.syncFromStore();        // Initialize mods from store
-      CIB_MODS.runHook('onAppInit');   // Run mod initialization hooks
+      
+      // Check for safe mode URL parameter (global for import/reset functions)
+      const urlParams = new URLSearchParams(window.location.search);
+      let safeMode = urlParams.has('safemode');
+      
+      if (safeMode) {
+        console.warn('[Safe Mode] Extensions disabled via ?safemode parameter');
+        showToast('Safe Mode Active - Extensions Disabled', 'warning');
+      }
+      
+      if (!safeMode) CIB_MODS.syncFromStore();        // Initialize mods from store (skip in safe mode)
+      if (!safeMode) CIB_MODS.runHook('onAppInit');   // Run mod initialization hooks (skip in safe mode)
       render();                        // Initial render
 
       // Warn user about unsaved changes before leaving

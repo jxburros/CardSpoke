@@ -36,8 +36,8 @@
 - [ ] **N3:** Extend store.mods structure to include metadata (enabled, type, version, author) — [M, P1]
 - [ ] **N4:** Create Extensions page with list view, enable/disable checkboxes, type badges, safe mode — [L, P1]
 - [ ] **N5:** Extract theme management to separate UI under Appearance menu (one active theme at a time) — [M, P2]
-- [ ] **N9:** Add safe mode toggle (?safemode URL param skips loading extensions) — [S, P2]
-- [ ] **N10:** Add console logging for extension load events (track which extensions loaded/failed) — [S, P2]
+- [x] **N9:** Add safe mode toggle (?safemode URL param skips loading extensions) — [S, P2]
+- [x] **N10:** Add console logging for extension load events (track which extensions loaded/failed) — [S, P2]
 
 ### Internal Linking
 - [ ] **N6:** Implement parser to detect [[Card Name]] syntax in card body text — [M, P2]
@@ -67,8 +67,8 @@
 - [ ] N4: Extensions page skeleton
 - [ ] N5: Theme manager foundation
 - [ ] Q4: Developer mode prep
-- [ ] N9: Safe mode toggle
-- [ ] N10: Extension load logs
+- [x] N9: Safe mode toggle
+- [x] N10: Extension load logs
 
 ### Phase 4: Internal Links (Est. 2-3 days)
 - [ ] N6: Internal link detection
