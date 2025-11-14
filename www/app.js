@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.11.0
+      // Version: 0.11.1
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.11.0'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.11.1'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-14'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot - Mega Showrunner'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -36,6 +36,7 @@
       // Version 0.10.5: Implemented Tags API (getTags, addTag, removeTag, setTags, getAllTags) with comprehensive tests
       // Version 0.10.6: Multi-Dataset Search - search across multiple datasets simultaneously
       // Version 0.11.0: Mega Showrunner - Backlinks, Related Cards, Enhanced Exports, and many more features
+      // Version 0.11.1: Exposed CIB.utils API for mod developers with comprehensive utility functions
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -1402,6 +1403,290 @@
       })();
 
       window.CIB_MODS = CIB_MODS;
+
+      // =============================================================
+      // --- CIB.utils API ---
+      // Public utility API for mod developers
+      // Exposed as window.CIB.utils
+      // =============================================================
+      
+      /**
+       * CIB.utils - Public utility API for extension developers
+       * 
+       * Provides a safe, documented API for mods to interact with CardSpoke data and UI.
+       * All functions handle errors gracefully and maintain data integrity.
+       * 
+       * @namespace CIB.utils
+       * @version 0.11.0
+       * @since 0.11.0
+       */
+      window.CIB = window.CIB || {};
+      window.CIB.utils = {
+        /**
+         * Create a new card
+         * @param {Object} data - Card data
+         * @param {string} data.title - Card title
+         * @param {string} data.body - Card content
+         * @param {string|null} data.parentId - Parent card ID or null for root
+         * @param {string[]} data.tags - Array of tags (optional)
+         * @returns {Promise<{id: string, card: Object}>} Created card info
+         * @example
+         * const result = await CIB.utils.createCard({
+         *   title: 'My Card',
+         *   body: 'Content here',
+         *   parentId: null,
+         *   tags: ['tag1', 'tag2']
+         * });
+         * console.log('Created card:', result.id);
+         */
+        createCard: async function(data = {}) {
+          try {
+            const { title = '', body = '', parentId = null, tags = [] } = data;
+            const cardId = createCard(title, body, parentId, false, false);
+            
+            // Add tags if provided
+            if (tags && tags.length > 0) {
+              tags.forEach(tag => addTag(cardId, tag, true));
+              save();
+            }
+            
+            const card = store.cards[cardId];
+            return { id: cardId, card: cloneCard(card) };
+          } catch (err) {
+            console.error('[CIB.utils] createCard failed:', err);
+            throw new Error(`Failed to create card: ${err.message}`);
+          }
+        },
+
+        /**
+         * Update an existing card
+         * @param {string} cardId - Card ID to update
+         * @param {Object} changes - Fields to update
+         * @param {string} changes.title - New title (optional)
+         * @param {string} changes.body - New body (optional)
+         * @param {string[]} changes.tags - New tags array (optional)
+         * @returns {Promise<boolean>} True if successful
+         * @example
+         * await CIB.utils.updateCard('card-123', {
+         *   title: 'Updated Title',
+         *   body: 'Updated content'
+         * });
+         */
+        updateCard: async function(cardId, changes = {}) {
+          try {
+            if (!cardId) throw new Error('cardId is required');
+            const card = store.cards[cardId];
+            if (!card) throw new Error(`Card ${cardId} not found`);
+            
+            const { tags, ...otherChanges } = changes;
+            
+            // Update non-tag fields
+            if (Object.keys(otherChanges).length > 0) {
+              updateCard(cardId, otherChanges, false, false);
+            }
+            
+            // Handle tags separately if provided
+            if (tags !== undefined) {
+              setTags(cardId, tags, false);
+            }
+            
+            return true;
+          } catch (err) {
+            console.error('[CIB.utils] updateCard failed:', err);
+            throw new Error(`Failed to update card: ${err.message}`);
+          }
+        },
+
+        /**
+         * Get all tags for a card
+         * @param {string} cardId - Card ID
+         * @returns {Promise<string[]>} Array of tags
+         * @example
+         * const tags = await CIB.utils.getTags('card-123');
+         * console.log('Tags:', tags);
+         */
+        getTags: async function(cardId) {
+          try {
+            if (!cardId) throw new Error('cardId is required');
+            return getTags(cardId);
+          } catch (err) {
+            console.error('[CIB.utils] getTags failed:', err);
+            return [];
+          }
+        },
+
+        /**
+         * Add a tag to a card
+         * @param {string} cardId - Card ID
+         * @param {string} tag - Tag to add
+         * @returns {Promise<boolean>} True if tag was added successfully
+         * @example
+         * const success = await CIB.utils.addTag('card-123', 'important');
+         */
+        addTag: async function(cardId, tag) {
+          try {
+            if (!cardId) throw new Error('cardId is required');
+            if (!tag) throw new Error('tag is required');
+            return addTag(cardId, tag, false);
+          } catch (err) {
+            console.error('[CIB.utils] addTag failed:', err);
+            return false;
+          }
+        },
+
+        /**
+         * Remove a tag from a card
+         * @param {string} cardId - Card ID
+         * @param {string} tag - Tag to remove
+         * @returns {Promise<boolean>} True if tag was removed successfully
+         * @example
+         * await CIB.utils.removeTag('card-123', 'old-tag');
+         */
+        removeTag: async function(cardId, tag) {
+          try {
+            if (!cardId) throw new Error('cardId is required');
+            if (!tag) throw new Error('tag is required');
+            return removeTag(cardId, tag, false);
+          } catch (err) {
+            console.error('[CIB.utils] removeTag failed:', err);
+            return false;
+          }
+        },
+
+        /**
+         * Set all tags for a card (replaces existing tags)
+         * @param {string} cardId - Card ID
+         * @param {string[]} tags - Array of tags
+         * @returns {Promise<boolean>} True if successful
+         * @example
+         * await CIB.utils.setTags('card-123', ['tag1', 'tag2', 'tag3']);
+         */
+        setTags: async function(cardId, tags) {
+          try {
+            if (!cardId) throw new Error('cardId is required');
+            if (!Array.isArray(tags)) throw new Error('tags must be an array');
+            return setTags(cardId, tags, false);
+          } catch (err) {
+            console.error('[CIB.utils] setTags failed:', err);
+            return false;
+          }
+        },
+
+        /**
+         * Get all unique tags across all cards
+         * @returns {Promise<string[]>} Sorted array of all tags
+         * @example
+         * const allTags = await CIB.utils.getAllTags();
+         * console.log('All tags:', allTags);
+         */
+        getAllTags: async function() {
+          try {
+            return getAllTags();
+          } catch (err) {
+            console.error('[CIB.utils] getAllTags failed:', err);
+            return [];
+          }
+        },
+
+        /**
+         * Display a toast notification
+         * @param {string} message - Message to display
+         * @param {'success'|'info'|'warning'|'error'} type - Toast type
+         * @param {number} duration - Duration in ms (default: 3000)
+         * @returns {Promise<void>}
+         * @example
+         * await CIB.utils.showToast('Operation successful!', 'success');
+         * await CIB.utils.showToast('Warning!', 'warning', 5000);
+         */
+        showToast: async function(message, type = 'info', duration = 3000) {
+          try {
+            showToast(message, type, duration);
+          } catch (err) {
+            console.error('[CIB.utils] showToast failed:', err);
+          }
+        },
+
+        /**
+         * Get dataset metadata
+         * @returns {Promise<Object>} Dataset metadata
+         * @example
+         * const meta = await CIB.utils.getDatasetMeta();
+         * console.log('Dataset:', meta.name, 'Cards:', meta.cardCount);
+         */
+        getDatasetMeta: async function() {
+          try {
+            return {
+              name: instanceKey,
+              cardCount: Object.keys(store.cards).length,
+              rootCardCount: store.rootOrder.length,
+              bookmarkCount: (store.bookmarks || []).length,
+              recentCount: (store.recentCards || []).length,
+              modCount: Object.keys(store.mods || {}).length,
+              schemaVersion: SCHEMA_VERSION,
+              appVersion: APP_VERSION
+            };
+          } catch (err) {
+            console.error('[CIB.utils] getDatasetMeta failed:', err);
+            return {};
+          }
+        },
+
+        /**
+         * Get a card by ID
+         * @param {string} cardId - Card ID
+         * @returns {Promise<Object|null>} Card object (cloned) or null if not found
+         * @example
+         * const card = await CIB.utils.getCard('card-123');
+         * if (card) console.log('Found:', card.title);
+         */
+        getCard: async function(cardId) {
+          try {
+            if (!cardId) throw new Error('cardId is required');
+            const card = store.cards[cardId];
+            return card ? cloneCard(card) : null;
+          } catch (err) {
+            console.error('[CIB.utils] getCard failed:', err);
+            return null;
+          }
+        },
+
+        /**
+         * Search for cards
+         * @param {string} query - Search query
+         * @returns {Promise<Array>} Array of matching cards
+         * @example
+         * const results = await CIB.utils.searchCards('meeting notes');
+         * console.log('Found', results.length, 'cards');
+         */
+        searchCards: async function(query) {
+          try {
+            if (!query) return [];
+            const lowerQuery = query.toLowerCase();
+            const results = [];
+            
+            for (const id in store.cards) {
+              const card = store.cards[id];
+              if (card.title.toLowerCase().includes(lowerQuery) ||
+                  card.body.toLowerCase().includes(lowerQuery) ||
+                  (card.tags && card.tags.some(tag => tag.toLowerCase().includes(lowerQuery)))) {
+                results.push(cloneCard(card));
+              }
+            }
+            
+            return results;
+          } catch (err) {
+            console.error('[CIB.utils] searchCards failed:', err);
+            return [];
+          }
+        }
+      };
+
+      // Log API availability in developer mode
+      if (isDeveloperMode()) {
+        console.log('[CIB.utils] API initialized and available at window.CIB.utils');
+        console.log('[CIB.utils] Available methods:', Object.keys(window.CIB.utils));
+      }
+
 
       function runModHook(hookName, ...args) {
         CIB_MODS.runHook(hookName, ...args);
