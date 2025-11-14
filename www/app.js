@@ -153,7 +153,13 @@
        * @param {number} duration - Duration in milliseconds (default: 3000)
        */
       function showToast(message, type = 'success', duration = 3000) {
-        const toast = h('div', { className: `toast ${type}` }, message);
+        const toast = h('div', { 
+          className: `toast ${type}`,
+          role: 'alert',
+          'aria-live': type === 'error' ? 'assertive' : 'polite',
+          'aria-atomic': 'true',
+          tabindex: '0'
+        }, message);
         toastContainer.appendChild(toast);
         
         let timeoutId = null;
@@ -191,10 +197,20 @@
         
         // Add click to dismiss
         toast.style.cursor = 'pointer';
-        toast.addEventListener('click', () => {
+        const dismissToast = () => {
           clearTimeout(timeoutId);
           toast.style.opacity = '0';
           setTimeout(() => toast.remove(), 300);
+        };
+        
+        toast.addEventListener('click', dismissToast);
+        
+        // Add keyboard support (Escape or Enter to dismiss)
+        toast.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' || e.key === 'Enter') {
+            e.preventDefault();
+            dismissToast();
+          }
         });
         
         scheduleRemoval();
@@ -2142,7 +2158,15 @@
           const meta = modData.meta || {};
           const modItem = h('div', { style: 'padding: var(--space-lg); border: 1px solid var(--border); margin-bottom: var(--space-md);' });
           const modHeader = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
-          modHeader.appendChild(h('div', { style: 'font-weight: 700;' }, meta.name || modId));
+          const headerLeft = h('div', { style: 'display: flex; align-items: center; gap: var(--space-sm);' });
+          headerLeft.appendChild(h('div', { style: 'font-weight: 700;' }, meta.name || modId));
+          // Add type badge if type is specified
+          if (meta.type) {
+            const badgeClass = 'ext-badge ext-' + (meta.type.toLowerCase());
+            const badge = h('span', { className: badgeClass }, meta.type);
+            headerLeft.appendChild(badge);
+          }
+          modHeader.appendChild(headerLeft);
           const toggleBtn = h('button', {
             className: modData.enabled ? 'btn btn-danger' : 'btn btn-primary',
             onclick: () => {
