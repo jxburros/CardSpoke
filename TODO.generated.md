@@ -18,8 +18,8 @@
 
 ## Quality-of-Life (Developer Experience) 💚
 
-- [ ] **Q1:** Add CSS classes for extension type badges (.ext-badge, .ext-theme, .ext-patch, .ext-plugin, .ext-mod) — [S, P2]
-- [ ] **Q2:** Add JSDoc-style comments for planned extension hooks in app.js — [S, P3]
+- [x] **Q1:** Add CSS classes for extension type badges (.ext-badge, .ext-theme, .ext-patch, .ext-plugin, .ext-mod) — [S, P2]
+- [x] **Q2:** Add JSDoc-style comments for planned extension hooks in app.js — [S, P3]
 - [ ] **Q3:** Profile and optimize dataset switching performance for large datasets (1000+ cards, target <500ms) — [M, P2]
 - [ ] **Q4:** Add hidden developer mode toggle in menu, store devMode flag in localStorage — [S, P3]
 - [ ] **Q5:** Implement toast notification system (showToast function, auto-dismiss after 3s) — [M, P2]
@@ -54,8 +54,8 @@
 - [x] F1: Version comment update
 - [x] F2: Version test
 - [ ] F3: PIN status message
-- [ ] Q1: Extension badge CSS
-- [ ] Q2: Extension hook comments
+- [x] Q1: Extension badge CSS
+- [x] Q2: Extension hook comments
 
 ### Phase 2: Infrastructure (Est. 3-4 days)
 - [ ] N1: Tagging infrastructure

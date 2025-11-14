@@ -920,6 +920,67 @@
       // functionality through JavaScript hooks and CSS styles.
       // =============================================================
       
+       /**
+        * =============================================================
+        * EXTENSION HOOKS (Planned & Implemented)
+        * =============================================================
+        * 
+        * Extensions can register hooks to execute custom code at key points
+        * in the application lifecycle. Use CIB_MODS.register() to add hooks.
+        * 
+        * IMPLEMENTED HOOKS:
+        * ------------------
+        * @hook onAppInit(context)
+        *   Called once when app initializes or when a mod is first loaded.
+        *   Use for setup, initialization, or registering global handlers.
+        *   @param {Object} context - Mod execution context
+        * 
+        * @hook onCardSave(context, card, saveInfo)
+        *   Called whenever a card is created or updated.
+        *   @param {Object} context - Mod execution context
+        *   @param {Object} card - Card data (cloned, read-only)
+        *   @param {Object} saveInfo - { isNew: boolean, source: string }
+        * 
+        * @hook onCardDelete(context, card)
+        *   Called when a card is deleted.
+        *   @param {Object} context - Mod execution context
+        *   @param {Object} card - Card data before deletion (cloned)
+        * 
+        * @hook onCardRender(context, card, element)
+        *   Called after a card is rendered to the DOM.
+        *   @param {Object} context - Mod execution context
+        *   @param {Object} card - Card data (cloned)
+        *   @param {HTMLElement} element - Card DOM element
+        * 
+        * PLANNED HOOKS (v0.10+):
+        * -----------------------
+        * @hook onNavigate(context, navState)
+        *   Called when navigation state changes (planned for v0.10.1)
+        *   @param {Object} context - Mod execution context
+        *   @param {Object} navState - { page, cardId, parentId, searchQuery }
+        * 
+        * @hook onSearch(context, query, results)
+        *   Called when search is performed (planned for v0.10.2)
+        *   @param {Object} context - Mod execution context
+        *   @param {string} query - Search query
+        *   @param {Array} results - Array of matching cards
+        * 
+        * @hook onThemeChange(context, themeName)
+        *   Called when theme is changed (planned for v0.10.2)
+        *   @param {Object} context - Mod execution context
+        *   @param {string} themeName - Name of activated theme
+        * 
+        * @hook onExport(context, exportData)
+        *   Called before data export (planned for v0.10.3)
+        *   @param {Object} context - Mod execution context
+        *   @param {Object} exportData - Data being exported
+        * 
+        * @hook onImport(context, importData)
+        *   Called after data import (planned for v0.10.3)
+        *   @param {Object} context - Mod execution context
+        *   @param {Object} importData - Imported data structure
+        */
+
       const CIB_MODS = (() => {
         // Registry of loaded mods
         const registry = {};
