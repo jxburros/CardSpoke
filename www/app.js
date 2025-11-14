@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.10.6
+      // Version: 0.11.0
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.10.6'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.11.0'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-14'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GitHub Copilot - Mega Showrunner'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -35,6 +35,7 @@
       // Version 0.9.4: Added StorageDriver architecture, Dataset Info Panel, storage analytics
       // Version 0.10.5: Implemented Tags API (getTags, addTag, removeTag, setTags, getAllTags) with comprehensive tests
       // Version 0.10.6: Multi-Dataset Search - search across multiple datasets simultaneously
+      // Version 0.11.0: Mega Showrunner - Backlinks, Related Cards, Enhanced Exports, and many more features
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -58,6 +59,7 @@
         upload: document.getElementById('menuUpload'),
         extensions: document.getElementById('menuExtensions'),
         bookmarks: document.getElementById('menuBookmarks'),
+        typography: document.getElementById('menuTypography'),
         recentCards: document.getElementById('menuRecentCards'),
         instance: document.getElementById('menuInstance'),
         datasetInfo: document.getElementById('menuDatasetInfo'),
@@ -81,6 +83,7 @@
       const themeSwitch = document.getElementById('themeSwitch');
       const viewModeSwitch = document.getElementById('viewModeSwitch');
       const highContrastSwitch = document.getElementById('highContrastSwitch');
+      const gridViewSwitch = document.getElementById('gridViewSwitch');
       const devModeSwitch = document.getElementById('devModeSwitch');
 
       const uploadModal = {
@@ -2820,6 +2823,78 @@
         });
         return Array.from(allTags).sort();
       }
+      /**
+       * Get all cards that link to a specific card (backlinks)
+       * @param {string} cardId - Card ID to find backlinks for
+       * @returns {Array<{id: string, title: string}>} Array of cards that link to this card
+       */
+      function getBacklinks(cardId) {
+        if (!cardId) return [];
+        
+        const card = store.cards[cardId];
+        if (!card) return [];
+        
+        const cardTitle = card.title;
+        if (!cardTitle) return [];
+        
+        const backlinks = [];
+        
+        // Search through all cards for [[Card Title]] references
+        for (const [id, otherCard] of Object.entries(store.cards)) {
+          if (id === cardId) continue; // Skip self-references
+          
+          if (otherCard.body && hasCardLink(otherCard.body, cardTitle)) {
+            backlinks.push({
+              id: otherCard.id,
+              title: otherCard.title || '(Untitled)',
+              body: otherCard.body
+            });
+          }
+        }
+        
+        return backlinks;
+      }
+
+      /**
+       * Get related cards based on shared tags
+       * @param {string} cardId - Card ID to find related cards for
+       * @param {number} limit - Maximum number of results (default: 10)
+       * @returns {Array<{id: string, title: string, matchScore: number, matchedTags: string[]}>}
+       */
+      function getRelatedCards(cardId, limit = 10) {
+        if (!cardId) return [];
+        
+        const card = store.cards[cardId];
+        if (!card) return [];
+        
+        const cardTags = getTags(cardId);
+        if (cardTags.length === 0) return [];
+        
+        const related = [];
+        
+        for (const [id, otherCard] of Object.entries(store.cards)) {
+          if (id === cardId) continue; // Skip self
+          
+          const otherTags = getTags(id);
+          const matchedTags = cardTags.filter(tag => otherTags.includes(tag));
+          
+          if (matchedTags.length > 0) {
+            const matchScore = matchedTags.length / Math.max(cardTags.length, otherTags.length);
+            related.push({
+              id: otherCard.id,
+              title: otherCard.title || '(Untitled)',
+              matchScore,
+              matchedTags
+            });
+          }
+        }
+        
+        // Sort by match score (highest first)
+        related.sort((a, b) => b.matchScore - a.matchScore);
+        
+        return related.slice(0, limit);
+      }
+
 
 
       // =============================================================
@@ -2887,7 +2962,9 @@
         if (kids.length === 0) {
           main.appendChild(h('div', { className: 'empty' }, 'No cards yet. Create one to get started!'));
         } else {
-          const grid = h('div', { className: 'card-grid' });
+          const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
+          const gridClass = gridViewEnabled ? 'card-grid grid-view' : 'card-grid';
+          const grid = h('div', { className: gridClass });
           kids.forEach(card => {
             const cardEl = renderCardTile(card);
             grid.appendChild(cardEl);
@@ -3094,6 +3171,48 @@
           childrenSection.appendChild(childrenGrid);
           detail.appendChild(childrenSection);
         }
+        // Backlinks section
+        const backlinks = getBacklinks(card.id);
+        if (backlinks.length > 0) {
+          const backlinksSection = h('div', { className: 'backlinks-section' });
+          backlinksSection.appendChild(h('div', { className: 'section-title' }, `← Referenced By (${backlinks.length})`));
+          const backlinksGrid = h('div', { className: 'card-grid' });
+          backlinks.forEach(backlink => {
+            const backlinkTile = h('div', { 
+              className: 'card-tile', 
+              onclick: () => goTo('read', { cardId: backlink.id }) 
+            });
+            backlinkTile.appendChild(h('div', { className: 'card-tile-title' }, backlink.title));
+            backlinksGrid.appendChild(backlinkTile);
+          });
+          backlinksSection.appendChild(backlinksGrid);
+          detail.appendChild(backlinksSection);
+        }
+        
+        // Related cards section (based on tags)
+        const relatedCards = getRelatedCards(card.id, 5);
+        if (relatedCards.length > 0) {
+          const relatedSection = h('div', { className: 'related-section' });
+          relatedSection.appendChild(h('div', { className: 'section-title' }, `Related Cards (${relatedCards.length})`));
+          const relatedGrid = h('div', { className: 'card-grid' });
+          relatedCards.forEach(related => {
+            const relatedTile = h('div', { 
+              className: 'card-tile', 
+              onclick: () => goTo('read', { cardId: related.id }) 
+            });
+            const titleDiv = h('div', { className: 'card-tile-title' }, related.title);
+            relatedTile.appendChild(titleDiv);
+            // Show matched tags
+            const tagsDiv = h('div', { className: 'card-tags' });
+            related.matchedTags.forEach(tag => {
+              tagsDiv.appendChild(h('span', { className: 'card-tag' }, tag));
+            });
+            relatedTile.appendChild(tagsDiv);
+            relatedGrid.appendChild(relatedTile);
+          });
+          relatedSection.appendChild(relatedGrid);
+          detail.appendChild(relatedSection);
+        }
         main.appendChild(detail);
         runModHook('onCardRender', cloneCard(card), detail);
       }
@@ -3201,6 +3320,17 @@
         formGroupTags.appendChild(tagsInput);
         formGroupTags.appendChild(tagsDatalist);
         form.appendChild(formGroupTags);
+        
+        // Add "Suggest Tags" button
+        if (editing && card.id) {
+          const suggestBtn = h('button', {
+            type: 'button',
+            className: 'btn btn-secondary',
+            onclick: () => showTagSuggestions(card.id),
+            style: 'margin-top: var(--space-sm);'
+          }, '✨ Suggest Tags');
+          formGroupTags.appendChild(suggestBtn);
+        }
     
         const formGroup3 = h('div', { className: 'form-group' });
         formGroup3.appendChild(h('label', { className: 'form-label' }, 'Parent Card'));
@@ -3341,7 +3471,9 @@
             }, `Found ${fuzzyResults.length} result${fuzzyResults.length === 1 ? '' : 's'}${scopeText} (fuzzy matching enabled)`);
             main.appendChild(resultInfo);
             
-            const grid = h('div', { className: 'card-grid' });
+            const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
+          const gridClass = gridViewEnabled ? 'card-grid grid-view' : 'card-grid';
+          const grid = h('div', { className: gridClass });
             fuzzyResults.forEach(result => {
               const card = result.card;
               const cardEl = renderCardTile(card);
@@ -3528,6 +3660,18 @@
         };
       }
 
+      const gridViewSwitch = document.getElementById('gridViewSwitch');
+      if (gridViewSwitch) {
+        const savedGridView = localStorage.getItem('cardspoke_gridView') === 'true';
+        gridViewSwitch.checked = savedGridView;
+        gridViewSwitch.onchange = () => {
+          const enabled = gridViewSwitch.checked;
+          localStorage.setItem('cardspoke_gridView', enabled.toString());
+          showToast(enabled ? 'Grid view enabled' : 'List view enabled');
+          render();
+        };
+      }
+
       if (highContrastSwitch) {
         const savedHC = localStorage.getItem('cardspoke_highcontrast') === 'true';
         if (savedHC) document.documentElement.classList.add('high-contrast');
@@ -3623,6 +3767,11 @@
       menu.recentCards.onclick = () => {
         menu.overlay.classList.remove('show');
         showRecentCards();
+
+      menu.typography.onclick = () => {
+        menu.overlay.classList.remove('show');
+        showTypographySelector();
+      };
       };
 
       menu.instance.onclick = () => {
@@ -3867,6 +4016,50 @@
         'escape': { action: () => handleEscape(), description: 'Close modals/go back' },
         'alt+t': { action: () => { header.themeToggle.click(); }, description: 'Toggle theme' },
         'alt+c': { action: () => toggleViewMode(), description: 'Toggle compact view' }
+              'ctrl+d': { action: () => { 
+                if (navState.page === 'read' && navState.cardId) {
+                  const card = store.cards[navState.cardId];
+                  if (card) {
+                    const choice = confirm('Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)');
+                    const newId = duplicateCard(navState.cardId, choice);
+                    if (newId) {
+                      showToast('Card duplicated successfully');
+                      goTo('read', { cardId: newId });
+                    }
+                  }
+                }
+              }, description: 'Duplicate current card' },
+              'ctrl+t': { action: () => {
+                if (navState.page === 'edit') {
+                  const tagsInput = document.getElementById('cardTags');
+                  if (tagsInput) tagsInput.focus();
+                }
+              }, description: 'Focus tags input (when editing)' },
+              'ctrl+[': { action: () => {
+                if (navState.page === 'read' && navState.cardId) {
+                  const card = store.cards[navState.cardId];
+                  if (card && card.parentId) {
+                    goTo('read', { cardId: card.parentId });
+                  } else {
+                    goTo('list');
+                  }
+                }
+              }, description: 'Navigate to parent card' },
+              'ctrl+]': { action: () => {
+                if (navState.page === 'read' && navState.cardId) {
+                  const card = store.cards[navState.cardId];
+                  if (card && card.children.length > 0) {
+                    goTo('read', { cardId: card.children[0] });
+                  }
+                }
+              }, description: 'Navigate to first child card' },
+              'ctrl+g': { action: () => {
+                // Toggle between list and grid view
+                const gridModeEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
+                localStorage.setItem('cardspoke_gridView', (!gridModeEnabled).toString());
+                showToast(gridModeEnabled ? 'List view enabled' : 'Grid view enabled');
+                render();
+              }, description: 'Toggle grid/list view' },
       };
       
       function handleEscape() {
@@ -3896,6 +4089,171 @@
         menu.overlay.classList.remove('show');
       }
       
+      
+      /**
+       * Show typography preset selector modal
+       */
+      function showTypographySelector() {
+        const currentTypography = localStorage.getItem('cardspoke_typography') || 'default';
+        
+        const modal = h('div', { 
+          id: 'typographyModal', 
+          className: 'menu-overlay show',
+          onclick: (e) => { if (e.target === modal) modal.remove(); }
+        },
+          h('div', { className: 'menu-panel' },
+            h('div', { className: 'menu-header' },
+              h('div', { className: 'menu-title' }, '📖 Typography'),
+              h('button', { 
+                className: 'menu-close',
+                onclick: () => modal.remove()
+              }, '✕')
+            ),
+            h('div', { className: 'typography-presets' },
+              h('div', { className: 'preset-description' }, 'Choose a reading mode that suits your preference:'),
+              ...[
+                { id: 'default', name: 'Default', desc: '16px, comfortable line height' },
+                { id: 'comfortable', name: 'Comfortable', desc: '18px, extra line height for relaxed reading' },
+                { id: 'compact', name: 'Compact', desc: '14px, tighter spacing for more content' },
+                { id: 'dyslexia', name: 'Dyslexia-Friendly', desc: '18px, wider spacing, readable font' }
+              ].map(preset => 
+                h('div', { 
+                  className: `preset-option ${currentTypography === preset.id ? 'active' : ''}`,
+                  onclick: () => {
+                    localStorage.setItem('cardspoke_typography', preset.id);
+                    document.documentElement.setAttribute('data-typography', preset.id);
+                    showToast(`Typography: ${preset.name}`);
+                    modal.remove();
+                  }
+                },
+                  h('div', { className: 'preset-name' }, preset.name),
+                  h('div', { className: 'preset-desc' }, preset.desc)
+                )
+              )
+            )
+          )
+        );
+        
+        document.body.appendChild(modal);
+      }
+
+      /**
+       * Generate smart tag suggestions for a card based on content
+       * @param {string} cardId - Card ID to analyze
+       * @param {number} limit - Maximum number of suggestions (default: 5)
+       * @returns {Array<{tag: string, score: number}>} Suggested tags with relevance scores
+       */
+      function suggestTags(cardId, limit = 5) {
+        const card = store.cards[cardId];
+        if (!card) return [];
+        
+        const existingTags = getTags(cardId);
+        const allExistingTags = getAllTags();
+        const suggestions = [];
+        
+        // Combine title and body for analysis
+        const content = ((card.title || '') + ' ' + (card.body || '')).toLowerCase();
+        
+        // Get tags from other cards with similar content
+        for (const tag of allExistingTags) {
+          if (existingTags.includes(tag)) continue; // Skip already applied tags
+          
+          // Find cards with this tag
+          const cardsWithTag = Object.values(store.cards).filter(c => 
+            c.tags && c.tags.includes(tag)
+          );
+          
+          // Calculate relevance based on content similarity
+          let totalScore = 0;
+          for (const otherCard of cardsWithTag) {
+            const otherContent = ((otherCard.title || '') + ' ' + (otherCard.body || '')).toLowerCase();
+            
+            // Simple word overlap scoring
+            const contentWords = new Set(content.split(/\s+/).filter(w => w.length > 3));
+            const otherWords = new Set(otherContent.split(/\s+/).filter(w => w.length > 3));
+            const commonWords = [...contentWords].filter(w => otherWords.has(w));
+            
+            if (commonWords.length > 0) {
+              totalScore += commonWords.length / Math.max(contentWords.size, otherWords.size);
+            }
+          }
+          
+          if (totalScore > 0) {
+            suggestions.push({
+              tag,
+              score: totalScore / cardsWithTag.length
+            });
+          }
+        }
+        
+        // Sort by score and return top suggestions
+        suggestions.sort((a, b) => b.score - a.score);
+        return suggestions.slice(0, limit);
+      }
+      
+      /**
+       * Show smart tag suggestions modal
+       * @param {string} cardId - Card ID to suggest tags for
+       */
+      function showTagSuggestions(cardId) {
+        const card = store.cards[cardId];
+        if (!card) return;
+        
+        const suggestions = suggestTags(cardId, 8);
+        
+        if (suggestions.length === 0) {
+          showToast('No tag suggestions available', 'info');
+          return;
+        }
+        
+        const modal = h('div', { 
+          id: 'tagSuggestionsModal', 
+          className: 'menu-overlay show',
+          onclick: (e) => { if (e.target === modal) modal.remove(); }
+        },
+          h('div', { className: 'menu-panel' },
+            h('div', { className: 'menu-header' },
+              h('div', { className: 'menu-title' }, '🏷️ Suggested Tags'),
+              h('button', { 
+                className: 'menu-close',
+                onclick: () => modal.remove()
+              }, '✕')
+            ),
+            h('div', { className: 'tag-suggestions' },
+              h('div', { className: 'suggestion-description' }, 
+                `Based on similar cards, you might want to add these tags:`
+              ),
+              ...suggestions.map(({ tag, score }) => 
+                h('button', { 
+                  className: 'suggestion-tag',
+                  onclick: () => {
+                    addTag(cardId, tag);
+                    showToast(`✓ Tag "${tag}" added`);
+                    modal.remove();
+                    render();
+                  }
+                },
+                  h('span', { className: 'tag-name' }, tag),
+                  h('span', { className: 'tag-score' }, `${Math.round(score * 100)}% match`)
+                )
+              ),
+              h('button', {
+                className: 'btn btn-primary',
+                onclick: () => {
+                  // Apply all suggestions
+                  suggestions.forEach(({ tag }) => addTag(cardId, tag, true));
+                  save();
+                  showToast(`✓ ${suggestions.length} tags added`);
+                  modal.remove();
+                  render();
+                }
+              }, `Apply All ${suggestions.length} Tags`)
+            )
+          )
+        );
+        
+        document.body.appendChild(modal);
+      }
       function showKeyboardHelp() {
         let helpModal = document.getElementById('keyboardHelpModal');
         
@@ -4002,6 +4360,10 @@
       load();                          // Load data from localStorage
       populateFooter();                // Populate footer with metadata
       updateDatasetSelector();         // Update dataset selector options
+
+      // Apply saved typography preset
+      const savedTypography = localStorage.getItem('cardspoke_typography') || 'default';
+      document.documentElement.setAttribute('data-typography', savedTypography);
       
       // Check for safe mode URL parameter (global for import/reset functions)
       const urlParams = new URLSearchParams(window.location.search);
