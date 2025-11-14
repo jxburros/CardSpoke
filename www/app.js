@@ -2425,6 +2425,82 @@
       }
 
       /**
+       * Find card ID by normalized name
+       * @param {string} cardName - Card name to search for
+       * @returns {string|null} Card ID if found, null otherwise
+       */
+      function findCardByName(cardName) {
+        if (!cardName) return null;
+        
+        const normalizedSearch = normalizeCardName(cardName);
+        
+        for (const [id, card] of Object.entries(store.cards)) {
+          if (normalizeCardName(card.title) === normalizedSearch) {
+            return id;
+          }
+        }
+        
+        return null;
+      }
+
+      /**
+       * Find all cards matching a name pattern
+       * @param {string} cardName - Card name pattern to search for
+       * @param {boolean} exactMatch - If true, requires exact match; if false, allows partial matches
+       * @returns {Array<{id: string, title: string, similarity: number}>} Array of matching cards
+       */
+      function findCardsByName(cardName, exactMatch = true) {
+        if (!cardName) return [];
+        
+        const normalizedSearch = normalizeCardName(cardName);
+        const results = [];
+        
+        for (const [id, card] of Object.entries(store.cards)) {
+          const normalizedTitle = normalizeCardName(card.title);
+          
+          if (exactMatch) {
+            if (normalizedTitle === normalizedSearch) {
+              results.push({
+                id,
+                title: card.title,
+                similarity: 1.0
+              });
+            }
+          } else {
+            // Partial match - check if search term is contained
+            if (normalizedTitle.includes(normalizedSearch)) {
+              // Calculate simple similarity score
+              const similarity = normalizedSearch.length / normalizedTitle.length;
+              results.push({
+                id,
+                title: card.title,
+                similarity
+              });
+            }
+          }
+        }
+        
+        // Sort by similarity (exact matches first, then by similarity score)
+        results.sort((a, b) => b.similarity - a.similarity);
+        
+        return results;
+      }
+
+      /**
+       * Resolve all card links in text to card IDs
+       * @param {string} text - Text containing [[Card Name]] links
+       * @returns {Array<{link: object, cardId: string|null}>} Array of links with resolved IDs
+       */
+      function resolveCardLinks(text) {
+        const links = parseCardLinks(text);
+        
+        return links.map(link => ({
+          link,
+          cardId: findCardByName(link.cardName)
+        }));
+      }
+
+      /**
        * Get all tags for a card
        * @param {string} cardId - Card ID
        * @returns {string[]} Array of tags
