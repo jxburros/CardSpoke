@@ -2742,6 +2742,75 @@
       }
 
       /**
+       * Render card body text with clickable card links
+       * Converts [[Card Name]] to clickable links
+       * @param {string} text - Card body text
+       * @returns {HTMLElement} Div element with rendered content
+       */
+      function renderCardBody(text) {
+        const container = h('div', { className: 'card-detail-body' });
+        
+        if (!text) return container;
+        
+        const links = parseCardLinks(text);
+        
+        if (links.length === 0) {
+          // No links, just return plain text
+          container.textContent = text;
+          return container;
+        }
+        
+        // Sort links by start index to process in order
+        links.sort((a, b) => a.startIndex - b.startIndex);
+        
+        let lastIndex = 0;
+        
+        links.forEach(link => {
+          // Add text before the link
+          if (link.startIndex > lastIndex) {
+            const textBefore = text.substring(lastIndex, link.startIndex);
+            container.appendChild(document.createTextNode(textBefore));
+          }
+          
+          // Find the card ID
+          const cardId = findCardByName(link.cardName);
+          
+          // Create clickable link
+          const linkEl = h('span', { 
+            className: cardId ? 'card-link' : 'card-link-missing',
+            style: 'cursor: pointer;',
+            title: cardId ? `Go to: ${link.cardName}` : `Card not found: ${link.cardName} (click to create)`
+          }, link.cardName);
+          
+          // Add click handler
+          linkEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (cardId) {
+              // Card exists, navigate to it
+              goTo('read', { cardId });
+            } else {
+              // Card doesn't exist, offer to create it
+              if (confirm(`Card "${link.cardName}" doesn't exist. Create it?`)) {
+                const newId = createCard(link.cardName, '', null);
+                goTo('edit', { cardId: newId });
+              }
+            }
+          });
+          
+          container.appendChild(linkEl);
+          lastIndex = link.endIndex;
+        });
+        
+        // Add remaining text after the last link
+        if (lastIndex < text.length) {
+          const textAfter = text.substring(lastIndex);
+          container.appendChild(document.createTextNode(textAfter));
+        }
+        
+        return container;
+      }
+
+      /**
        * Render a card in read-only/detail view
        */
       function renderReadOnlyCard() {
@@ -2754,7 +2823,7 @@
         const detail = h('div', { className: 'card-detail' });
         detail.appendChild(h('div', { className: 'card-detail-title' }, card.title || '(Untitled)'));
         if (card.body) {
-          detail.appendChild(h('div', { className: 'card-detail-body' }, card.body));
+          detail.appendChild(renderCardBody(card.body));
         }
         // Tags display
         const _tags = (card.tags && card.tags.length ? card.tags : extractTags(card.body));

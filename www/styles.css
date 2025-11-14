@@ -1421,3 +1421,49 @@ body.dark-mode .shortcut-item:hover {
   background-color: #e65100;
   color: #ffcc80;
 }
+
+/* Card Link Styles */
+.card-link {
+  color: #1976d2;
+  text-decoration: none;
+  cursor: pointer;
+  border-bottom: 1px dotted #1976d2;
+  transition: all 0.2s ease;
+}
+
+.card-link:hover {
+  color: #1565c0;
+  border-bottom-style: solid;
+}
+
+:root.dark .card-link {
+  color: #64b5f6;
+  border-bottom-color: #64b5f6;
+}
+
+:root.dark .card-link:hover {
+  color: #90caf9;
+  border-bottom-color: #90caf9;
+}
+
+.card-link-missing {
+  color: #d32f2f;
+  text-decoration: none;
+  cursor: pointer;
+  border-bottom: 1px dotted #d32f2f;
+}
+
+.card-link-missing:hover {
+  color: #c62828;
+  border-bottom-style: solid;
+}
+
+:root.dark .card-link-missing {
+  color: #ef5350;
+  border-bottom-color: #ef5350;
+}
+
+:root.dark .card-link-missing:hover {
+  color: #e57373;
+  border-bottom-color: #e57373;
+}
