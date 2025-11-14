@@ -25,15 +25,33 @@ Test utilities and mock implementations:
 - `createTestStore()` - Create test store objects
 - Core functions extracted for testing (search, bookmarks, etc.)
 
-### `card-operations.test.js`
-Tests for card CRUD operations:
-- Creating cards
-- Adding cards to store
-- Deleting cards
-- Card hierarchy management
-- Recursive deletion
+### `backlinks-related.test.js`
+Tests for backlinks and related cards features:
+- Backlink detection and mapping
+- Related cards by shared tags
+- Bidirectional navigation
+- Connection relationship tracking
+- Edge cases for link resolution
 
-**Tests:** 10
+**Tests:** 25
+
+### `card-links.test.js`
+Tests for internal card linking:
+- Card link parsing and detection
+- Link token rendering
+- Navigation through links
+- Missing link handling
+
+**Tests:** 20
+
+### `tags-api.test.js`
+Tests for tag management system:
+- Getting, adding, and removing tags
+- Tag normalization and deduplication
+- Setting multiple tags at once
+- Getting all unique tags
+
+**Tests:** 19
 
 ### `search-navigation.test.js`
 Tests for search and navigation features:
@@ -43,6 +61,22 @@ Tests for search and navigation features:
 - Recent cards tracking
 
 **Tests:** 15
+
+### `card-lookup.test.js`
+Tests for card lookup and search:
+- Finding cards by name
+- Normalized name matching
+- Case-insensitive search
+
+**Tests:** 14
+
+### `navigator-suite.test.js`
+Tests for navigation features:
+- Bookmarks management
+- Recent cards tracking
+- Navigation history
+
+**Tests:** 14
 
 ### `store-structure.test.js`
 Tests for data store integrity:
@@ -55,19 +89,60 @@ Tests for data store integrity:
 
 **Tests:** 12
 
+### `ui-state.test.js`
+Tests for UI state management:
+- View mode toggling
+- State persistence
+- UI state updates
+
+**Tests:** 11
+
+### `multi-dataset-search.test.js`
+Tests for multi-dataset search functionality:
+- Search across current dataset
+- Search across all datasets
+- Dataset metadata handling
+- Result sorting and limiting
+- Performance optimization
+
+**Tests:** 10
+
+### `card-operations.test.js`
+Tests for card CRUD operations:
+- Creating cards
+- Adding cards to store
+- Deleting cards
+- Card hierarchy management
+- Recursive deletion
+
+**Tests:** 10
+
+### `version-validation.test.js`
+Tests for version management:
+- Version format validation
+- Schema version checks
+
+
 ## Coverage
 
 Current test coverage focuses on:
+- ✅ Backlinks and related cards
+- ✅ Card linking and internal navigation
+- ✅ Tags API and tag management
+- ✅ Multi-dataset search
 - ✅ Card creation and deletion
 - ✅ Hierarchical relationships
 - ✅ Search functionality
-- ✅ Bookmarks
-- ✅ Recent cards
+- ✅ Bookmarks and recent cards
 - ✅ Store integrity
 - ✅ MockLocalStorage
+- ✅ Version validation
 
 Not yet covered:
-- ❌ Import/Export operations
+- ❌ Import/Export operations (partial)
+- ❌ Mod system hooks
+- ❌ UI rendering
+- ❌ Capacitor integrations
 - ❌ Mod system hooks
 - ❌ UI rendering
 - ❌ Capacitor integrations
@@ -103,8 +178,8 @@ Tests run automatically on every commit via GitHub Actions (when configured).
 
 ---
 
-**Last Updated:** 2025-11-12  
-**Test Count:** 37 tests
+**Last Updated:** 2025-11-14  
+**Test Count:** 152 tests
 
 ## Required Files for Testing
 

@@ -1,10 +1,19 @@
-# CardSpoke 0.10.5 - Capacitor Edition
+# CardSpoke 0.11.0 - Capacitor Edition
 
-CardSpoke is a lightweight, extensible, multi-platform knowledge base framework. Version 0.10.5 includes the Tags API, comprehensive testing (117 tests), and builds on the Dataset Architecture introduced in v0.9.
+CardSpoke is a lightweight, extensible, multi-platform knowledge base framework. Version 0.11.0 includes the Tags API, comprehensive testing (152 tests), and builds on the Dataset Architecture introduced in v0.9.
 
 ## Branch Information
 
-This documentation covers CardSpoke with Capacitor support for cross-platform deployment. The application has evolved from the original single-file version through multiple iterations to the current v0.10.5 with comprehensive features.
+This documentation covers CardSpoke with Capacitor support for cross-platform deployment. The application has evolved from the original single-file version through multiple iterations to the current v0.11.0 with comprehensive features.
+
+## What's New in 0.11.0
+
+**Backlinks & Related Cards** (v0.11.0)
+- Automatic backlink detection shows which cards link to the current card
+- Related cards suggestions based on shared tags and connections
+- Bidirectional navigation between connected cards
+- Enhanced content discovery through relationship mapping
+- 25 dedicated tests for Backlinks and Related Cards
 
 ## What's New in 0.10.5
 

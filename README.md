@@ -4,31 +4,28 @@
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.10.6
+## 🌟 Current Version: 0.11.0
 
-Version 0.10.6 introduces **Multi-Dataset Search** functionality, allowing users to search across multiple datasets simultaneously, building on the Tags API and Dataset Architecture from previous versions.
+Version 0.11.0 introduces **Backlinks and Related Cards** functionality, expanding CardSpoke's knowledge graph capabilities with bidirectional linking and content discovery features.
 
-### What's New in 0.10.6
+### What's New in 0.11.0
 
-**Multi-Dataset Search**
-- Search across multiple datasets from a single search interface
-- Dataset selector dropdown in search bar with options:
-  - "Current Dataset" - search only the active dataset
-  - "All Datasets" - search across all available datasets
-  - Individual dataset selection
-- Visual indicators show which dataset each result comes from (blue badge)
-- Maintains fuzzy search algorithm with typo-tolerance
-- Performance optimized with result limiting (max 100 results)
-- Async search with loading indicator for smooth user experience
+**Backlinks & Related Cards**
+- Automatic backlink detection shows which cards link to the current card
+- Related cards suggestions based on shared tags and connections
+- Bidirectional navigation between connected cards
+- Enhanced content discovery through relationship mapping
+- Dedicated section in card detail view showing all connections
 
 **Enhanced Testing**
-- 127 comprehensive tests (up from 117 in v0.10.5)
-- 10 dedicated tests for Multi-Dataset Search
-- Tests cover current dataset, all datasets, metadata, sorting, and edge cases
-- Fast execution (<13ms) with uvu test framework
+- 152 comprehensive tests (up from 127 in v0.10.6)
+- 25 dedicated tests for Backlinks and Related Cards
+- Tests cover link detection, relationship mapping, and edge cases
+- Fast execution (<15ms) with uvu test framework
 - 100% test pass rate across all features
 
 **Testing Suite Breakdown**
+- Backlinks & Related: 25 tests
 - Card Links: 20 tests
 - Tags API: 19 tests
 - Search & Navigation: 15 tests
