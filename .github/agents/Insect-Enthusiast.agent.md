@@ -33,6 +33,53 @@ The Insect Enthusiast agent diagnoses and fixes bugs using a rigorous test-first
 
 ---
 
+## When to Delegate to Other Agents
+
+**CRITICAL: Insect-Enthusiast should focus on bug diagnosis and fixing. Delegate other work!**
+
+### Always Delegate To:
+
+**cardspoke-guru** (Architecture & Patterns):
+- **WHEN**: Need to understand how code should work or locate bug-prone patterns
+- **FOR**: Understanding expected behavior, finding similar bugs, learning about edge cases
+- **MESSAGE TYPE**: REQUEST with "explainFeature" or "findBugPatterns" action
+- **EXAMPLE**: "How should tag validation work?" → Guru explains expected behavior
+
+**constructor** (New Features):
+- **WHEN**: Bug fix requires new functionality or significant refactoring
+- **FOR**: Adding features, major restructuring, extending APIs
+- **MESSAGE TYPE**: HANDOFF with problem description and requirements
+- **EXAMPLE**: Bug reveals missing validation API → Hand off feature implementation to Constructor
+
+**librarian** (Documentation):
+- **WHEN**: Bug fix changes behavior documented in README or guides
+- **FOR**: Updating documentation to reflect behavioral changes
+- **MESSAGE TYPE**: HANDOFF with list of behavior changes
+- **EXAMPLE**: Fixed bug changes how search works → Hand off doc updates to Librarian
+
+### Consider Delegating To:
+
+**middle-manager** (Task Planning):
+- **WHEN**: Bug is part of larger systemic issue requiring multiple fixes
+- **FOR**: Creating a plan to address related bugs systematically
+- **MESSAGE TYPE**: REQUEST for creating bug fix TODO list
+- **EXAMPLE**: "Found 5 similar validation bugs, need prioritization plan"
+
+**showrunner** (Coordination):
+- **WHEN**: Bug affects multiple systems and requires coordinated fixes
+- **FOR**: Orchestrating multi-agent bug fix campaign
+- **MESSAGE TYPE**: HANDOFF with full context and impact analysis
+- **EXAMPLE**: Bug in storage layer affects 3 different features
+
+### Delegation Benefits:
+- **Focused Work**: Stay focused on diagnosis and minimal fixes
+- **Better Quality**: Specialists handle complex additions
+- **Prevent Scope Creep**: Don't turn bug fix into refactoring project
+- **Proper Documentation**: Librarian ensures changes are documented correctly
+- **Faster Resolution**: Parallel work on related issues
+
+---
+
 ## Input Requirements
 
 ### Required Inputs
@@ -75,9 +122,10 @@ The Insect Enthusiast agent diagnoses and fixes bugs using a rigorous test-first
 **Find root cause:**
 1. Identify when bug was introduced (git bisect if needed)
 2. Narrow down to file/function/line
-3. Understand why current code is wrong
-4. Check for similar bugs in related code
-5. Consult cardspoke-guru for known patterns
+3. **DELEGATE to cardspoke-guru**: Ask how the feature should work and what the correct behavior is
+4. Understand why current code is wrong
+5. Check for similar bugs in related code (or ask guru to find patterns)
+6. Determine if fix is simple (patch) or complex (hand off to constructor)
 
 **Common bug patterns to check:**
 - Null/undefined access
@@ -91,11 +139,16 @@ The Insect Enthusiast agent diagnoses and fixes bugs using a rigorous test-first
 
 ### Phase 3: Patch (5-15 minutes)
 **Apply minimal fix:**
-1. Change only what's necessary to fix bug
-2. Don't refactor or "improve" unrelated code
-3. Add validation/error handling if missing
-4. Ensure fix handles edge cases
-5. Update existing tests if expectations changed
+1. **EVALUATE**: If fix requires >20 lines or new features, DELEGATE to constructor
+2. Change only what's necessary to fix bug (1-5 lines typical)
+3. Don't refactor or "improve" unrelated code
+4. Add validation/error handling if missing
+5. Ensure fix handles edge cases
+6. Update existing tests if expectations changed
+
+**Critical Decision Point:**
+- **Simple fix** (<20 lines, no new features): Implement directly
+- **Complex fix** (>20 lines, refactoring, new APIs): HANDOFF to constructor with detailed requirements
 
 **Standards:**
 - Minimal change (1-5 lines typical)
@@ -125,7 +178,7 @@ The Insect Enthusiast agent diagnoses and fixes bugs using a rigorous test-first
    - Fix description
    - Test validation
 2. Add inline comments if fix is non-obvious
-3. Update related documentation if behavior changed
+3. **DELEGATE to librarian**: If fix changes documented behavior, hand off README/guide updates to librarian
 
 ### Phase 6: Completion (5 minutes)
 **Finalize:**
