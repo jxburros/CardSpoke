@@ -10,8 +10,8 @@
 
 ## Fixes (Critical Stability) 🔴
 
-- [ ] **F1:** Update version history comment in app.js (line 6) from "Version: 0.8.1" to "Version: 0.10.0" — [S, P1]
-- [ ] **F2:** Add test to verify APP_VERSION constant matches package.json version — [S, P1]
+- [x] **F1:** Update version history comment in app.js (line 6) from "Version: 0.8.1" to "Version: 0.10.1" — [S, P1]
+- [x] **F2:** Add test to verify APP_VERSION constant matches package.json version — [S, P1]
 - [ ] **F3:** Add "PIN encryption coming in v0.10.3" message, disable PIN input with tooltip — [M, P2]
 
 ---
@@ -51,8 +51,8 @@
 ## Phase-Based Checklist
 
 ### Phase 1: Stabilization (Est. 1-2 days)
-- [ ] F1: Version comment update
-- [ ] F2: Version test
+- [x] F1: Version comment update
+- [x] F2: Version test
 - [ ] F3: PIN status message
 - [ ] Q1: Extension badge CSS
 - [ ] Q2: Extension hook comments
