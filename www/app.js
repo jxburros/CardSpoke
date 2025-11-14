@@ -910,7 +910,7 @@
             mods: parsed.mods || {},
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
-            viewMode: parsed.viewMode || 'normal'
+            viewMode: parsed.viewMode || 'normal',
             activeTheme: parsed.activeTheme || 'light'
           };
 
