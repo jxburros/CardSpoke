@@ -1,0 +1,359 @@
+# Agent Communication Protocol
+# Version: 1.0
+# Purpose: Enable real-time coordination and knowledge sharing between agents
+
+# Overview
+# This protocol defines how agents communicate with each other during execution.
+# Messages are stored in the reports/agent-messages/ directory with timestamped filenames.
+
+# Message Types
+
+messageTypes:
+  REQUEST:
+    description: "Agent asks another agent for information or action"
+    requiresResponse: true
+    timeout: "5 minutes"
+    
+  RESPONSE:
+    description: "Agent provides requested information"
+    requiresResponse: false
+    
+  STATUS:
+    description: "Agent broadcasts current status (progress update)"
+    requiresResponse: false
+    
+  ERROR:
+    description: "Agent reports failure or problem"
+    requiresResponse: false
+    
+  HANDOFF:
+    description: "Agent completes work and passes to next agent"
+    requiresResponse: false
+    
+  QUERY:
+    description: "Agent asks for clarification or guidance"
+    requiresResponse: true
+    timeout: "10 minutes"
+
+# Message Format
+
+message:
+  # Required fields
+  id: string              # Unique message ID (UUID)
+  from: string           # Sending agent name
+  to: string | string[]  # Receiving agent(s) or "broadcast"
+  type: enum             # One of: REQUEST, RESPONSE, STATUS, ERROR, HANDOFF, QUERY
+  timestamp: ISO8601     # When message was sent
+  
+  # Payload (varies by type)
+  payload: object        # Message-specific content
+  
+  # Optional fields
+  correlationId: string  # ID of message this is responding to
+  priority: enum         # One of: low | normal | high | critical
+  expiresAt: ISO8601     # When message becomes irrelevant
+  metadata: object       # Additional context
+
+# Payload Structures by Type
+
+payloads:
+  REQUEST:
+    action: string       # What is being requested
+    parameters: object   # Parameters for the request
+    reason: string       # Why this is needed
+    deadline: ISO8601    # When response is needed by
+    
+  RESPONSE:
+    success: boolean     # Whether request was fulfilled
+    data: object         # Response data
+    error: string        # Error message if success=false
+    
+  STATUS:
+    phase: string        # Current work phase
+    progress: number     # Completion percentage (0-100)
+    currentTask: string  # What agent is currently doing
+    estimatedCompletion: ISO8601  # Expected finish time
+    
+  ERROR:
+    severity: enum       # One of: warning | error | critical
+    errorCode: string    # Machine-readable error identifier
+    message: string      # Human-readable error description
+    stack: string        # Stack trace or detailed context
+    recovery: object     # Suggested recovery actions
+    
+  HANDOFF:
+    completedTasks: string[]  # Task IDs completed
+    result: object            # Agent result protocol
+    nextAgent: string         # Suggested next agent
+    context: object           # Context for next agent
+    
+  QUERY:
+    question: string     # The question being asked
+    context: object      # Context for the question
+    options: string[]    # Multiple choice options (if applicable)
+
+# Usage Examples
+
+## Example 1: Constructor Requests Info from Guru
+example_request:
+  id: "msg-001"
+  from: "constructor"
+  to: "cardspoke-guru"
+  type: "REQUEST"
+  timestamp: "2025-11-14T06:15:00Z"
+  payload:
+    action: "getImplementationGuidance"
+    parameters:
+      feature: "tag-editing-ui"
+      constraints: ["minimal-changes", "consistent-with-existing-patterns"]
+    reason: "Need guidance on best approach for tag input component"
+    deadline: "2025-11-14T06:20:00Z"
+  priority: "normal"
+  expiresAt: "2025-11-14T06:30:00Z"
+
+## Example 2: Guru Responds with Guidance
+example_response:
+  id: "msg-002"
+  from: "cardspoke-guru"
+  to: "constructor"
+  type: "RESPONSE"
+  timestamp: "2025-11-14T06:16:30Z"
+  payload:
+    success: true
+    data:
+      pattern: "event-delegation-with-datalist"
+      reference: "AI_DEVELOPER_GUIDE.md lines 250-265"
+      example: |
+        // Tag input with autocomplete
+        <input type="text" id="tagInput" list="tagSuggestions">
+        <datalist id="tagSuggestions">
+          <!-- Options populated from getAllTags() -->
+        </datalist>
+      considerations:
+        - "Use comma separation for multi-tag input"
+        - "Normalize tags on input (lowercase, trim)"
+        - "Show existing tags as chips with remove buttons"
+      caveats:
+        - "Remember to handle duplicate prevention"
+        - "Update datalist when new tags are added"
+  correlationId: "msg-001"
+  priority: "normal"
+
+## Example 3: Constructor Broadcasts Progress
+example_status:
+  id: "msg-003"
+  from: "constructor"
+  to: "broadcast"
+  type: "STATUS"
+  timestamp: "2025-11-14T06:25:00Z"
+  payload:
+    phase: "implementation"
+    progress: 65
+    currentTask: "Adding tag input component to card editor"
+    estimatedCompletion: "2025-11-14T06:35:00Z"
+  priority: "low"
+
+## Example 4: Constructor Reports Error
+example_error:
+  id: "msg-004"
+  from: "constructor"
+  to: "broadcast"
+  type: "ERROR"
+  timestamp: "2025-11-14T06:40:00Z"
+  payload:
+    severity: "error"
+    errorCode: "TEST_FAILURE"
+    message: "Tag validation tests failing"
+    stack: |
+      AssertionError: Expected tag input to reject empty string
+        at addTag (app.js:1234)
+        at test (tags-api.test.js:45)
+    recovery:
+      recommended: "Add empty string check in addTag function"
+      alternatives:
+        - "Update test expectations if empty tags are allowed"
+        - "Consult cardspoke-guru for validation patterns"
+  priority: "high"
+
+## Example 5: Constructor Hands Off to Insect-Enthusiast
+example_handoff:
+  id: "msg-005"
+  from: "constructor"
+  to: "insect-enthusiast"
+  type: "HANDOFF"
+  timestamp: "2025-11-14T06:50:00Z"
+  payload:
+    completedTasks:
+      - "N1-tagging-infrastructure"
+      - "N2-tag-management-ui"
+    result:
+      agent: "constructor"
+      status: "partial"
+      confidence: 0.80
+      blockers:
+        - type: "error"
+          description: "Edge case in tag validation needs investigation"
+    nextAgent: "insect-enthusiast"
+    context:
+      problem: "Tags with special characters not handled correctly"
+      reproSteps:
+        - "Add tag with emoji: #test🎉"
+        - "Observe: tag gets corrupted in storage"
+      expectedBehavior: "Should either strip special chars or store correctly"
+      filesToCheck:
+        - "www/app.js (addTag function)"
+        - "tests/tags-api.test.js"
+  priority: "normal"
+
+## Example 6: Middle-Manager Queries Showrunner
+example_query:
+  id: "msg-006"
+  from: "middle-manager"
+  to: "showrunner"
+  type: "QUERY"
+  timestamp: "2025-11-14T07:00:00Z"
+  payload:
+    question: "Should N8 multi-dataset search be P1 or P2 priority?"
+    context:
+      situation: "N8 is large (3-4 days) and impacts v0.10 timeline"
+      currentTimeline: "2 weeks remaining for v0.10"
+      options:
+        - "P1: Include in v0.10 (extends timeline)"
+        - "P2: Defer to v0.10.1 (release sooner)"
+    options:
+      - "P1 - Must have for v0.10"
+      - "P2 - Nice to have, can defer"
+      - "P3 - Low priority, defer to v0.11"
+  priority: "high"
+  expiresAt: "2025-11-14T08:00:00Z"
+
+# Message Storage
+
+## Directory Structure
+messages are stored in: reports/agent-messages/YYYY-MM-DD/
+
+Example:
+reports/
+  agent-messages/
+    2025-11-14/
+      06-15-00_constructor_to_cardspoke-guru_REQUEST.json
+      06-16-30_cardspoke-guru_to_constructor_RESPONSE.json
+      06-25-00_constructor_to_broadcast_STATUS.json
+      06-40-00_constructor_to_broadcast_ERROR.json
+
+## File Naming Convention
+{timestamp}_{from}_to_{to}_{type}.json
+
+Where:
+- timestamp: HH-MM-SS format
+- from: sending agent name
+- to: receiving agent name or "broadcast"
+- type: message type
+
+# Agent Responsibilities
+
+## Sending Messages
+1. Create message with all required fields
+2. Generate unique message ID
+3. Set appropriate priority
+4. Include correlationId if responding
+5. Save to reports/agent-messages/YYYY-MM-DD/
+6. If REQUEST or QUERY, wait for response (with timeout)
+
+## Receiving Messages
+1. Check reports/agent-messages/ for new messages at start of work
+2. Filter messages where to=your-name or to=broadcast
+3. Process unread messages by type
+4. Mark messages as read after processing
+5. Respond to REQUEST/QUERY messages
+6. Clean up expired messages
+
+## Processing by Type
+- REQUEST: Fulfill request or respond with error
+- RESPONSE: Use data to continue work
+- STATUS: Update internal tracking (for orchestrators)
+- ERROR: Log, alert if critical, offer help if applicable
+- HANDOFF: Accept context and continue work
+- QUERY: Provide answer or escalate if unsure
+
+# Best Practices
+
+## When to Send Messages
+- REQUEST: When you need info that another agent has
+- STATUS: Every 5-10 minutes during long-running work
+- ERROR: Immediately when error occurs
+- HANDOFF: When completing work that leads to another agent
+- QUERY: When decision requires input from coordinator
+
+## Message Priorities
+- critical: System-wide failures, blocking all work
+- high: Errors affecting current task, urgent questions
+- normal: Standard requests, routine status updates
+- low: Progress updates, FYI messages
+
+## Timeout Handling
+- REQUEST/QUERY messages have timeouts
+- If no response received, either:
+  - Retry the request
+  - Proceed without the information
+  - Escalate to human
+  - Report as blocker
+
+## Message Cleanup
+- Delete messages older than 7 days
+- Archive important messages to reports/agent-messages/archive/
+- Keep ERROR messages longer for debugging
+
+# Integration with Result Protocol
+
+Messages complement the agent result protocol:
+- Result protocol: Final outcome of an agent's work
+- Messages: Real-time coordination during work
+
+Example flow:
+1. Constructor starts N1-tagging-infrastructure
+2. Constructor sends STATUS (progress 25%)
+3. Constructor sends REQUEST to guru for guidance
+4. Guru sends RESPONSE with implementation pattern
+5. Constructor continues work
+6. Constructor sends STATUS (progress 75%)
+7. Constructor encounters error
+8. Constructor sends ERROR message
+9. Constructor fixes error
+10. Constructor completes work
+11. Constructor produces agent result (success)
+12. Constructor sends HANDOFF to next agent
+
+Both the agent result and HANDOFF message contain the outcome,
+but the HANDOFF also includes context for the next agent.
+
+# Monitoring and Debugging
+
+## For Orchestrators
+- Monitor reports/agent-messages/ for ERROR messages
+- Track STATUS messages to estimate progress
+- Detect stuck agents (no STATUS for >15 minutes)
+- Aggregate messages for dashboard view
+
+## For Debugging
+- Review message sequence to understand agent interactions
+- Check REQUEST/RESPONSE pairs for communication issues
+- Look for ERROR messages to find failure points
+- Analyze HANDOFF context to understand task progression
+
+# Security Considerations
+
+1. Messages may contain sensitive information (errors, code snippets)
+2. Store messages in git-ignored directory if needed
+3. Don't include credentials or secrets in messages
+4. Clean up messages containing PII after use
+
+# Future Enhancements
+
+Potential improvements for v2:
+- Real-time message delivery (WebSocket/SSE)
+- Message queuing and priority handling
+- Automatic retry on REQUEST timeout
+- Message encryption for sensitive data
+- Analytics dashboard for message flow
+- AI-powered message routing
