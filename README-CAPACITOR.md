@@ -1,17 +1,37 @@
-# CardSpoke 0.8.1 - Capacitor Edition
+# CardSpoke 0.10.5 - Capacitor Edition
 
-CardSpoke is a lightweight, extensible, multi-platform knowledge base framework. Version 0.8.1 introduces Capacitor support for cross-platform deployment.
+CardSpoke is a lightweight, extensible, multi-platform knowledge base framework. Version 0.10.5 includes the Tags API, comprehensive testing (117 tests), and builds on the Dataset Architecture introduced in v0.9.
 
 ## Branch Information
 
-This Capacitor-based version is available in the **`capacitor-0.8.1`** branch. The original single-file version 0.8 remains in `CardSpoke 0.8.html` for reference.
+This documentation covers CardSpoke with Capacitor support for cross-platform deployment. The application has evolved from the original single-file version through multiple iterations to the current v0.10.5 with comprehensive features.
 
-## What's New in 0.8.1
+## What's New in 0.10.5
 
-- **Capacitor Integration**: CardSpoke now runs as a native-capable standalone app
-- **Cross-Platform Support**: Build for Web, Android, and iOS from a single codebase
-- **Native File System Access**: Enhanced file operations through Capacitor plugins
-- **Improved Storage**: Uses Capacitor Preferences for better cross-platform data persistence
+**Tags API** (v0.10.5)
+- Comprehensive tag management with `getTags`, `addTag`, `removeTag`, `setTags`, and `getAllTags`
+- Automatic tag normalization and duplicate prevention
+- 19 dedicated tests for Tags API coverage
+
+**Dataset Architecture** (v0.9.4)
+- StorageDriver interface with IndexedDB and LocalStorage implementations
+- DatasetManager class for managing multiple datasets
+- Infrastructure for PIN-protected datasets
+- Dataset info panel with storage statistics
+
+**Enhanced Testing** (v0.9.3+)
+- 117 comprehensive tests covering all core functionality
+- Fast execution (<11ms) with uvu test framework
+- 100% test pass rate
+
+**Core Features**
+- Fuzzy search with typo tolerance
+- Export options: JSON, TXT, Markdown, CSV
+- High contrast mode for accessibility
+- Keyboard shortcuts system
+- Navigator Suite: bookmarks, recent cards, card duplication, compact view
+- Responsive design for mobile, tablet, and desktop
+- Cross-platform support via Capacitor
 
 ## Project Structure
 

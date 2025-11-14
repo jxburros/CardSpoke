@@ -2,8 +2,8 @@
 
 **Version:** 1.0  
 **Created for:** AI Programming Assistants  
-**Last Updated:** 2025-11-12  
-**Application Version:** 0.9.3
+**Last Updated:** 2025-11-14  
+**Application Version:** 0.10.5
 
 ---
 
@@ -386,6 +386,115 @@ function searchCards(query) {
 }
 ```
 
+### Managing Tags
+
+```javascript
+// Get all tags for a card
+function getTags(cardId) {
+  const card = store.cards[cardId];
+  if (!card) return [];
+  return card.tags || [];
+}
+
+// Add a tag to a card
+function addTag(cardId, tag, skipSave = false) {
+  const card = store.cards[cardId];
+  if (!card) return false;
+  
+  // Normalize tag: remove # prefix, lowercase, trim
+  const normalizedTag = tag.replace(/^#/, '').toLowerCase().trim();
+  if (!normalizedTag) return false;
+  
+  // Initialize tags array if needed
+  if (!card.tags) card.tags = [];
+  
+  // Prevent duplicates (case-insensitive)
+  if (card.tags.some(t => t.toLowerCase() === normalizedTag)) {
+    return false;
+  }
+  
+  card.tags.push(normalizedTag);
+  card.updatedAt = Date.now();
+  
+  if (!skipSave) {
+    dirty = true;
+    save();
+  }
+  
+  return true;
+}
+
+// Remove a tag from a card
+function removeTag(cardId, tag, skipSave = false) {
+  const card = store.cards[cardId];
+  if (!card || !card.tags) return false;
+  
+  const normalizedTag = tag.replace(/^#/, '').toLowerCase().trim();
+  
+  const initialLength = card.tags.length;
+  card.tags = card.tags.filter(t => t.toLowerCase() !== normalizedTag);
+  
+  if (card.tags.length === initialLength) {
+    return false; // Tag wasn't found
+  }
+  
+  card.updatedAt = Date.now();
+  
+  if (!skipSave) {
+    dirty = true;
+    save();
+  }
+  
+  return true;
+}
+
+// Set all tags for a card at once
+function setTags(cardId, tags, skipSave = false) {
+  const card = store.cards[cardId];
+  if (!card) return false;
+  
+  // Normalize and deduplicate tags
+  const normalizedTags = tags
+    .map(tag => tag.replace(/^#/, '').toLowerCase().trim())
+    .filter(tag => tag.length > 0);
+  
+  const uniqueTags = [...new Set(normalizedTags)];
+  
+  card.tags = uniqueTags;
+  card.updatedAt = Date.now();
+  
+  if (!skipSave) {
+    dirty = true;
+    save();
+  }
+  
+  return true;
+}
+
+// Get all unique tags across all cards
+function getAllTags() {
+  const allTags = new Set();
+  
+  for (const id in store.cards) {
+    const card = store.cards[id];
+    if (card.tags && Array.isArray(card.tags)) {
+      card.tags.forEach(tag => allTags.add(tag.toLowerCase()));
+    }
+  }
+  
+  return Array.from(allTags).sort();
+}
+```
+
+**Tags API Features:**
+- Tags are automatically normalized (lowercase, no # prefix required)
+- Duplicate prevention is built-in
+- All functions return boolean success status (except getTags and getAllTags)
+- Tags are stored as simple strings in the card.tags array
+- Case-insensitive matching for tag comparison
+- Optional `skipSave` parameter for batch operations
+
+
 ---
 
 ## Styling Guidelines
@@ -716,6 +825,11 @@ Available hooks:
 | `updateCard(id, updates)` | Update card properties |
 | `duplicateCard(id, withChildren)` | Clone a card |
 | `searchCards(query)` | Search for cards |
+| `getTags(cardId)` | Get all tags for a card |
+| `addTag(cardId, tag)` | Add a tag to a card |
+| `removeTag(cardId, tag)` | Remove a tag from a card |
+| `setTags(cardId, tags)` | Set all tags for a card |
+| `getAllTags()` | Get all unique tags across all cards |
 | `navigate(page, options)` | Change navigation state |
 | `save()` | Persist data (debounced) |
 | `load()` | Load data from storage |
@@ -765,6 +879,6 @@ For questions or clarifications, refer to the inline comments in `www/app.js` or
 ---
 
 **Document Version:** 1.0  
-**Last Updated:** 2025-11-12  
+**Last Updated:** 2025-11-14  
 **Maintained By:** jxburros  
 **Contributors:** Github Copilot
