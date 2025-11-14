@@ -1420,8 +1420,8 @@
        * All functions handle errors gracefully and maintain data integrity.
        * 
        * @namespace CIB.utils
-       * @version 0.11.0
-       * @since 0.11.0
+       * @version 0.11.1
+       * @since 0.11.1
        */
       window.CIB = window.CIB || {};
       window.CIB.utils = {
@@ -1503,7 +1503,7 @@
         /**
          * Get all tags for a card
          * @param {string} cardId - Card ID
-         * @returns {Promise<string[]>} Array of tags
+         * @returns {Promise<string[]>} Array of tags (returns empty array on error)
          * @example
          * const tags = await CIB.utils.getTags('card-123');
          * console.log('Tags:', tags);
@@ -1522,7 +1522,7 @@
          * Add a tag to a card
          * @param {string} cardId - Card ID
          * @param {string} tag - Tag to add
-         * @returns {Promise<boolean>} True if tag was added successfully
+         * @returns {Promise<boolean>} True if tag was added successfully, false on error
          * @example
          * const success = await CIB.utils.addTag('card-123', 'important');
          */
@@ -1541,7 +1541,7 @@
          * Remove a tag from a card
          * @param {string} cardId - Card ID
          * @param {string} tag - Tag to remove
-         * @returns {Promise<boolean>} True if tag was removed successfully
+         * @returns {Promise<boolean>} True if tag was removed successfully, false on error
          * @example
          * await CIB.utils.removeTag('card-123', 'old-tag');
          */
@@ -1560,7 +1560,7 @@
          * Set all tags for a card (replaces existing tags)
          * @param {string} cardId - Card ID
          * @param {string[]} tags - Array of tags
-         * @returns {Promise<boolean>} True if successful
+         * @returns {Promise<boolean>} True if successful, false on error
          * @example
          * await CIB.utils.setTags('card-123', ['tag1', 'tag2', 'tag3']);
          */
@@ -1577,7 +1577,7 @@
 
         /**
          * Get all unique tags across all cards
-         * @returns {Promise<string[]>} Sorted array of all tags
+         * @returns {Promise<string[]>} Sorted array of all tags (returns empty array on error)
          * @example
          * const allTags = await CIB.utils.getAllTags();
          * console.log('All tags:', allTags);
@@ -1637,7 +1637,7 @@
         /**
          * Get a card by ID
          * @param {string} cardId - Card ID
-         * @returns {Promise<Object|null>} Card object (cloned) or null if not found
+         * @returns {Promise<Object|null>} Card object (cloned) or null if not found or on error
          * @example
          * const card = await CIB.utils.getCard('card-123');
          * if (card) console.log('Found:', card.title);
@@ -1656,7 +1656,7 @@
         /**
          * Search for cards
          * @param {string} query - Search query
-         * @returns {Promise<Array>} Array of matching cards
+         * @returns {Promise<Array>} Array of matching cards (returns empty array on error)
          * @example
          * const results = await CIB.utils.searchCards('meeting notes');
          * console.log('Found', results.length, 'cards');
@@ -3253,17 +3253,15 @@
           logEntry('→ Executing code...', 'info');
           
           try {
-            // Create sandboxed execution environment
-            const sandboxedCode = `
-              (async function() {
-                const console = arguments[0];
-                const CIB = window.CIB;
+            // Use Function constructor to avoid eval and restrict scope
+            const fn = new Function('console', 'CIB', `
+              "use strict";
+              return (async () => {
                 ${code}
-              })
-            `;
+              })();
+            `);
             
-            const fn = eval(sandboxedCode);
-            fn(sandboxConsole).then(() => {
+            fn(sandboxConsole, window.CIB).then(() => {
               logEntry('✓ Code execution completed', 'success');
             }).catch(err => {
               logEntry('Async error: ' + err.message, 'error');
@@ -3276,8 +3274,9 @@
           }
         }
         
-        // Store references for button handlers
-        window._playground = { editor: playgroundEditor, console: playgroundConsole, runCode: runPlaygroundCode };
+        // Store references for button handlers (namespaced to avoid global pollution)
+        window.CIB = window.CIB || {};
+        window.CIB.playground = { editor: playgroundEditor, console: playgroundConsole, runCode: runPlaygroundCode };
         
         modal.appendChild(modalBody);
         overlay.appendChild(modal);

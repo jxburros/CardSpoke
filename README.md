@@ -6,9 +6,7 @@ CardSpoke is an open-source knowledge management system that combines hierarchic
 
 ## 🌟 Current Version: 0.11.2
 
-Version 0.11.0 introduces **Backlinks and Related Cards** functionality, expanding CardSpoke's knowledge graph capabilities with bidirectional linking and content discovery features.
-
-### What's New in 0.11.0
+The v0.11 release series introduces the **Developer Ecosystem** with comprehensive tools for extension development, building upon the knowledge graph features from v0.11.0.
 
 ### What's New in 0.11.2
 
