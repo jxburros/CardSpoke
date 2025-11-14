@@ -977,6 +977,29 @@
       margin-bottom: var(--space-xl);
     }
     
+    .backlinks-section, .related-section {
+      margin-top: var(--space-3xl);
+      padding-top: var(--space-3xl);
+      border-top: 1px solid var(--border);
+    }
+    
+    .section-title {
+      font-size: var(--text-xl);
+      font-weight: 700;
+      margin-bottom: var(--space-xl);
+      color: var(--text-primary);
+    }
+    
+    .backlinks-section .section-title::before {
+      content: "🔗 ";
+      opacity: 0.7;
+    }
+    
+    .related-section .section-title::before {
+      content: "🔗 ";
+      opacity: 0.7;
+    }
+    
     /* =============================================================
        EMPTY STATES
        ============================================================= */

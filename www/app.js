@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.10.6
+      // Version: 0.11.0
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.10.6'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.11.0'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-14'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GitHub Copilot - Mega Showrunner'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -35,6 +35,7 @@
       // Version 0.9.4: Added StorageDriver architecture, Dataset Info Panel, storage analytics
       // Version 0.10.5: Implemented Tags API (getTags, addTag, removeTag, setTags, getAllTags) with comprehensive tests
       // Version 0.10.6: Multi-Dataset Search - search across multiple datasets simultaneously
+      // Version 0.11.0: Mega Showrunner - Backlinks, Related Cards, Enhanced Exports, and many more features
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -2820,6 +2821,78 @@
         });
         return Array.from(allTags).sort();
       }
+      /**
+       * Get all cards that link to a specific card (backlinks)
+       * @param {string} cardId - Card ID to find backlinks for
+       * @returns {Array<{id: string, title: string}>} Array of cards that link to this card
+       */
+      function getBacklinks(cardId) {
+        if (!cardId) return [];
+        
+        const card = store.cards[cardId];
+        if (!card) return [];
+        
+        const cardTitle = card.title;
+        if (!cardTitle) return [];
+        
+        const backlinks = [];
+        
+        // Search through all cards for [[Card Title]] references
+        for (const [id, otherCard] of Object.entries(store.cards)) {
+          if (id === cardId) continue; // Skip self-references
+          
+          if (otherCard.body && hasCardLink(otherCard.body, cardTitle)) {
+            backlinks.push({
+              id: otherCard.id,
+              title: otherCard.title || '(Untitled)',
+              body: otherCard.body
+            });
+          }
+        }
+        
+        return backlinks;
+      }
+
+      /**
+       * Get related cards based on shared tags
+       * @param {string} cardId - Card ID to find related cards for
+       * @param {number} limit - Maximum number of results (default: 10)
+       * @returns {Array<{id: string, title: string, matchScore: number, matchedTags: string[]}>}
+       */
+      function getRelatedCards(cardId, limit = 10) {
+        if (!cardId) return [];
+        
+        const card = store.cards[cardId];
+        if (!card) return [];
+        
+        const cardTags = getTags(cardId);
+        if (cardTags.length === 0) return [];
+        
+        const related = [];
+        
+        for (const [id, otherCard] of Object.entries(store.cards)) {
+          if (id === cardId) continue; // Skip self
+          
+          const otherTags = getTags(id);
+          const matchedTags = cardTags.filter(tag => otherTags.includes(tag));
+          
+          if (matchedTags.length > 0) {
+            const matchScore = matchedTags.length / Math.max(cardTags.length, otherTags.length);
+            related.push({
+              id: otherCard.id,
+              title: otherCard.title || '(Untitled)',
+              matchScore,
+              matchedTags
+            });
+          }
+        }
+        
+        // Sort by match score (highest first)
+        related.sort((a, b) => b.matchScore - a.matchScore);
+        
+        return related.slice(0, limit);
+      }
+
 
 
       // =============================================================
@@ -3093,6 +3166,48 @@
           });
           childrenSection.appendChild(childrenGrid);
           detail.appendChild(childrenSection);
+        }
+        // Backlinks section
+        const backlinks = getBacklinks(card.id);
+        if (backlinks.length > 0) {
+          const backlinksSection = h('div', { className: 'backlinks-section' });
+          backlinksSection.appendChild(h('div', { className: 'section-title' }, `← Referenced By (${backlinks.length})`));
+          const backlinksGrid = h('div', { className: 'card-grid' });
+          backlinks.forEach(backlink => {
+            const backlinkTile = h('div', { 
+              className: 'card-tile', 
+              onclick: () => goTo('read', { cardId: backlink.id }) 
+            });
+            backlinkTile.appendChild(h('div', { className: 'card-tile-title' }, backlink.title));
+            backlinksGrid.appendChild(backlinkTile);
+          });
+          backlinksSection.appendChild(backlinksGrid);
+          detail.appendChild(backlinksSection);
+        }
+        
+        // Related cards section (based on tags)
+        const relatedCards = getRelatedCards(card.id, 5);
+        if (relatedCards.length > 0) {
+          const relatedSection = h('div', { className: 'related-section' });
+          relatedSection.appendChild(h('div', { className: 'section-title' }, `Related Cards (${relatedCards.length})`));
+          const relatedGrid = h('div', { className: 'card-grid' });
+          relatedCards.forEach(related => {
+            const relatedTile = h('div', { 
+              className: 'card-tile', 
+              onclick: () => goTo('read', { cardId: related.id }) 
+            });
+            const titleDiv = h('div', { className: 'card-tile-title' }, related.title);
+            relatedTile.appendChild(titleDiv);
+            // Show matched tags
+            const tagsDiv = h('div', { className: 'card-tags' });
+            related.matchedTags.forEach(tag => {
+              tagsDiv.appendChild(h('span', { className: 'card-tag' }, tag));
+            });
+            relatedTile.appendChild(tagsDiv);
+            relatedGrid.appendChild(relatedTile);
+          });
+          relatedSection.appendChild(relatedGrid);
+          detail.appendChild(relatedSection);
         }
         main.appendChild(detail);
         runModHook('onCardRender', cloneCard(card), detail);
