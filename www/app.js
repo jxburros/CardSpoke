@@ -2901,13 +2901,30 @@
         bodyTextarea.addEventListener('input', () => { dirty = true; });
         formGroup2.appendChild(bodyTextarea);
         form.appendChild(formGroup2);
-        // Tags input
+        // Tags input with autocomplete
         const formGroupTags = h('div', { className: 'form-group' });
         formGroupTags.appendChild(h('label', { className: 'form-label' }, 'Tags (comma-separated)'));
-        const tagsInput = h('input', { type: 'text', id: 'cardTags', className: 'form-input' });
+        
+        // Create datalist with all existing tags for autocomplete
+        const tagsDatalistId = 'tags-datalist-' + Date.now();
+        const tagsDatalist = h('datalist', { id: tagsDatalistId });
+        const existingTags = getAllTags();
+        existingTags.forEach(tag => {
+          tagsDatalist.appendChild(h('option', { value: tag }));
+        });
+        
+        const tagsInput = h('input', { 
+          type: 'text', 
+          id: 'cardTags', 
+          className: 'form-input',
+          list: tagsDatalistId,
+          placeholder: 'Start typing to see suggestions...'
+        });
         tagsInput.value = (card.tags && card.tags.length) ? card.tags.join(', ') : '';
         tagsInput.addEventListener('input', () => { dirty = true; });
+        
         formGroupTags.appendChild(tagsInput);
+        formGroupTags.appendChild(tagsDatalist);
         form.appendChild(formGroupTags);
     
         const formGroup3 = h('div', { className: 'form-group' });
