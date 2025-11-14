@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.10.1
+      // Version: 0.10.2
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,7 +25,7 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.10.1'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.10.2'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-14'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'GitHub Copilot Constructor Agent'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
@@ -33,11 +33,12 @@
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
       // Version 0.9.3: Previous updates
       // Version 0.9.4: Added StorageDriver architecture, Dataset Info Panel, storage analytics
+      // Version 0.10.2: Implemented Tags API (getTags, addTag, removeTag, setTags, getAllTags) with comprehensive tests
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
       let instanceKey = localStorage.getItem('activeInstance') || 'nested_cards_store';
-      let store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal' }; // Main data store
+      let store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' }; // Main data store
       let navState = { page: 'list', cardId: null, parentId: null, searchQuery: '' }; // Navigation state
       let navHistory = []; // Navigation history for back button
       let dirty = false; // Tracks unsaved changes
@@ -145,13 +146,58 @@
        * @param {string} message - Message to display
        * @param {'success'|'error'|'info'} type - Type of notification
        */
-      function showToast(message, type = 'success') {
+      /**
+       * Show a toast notification with auto-dismiss and pause on hover
+       * @param {string} message - Message to display
+       * @param {string} type - Toast type: 'success', 'error', 'warning', 'info'
+       * @param {number} duration - Duration in milliseconds (default: 3000)
+       */
+      function showToast(message, type = 'success', duration = 3000) {
         const toast = h('div', { className: `toast ${type}` }, message);
         toastContainer.appendChild(toast);
-        setTimeout(() => {
+        
+        let timeoutId = null;
+        let isPaused = false;
+        let remainingTime = duration;
+        let startTime = Date.now();
+        
+        const scheduleRemoval = () => {
+          startTime = Date.now();
+          timeoutId = setTimeout(() => {
+            if (!isPaused) {
+              toast.style.opacity = '0';
+              setTimeout(() => toast.remove(), 300);
+            }
+          }, remainingTime);
+        };
+        
+        const pauseTimer = () => {
+          if (!isPaused && timeoutId) {
+            clearTimeout(timeoutId);
+            remainingTime -= (Date.now() - startTime);
+            isPaused = true;
+          }
+        };
+        
+        const resumeTimer = () => {
+          if (isPaused) {
+            isPaused = false;
+            scheduleRemoval();
+          }
+        };
+        
+        toast.addEventListener('mouseenter', pauseTimer);
+        toast.addEventListener('mouseleave', resumeTimer);
+        
+        // Add click to dismiss
+        toast.style.cursor = 'pointer';
+        toast.addEventListener('click', () => {
+          clearTimeout(timeoutId);
           toast.style.opacity = '0';
           setTimeout(() => toast.remove(), 300);
-        }, 3000);
+        });
+        
+        scheduleRemoval();
       }
 
       /**
@@ -836,7 +882,7 @@
         const key = instanceKey || 'nested_cards_store';
         const raw = localStorage.getItem(key);
         if (!raw) {
-          store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal' };
+          store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
           save();
           return;
         }
@@ -849,6 +895,7 @@
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
             viewMode: parsed.viewMode || 'normal'
+            activeTheme: parsed.activeTheme || 'light'
           };
 
           // Data migration: rebuild rootOrder if needed
@@ -1091,6 +1138,22 @@
             },
             markDirty() {
               dirty = true;
+            },
+            // Tags API
+            getTags(cardId) {
+              return getTags(cardId);
+            },
+            addTag(cardId, tag) {
+              return addTag(cardId, tag);
+            },
+            removeTag(cardId, tag) {
+              return removeTag(cardId, tag);
+            },
+            setTags(cardId, tags) {
+              return setTags(cardId, tags);
+            },
+            getAllTags() {
+              return getAllTags();
             }
           };
         }
@@ -1915,7 +1978,7 @@
             // The DatasetManager classes are in place for future enhancement
             localStorage.setItem('activeInstance', newKey);
             instanceKey = newKey;
-            store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal' };
+            store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
             save();
             render();
             overlay.remove();
@@ -2313,6 +2376,245 @@
         const matches = body.match(/#\w+/g);
         return matches ? matches.slice(0, 5) : [];
       }
+
+      /**
+       * Parse [[Card Name]] tokens from text
+       * @param {string} text - Text to parse
+       * @returns {Array<{match: string, cardName: string, startIndex: number, endIndex: number}>} Array of token matches
+       */
+      function parseCardLinks(text) {
+        if (!text) return [];
+        
+        const regex = /\[\[([^\]]+)\]\]/g;
+        const matches = [];
+        let match;
+        
+        while ((match = regex.exec(text)) !== null) {
+          matches.push({
+            match: match[0],           // Full match: [[Card Name]]
+            cardName: match[1].trim(), // Extracted card name
+            startIndex: match.index,
+            endIndex: match.index + match[0].length
+          });
+        }
+        
+        return matches;
+      }
+
+      /**
+       * Normalize card name for comparison
+       * @param {string} name - Card name to normalize
+       * @returns {string} Normalized name (lowercase, trimmed, spaces normalized)
+       */
+      function normalizeCardName(name) {
+        if (!name) return '';
+        return name.toLowerCase().trim().replace(/\s+/g, ' ');
+      }
+
+      /**
+       * Check if a card link token exists in text
+       * @param {string} text - Text to search
+       * @param {string} cardName - Card name to look for
+       * @returns {boolean} True if card link exists
+       */
+      function hasCardLink(text, cardName) {
+        if (!text || !cardName) return false;
+        const links = parseCardLinks(text);
+        const normalizedName = normalizeCardName(cardName);
+        return links.some(link => normalizeCardName(link.cardName) === normalizedName);
+      }
+
+      /**
+       * Find card ID by normalized name
+       * @param {string} cardName - Card name to search for
+       * @returns {string|null} Card ID if found, null otherwise
+       */
+      function findCardByName(cardName) {
+        if (!cardName) return null;
+        
+        const normalizedSearch = normalizeCardName(cardName);
+        
+        for (const [id, card] of Object.entries(store.cards)) {
+          if (normalizeCardName(card.title) === normalizedSearch) {
+            return id;
+          }
+        }
+        
+        return null;
+      }
+
+      /**
+       * Find all cards matching a name pattern
+       * @param {string} cardName - Card name pattern to search for
+       * @param {boolean} exactMatch - If true, requires exact match; if false, allows partial matches
+       * @returns {Array<{id: string, title: string, similarity: number}>} Array of matching cards
+       */
+      function findCardsByName(cardName, exactMatch = true) {
+        if (!cardName) return [];
+        
+        const normalizedSearch = normalizeCardName(cardName);
+        const results = [];
+        
+        for (const [id, card] of Object.entries(store.cards)) {
+          const normalizedTitle = normalizeCardName(card.title);
+          
+          if (exactMatch) {
+            if (normalizedTitle === normalizedSearch) {
+              results.push({
+                id,
+                title: card.title,
+                similarity: 1.0
+              });
+            }
+          } else {
+            // Partial match - check if search term is contained
+            if (normalizedTitle.includes(normalizedSearch)) {
+              // Calculate simple similarity score
+              const similarity = normalizedSearch.length / normalizedTitle.length;
+              results.push({
+                id,
+                title: card.title,
+                similarity
+              });
+            }
+          }
+        }
+        
+        // Sort by similarity (exact matches first, then by similarity score)
+        results.sort((a, b) => b.similarity - a.similarity);
+        
+        return results;
+      }
+
+      /**
+       * Resolve all card links in text to card IDs
+       * @param {string} text - Text containing [[Card Name]] links
+       * @returns {Array<{link: object, cardId: string|null}>} Array of links with resolved IDs
+       */
+      function resolveCardLinks(text) {
+        const links = parseCardLinks(text);
+        
+        return links.map(link => ({
+          link,
+          cardId: findCardByName(link.cardName)
+        }));
+      }
+
+      /**
+       * Get all tags for a card
+       * @param {string} cardId - Card ID
+       * @returns {string[]} Array of tags
+       */
+      function getTags(cardId) {
+        const card = store.cards[cardId];
+        if (!card) return [];
+        return card.tags || [];
+      }
+
+      /**
+       * Add a tag to a card
+       * @param {string} cardId - Card ID
+       * @param {string} tag - Tag to add
+       * @param {boolean} skipSave - Skip saving to localStorage
+       * @returns {boolean} True if tag was added, false otherwise
+       */
+      function addTag(cardId, tag, skipSave = false) {
+        const card = store.cards[cardId];
+        if (!card) return false;
+        
+        // Normalize tag (remove # if present, lowercase)
+        const normalizedTag = tag.replace(/^#/, '').toLowerCase().trim();
+        if (!normalizedTag) return false;
+        
+        // Initialize tags array if not present
+        if (!card.tags) card.tags = [];
+        
+        // Check if tag already exists (case-insensitive)
+        if (card.tags.some(t => t.toLowerCase() === normalizedTag)) {
+          return false;
+        }
+        
+        // Add the tag
+        card.tags.push(normalizedTag);
+        card.updatedAt = Date.now();
+        
+        if (!skipSave) save();
+        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'addTag' });
+        
+        return true;
+      }
+
+      /**
+       * Remove a tag from a card
+       * @param {string} cardId - Card ID
+       * @param {string} tag - Tag to remove
+       * @param {boolean} skipSave - Skip saving to localStorage
+       * @returns {boolean} True if tag was removed, false otherwise
+       */
+      function removeTag(cardId, tag, skipSave = false) {
+        const card = store.cards[cardId];
+        if (!card || !card.tags) return false;
+        
+        // Normalize tag (remove # if present, lowercase)
+        const normalizedTag = tag.replace(/^#/, '').toLowerCase().trim();
+        
+        // Find and remove the tag (case-insensitive)
+        const initialLength = card.tags.length;
+        card.tags = card.tags.filter(t => t.toLowerCase() !== normalizedTag);
+        
+        // Check if anything was removed
+        if (card.tags.length === initialLength) {
+          return false;
+        }
+        
+        card.updatedAt = Date.now();
+        
+        if (!skipSave) save();
+        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'removeTag' });
+        
+        return true;
+      }
+
+      /**
+       * Set all tags for a card (replaces existing tags)
+       * @param {string} cardId - Card ID
+       * @param {string[]} tags - Array of tags to set
+       * @param {boolean} skipSave - Skip saving to localStorage
+       * @returns {boolean} True if tags were set successfully
+       */
+      function setTags(cardId, tags, skipSave = false) {
+        const card = store.cards[cardId];
+        if (!card) return false;
+        
+        // Normalize all tags
+        const normalizedTags = tags
+          .map(tag => tag.replace(/^#/, '').toLowerCase().trim())
+          .filter(tag => tag.length > 0);
+        
+        // Remove duplicates
+        card.tags = [...new Set(normalizedTags)];
+        card.updatedAt = Date.now();
+        
+        if (!skipSave) save();
+        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'setTags' });
+        
+        return true;
+      }
+
+      /**
+       * Get all unique tags across all cards
+       * @returns {string[]} Array of all unique tags
+       */
+      function getAllTags() {
+        const allTags = new Set();
+        Object.values(store.cards).forEach(card => {
+          if (card.tags) {
+            card.tags.forEach(tag => allTags.add(tag));
+          }
+        });
+        return Array.from(allTags).sort();
+      }
+
 
       // =============================================================
       // --- RENDERING ---
@@ -2802,6 +3104,11 @@
           document.documentElement.classList.remove('dark');
           if (themeSwitch) themeSwitch.checked = false; // Sync switch
         }
+        
+        // Save to store for persistence across dataset switches
+        store.activeTheme = theme;
+        save();
+        
         try {
           localStorage.setItem('cardspoke_theme', theme);
         } catch { }
@@ -2810,6 +3117,9 @@
         const moonIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
         const sunIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
         if (header.themeToggle) header.themeToggle.innerHTML = theme === 'dark' ? sunIcon : moonIcon;
+        
+        // Run mod hook
+        runModHook('onThemeChange', theme);
       }
       
       // =============================================================
@@ -2838,7 +3148,7 @@
       // =============================================================
 
       // Initialize theme
-      const savedTheme = localStorage.getItem('cardspoke_theme') || 'light';
+      const savedTheme = store.activeTheme || localStorage.getItem('cardspoke_theme') || 'light';
       applyTheme(savedTheme);
 
       // --- Header Button Handlers ---
