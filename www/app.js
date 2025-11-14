@@ -3320,6 +3320,17 @@
         formGroupTags.appendChild(tagsInput);
         formGroupTags.appendChild(tagsDatalist);
         form.appendChild(formGroupTags);
+        
+        // Add "Suggest Tags" button
+        if (editing && card.id) {
+          const suggestBtn = h('button', {
+            type: 'button',
+            className: 'btn btn-secondary',
+            onclick: () => showTagSuggestions(card.id),
+            style: 'margin-top: var(--space-sm);'
+          }, '✨ Suggest Tags');
+          formGroupTags.appendChild(suggestBtn);
+        }
     
         const formGroup3 = h('div', { className: 'form-group' });
         formGroup3.appendChild(h('label', { className: 'form-label' }, 'Parent Card'));
@@ -4119,6 +4130,124 @@
                   h('div', { className: 'preset-desc' }, preset.desc)
                 )
               )
+            )
+          )
+        );
+        
+        document.body.appendChild(modal);
+      }
+
+      /**
+       * Generate smart tag suggestions for a card based on content
+       * @param {string} cardId - Card ID to analyze
+       * @param {number} limit - Maximum number of suggestions (default: 5)
+       * @returns {Array<{tag: string, score: number}>} Suggested tags with relevance scores
+       */
+      function suggestTags(cardId, limit = 5) {
+        const card = store.cards[cardId];
+        if (!card) return [];
+        
+        const existingTags = getTags(cardId);
+        const allExistingTags = getAllTags();
+        const suggestions = [];
+        
+        // Combine title and body for analysis
+        const content = ((card.title || '') + ' ' + (card.body || '')).toLowerCase();
+        
+        // Get tags from other cards with similar content
+        for (const tag of allExistingTags) {
+          if (existingTags.includes(tag)) continue; // Skip already applied tags
+          
+          // Find cards with this tag
+          const cardsWithTag = Object.values(store.cards).filter(c => 
+            c.tags && c.tags.includes(tag)
+          );
+          
+          // Calculate relevance based on content similarity
+          let totalScore = 0;
+          for (const otherCard of cardsWithTag) {
+            const otherContent = ((otherCard.title || '') + ' ' + (otherCard.body || '')).toLowerCase();
+            
+            // Simple word overlap scoring
+            const contentWords = new Set(content.split(/\s+/).filter(w => w.length > 3));
+            const otherWords = new Set(otherContent.split(/\s+/).filter(w => w.length > 3));
+            const commonWords = [...contentWords].filter(w => otherWords.has(w));
+            
+            if (commonWords.length > 0) {
+              totalScore += commonWords.length / Math.max(contentWords.size, otherWords.size);
+            }
+          }
+          
+          if (totalScore > 0) {
+            suggestions.push({
+              tag,
+              score: totalScore / cardsWithTag.length
+            });
+          }
+        }
+        
+        // Sort by score and return top suggestions
+        suggestions.sort((a, b) => b.score - a.score);
+        return suggestions.slice(0, limit);
+      }
+      
+      /**
+       * Show smart tag suggestions modal
+       * @param {string} cardId - Card ID to suggest tags for
+       */
+      function showTagSuggestions(cardId) {
+        const card = store.cards[cardId];
+        if (!card) return;
+        
+        const suggestions = suggestTags(cardId, 8);
+        
+        if (suggestions.length === 0) {
+          showToast('No tag suggestions available', 'info');
+          return;
+        }
+        
+        const modal = h('div', { 
+          id: 'tagSuggestionsModal', 
+          className: 'menu-overlay show',
+          onclick: (e) => { if (e.target === modal) modal.remove(); }
+        },
+          h('div', { className: 'menu-panel' },
+            h('div', { className: 'menu-header' },
+              h('div', { className: 'menu-title' }, '🏷️ Suggested Tags'),
+              h('button', { 
+                className: 'menu-close',
+                onclick: () => modal.remove()
+              }, '✕')
+            ),
+            h('div', { className: 'tag-suggestions' },
+              h('div', { className: 'suggestion-description' }, 
+                `Based on similar cards, you might want to add these tags:`
+              ),
+              ...suggestions.map(({ tag, score }) => 
+                h('button', { 
+                  className: 'suggestion-tag',
+                  onclick: () => {
+                    addTag(cardId, tag);
+                    showToast(`✓ Tag "${tag}" added`);
+                    modal.remove();
+                    render();
+                  }
+                },
+                  h('span', { className: 'tag-name' }, tag),
+                  h('span', { className: 'tag-score' }, `${Math.round(score * 100)}% match`)
+                )
+              ),
+              h('button', {
+                className: 'btn btn-primary',
+                onclick: () => {
+                  // Apply all suggestions
+                  suggestions.forEach(({ tag }) => addTag(cardId, tag, true));
+                  save();
+                  showToast(`✓ ${suggestions.length} tags added`);
+                  modal.remove();
+                  render();
+                }
+              }, `Apply All ${suggestions.length} Tags`)
             )
           )
         );

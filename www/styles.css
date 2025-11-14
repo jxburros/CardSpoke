@@ -1625,3 +1625,49 @@ body.dark-mode .shortcut-item:hover {
       font-size: var(--text-sm);
       color: var(--text-muted);
     }
+    
+    /* Tag Suggestions Modal */
+    .tag-suggestions {
+      padding: var(--space-xl);
+    }
+    
+    .suggestion-description {
+      margin-bottom: var(--space-xl);
+      color: var(--text-muted);
+      font-size: var(--text-base);
+    }
+    
+    .suggestion-tag {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      padding: var(--space-md) var(--space-lg);
+      margin-bottom: var(--space-sm);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: var(--text-base);
+    }
+    
+    .suggestion-tag:hover {
+      border-color: var(--text-primary);
+      background: var(--surface-hover);
+      transform: translateX(4px);
+    }
+    
+    .tag-name {
+      font-weight: 600;
+    }
+    
+    .tag-score {
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+    }
+    
+    .tag-suggestions .btn-primary {
+      margin-top: var(--space-lg);
+      width: 100%;
+    }
