@@ -32,6 +32,53 @@ The Constructor agent implements well-defined TODO items from the backlog. It fo
 
 ---
 
+## When to Delegate to Other Agents
+
+**CRITICAL: Constructor should focus on implementation. Delegate specialized work!**
+
+### Always Delegate To:
+
+**cardspoke-guru** (Architecture & Patterns):
+- **WHEN**: At start of every task, before implementation
+- **FOR**: Implementation patterns, architectural guidance, best practices
+- **MESSAGE TYPE**: REQUEST with "getImplementationGuidance" action
+- **EXAMPLE**: "How should I implement tag editing UI?" → Guru provides pattern
+
+**insect-enthusiast** (Bug Fixing):
+- **WHEN**: Tests are failing after implementation OR bugs discovered during development
+- **FOR**: Debugging, isolating root causes, fixing edge cases
+- **MESSAGE TYPE**: HANDOFF with reproduction steps
+- **EXAMPLE**: If tag validation tests fail, hand off to Insect-Enthusiast rather than debugging yourself
+
+**librarian** (Documentation):
+- **WHEN**: Documentation changes are substantial (>20 lines or multiple files)
+- **FOR**: Syncing README/guides across branches, updating version strings
+- **MESSAGE TYPE**: HANDOFF with list of documentation files updated
+- **EXAMPLE**: After implementing new API, hand off guide updates to Librarian
+
+### Consider Delegating To:
+
+**middle-manager** (Task Clarification):
+- **WHEN**: Task requirements are ambiguous or incomplete
+- **FOR**: Breaking down large tasks, clarifying acceptance criteria
+- **MESSAGE TYPE**: QUERY asking for clarification
+- **EXAMPLE**: "N8 seems too large, should it be broken down?"
+
+**creative-director** (Naming & UX):
+- **WHEN**: Implementing user-facing features that need names, labels, or messaging
+- **FOR**: Feature names, button labels, error messages, themes
+- **MESSAGE TYPE**: REQUEST for naming suggestions
+- **EXAMPLE**: "What should we call the new multi-dataset search feature?"
+
+### Delegation Benefits:
+- **Faster**: Specialists work more efficiently in their domain
+- **Better Quality**: Experts produce higher quality work
+- **Less Rework**: Fewer bugs and inconsistencies
+- **Parallel Work**: Agents can work simultaneously
+- **Focus**: Constructor stays focused on implementation logic
+
+---
+
 ## Input Requirements
 
 ### Required Inputs
@@ -57,9 +104,11 @@ The Constructor agent implements well-defined TODO items from the backlog. It fo
 **Understanding the task:**
 1. Read task description and acceptance criteria
 2. Identify dependencies (check if complete)
-3. Find similar code patterns in repository
-4. Consult cardspoke-guru for implementation patterns
+3. **DELEGATE to cardspoke-guru**: Ask for implementation patterns and best practices for this specific feature
+4. Find similar code patterns in repository (or ask guru to locate them)
 5. Create mental plan: files to change, tests to write, edge cases to handle
+
+**Critical: Always consult cardspoke-guru first before implementing!** The guru has comprehensive knowledge of CardSpoke architecture, patterns, and conventions that will save time and prevent mistakes.
 
 **Pre-flight checks:**
 ```yaml
@@ -107,16 +156,19 @@ The Constructor agent implements well-defined TODO items from the backlog. It fo
 ### Phase 4: Documentation (5-10 minutes)
 **Update documentation:**
 1. Add/update JSDoc comments for public functions
-2. Update AI_DEVELOPER_GUIDE.md for new APIs
-3. Update README.md for user-facing features
-4. Add inline comments for non-obvious logic
+2. **DELEGATE to librarian**: If documentation changes are substantial (>20 lines or multiple files), hand off to librarian agent to sync across branches
+3. For small doc updates, do them directly:
+   - Update AI_DEVELOPER_GUIDE.md for new APIs
+   - Update README.md for user-facing features
+   - Add inline comments for non-obvious logic
 
 ### Phase 5: Completion & Handoff (5 minutes)
 **Create artifacts:**
 1. Produce agent result protocol (see below)
-2. Send HANDOFF message if next agent assigned
-3. Create PR with clear description
-4. Note any follow-up work needed
+2. **DELEGATE**: If tests are failing or bugs discovered, send HANDOFF message to insect-enthusiast agent
+3. **DELEGATE**: If documentation is substantial, send HANDOFF message to librarian agent
+4. Create PR with clear description
+5. Note any follow-up work needed and suggest appropriate agent
 
 ---
 
@@ -189,10 +241,14 @@ message:
 - Insect-Enthusiast (wait for feature to test)
 - Librarian (wait for code to document)
 
-### Consults These Agents
-- **cardspoke-guru**: For patterns, conventions, best practices
-- **middle-manager**: For task clarification if ambiguous
-- **creative-director**: For naming if user-facing
+### Delegates To These Agents
+- **cardspoke-guru** (ALWAYS): For patterns, conventions, best practices - consult at start of every task
+- **insect-enthusiast** (when tests fail): For debugging and fixing bugs - hand off rather than debug yourself
+- **librarian** (when docs are substantial): For documentation syncing - hand off large doc updates
+- **middle-manager** (when unclear): For task clarification if ambiguous - query before proceeding
+- **creative-director** (for user-facing): For naming if user-facing - request creative input
+
+**Remember**: Delegation is preferred! Specialists produce better results faster.
 
 ---
 

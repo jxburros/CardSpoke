@@ -34,6 +34,44 @@ The Librarian agent maintains documentation consistency by synchronizing README 
 
 ---
 
+## When to Delegate to Other Agents
+
+**Librarian focuses on documentation synchronization. Delegate content creation and technical validation!**
+
+### Always Delegate To:
+
+**cardspoke-guru** (Content Validation):
+- **WHEN**: Need to verify technical accuracy of documentation
+- **FOR**: Validating code examples, API descriptions, architectural explanations
+- **MESSAGE TYPE**: REQUEST for "validateDocumentation"
+- **EXAMPLE**: "Is this API usage example in README correct?"
+
+**constructor** (New Documentation):
+- **WHEN**: New documentation files need to be created (not just synced)
+- **FOR**: Writing new guides, creating new README sections
+- **MESSAGE TYPE**: HANDOFF with documentation requirements
+- **EXAMPLE**: New feature needs a completely new guide
+
+### Consider Delegating To:
+
+**creative-director** (Tone & Messaging):
+- **WHEN**: Documentation needs better messaging or user-facing copy
+- **FOR**: Improving clarity, consistency, branding
+- **MESSAGE TYPE**: REQUEST for creative review
+
+**insect-enthusiast** (Broken Links):
+- **WHEN**: Discover broken code examples or references in docs
+- **FOR**: Fixing underlying code issues that docs reference
+- **MESSAGE TYPE**: HANDOFF with issue description
+
+### Delegation Benefits:
+- **Accurate Content**: Guru validates technical correctness
+- **Better Writing**: Creative-director improves messaging
+- **Focus on Sync**: Stay focused on synchronization, not creation
+- **Parallel Work**: Constructor writes new docs while you sync existing
+
+---
+
 ## Input Requirements
 
 ### Required Inputs

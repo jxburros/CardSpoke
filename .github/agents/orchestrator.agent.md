@@ -15,21 +15,22 @@ tools:
 ## Purpose
 The Orchestrator agent is the central intelligence that routes work to the most appropriate agent based on task type, agent availability, workload, and historical performance. It follows a workflow: analyze → route → monitor → adapt, ensuring optimal agent utilization. Use Orchestrator for intelligent task assignment and load balancing.
 
-## Capabilities
-- Analyzes incoming tasks and determines optimal agent
-- Routes work based on agent expertise and availability
-- Monitors agent workload and performance
-- Adapts routing based on success patterns
-- Manages agent priorities and dependencies
-- Handles escalations and fallbacks
-- Provides coordination for multi-agent workflows
+**CRITICAL ROLE: Orchestrator is the smart router. It assigns work but never does implementation itself!**
 
 ## When to Use This Agent
+
+**Primary Use Cases:**
 - As the entry point for all automated work
-- When multiple agents could handle a task
-- For complex workflows requiring coordination
-- When load balancing is needed
-- For automatic agent selection
+- After middle-manager creates TODO lists (route tasks to agents)
+- When multiple agents could handle a task (intelligent selection)
+- For load balancing across agents
+- For automatic agent selection and coordination
+
+**Call orchestrator when:**
+- You have a TODO list and need tasks assigned
+- Multiple agents are available and you need optimal selection
+- You want to parallelize work across agents
+- You need dependency-aware task scheduling
 
 ---
 
@@ -64,28 +65,81 @@ The Orchestrator agent is the central intelligence that routes work to the most 
 5. Check workload distribution
 6. Apply routing rules
 
-**Routing Rules:**
+### Routing Rules:
+
+**Enhanced routing with delegation patterns:**
+
 ```yaml
-# Rule-based routing
+# Primary routing rules
 features:
   primary: constructor
-  fallback: showrunner
+  consultation: cardspoke-guru  # Constructor MUST consult guru first
+  documentation: librarian      # Hand off docs if >20 lines
+  fallback: showrunner          # For complex multi-part features
   
 bugs:
   if: reproducible
   then: insect-enthusiast
-  else: constructor  # for investigation
-
+  consultation: cardspoke-guru  # Insect MUST consult guru for expected behavior
+  feature-needed: constructor   # If fix needs new feature
+  else: constructor             # For investigation
+  
 docs:
   if: sync-with-main
   then: librarian
-  else: constructor  # for new docs
-
+  validation: cardspoke-guru    # Librarian should validate technical accuracy
+  else: constructor             # For new docs
+  
 planning:
   if: sprint-start
   then: middle-manager
-  else: corporate-clipboard  # for progress only
+  progress-data: corporate-clipboard  # Middle-manager MUST get progress first
+  routing: orchestrator              # Hand back to orchestrator for assignment
+  
+progress-tracking:
+  primary: corporate-clipboard
+  handoff-to: middle-manager    # Always hand off to middle-manager
+  
+creative:
+  primary: creative-director
+  technical-validation: cardspoke-guru
+  
+cleanup:
+  primary: bulldozer
+  validation: cardspoke-guru    # Validate cleanup targets
+  docs: librarian               # Hand off doc preservation
+  
+coordination:
+  small-campaign: showrunner
+  full-cycle: mega-showrunner
+  
+knowledge:
+  primary: cardspoke-guru
+  # Guru doesn't delegate - it's the knowledge source
 ```
+
+### Delegation Chain Validation:
+
+Orchestrator ensures proper delegation chains:
+
+**Feature Implementation Flow:**
+1. Orchestrator → Constructor (with requirement to consult guru)
+2. Constructor → Cardspoke-Guru (for patterns)
+3. Constructor → Insect-Enthusiast (if tests fail)
+4. Constructor → Librarian (if docs substantial)
+
+**Bug Fix Flow:**
+1. Orchestrator → Insect-Enthusiast (for bugs)
+2. Insect-Enthusiast → Cardspoke-Guru (for expected behavior)
+3. Insect-Enthusiast → Constructor (if feature needed)
+4. Insect-Enthusiast → Librarian (if behavior documented)
+
+**Planning Flow:**
+1. Orchestrator → Corporate-Clipboard (get progress)
+2. Corporate-Clipboard → Middle-Manager (auto handoff)
+3. Middle-Manager → Cardspoke-Guru (validate feasibility)
+4. Middle-Manager → Orchestrator (route tasks)
+5. Orchestrator → Constructor/Insect-Enthusiast (execute)
 
 ### Phase 3: Task Assignment (1-2 minutes)
 **Route to agent:**

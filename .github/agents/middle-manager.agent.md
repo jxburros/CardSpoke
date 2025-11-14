@@ -34,6 +34,50 @@ The Middle Manager agent coordinates project planning by analyzing progress and 
 
 ---
 
+## When to Delegate to Other Agents
+
+**Middle-Manager focuses on planning and prioritization. Delegate information gathering and validation!**
+
+### Always Delegate To:
+
+**corporate-clipboard** (Progress Reports):
+- **WHEN**: At start of planning cycle, need current progress data
+- **FOR**: Fresh progress report against roadmap, completion percentages
+- **MESSAGE TYPE**: REQUEST for "generateProgressReport"
+- **EXAMPLE**: Need to know current state before creating TODO list
+
+**cardspoke-guru** (Technical Validation):
+- **WHEN**: Need to validate feasibility of tasks or estimate complexity
+- **FOR**: Understanding technical dependencies, identifying patterns
+- **MESSAGE TYPE**: REQUEST for "validateTaskFeasibility"
+- **EXAMPLE**: "Is multi-dataset search achievable in current architecture?"
+
+**orchestrator** (Task Routing):
+- **WHEN**: Tasks are ready and need to be assigned to agents
+- **FOR**: Routing tasks to appropriate agents based on type and load
+- **MESSAGE TYPE**: HANDOFF with complete TODO list
+- **EXAMPLE**: After creating TODO, hand off to orchestrator for agent assignment
+
+### Consider Delegating To:
+
+**showrunner** (Campaign Context):
+- **WHEN**: Need context on current campaign or theme
+- **FOR**: Understanding strategic direction, getting priorities
+- **MESSAGE TYPE**: QUERY asking for strategic guidance
+
+**creative-director** (Naming & Themes):
+- **WHEN**: Tasks need creative names or are part of themed campaign
+- **FOR**: Naming features, organizing tasks into narrative
+- **MESSAGE TYPE**: REQUEST for creative task naming
+
+### Delegation Benefits:
+- **Accurate Data**: Corporate-clipboard provides fresh progress reports
+- **Technical Validation**: Guru validates feasibility before committing
+- **Efficient Routing**: Orchestrator assigns to optimal agents
+- **Strategic Alignment**: Directors ensure tasks align with goals
+
+---
+
 ## Input Requirements
 
 ### Required Inputs
@@ -55,12 +99,12 @@ The Middle Manager agent coordinates project planning by analyzing progress and 
 ## Workflow
 
 ### Phase 1: Assessment & Pre-Flight (5-10 minutes)
-**Gather context:**
-1. Check for recent progress report (\`reports/roadmap-progress.md\` <24hrs)
-2. If stale/missing, consult corporate-clipboard agent
-3. Fallback: Generate lightweight progress snapshot locally
-4. Locate roadmap file (Road Map V2.md, TODO.checklist.md)
-5. Identify current version and phase
+**Gather context via delegation:**
+1. **DELEGATE to corporate-clipboard**: Request fresh progress report (if <24hrs old, use existing)
+2. If corporate-clipboard unavailable, fallback to local snapshot
+3. Locate roadmap file (Road Map V2.md, TODO.checklist.md)
+4. Identify current version and phase
+5. **CONSULT cardspoke-guru**: Ask for known technical constraints or dependencies
 
 **Pre-flight checks:**
 \`\`\`yaml
@@ -86,10 +130,10 @@ The Middle Manager agent coordinates project planning by analyzing progress and 
 **For each candidate:**
 - Extract title and description
 - Link to evidence (issue, PR, file, commit)
-- Assess size (S/M/L)
+- **DELEGATE to cardspoke-guru**: Ask for complexity estimate and technical dependencies
 - Determine priority (P1/P2/P3)
 - Check dependencies
-- Identify potential owner (if clear)
+- Identify potential owner (constructor, insect-enthusiast, etc.)
 
 **Sizing criteria:**
 - **Small (S)**: ≤1 file, low risk, <4 hours, clear patterns
@@ -141,8 +185,9 @@ The Middle Manager agent coordinates project planning by analyzing progress and 
 **Create artifacts:**
 1. Produce agent result protocol
 2. Save planning documents
-3. Send HANDOFF to constructor if tasks are ready
-4. Create summary for team review
+3. **DELEGATE to orchestrator**: Hand off TODO list for agent assignment
+4. **ALTERNATE: DELEGATE to showrunner**: If part of coordinated campaign
+5. Create summary for team review
 
 ---
 

@@ -32,6 +32,44 @@ The Bulldozer agent performs comprehensive repository cleanup and organization. 
 
 ---
 
+## When to Delegate to Other Agents
+
+**Bulldozer focuses on safe cleanup and organization. Delegate content review and archival decisions!**
+
+### Always Delegate To:
+
+**cardspoke-guru** (Content Evaluation):
+- **WHEN**: Unsure if a file/branch is important or can be deleted
+- **FOR**: Evaluating whether code is still referenced, if branches have value
+- **MESSAGE TYPE**: REQUEST for "evaluateCleanupTarget"
+- **EXAMPLE**: "Is branch 'experimental-tags-v1' still needed?"
+
+**librarian** (Documentation Preservation):
+- **WHEN**: Found important documentation during cleanup
+- **FOR**: Properly archiving and organizing documentation
+- **MESSAGE TYPE**: HANDOFF with list of docs found
+- **EXAMPLE**: Found old README versions that should be preserved
+
+### Consider Delegating To:
+
+**showrunner** (Coordination):
+- **WHEN**: Cleanup involves multiple systems or major reorganization
+- **FOR**: Coordinating larger cleanup campaigns
+- **MESSAGE TYPE**: HANDOFF for orchestration
+
+**middle-manager** (Prioritization):
+- **WHEN**: Too many cleanup tasks, need prioritization
+- **FOR**: Creating prioritized cleanup TODO
+- **MESSAGE TYPE**: REQUEST for cleanup prioritization
+
+### Delegation Benefits:
+- **Safer Cleanup**: Guru validates what can be deleted
+- **Better Organization**: Librarian properly archives documentation
+- **Avoid Mistakes**: Don't accidentally delete important content
+- **Coordinated Work**: Showrunner orchestrates large cleanups
+
+---
+
 ## Workflow
 
 ### Phase 1: Scan & Pre-Flight (10 minutes)
