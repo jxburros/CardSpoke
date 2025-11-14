@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Created for:** AI Programming Assistants  
 **Last Updated:** 2025-11-14  
-**Application Version:** 0.11.0
+**Application Version:** 0.11.2
 
 ---
 
@@ -732,6 +732,133 @@ Test responsive design:
 - Tablet landscape (1024px)
 
 ---
+
+
+
+---
+
+## Developer Tools & Extensions (v0.11+)
+
+### CIB.utils API
+
+CardSpoke exposes a comprehensive developer API at `window.CIB.utils` for extension development. This API provides safe, documented access to CardSpoke functionality.
+
+**Available Methods:**
+
+```javascript
+// Card Management
+await CIB.utils.createCard({ title, body, parentId, tags })
+await CIB.utils.updateCard(cardId, { title, body, tags })
+await CIB.utils.getCard(cardId)
+await CIB.utils.searchCards(query)
+
+// Tag Management
+await CIB.utils.getTags(cardId)
+await CIB.utils.addTag(cardId, tag)
+await CIB.utils.removeTag(cardId, tag)
+await CIB.utils.setTags(cardId, tags)
+await CIB.utils.getAllTags()
+
+// Utilities
+await CIB.utils.showToast(message, type, duration)
+await CIB.utils.getDatasetMeta()
+```
+
+**Example Usage:**
+
+```javascript
+// Create a card with tags
+const result = await CIB.utils.createCard({
+  title: 'My Card',
+  body: 'Content here',
+  tags: ['important', 'work']
+});
+console.log('Created:', result.id);
+
+// Search and update
+const cards = await CIB.utils.searchCards('meeting');
+for (const card of cards) {
+  await CIB.utils.addTag(card.id, 'reviewed');
+}
+
+// Show notification
+await CIB.utils.showToast('Operation complete!', 'success');
+```
+
+### Extension Wizard
+
+The Extension Wizard (🧙 in menu) helps developers create new extensions:
+
+**Features:**
+- Interactive step-by-step interface
+- Five extension types: Theme, Patch, Plugin, Mod, Expansion
+- Auto-generates manifest and skeleton code
+- Download as JSON or install directly
+- Includes working code examples
+
+**Extension Types:**
+
+1. **Theme**: Pure CSS styling modifications
+2. **Patch**: Small enhancements with minimal code
+3. **Plugin**: Functionality additions using hooks
+4. **Mod**: Comprehensive modifications (CSS + JS)
+5. **Expansion**: Major feature additions
+
+**Generated Structure:**
+
+```javascript
+{
+  id: 'my-extension',
+  meta: {
+    name: 'My Extension',
+    type: 'Plugin',
+    creator: 'Your Name',
+    version: '1.0.0',
+    releaseDate: '2025-11-14',
+    description: 'Description here'
+  },
+  js: '// JavaScript code',
+  css: '/* CSS styles */',
+  enabled: false
+}
+```
+
+### Playground
+
+The Playground (🛝 in menu) provides a sandboxed testing environment:
+
+**Features:**
+- Split-view: code editor + console output
+- Live code execution
+- Error boundary and safe execution
+- Pre-loaded examples using CIB.utils
+- Template loader for quick start
+
+**Usage:**
+
+1. Open Playground from menu
+2. Write or edit code in left panel
+3. Click "▶️ Run Code" to execute
+4. View output in right panel (console)
+5. Use "📝 Load Template" for examples
+
+**Safety:**
+
+- Code runs in isolated context
+- Errors are caught and displayed
+- Original data remains safe
+- Can test without affecting main app
+
+### Extension Development Best Practices
+
+1. **Use CIB.utils API**: Don't access store directly
+2. **Handle Errors**: Wrap code in try-catch blocks
+3. **Test in Playground**: Validate before installing
+4. **Document Your Code**: Add comments and descriptions
+5. **Version Control**: Track changes in metadata
+6. **Minimize Side Effects**: Keep modifications focused
+7. **Respect User Data**: Don't modify without permission
+
 
 ## Extension System (Future)
 

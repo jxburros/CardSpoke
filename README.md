@@ -4,11 +4,42 @@
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.11.0
+## 🌟 Current Version: 0.11.2
 
 Version 0.11.0 introduces **Backlinks and Related Cards** functionality, expanding CardSpoke's knowledge graph capabilities with bidirectional linking and content discovery features.
 
 ### What's New in 0.11.0
+
+### What's New in 0.11.2
+
+**Developer Ecosystem**
+- **Extension Wizard**: Interactive wizard for creating new extensions with templates
+  - Step-by-step guidance for choosing extension type
+  - Automatic generation of manifest and skeleton code
+  - Support for Theme, Patch, Plugin, Mod, and Expansion types
+  - Download as JSON or install directly
+- **Playground**: Sandboxed environment for testing extension code
+  - Split-view interface with code editor and console output
+  - Live code execution with error handling
+  - Pre-loaded examples demonstrating CIB.utils API
+  - Safe testing environment with isolated execution
+- **CIB.utils API**: Exposed developer utility functions
+  - Complete API for card management (create, update, search)
+  - Tag management functions (get, add, remove, set)
+  - Toast notifications and dataset metadata access
+  - Comprehensive JSDoc documentation and error handling
+
+**Enhanced Testing**
+- All 152 tests passing with full backward compatibility
+- New developer features fully integrated with existing systems
+
+### What's New in 0.11.1
+
+**CIB.utils API**
+- Exposed window.CIB.utils for extension developers
+- Safe, documented API for mods to interact with CardSpoke
+- Functions for card management, tags, search, and notifications
+
 
 **Backlinks & Related Cards**
 - Automatic backlink detection shows which cards link to the current card
