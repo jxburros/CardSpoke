@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.8.1
+      // Version: 0.10.1
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.10.0'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.10.1'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-14'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'Github Copilot - Middle Manager'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GitHub Copilot Constructor Agent'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -78,6 +78,7 @@
       const themeSwitch = document.getElementById('themeSwitch');
       const viewModeSwitch = document.getElementById('viewModeSwitch');
       const highContrastSwitch = document.getElementById('highContrastSwitch');
+      const devModeSwitch = document.getElementById('devModeSwitch');
 
       const uploadModal = {
         overlay: document.getElementById('uploadModal'),
@@ -152,6 +153,15 @@
           setTimeout(() => toast.remove(), 300);
         }, 3000);
       }
+
+      /**
+       * Check if developer mode is enabled
+       * @returns {boolean} True if developer mode is active
+       */
+      function isDeveloperMode() {
+        return localStorage.getItem('cardspoke_devmode') === 'true';
+      }
+
 
       function bootError(msg) {
         main.innerHTML = '';
@@ -920,6 +930,67 @@
       // functionality through JavaScript hooks and CSS styles.
       // =============================================================
       
+       /**
+        * =============================================================
+        * EXTENSION HOOKS (Planned & Implemented)
+        * =============================================================
+        * 
+        * Extensions can register hooks to execute custom code at key points
+        * in the application lifecycle. Use CIB_MODS.register() to add hooks.
+        * 
+        * IMPLEMENTED HOOKS:
+        * ------------------
+        * @hook onAppInit(context)
+        *   Called once when app initializes or when a mod is first loaded.
+        *   Use for setup, initialization, or registering global handlers.
+        *   @param {Object} context - Mod execution context
+        * 
+        * @hook onCardSave(context, card, saveInfo)
+        *   Called whenever a card is created or updated.
+        *   @param {Object} context - Mod execution context
+        *   @param {Object} card - Card data (cloned, read-only)
+        *   @param {Object} saveInfo - { isNew: boolean, source: string }
+        * 
+        * @hook onCardDelete(context, card)
+        *   Called when a card is deleted.
+        *   @param {Object} context - Mod execution context
+        *   @param {Object} card - Card data before deletion (cloned)
+        * 
+        * @hook onCardRender(context, card, element)
+        *   Called after a card is rendered to the DOM.
+        *   @param {Object} context - Mod execution context
+        *   @param {Object} card - Card data (cloned)
+        *   @param {HTMLElement} element - Card DOM element
+        * 
+        * PLANNED HOOKS (v0.10+):
+        * -----------------------
+        * @hook onNavigate(context, navState)
+        *   Called when navigation state changes (planned for v0.10.1)
+        *   @param {Object} context - Mod execution context
+        *   @param {Object} navState - { page, cardId, parentId, searchQuery }
+        * 
+        * @hook onSearch(context, query, results)
+        *   Called when search is performed (planned for v0.10.2)
+        *   @param {Object} context - Mod execution context
+        *   @param {string} query - Search query
+        *   @param {Array} results - Array of matching cards
+        * 
+        * @hook onThemeChange(context, themeName)
+        *   Called when theme is changed (planned for v0.10.2)
+        *   @param {Object} context - Mod execution context
+        *   @param {string} themeName - Name of activated theme
+        * 
+        * @hook onExport(context, exportData)
+        *   Called before data export (planned for v0.10.3)
+        *   @param {Object} context - Mod execution context
+        *   @param {Object} exportData - Data being exported
+        * 
+        * @hook onImport(context, importData)
+        *   Called after data import (planned for v0.10.3)
+        *   @param {Object} context - Mod execution context
+        *   @param {Object} importData - Imported data structure
+        */
+
       const CIB_MODS = (() => {
         // Registry of loaded mods
         const registry = {};
@@ -951,9 +1022,10 @@
             runner(window, document, CIB_MODS, storeAPI, console);
             if (modData.meta) registry[modId].meta = { ...modData.meta };
             registry[modId].__loaded = true;
+            console.log(`[Extensions] Loaded: ${modId}`, modData.meta || {});
             return registry[modId];
           } catch (err) {
-            console.error(`[Mods] Failed to evaluate ${modId}:`, err);
+            console.error(`[Extensions] Failed to load ${modId}:`, err);
             registry[modId] = registry[modId] || { id: modId, hooks: {}, meta: modData?.meta || {} };
             registry[modId].__loaded = false;
             registry[modId].__error = err;
@@ -973,6 +1045,7 @@
           tag.textContent = css;
           document.head.appendChild(tag);
           styleTags[modId] = tag;
+          console.log(`[Extensions] Applied CSS for: ${modId}`);
         }
 
         /**
@@ -981,7 +1054,10 @@
          */
         function removeStyle(modId) {
           const tag = styleTags[modId];
-          if (tag && tag.parentNode) tag.parentNode.removeChild(tag);
+          if (tag && tag.parentNode) {
+            tag.parentNode.removeChild(tag);
+            console.log(`[Extensions] Removed CSS for: ${modId}`);
+          }
           delete styleTags[modId];
         }
 
@@ -1534,7 +1610,7 @@
         }
         
         save();
-        if (window.CIB_MODS) {
+        if (window.CIB_MODS && !safeMode) {
           window.CIB_MODS.syncFromStore();
           window.CIB_MODS.runHook('onAppInit');
         }
@@ -1685,8 +1761,10 @@
                   localStorage.setItem('activeInstance', key);
                   instanceKey = key;
                   load();
-                  CIB_MODS.syncFromStore();
-                  CIB_MODS.runHook('onAppInit');
+                  if (!safeMode) {
+                    CIB_MODS.syncFromStore();
+                    CIB_MODS.runHook('onAppInit');
+                  }
                   render();
                   overlay.remove();
                   showToast('Switched to: ' + key);
@@ -1798,6 +1876,7 @@
           type: 'password',
           id: 'newDatasetPin',
           placeholder: 'Leave empty for no PIN',
+          title: 'PIN encryption will be available in v0.10.3',
           style: `
             width: 100%;
             padding: var(--space-md);
@@ -1807,13 +1886,14 @@
             color: var(--text-primary);
             margin-bottom: var(--space-xs);
             font-size: 1rem;
+            cursor: not-allowed;
           `,
           disabled: true
         });
 
         const pinHelp = h('div', { 
           style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' 
-        }, '🔒 PIN protection coming soon in a future update.');
+        }, '🔒 PIN encryption coming in v0.10.3 - feature currently disabled for security hardening.');
 
         // Create button
         const createBtn = h('button', {
@@ -2796,6 +2876,17 @@
           localStorage.setItem('cardspoke_highcontrast', enabled);
         };
       }
+
+      if (devModeSwitch) {
+        const savedDevMode = localStorage.getItem('cardspoke_devmode') === 'true';
+        devModeSwitch.checked = savedDevMode;
+        devModeSwitch.onchange = () => {
+          const enabled = devModeSwitch.checked;
+          localStorage.setItem('cardspoke_devmode', enabled);
+          console.log(`[Developer Mode] ${enabled ? 'Enabled' : 'Disabled'}`);
+          showToast(`Developer Mode ${enabled ? 'Enabled' : 'Disabled'}`, 'info');
+        };
+      }
       
       // --- Menu Handlers ---
       
@@ -3244,8 +3335,18 @@
       
       load();                          // Load data from localStorage
       populateFooter();                // Populate footer with metadata
-      CIB_MODS.syncFromStore();        // Initialize mods from store
-      CIB_MODS.runHook('onAppInit');   // Run mod initialization hooks
+      
+      // Check for safe mode URL parameter (global for import/reset functions)
+      const urlParams = new URLSearchParams(window.location.search);
+      let safeMode = urlParams.has('safemode');
+      
+      if (safeMode) {
+        console.warn('[Safe Mode] Extensions disabled via ?safemode parameter');
+        showToast('Safe Mode Active - Extensions Disabled', 'warning');
+      }
+      
+      if (!safeMode) CIB_MODS.syncFromStore();        // Initialize mods from store (skip in safe mode)
+      if (!safeMode) CIB_MODS.runHook('onAppInit');   // Run mod initialization hooks (skip in safe mode)
       render();                        // Initial render
 
       // Warn user about unsaved changes before leaving

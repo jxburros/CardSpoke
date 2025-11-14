@@ -10,18 +10,18 @@
 
 ## Fixes (Critical Stability) 🔴
 
-- [ ] **F1:** Update version history comment in app.js (line 6) from "Version: 0.8.1" to "Version: 0.10.0" — [S, P1]
-- [ ] **F2:** Add test to verify APP_VERSION constant matches package.json version — [S, P1]
-- [ ] **F3:** Add "PIN encryption coming in v0.10.3" message, disable PIN input with tooltip — [M, P2]
+- [x] **F1:** Update version history comment in app.js (line 6) from "Version: 0.8.1" to "Version: 0.10.1" — [S, P1]
+- [x] **F2:** Add test to verify APP_VERSION constant matches package.json version — [S, P1]
+- [x] **F3:** Add "PIN encryption coming in v0.10.3" message, disable PIN input with tooltip — [M, P2]
 
 ---
 
 ## Quality-of-Life (Developer Experience) 💚
 
-- [ ] **Q1:** Add CSS classes for extension type badges (.ext-badge, .ext-theme, .ext-patch, .ext-plugin, .ext-mod) — [S, P2]
-- [ ] **Q2:** Add JSDoc-style comments for planned extension hooks in app.js — [S, P3]
+- [x] **Q1:** Add CSS classes for extension type badges (.ext-badge, .ext-theme, .ext-patch, .ext-plugin, .ext-mod) — [S, P2]
+- [x] **Q2:** Add JSDoc-style comments for planned extension hooks in app.js — [S, P3]
 - [ ] **Q3:** Profile and optimize dataset switching performance for large datasets (1000+ cards, target <500ms) — [M, P2]
-- [ ] **Q4:** Add hidden developer mode toggle in menu, store devMode flag in localStorage — [S, P3]
+- [x] **Q4:** Add hidden developer mode toggle in menu, store devMode flag in localStorage — [S, P3]
 - [ ] **Q5:** Implement toast notification system (showToast function, auto-dismiss after 3s) — [M, P2]
 
 ---
@@ -36,8 +36,8 @@
 - [ ] **N3:** Extend store.mods structure to include metadata (enabled, type, version, author) — [M, P1]
 - [ ] **N4:** Create Extensions page with list view, enable/disable checkboxes, type badges, safe mode — [L, P1]
 - [ ] **N5:** Extract theme management to separate UI under Appearance menu (one active theme at a time) — [M, P2]
-- [ ] **N9:** Add safe mode toggle (?safemode URL param skips loading extensions) — [S, P2]
-- [ ] **N10:** Add console logging for extension load events (track which extensions loaded/failed) — [S, P2]
+- [x] **N9:** Add safe mode toggle (?safemode URL param skips loading extensions) — [S, P2]
+- [x] **N10:** Add console logging for extension load events (track which extensions loaded/failed) — [S, P2]
 
 ### Internal Linking
 - [ ] **N6:** Implement parser to detect [[Card Name]] syntax in card body text — [M, P2]
@@ -51,11 +51,11 @@
 ## Phase-Based Checklist
 
 ### Phase 1: Stabilization (Est. 1-2 days)
-- [ ] F1: Version comment update
-- [ ] F2: Version test
-- [ ] F3: PIN status message
-- [ ] Q1: Extension badge CSS
-- [ ] Q2: Extension hook comments
+- [x] F1: Version comment update
+- [x] F2: Version test
+- [x] F3: PIN status message
+- [x] Q1: Extension badge CSS
+- [x] Q2: Extension hook comments
 
 ### Phase 2: Infrastructure (Est. 3-4 days)
 - [ ] N1: Tagging infrastructure
@@ -66,9 +66,9 @@
 ### Phase 3: Extensions Page (Est. 4-5 days)
 - [ ] N4: Extensions page skeleton
 - [ ] N5: Theme manager foundation
-- [ ] Q4: Developer mode prep
-- [ ] N9: Safe mode toggle
-- [ ] N10: Extension load logs
+- [x] Q4: Developer mode prep
+- [x] N9: Safe mode toggle
+- [x] N10: Extension load logs
 
 ### Phase 4: Internal Links (Est. 2-3 days)
 - [ ] N6: Internal link detection
