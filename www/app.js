@@ -78,6 +78,7 @@
       const themeSwitch = document.getElementById('themeSwitch');
       const viewModeSwitch = document.getElementById('viewModeSwitch');
       const highContrastSwitch = document.getElementById('highContrastSwitch');
+      const devModeSwitch = document.getElementById('devModeSwitch');
 
       const uploadModal = {
         overlay: document.getElementById('uploadModal'),
@@ -152,6 +153,15 @@
           setTimeout(() => toast.remove(), 300);
         }, 3000);
       }
+
+      /**
+       * Check if developer mode is enabled
+       * @returns {boolean} True if developer mode is active
+       */
+      function isDeveloperMode() {
+        return localStorage.getItem('cardspoke_devmode') === 'true';
+      }
+
 
       function bootError(msg) {
         main.innerHTML = '';
@@ -2864,6 +2874,17 @@
             document.documentElement.classList.remove('high-contrast');
           }
           localStorage.setItem('cardspoke_highcontrast', enabled);
+        };
+      }
+
+      if (devModeSwitch) {
+        const savedDevMode = localStorage.getItem('cardspoke_devmode') === 'true';
+        devModeSwitch.checked = savedDevMode;
+        devModeSwitch.onchange = () => {
+          const enabled = devModeSwitch.checked;
+          localStorage.setItem('cardspoke_devmode', enabled);
+          console.log(`[Developer Mode] ${enabled ? 'Enabled' : 'Disabled'}`);
+          showToast(`Developer Mode ${enabled ? 'Enabled' : 'Disabled'}`, 'info');
         };
       }
       

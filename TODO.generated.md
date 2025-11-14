@@ -21,7 +21,7 @@
 - [x] **Q1:** Add CSS classes for extension type badges (.ext-badge, .ext-theme, .ext-patch, .ext-plugin, .ext-mod) — [S, P2]
 - [x] **Q2:** Add JSDoc-style comments for planned extension hooks in app.js — [S, P3]
 - [ ] **Q3:** Profile and optimize dataset switching performance for large datasets (1000+ cards, target <500ms) — [M, P2]
-- [ ] **Q4:** Add hidden developer mode toggle in menu, store devMode flag in localStorage — [S, P3]
+- [x] **Q4:** Add hidden developer mode toggle in menu, store devMode flag in localStorage — [S, P3]
 - [ ] **Q5:** Implement toast notification system (showToast function, auto-dismiss after 3s) — [M, P2]
 
 ---
@@ -66,7 +66,7 @@
 ### Phase 3: Extensions Page (Est. 4-5 days)
 - [ ] N4: Extensions page skeleton
 - [ ] N5: Theme manager foundation
-- [ ] Q4: Developer mode prep
+- [x] Q4: Developer mode prep
 - [x] N9: Safe mode toggle
 - [x] N10: Extension load logs
 
