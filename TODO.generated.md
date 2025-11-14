@@ -1,7 +1,7 @@
 # TODO.generated.md — v0.10 Extensions Framework
 
 **Generated:** 2025-11-14  
-**Updated:** 2025-11-14 (Implementation status verified)  
+**Updated:** 2025-11-14 (v0.10.5 - Tag autocomplete and clickable card links completed)  
 **Source:** reports/middle-manager-plan.md  
 **Status:** Updated with implementation verification
 
@@ -39,13 +39,13 @@
   - API: getTags(), addTag(), removeTag(), setTags(), getAllTags()
   - Tests: 19 passing tests in tags-api.test.js
   - Export: tags included in JSON/Markdown/CSV exports
-- [ ] **N2:** Create tag management UI (tag input field, tag chips display, tag autocomplete) — [M, P1] ⚠️ **PARTIAL**
+- [x] **N2:** Create tag management UI (tag input field, tag chips display, tag autocomplete) — [M, P1] ✅ **DONE** (v0.10.5)
   - ✅ Display: Tags shown in card list/detail views with CSS
-  - ❌ TODO: Tag input field in card editor
-  - ❌ TODO: Tag autocomplete/suggestions
-  - ❌ TODO: Interactive tag chips (add/remove)
+  - ✅ Input: Tag input field in card editor (comma-separated)
+  - ✅ Autocomplete: HTML5 datalist with suggestions from all existing tags
+  - ⚠️ Interactive chips: Basic functionality (can be enhanced in future)
 
-**Tagging Status: Infrastructure complete, editing UI needed**
+**Tagging Status: Complete and functional ✅**
 
 ### Extensions Framework
 - [x] **N3:** Extend store.mods structure to include metadata (enabled, type, version, author) — [M, P1] ✅ **DONE**
@@ -73,16 +73,16 @@
   - Parser: parseCardLinks() function (line 2385)
   - Helper: hasCardLink() function (line 2420)
   - Tests: 20 passing tests in card-links.test.js
-- [ ] **N7:** Convert [[Card Name]] to clickable links, navigate to linked card on click — [M, P2] ⚠️ **PARTIAL**
+- [x] **N7:** Convert [[Card Name]] to clickable links, navigate to linked card on click — [M, P2] ✅ **DONE** (v0.10.5)
   - ✅ Lookup: findCardByName() function (line 2432)
   - ✅ Normalizer: normalizeCardName() for matching
   - ✅ Resolver: resolveCardLinks() maps tokens to IDs
   - ✅ Tests: 14 passing tests in card-lookup.test.js
-  - ❌ TODO: Render links as clickable elements
-  - ❌ TODO: Click handler to navigate to card
-  - ❌ TODO: Missing card creation modal
+  - ✅ Rendering: renderCardBody() function parses and renders clickable links
+  - ✅ Navigation: Click handler navigates to existing cards
+  - ✅ Creation: Missing cards offer creation dialog
 
-**Internal Linking Status: Backend complete, frontend rendering needed**
+**Internal Linking Status: Complete and functional ✅**
 
 ### Search Enhancement
 - [ ] **N8:** Extend fuzzy search to query multiple datasets, add dataset filter dropdown — [L, P2] ❌ **TODO**
@@ -144,14 +144,14 @@
 ## Summary Statistics
 
 **Total Tasks:** 18  
-**Completed:** 11 (61%)  
-**Partial:** 4 (22%)  
+**Completed:** 13 (72%)  
+**Partial:** 2 (11%)  
 **Remaining:** 3 (17%)
 
 **By Priority:**
-- P1 (High): 7/9 complete (78%) - N2, N5 partial
-- P2 (Medium): 4/8 complete (50%) - N7 partial, N8 TODO
-- P3 (Low): 0/1 complete (0%) - Q3 TODO
+- P1 (High): 8/9 complete (89%) - N5 partial
+- P2 (Medium): 5/8 complete (63%) - N8 TODO, Q3 TODO
+- P3 (Low): 0/1 complete (0%)
 
 **By Size:**
 - Small (S): 7/8 complete (87.5%)
@@ -176,7 +176,7 @@ v0.10.0 is complete when:
 - ✅ Documentation updated (README.md, inline comments) - **Well documented**
 - [ ] Release notes written (RELEASE_NOTES_V0.10.0.md) - **TODO**
 
-**Overall v0.10.0 Readiness: 65%** ⚠️
+**Overall v0.10.5 Readiness: 75%** ⚠️
 
 ---
 
