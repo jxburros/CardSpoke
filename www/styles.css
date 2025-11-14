@@ -48,6 +48,33 @@
       --text-muted: #999999;
       --text-ghost: #333333;
     }
+    
+    /* Typography Presets */
+    html[data-typography="default"] {
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    
+    html[data-typography="comfortable"] {
+      font-size: 18px;
+      line-height: 1.7;
+    }
+    
+    html[data-typography="compact"] {
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    
+    html[data-typography="dyslexia"] {
+      font-size: 18px;
+      line-height: 1.8;
+      letter-spacing: 0.05em;
+      word-spacing: 0.1em;
+    }
+    
+    html[data-typography="dyslexia"] * {
+      font-family: 'Comic Sans MS', 'OpenDyslexic', sans-serif;
+    }
 
     * {
       margin: 0;
@@ -394,6 +421,42 @@
       gap: var(--space-2xl);
       max-width: 1400px; /* CHANGED: Was 1100px */
       margin: 0 auto;
+    }
+    
+    /* Grid View Layout */
+    .card-grid.grid-view {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: var(--space-xl);
+    }
+    
+    @media (min-width: 768px) {
+      .card-grid.grid-view {
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      }
+    }
+    
+    @media (min-width: 1200px) {
+      .card-grid.grid-view {
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      }
+    }
+    
+    .card-grid.grid-view .card {
+      flex-direction: column;
+      align-items: flex-start;
+      min-height: 180px;
+    }
+    
+    .card-grid.grid-view .card-content {
+      padding-right: 0;
+    }
+    
+    .card-grid.grid-view .card-count {
+      position: absolute;
+      top: var(--space-md);
+      right: var(--space-md);
+      margin-left: 0;
     }
     
     .card {
@@ -1515,3 +1578,50 @@ body.dark-mode .shortcut-item:hover {
   color: #e57373;
   border-bottom-color: #e57373;
 }
+    
+    /* Typography Selector Modal */
+    .typography-presets {
+      padding: var(--space-xl);
+    }
+    
+    .preset-description {
+      margin-bottom: var(--space-xl);
+      color: var(--text-muted);
+      font-size: var(--text-base);
+    }
+    
+    .preset-option {
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .preset-option:hover {
+      border-color: var(--text-primary);
+      background: var(--surface-hover);
+    }
+    
+    .preset-option.active {
+      border-color: var(--text-primary);
+      background: var(--surface-hover);
+    }
+    
+    .preset-option.active::before {
+      content: "✓ ";
+      color: var(--text-primary);
+      font-weight: bold;
+    }
+    
+    .preset-name {
+      font-size: var(--text-lg);
+      font-weight: 700;
+      margin-bottom: var(--space-xs);
+    }
+    
+    .preset-desc {
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+    }

@@ -59,6 +59,7 @@
         upload: document.getElementById('menuUpload'),
         extensions: document.getElementById('menuExtensions'),
         bookmarks: document.getElementById('menuBookmarks'),
+        typography: document.getElementById('menuTypography'),
         recentCards: document.getElementById('menuRecentCards'),
         instance: document.getElementById('menuInstance'),
         datasetInfo: document.getElementById('menuDatasetInfo'),
@@ -82,6 +83,7 @@
       const themeSwitch = document.getElementById('themeSwitch');
       const viewModeSwitch = document.getElementById('viewModeSwitch');
       const highContrastSwitch = document.getElementById('highContrastSwitch');
+      const gridViewSwitch = document.getElementById('gridViewSwitch');
       const devModeSwitch = document.getElementById('devModeSwitch');
 
       const uploadModal = {
@@ -2960,7 +2962,9 @@
         if (kids.length === 0) {
           main.appendChild(h('div', { className: 'empty' }, 'No cards yet. Create one to get started!'));
         } else {
-          const grid = h('div', { className: 'card-grid' });
+          const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
+          const gridClass = gridViewEnabled ? 'card-grid grid-view' : 'card-grid';
+          const grid = h('div', { className: gridClass });
           kids.forEach(card => {
             const cardEl = renderCardTile(card);
             grid.appendChild(cardEl);
@@ -3456,7 +3460,9 @@
             }, `Found ${fuzzyResults.length} result${fuzzyResults.length === 1 ? '' : 's'}${scopeText} (fuzzy matching enabled)`);
             main.appendChild(resultInfo);
             
-            const grid = h('div', { className: 'card-grid' });
+            const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
+          const gridClass = gridViewEnabled ? 'card-grid grid-view' : 'card-grid';
+          const grid = h('div', { className: gridClass });
             fuzzyResults.forEach(result => {
               const card = result.card;
               const cardEl = renderCardTile(card);
@@ -3643,6 +3649,18 @@
         };
       }
 
+      const gridViewSwitch = document.getElementById('gridViewSwitch');
+      if (gridViewSwitch) {
+        const savedGridView = localStorage.getItem('cardspoke_gridView') === 'true';
+        gridViewSwitch.checked = savedGridView;
+        gridViewSwitch.onchange = () => {
+          const enabled = gridViewSwitch.checked;
+          localStorage.setItem('cardspoke_gridView', enabled.toString());
+          showToast(enabled ? 'Grid view enabled' : 'List view enabled');
+          render();
+        };
+      }
+
       if (highContrastSwitch) {
         const savedHC = localStorage.getItem('cardspoke_highcontrast') === 'true';
         if (savedHC) document.documentElement.classList.add('high-contrast');
@@ -3738,6 +3756,11 @@
       menu.recentCards.onclick = () => {
         menu.overlay.classList.remove('show');
         showRecentCards();
+
+      menu.typography.onclick = () => {
+        menu.overlay.classList.remove('show');
+        showTypographySelector();
+      };
       };
 
       menu.instance.onclick = () => {
@@ -3982,6 +4005,50 @@
         'escape': { action: () => handleEscape(), description: 'Close modals/go back' },
         'alt+t': { action: () => { header.themeToggle.click(); }, description: 'Toggle theme' },
         'alt+c': { action: () => toggleViewMode(), description: 'Toggle compact view' }
+              'ctrl+d': { action: () => { 
+                if (navState.page === 'read' && navState.cardId) {
+                  const card = store.cards[navState.cardId];
+                  if (card) {
+                    const choice = confirm('Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)');
+                    const newId = duplicateCard(navState.cardId, choice);
+                    if (newId) {
+                      showToast('Card duplicated successfully');
+                      goTo('read', { cardId: newId });
+                    }
+                  }
+                }
+              }, description: 'Duplicate current card' },
+              'ctrl+t': { action: () => {
+                if (navState.page === 'edit') {
+                  const tagsInput = document.getElementById('cardTags');
+                  if (tagsInput) tagsInput.focus();
+                }
+              }, description: 'Focus tags input (when editing)' },
+              'ctrl+[': { action: () => {
+                if (navState.page === 'read' && navState.cardId) {
+                  const card = store.cards[navState.cardId];
+                  if (card && card.parentId) {
+                    goTo('read', { cardId: card.parentId });
+                  } else {
+                    goTo('list');
+                  }
+                }
+              }, description: 'Navigate to parent card' },
+              'ctrl+]': { action: () => {
+                if (navState.page === 'read' && navState.cardId) {
+                  const card = store.cards[navState.cardId];
+                  if (card && card.children.length > 0) {
+                    goTo('read', { cardId: card.children[0] });
+                  }
+                }
+              }, description: 'Navigate to first child card' },
+              'ctrl+g': { action: () => {
+                // Toggle between list and grid view
+                const gridModeEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
+                localStorage.setItem('cardspoke_gridView', (!gridModeEnabled).toString());
+                showToast(gridModeEnabled ? 'List view enabled' : 'Grid view enabled');
+                render();
+              }, description: 'Toggle grid/list view' },
       };
       
       function handleEscape() {
@@ -4011,6 +4078,53 @@
         menu.overlay.classList.remove('show');
       }
       
+      
+      /**
+       * Show typography preset selector modal
+       */
+      function showTypographySelector() {
+        const currentTypography = localStorage.getItem('cardspoke_typography') || 'default';
+        
+        const modal = h('div', { 
+          id: 'typographyModal', 
+          className: 'menu-overlay show',
+          onclick: (e) => { if (e.target === modal) modal.remove(); }
+        },
+          h('div', { className: 'menu-panel' },
+            h('div', { className: 'menu-header' },
+              h('div', { className: 'menu-title' }, '📖 Typography'),
+              h('button', { 
+                className: 'menu-close',
+                onclick: () => modal.remove()
+              }, '✕')
+            ),
+            h('div', { className: 'typography-presets' },
+              h('div', { className: 'preset-description' }, 'Choose a reading mode that suits your preference:'),
+              ...[
+                { id: 'default', name: 'Default', desc: '16px, comfortable line height' },
+                { id: 'comfortable', name: 'Comfortable', desc: '18px, extra line height for relaxed reading' },
+                { id: 'compact', name: 'Compact', desc: '14px, tighter spacing for more content' },
+                { id: 'dyslexia', name: 'Dyslexia-Friendly', desc: '18px, wider spacing, readable font' }
+              ].map(preset => 
+                h('div', { 
+                  className: `preset-option ${currentTypography === preset.id ? 'active' : ''}`,
+                  onclick: () => {
+                    localStorage.setItem('cardspoke_typography', preset.id);
+                    document.documentElement.setAttribute('data-typography', preset.id);
+                    showToast(`Typography: ${preset.name}`);
+                    modal.remove();
+                  }
+                },
+                  h('div', { className: 'preset-name' }, preset.name),
+                  h('div', { className: 'preset-desc' }, preset.desc)
+                )
+              )
+            )
+          )
+        );
+        
+        document.body.appendChild(modal);
+      }
       function showKeyboardHelp() {
         let helpModal = document.getElementById('keyboardHelpModal');
         
@@ -4117,6 +4231,10 @@
       load();                          // Load data from localStorage
       populateFooter();                // Populate footer with metadata
       updateDatasetSelector();         // Update dataset selector options
+
+      // Apply saved typography preset
+      const savedTypography = localStorage.getItem('cardspoke_typography') || 'default';
+      document.documentElement.setAttribute('data-typography', savedTypography);
       
       // Check for safe mode URL parameter (global for import/reset functions)
       const urlParams = new URLSearchParams(window.location.search);
