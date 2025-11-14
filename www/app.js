@@ -2376,6 +2376,54 @@
         const matches = body.match(/#\w+/g);
         return matches ? matches.slice(0, 5) : [];
       }
+
+      /**
+       * Parse [[Card Name]] tokens from text
+       * @param {string} text - Text to parse
+       * @returns {Array<{match: string, cardName: string, startIndex: number, endIndex: number}>} Array of token matches
+       */
+      function parseCardLinks(text) {
+        if (!text) return [];
+        
+        const regex = /\[\[([^\]]+)\]\]/g;
+        const matches = [];
+        let match;
+        
+        while ((match = regex.exec(text)) !== null) {
+          matches.push({
+            match: match[0],           // Full match: [[Card Name]]
+            cardName: match[1].trim(), // Extracted card name
+            startIndex: match.index,
+            endIndex: match.index + match[0].length
+          });
+        }
+        
+        return matches;
+      }
+
+      /**
+       * Normalize card name for comparison
+       * @param {string} name - Card name to normalize
+       * @returns {string} Normalized name (lowercase, trimmed, spaces normalized)
+       */
+      function normalizeCardName(name) {
+        if (!name) return '';
+        return name.toLowerCase().trim().replace(/\s+/g, ' ');
+      }
+
+      /**
+       * Check if a card link token exists in text
+       * @param {string} text - Text to search
+       * @param {string} cardName - Card name to look for
+       * @returns {boolean} True if card link exists
+       */
+      function hasCardLink(text, cardName) {
+        if (!text || !cardName) return false;
+        const links = parseCardLinks(text);
+        const normalizedName = normalizeCardName(cardName);
+        return links.some(link => normalizeCardName(link.cardName) === normalizedName);
+      }
+
       /**
        * Get all tags for a card
        * @param {string} cardId - Card ID
