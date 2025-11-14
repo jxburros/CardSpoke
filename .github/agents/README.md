@@ -226,35 +226,69 @@ agentResult:
 
 ## Agent Coordination Patterns
 
-### Pattern 1: Linear Sequential
+### Pattern 1: Linear Sequential (with Delegation)
 ```
-Constructor → Insect-Enthusiast → Librarian → Done
+Constructor (consults guru) → Tests Pass → Librarian (docs) → Done
+  └─> If tests fail: Insect-Enthusiast (consults guru) → Constructor
 ```
 **When:** Simple features with clear dependencies
+**Key:** Each agent delegates to specialists rather than doing everything
 
-### Pattern 2: Parallel Independent
+### Pattern 2: Parallel Independent (with Smart Routing)
 ```
-Constructor (Task 1) ⎤
-Constructor (Task 2) ⎥→ Merge → Librarian → Done
-Constructor (Task 3) ⎦
+Orchestrator analyzes TODO →
+  ├─> Constructor (Task 1, consults guru)
+  ├─> Constructor (Task 2, consults guru)  
+  └─> Insect-Enthusiast (Bug 1, consults guru)
+       ↓
+  All complete → Librarian → Done
 ```
 **When:** Tasks have no dependencies
+**Key:** Orchestrator routes, agents delegate to guru
 
-### Pattern 3: Validated Cascade
+### Pattern 3: Validated Cascade (Full Delegation Chain)
 ```
 Showrunner plans
   ↓
-Corporate-Clipboard reports
+Corporate-Clipboard reports (evidence-based)
   ↓
-Middle-Manager creates TODO
+Middle-Manager creates TODO (consults guru for feasibility)
   ↓
-Constructor builds
+Orchestrator routes tasks
+  ├─> Constructor builds (consults guru for patterns)
+  ├─> Insect-Enthusiast fixes (consults guru for behavior)
+  └─> Bulldozer cleans (consults guru for safety)
+       ↓
+Librarian documents (validates with guru)
   ↓
-Insect-Enthusiast validates
-  ↓
-Librarian documents
+Done
 ```
 **When:** Need coordination and validation gates
+**Key:** Every agent delegates to specialists, no agent does everything alone
+
+### Pattern 4: Bug Fix with Feature Discovery
+```
+Issue reported →
+Orchestrator → Insect-Enthusiast
+  ↓
+Insect-Enthusiast reproduces and isolates
+  ↓
+Consults Cardspoke-Guru: "How should this work?"
+  ↓
+Guru reveals: "Needs new validation API"
+  ↓
+Insect-Enthusiast → HANDOFF → Constructor
+  ↓
+Constructor implements feature (consults guru)
+  ↓
+Constructor → HANDOFF back → Insect-Enthusiast
+  ↓
+Insect-Enthusiast verifies bug fixed
+  ↓
+Librarian updates docs → Done
+```
+**When:** Bug reveals missing functionality
+**Key:** Proper handoffs between specialists
 
 ---
 
@@ -292,6 +326,86 @@ message:
     errorCode: "DEPENDENCY_INCOMPLETE"
     recovery: { options: [...] }
 ```
+
+---
+
+## Agent Collaboration Best Practices
+
+### Golden Rules
+
+1. **Delegate to Specialists**: Never do work that another agent specializes in
+2. **Consult Cardspoke-Guru First**: Before implementing any feature or fix
+3. **Use Orchestrator for Routing**: Let it assign tasks optimally
+4. **Hand Off, Don't Try**: If stuck >15 minutes, hand off to specialist
+5. **Always Provide Context**: Include full context in HANDOFF messages
+
+### Common Delegation Patterns
+
+**Before Implementation (Constructor/Insect-Enthusiast):**
+```yaml
+# Always consult guru first!
+Constructor → REQUEST → Cardspoke-Guru
+  "What's the pattern for implementing tag editing?"
+  
+Response includes:
+  - Exact file locations
+  - Code examples
+  - Edge cases to handle
+  - Tests to write
+```
+
+**When Tests Fail (Constructor):**
+```yaml
+# Don't debug yourself - hand off!
+Constructor → HANDOFF → Insect-Enthusiast
+  completedTasks: ["N1-partial"]
+  context:
+    issue: "Tag validation tests failing"
+    files: ["www/app.js", "tests/tags-api.test.js"]
+    error: "Expected empty string rejection"
+```
+
+**Documentation Updates (Constructor/Insect-Enthusiast):**
+```yaml
+# If docs are substantial (>20 lines), delegate
+Constructor → HANDOFF → Librarian
+  completedTasks: ["N1-tagging-infrastructure"]
+  context:
+    newAPIs: ["getTags", "addTag", "removeTag"]
+    docsToUpdate: ["README.md", "AI_DEVELOPER_GUIDE.md"]
+```
+
+**Progress-Based Planning (Middle-Manager):**
+```yaml
+# Always get fresh progress first!
+Middle-Manager → REQUEST → Corporate-Clipboard
+  "Generate current roadmap progress"
+  
+Corporate-Clipboard → RESPONSE + HANDOFF → Middle-Manager
+  progressData: { complete: 85%, inProgress: 3 }
+  
+Middle-Manager creates TODO → HANDOFF → Orchestrator
+Orchestrator routes tasks → Constructor/Insect-Enthusiast
+```
+
+### Anti-Patterns (What NOT to Do)
+
+❌ **Constructor debugging for hours**: Hand off to Insect-Enthusiast after 15 min  
+❌ **Insect-Enthusiast implementing features**: Hand off to Constructor  
+❌ **Any agent writing docs manually**: Hand off substantial docs to Librarian  
+❌ **Showrunner implementing code**: Showrunner only coordinates  
+❌ **Skipping Cardspoke-Guru consultation**: Always consult before implementing  
+❌ **Middle-Manager creating TODO without progress**: Always get Corporate-Clipboard report first  
+❌ **Agents working in isolation**: Use messaging protocol to coordinate  
+
+### Collaboration Metrics
+
+Track these to measure collaboration effectiveness:
+
+- **Delegation rate**: % of tasks where agent delegates to specialist (target: >60%)
+- **Guru consultation rate**: % of features that consulted guru (target: 100%)
+- **Average handoffs per task**: More handoffs = better specialization (target: 2-4)
+- **Time to delegate decision**: How fast agents recognize need to delegate (target: <15 min)
 
 ---
 
