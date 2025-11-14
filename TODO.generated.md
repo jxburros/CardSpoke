@@ -12,7 +12,7 @@
 
 - [x] **F1:** Update version history comment in app.js (line 6) from "Version: 0.8.1" to "Version: 0.10.1" — [S, P1]
 - [x] **F2:** Add test to verify APP_VERSION constant matches package.json version — [S, P1]
-- [ ] **F3:** Add "PIN encryption coming in v0.10.3" message, disable PIN input with tooltip — [M, P2]
+- [x] **F3:** Add "PIN encryption coming in v0.10.3" message, disable PIN input with tooltip — [M, P2]
 
 ---
 
@@ -53,7 +53,7 @@
 ### Phase 1: Stabilization (Est. 1-2 days)
 - [x] F1: Version comment update
 - [x] F2: Version test
-- [ ] F3: PIN status message
+- [x] F3: PIN status message
 - [x] Q1: Extension badge CSS
 - [x] Q2: Extension hook comments
 

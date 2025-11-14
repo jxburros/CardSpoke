@@ -1866,6 +1866,7 @@
           type: 'password',
           id: 'newDatasetPin',
           placeholder: 'Leave empty for no PIN',
+          title: 'PIN encryption will be available in v0.10.3',
           style: `
             width: 100%;
             padding: var(--space-md);
@@ -1875,13 +1876,14 @@
             color: var(--text-primary);
             margin-bottom: var(--space-xs);
             font-size: 1rem;
+            cursor: not-allowed;
           `,
           disabled: true
         });
 
         const pinHelp = h('div', { 
           style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' 
-        }, '🔒 PIN protection coming soon in a future update.');
+        }, '🔒 PIN encryption coming in v0.10.3 - feature currently disabled for security hardening.');
 
         // Create button
         const createBtn = h('button', {
