@@ -5372,4 +5372,4 @@ console.log('✓ All examples completed!');
           e.returnValue = '';
         }
       });
-    })();
+    }})();
