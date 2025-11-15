@@ -4639,7 +4639,6 @@ console.log('✓ All examples completed!');
         };
       }
 
-      const gridViewSwitch = document.getElementById('gridViewSwitch');
       if (gridViewSwitch) {
         const savedGridView = localStorage.getItem('cardspoke_gridView') === 'true';
         gridViewSwitch.checked = savedGridView;
@@ -5003,51 +5002,51 @@ console.log('✓ All examples completed!');
         'ctrl+/': { action: () => showKeyboardHelp(), description: 'Show this help' },
         'escape': { action: () => handleEscape(), description: 'Close modals/go back' },
         'alt+t': { action: () => { header.themeToggle.click(); }, description: 'Toggle theme' },
-        'alt+c': { action: () => toggleViewMode(), description: 'Toggle compact view' }
-              'ctrl+d': { action: () => { 
-                if (navState.page === 'read' && navState.cardId) {
-                  const card = store.cards[navState.cardId];
-                  if (card) {
-                    const choice = confirm('Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)');
-                    const newId = duplicateCard(navState.cardId, choice);
-                    if (newId) {
-                      showToast('Card duplicated successfully');
-                      goTo('read', { cardId: newId });
-                    }
-                  }
-                }
-              }, description: 'Duplicate current card' },
-              'ctrl+t': { action: () => {
-                if (navState.page === 'edit') {
-                  const tagsInput = document.getElementById('cardTags');
-                  if (tagsInput) tagsInput.focus();
-                }
-              }, description: 'Focus tags input (when editing)' },
-              'ctrl+[': { action: () => {
-                if (navState.page === 'read' && navState.cardId) {
-                  const card = store.cards[navState.cardId];
-                  if (card && card.parentId) {
-                    goTo('read', { cardId: card.parentId });
-                  } else {
-                    goTo('list');
-                  }
-                }
-              }, description: 'Navigate to parent card' },
-              'ctrl+]': { action: () => {
-                if (navState.page === 'read' && navState.cardId) {
-                  const card = store.cards[navState.cardId];
-                  if (card && card.children.length > 0) {
-                    goTo('read', { cardId: card.children[0] });
-                  }
-                }
-              }, description: 'Navigate to first child card' },
-              'ctrl+g': { action: () => {
-                // Toggle between list and grid view
-                const gridModeEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
-                localStorage.setItem('cardspoke_gridView', (!gridModeEnabled).toString());
-                showToast(gridModeEnabled ? 'List view enabled' : 'Grid view enabled');
-                render();
-              }, description: 'Toggle grid/list view' },
+        'alt+c': { action: () => toggleViewMode(), description: 'Toggle compact view' },
+        'ctrl+d': { action: () => { 
+          if (navState.page === 'read' && navState.cardId) {
+            const card = store.cards[navState.cardId];
+            if (card) {
+              const choice = confirm('Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)');
+              const newId = duplicateCard(navState.cardId, choice);
+              if (newId) {
+                showToast('Card duplicated successfully');
+                goTo('read', { cardId: newId });
+              }
+            }
+          }
+        }, description: 'Duplicate current card' },
+        'ctrl+t': { action: () => {
+          if (navState.page === 'edit') {
+            const tagsInput = document.getElementById('cardTags');
+            if (tagsInput) tagsInput.focus();
+          }
+        }, description: 'Focus tags input (when editing)' },
+        'ctrl+[': { action: () => {
+          if (navState.page === 'read' && navState.cardId) {
+            const card = store.cards[navState.cardId];
+            if (card && card.parentId) {
+              goTo('read', { cardId: card.parentId });
+            } else {
+              goTo('list');
+            }
+          }
+        }, description: 'Navigate to parent card' },
+        'ctrl+]': { action: () => {
+          if (navState.page === 'read' && navState.cardId) {
+            const card = store.cards[navState.cardId];
+            if (card && card.children.length > 0) {
+              goTo('read', { cardId: card.children[0] });
+            }
+          }
+        }, description: 'Navigate to first child card' },
+        'ctrl+g': { action: () => {
+          // Toggle between list and grid view
+          const gridModeEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
+          localStorage.setItem('cardspoke_gridView', (!gridModeEnabled).toString());
+          showToast(gridModeEnabled ? 'List view enabled' : 'Grid view enabled');
+          render();
+        }, description: 'Toggle grid/list view' },
       };
       
       function handleEscape() {
