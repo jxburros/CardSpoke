@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.11.0
+      // Version: 0.11.2
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.11.0'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.11.2'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-14'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot - Mega Showrunner'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -36,6 +36,8 @@
       // Version 0.10.5: Implemented Tags API (getTags, addTag, removeTag, setTags, getAllTags) with comprehensive tests
       // Version 0.10.6: Multi-Dataset Search - search across multiple datasets simultaneously
       // Version 0.11.0: Mega Showrunner - Backlinks, Related Cards, Enhanced Exports, and many more features
+      // Version 0.11.1: Exposed CIB.utils API for mod developers with comprehensive utility functions
+      // Version 0.11.2: Added Extension Wizard and Playground for mod developers
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -58,6 +60,8 @@
         newCard: document.getElementById('menuNewCard'),
         upload: document.getElementById('menuUpload'),
         extensions: document.getElementById('menuExtensions'),
+        extensionWizard: document.getElementById('menuExtensionWizard'),
+        playground: document.getElementById('menuPlayground'),
         bookmarks: document.getElementById('menuBookmarks'),
         typography: document.getElementById('menuTypography'),
         recentCards: document.getElementById('menuRecentCards'),
@@ -1403,6 +1407,290 @@
 
       window.CIB_MODS = CIB_MODS;
 
+      // =============================================================
+      // --- CIB.utils API ---
+      // Public utility API for mod developers
+      // Exposed as window.CIB.utils
+      // =============================================================
+      
+      /**
+       * CIB.utils - Public utility API for extension developers
+       * 
+       * Provides a safe, documented API for mods to interact with CardSpoke data and UI.
+       * All functions handle errors gracefully and maintain data integrity.
+       * 
+       * @namespace CIB.utils
+       * @version 0.11.1
+       * @since 0.11.1
+       */
+      window.CIB = window.CIB || {};
+      window.CIB.utils = {
+        /**
+         * Create a new card
+         * @param {Object} data - Card data
+         * @param {string} data.title - Card title
+         * @param {string} data.body - Card content
+         * @param {string|null} data.parentId - Parent card ID or null for root
+         * @param {string[]} data.tags - Array of tags (optional)
+         * @returns {Promise<{id: string, card: Object}>} Created card info
+         * @example
+         * const result = await CIB.utils.createCard({
+         *   title: 'My Card',
+         *   body: 'Content here',
+         *   parentId: null,
+         *   tags: ['tag1', 'tag2']
+         * });
+         * console.log('Created card:', result.id);
+         */
+        createCard: async function(data = {}) {
+          try {
+            const { title = '', body = '', parentId = null, tags = [] } = data;
+            const cardId = createCard(title, body, parentId, false, false);
+            
+            // Add tags if provided
+            if (tags && tags.length > 0) {
+              tags.forEach(tag => addTag(cardId, tag, true));
+              save();
+            }
+            
+            const card = store.cards[cardId];
+            return { id: cardId, card: cloneCard(card) };
+          } catch (err) {
+            console.error('[CIB.utils] createCard failed:', err);
+            throw new Error(`Failed to create card: ${err.message}`);
+          }
+        },
+
+        /**
+         * Update an existing card
+         * @param {string} cardId - Card ID to update
+         * @param {Object} changes - Fields to update
+         * @param {string} changes.title - New title (optional)
+         * @param {string} changes.body - New body (optional)
+         * @param {string[]} changes.tags - New tags array (optional)
+         * @returns {Promise<boolean>} True if successful
+         * @example
+         * await CIB.utils.updateCard('card-123', {
+         *   title: 'Updated Title',
+         *   body: 'Updated content'
+         * });
+         */
+        updateCard: async function(cardId, changes = {}) {
+          try {
+            if (!cardId) throw new Error('cardId is required');
+            const card = store.cards[cardId];
+            if (!card) throw new Error(`Card ${cardId} not found`);
+            
+            const { tags, ...otherChanges } = changes;
+            
+            // Update non-tag fields
+            if (Object.keys(otherChanges).length > 0) {
+              updateCard(cardId, otherChanges, false, false);
+            }
+            
+            // Handle tags separately if provided
+            if (tags !== undefined) {
+              setTags(cardId, tags, false);
+            }
+            
+            return true;
+          } catch (err) {
+            console.error('[CIB.utils] updateCard failed:', err);
+            throw new Error(`Failed to update card: ${err.message}`);
+          }
+        },
+
+        /**
+         * Get all tags for a card
+         * @param {string} cardId - Card ID
+         * @returns {Promise<string[]>} Array of tags (returns empty array on error)
+         * @example
+         * const tags = await CIB.utils.getTags('card-123');
+         * console.log('Tags:', tags);
+         */
+        getTags: async function(cardId) {
+          try {
+            if (!cardId) throw new Error('cardId is required');
+            return getTags(cardId);
+          } catch (err) {
+            console.error('[CIB.utils] getTags failed:', err);
+            return [];
+          }
+        },
+
+        /**
+         * Add a tag to a card
+         * @param {string} cardId - Card ID
+         * @param {string} tag - Tag to add
+         * @returns {Promise<boolean>} True if tag was added successfully, false on error
+         * @example
+         * const success = await CIB.utils.addTag('card-123', 'important');
+         */
+        addTag: async function(cardId, tag) {
+          try {
+            if (!cardId) throw new Error('cardId is required');
+            if (!tag) throw new Error('tag is required');
+            return addTag(cardId, tag, false);
+          } catch (err) {
+            console.error('[CIB.utils] addTag failed:', err);
+            return false;
+          }
+        },
+
+        /**
+         * Remove a tag from a card
+         * @param {string} cardId - Card ID
+         * @param {string} tag - Tag to remove
+         * @returns {Promise<boolean>} True if tag was removed successfully, false on error
+         * @example
+         * await CIB.utils.removeTag('card-123', 'old-tag');
+         */
+        removeTag: async function(cardId, tag) {
+          try {
+            if (!cardId) throw new Error('cardId is required');
+            if (!tag) throw new Error('tag is required');
+            return removeTag(cardId, tag, false);
+          } catch (err) {
+            console.error('[CIB.utils] removeTag failed:', err);
+            return false;
+          }
+        },
+
+        /**
+         * Set all tags for a card (replaces existing tags)
+         * @param {string} cardId - Card ID
+         * @param {string[]} tags - Array of tags
+         * @returns {Promise<boolean>} True if successful, false on error
+         * @example
+         * await CIB.utils.setTags('card-123', ['tag1', 'tag2', 'tag3']);
+         */
+        setTags: async function(cardId, tags) {
+          try {
+            if (!cardId) throw new Error('cardId is required');
+            if (!Array.isArray(tags)) throw new Error('tags must be an array');
+            return setTags(cardId, tags, false);
+          } catch (err) {
+            console.error('[CIB.utils] setTags failed:', err);
+            return false;
+          }
+        },
+
+        /**
+         * Get all unique tags across all cards
+         * @returns {Promise<string[]>} Sorted array of all tags (returns empty array on error)
+         * @example
+         * const allTags = await CIB.utils.getAllTags();
+         * console.log('All tags:', allTags);
+         */
+        getAllTags: async function() {
+          try {
+            return getAllTags();
+          } catch (err) {
+            console.error('[CIB.utils] getAllTags failed:', err);
+            return [];
+          }
+        },
+
+        /**
+         * Display a toast notification
+         * @param {string} message - Message to display
+         * @param {'success'|'info'|'warning'|'error'} type - Toast type
+         * @param {number} duration - Duration in ms (default: 3000)
+         * @returns {Promise<void>}
+         * @example
+         * await CIB.utils.showToast('Operation successful!', 'success');
+         * await CIB.utils.showToast('Warning!', 'warning', 5000);
+         */
+        showToast: async function(message, type = 'info', duration = 3000) {
+          try {
+            showToast(message, type, duration);
+          } catch (err) {
+            console.error('[CIB.utils] showToast failed:', err);
+          }
+        },
+
+        /**
+         * Get dataset metadata
+         * @returns {Promise<Object>} Dataset metadata
+         * @example
+         * const meta = await CIB.utils.getDatasetMeta();
+         * console.log('Dataset:', meta.name, 'Cards:', meta.cardCount);
+         */
+        getDatasetMeta: async function() {
+          try {
+            return {
+              name: instanceKey,
+              cardCount: Object.keys(store.cards).length,
+              rootCardCount: store.rootOrder.length,
+              bookmarkCount: (store.bookmarks || []).length,
+              recentCount: (store.recentCards || []).length,
+              modCount: Object.keys(store.mods || {}).length,
+              schemaVersion: SCHEMA_VERSION,
+              appVersion: APP_VERSION
+            };
+          } catch (err) {
+            console.error('[CIB.utils] getDatasetMeta failed:', err);
+            return {};
+          }
+        },
+
+        /**
+         * Get a card by ID
+         * @param {string} cardId - Card ID
+         * @returns {Promise<Object|null>} Card object (cloned) or null if not found or on error
+         * @example
+         * const card = await CIB.utils.getCard('card-123');
+         * if (card) console.log('Found:', card.title);
+         */
+        getCard: async function(cardId) {
+          try {
+            if (!cardId) throw new Error('cardId is required');
+            const card = store.cards[cardId];
+            return card ? cloneCard(card) : null;
+          } catch (err) {
+            console.error('[CIB.utils] getCard failed:', err);
+            return null;
+          }
+        },
+
+        /**
+         * Search for cards
+         * @param {string} query - Search query
+         * @returns {Promise<Array>} Array of matching cards (returns empty array on error)
+         * @example
+         * const results = await CIB.utils.searchCards('meeting notes');
+         * console.log('Found', results.length, 'cards');
+         */
+        searchCards: async function(query) {
+          try {
+            if (!query) return [];
+            const lowerQuery = query.toLowerCase();
+            const results = [];
+            
+            for (const id in store.cards) {
+              const card = store.cards[id];
+              if (card.title.toLowerCase().includes(lowerQuery) ||
+                  card.body.toLowerCase().includes(lowerQuery) ||
+                  (card.tags && card.tags.some(tag => tag.toLowerCase().includes(lowerQuery)))) {
+                results.push(cloneCard(card));
+              }
+            }
+            
+            return results;
+          } catch (err) {
+            console.error('[CIB.utils] searchCards failed:', err);
+            return [];
+          }
+        }
+      };
+
+      // Log API availability in developer mode
+      if (isDeveloperMode()) {
+        console.log('[CIB.utils] API initialized and available at window.CIB.utils');
+        console.log('[CIB.utils] Available methods:', Object.keys(window.CIB.utils));
+      }
+
+
       function runModHook(hookName, ...args) {
         CIB_MODS.runHook(hookName, ...args);
       }
@@ -2337,6 +2625,697 @@
         modal.appendChild(modalBody);
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
+      }
+
+
+      /**
+       * Show Extension Wizard
+       * Interactive wizard for creating new extensions
+       */
+      function showExtensionWizard() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 700px;' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, '🧙 Extension Wizard'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        const modalBody = h('div', { className: 'modal-body' });
+        
+        // Introduction
+        modalBody.appendChild(h('div', { style: 'margin-bottom: var(--space-xl); font-size: var(--text-base);' }, 
+          'Create a new extension using our guided wizard. Choose a type, configure metadata, and get started with a working template.'));
+        
+        // Step 1: Extension Type Selection
+        const typeSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
+        typeSection.appendChild(h('div', { 
+          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
+        }, 'Step 1: Choose Extension Type'));
+        
+        const types = [
+          { value: 'theme', label: 'Theme', desc: 'Custom CSS styling for CardSpoke UI', icon: '🎨' },
+          { value: 'patch', label: 'Patch', desc: 'Small modifications or enhancements', icon: '🩹' },
+          { value: 'plugin', label: 'Plugin', desc: 'Add new functionality with JavaScript hooks', icon: '🔌' },
+          { value: 'mod', label: 'Mod', desc: 'Comprehensive modifications (CSS + JS)', icon: '⚙️' },
+          { value: 'expansion', label: 'Expansion', desc: 'Major feature additions and overhauls', icon: '📦' }
+        ];
+        
+        let selectedType = 'plugin';
+        const typeButtons = [];
+        
+        types.forEach(type => {
+          const btn = h('button', {
+            className: 'wizard-type-btn',
+            style: `
+              display: block;
+              width: 100%;
+              padding: var(--space-lg);
+              margin-bottom: var(--space-sm);
+              border: 2px solid var(--border);
+              background: var(--bg-primary);
+              text-align: left;
+              cursor: pointer;
+              border-radius: 4px;
+              transition: all 0.2s;
+            `,
+            onclick: () => {
+              selectedType = type.value;
+              typeButtons.forEach(b => b.style.borderColor = 'var(--border)');
+              btn.style.borderColor = 'var(--primary)';
+            }
+          });
+          
+          const header = h('div', { style: 'display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-xs);' });
+          header.appendChild(h('span', { style: 'font-size: 24px;' }, type.icon));
+          header.appendChild(h('span', { style: 'font-weight: 600; font-size: var(--text-lg);' }, type.label));
+          btn.appendChild(header);
+          btn.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); margin-left: 32px;' }, type.desc));
+          
+          if (type.value === selectedType) {
+            btn.style.borderColor = 'var(--primary)';
+          }
+          
+          typeButtons.push(btn);
+          typeSection.appendChild(btn);
+        });
+        
+        modalBody.appendChild(typeSection);
+        
+        // Step 2: Extension Metadata
+        const metaSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
+        metaSection.appendChild(h('div', { 
+          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
+        }, 'Step 2: Extension Details'));
+        
+        const form = h('div', { style: 'display: flex; flex-direction: column; gap: var(--space-lg);' });
+        
+        // Extension Name
+        const nameGroup = h('div', {});
+        nameGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Extension Name *'));
+        const nameInput = h('input', {
+          type: 'text',
+          placeholder: 'My Awesome Extension',
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 1rem;
+          `
+        });
+        nameGroup.appendChild(nameInput);
+        form.appendChild(nameGroup);
+        
+        // Extension ID
+        const idGroup = h('div', {});
+        idGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Extension ID *'));
+        idGroup.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-xs);' }, 
+          'Unique identifier (lowercase, no spaces, e.g., "my-extension")'));
+        const idInput = h('input', {
+          type: 'text',
+          placeholder: 'my-extension',
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 1rem;
+          `
+        });
+        idGroup.appendChild(idInput);
+        form.appendChild(idGroup);
+        
+        // Creator Name
+        const creatorGroup = h('div', {});
+        creatorGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Your Name'));
+        const creatorInput = h('input', {
+          type: 'text',
+          placeholder: 'Your Name',
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 1rem;
+          `
+        });
+        creatorGroup.appendChild(creatorInput);
+        form.appendChild(creatorGroup);
+        
+        // Description
+        const descGroup = h('div', {});
+        descGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Description'));
+        const descInput = h('textarea', {
+          placeholder: 'Brief description of what your extension does...',
+          rows: 3,
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 1rem;
+            resize: vertical;
+          `
+        });
+        descGroup.appendChild(descInput);
+        form.appendChild(descGroup);
+        
+        metaSection.appendChild(form);
+        modalBody.appendChild(metaSection);
+        
+        // Action Buttons
+        const actions = h('div', { style: 'display: flex; gap: var(--space-md); justify-content: flex-end; margin-top: var(--space-xl);' });
+        
+        const cancelBtn = h('button', {
+          className: 'btn',
+          onclick: () => overlay.remove()
+        }, 'Cancel');
+        
+        const generateBtn = h('button', {
+          className: 'btn btn-primary',
+          onclick: () => {
+            const name = nameInput.value.trim();
+            const id = idInput.value.trim();
+            const creator = creatorInput.value.trim() || 'Anonymous';
+            const description = descInput.value.trim();
+            
+            if (!name) {
+              showToast('Please enter an extension name', 'error');
+              return;
+            }
+            if (!id) {
+              showToast('Please enter an extension ID', 'error');
+              return;
+            }
+            if (!/^[a-z0-9-]+$/.test(id)) {
+              showToast('Extension ID must be lowercase letters, numbers, and hyphens only', 'error');
+              return;
+            }
+            if (store.mods[id]) {
+              showToast('An extension with this ID already exists', 'error');
+              return;
+            }
+            
+            generateExtensionTemplate(id, name, creator, description, selectedType, overlay);
+          }
+        }, '✨ Generate Extension');
+        
+        actions.appendChild(cancelBtn);
+        actions.appendChild(generateBtn);
+        modalBody.appendChild(actions);
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+      }
+      
+      /**
+       * Generate extension template code
+       */
+      function generateExtensionTemplate(id, name, creator, description, type, wizardOverlay) {
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Generate JavaScript template based on type
+        let jsTemplate = '';
+        
+        if (type === 'theme') {
+          jsTemplate = `// ${name} - Theme Extension
+// Created: ${today}
+
+(function() {
+  'use strict';
+  
+  // Theme extensions primarily use CSS
+  // This file can be left minimal or used for dynamic theme switching
+  
+  CIB_MODS.register('${id}', {
+    meta: {
+      name: '${name}',
+      type: 'Theme',
+      creator: '${creator}',
+      version: '1.0.0',
+      releaseDate: '${today}',
+      description: '${description || 'A custom theme for CardSpoke'}'
+    },
+    onAppInit(ctx) {
+      console.log('[${id}] Theme loaded');
+    }
+  });
+})();`;
+        } else if (type === 'patch') {
+          jsTemplate = `// ${name} - Patch Extension
+// Created: ${today}
+
+(function() {
+  'use strict';
+  
+  CIB_MODS.register('${id}', {
+    meta: {
+      name: '${name}',
+      type: 'Patch',
+      creator: '${creator}',
+      version: '1.0.0',
+      releaseDate: '${today}',
+      description: '${description || 'A small enhancement to CardSpoke'}'
+    },
+    onAppInit(ctx) {
+      console.log('[${id}] Patch loaded');
+      // Add your initialization code here
+    },
+    onCardRender(ctx, card, element) {
+      // Called when a card is rendered
+      // Modify the element or card display here
+    }
+  });
+})();`;
+        } else {
+          // Plugin, Mod, or Expansion
+          jsTemplate = `// ${name} - ${type.charAt(0).toUpperCase() + type.slice(1)} Extension
+// Created: ${today}
+
+(function() {
+  'use strict';
+  
+  CIB_MODS.register('${id}', {
+    meta: {
+      name: '${name}',
+      type: '${type.charAt(0).toUpperCase() + type.slice(1)}',
+      creator: '${creator}',
+      version: '1.0.0',
+      releaseDate: '${today}',
+      description: '${description || 'A custom extension for CardSpoke'}'
+    },
+    onAppInit(ctx) {
+      console.log('[${id}] Extension loaded');
+      console.log('App Version:', ctx.appVersion);
+      console.log('Available API:', ctx.api);
+      
+      // Example: Use CIB.utils API
+      // const meta = await CIB.utils.getDatasetMeta();
+      // console.log('Dataset info:', meta);
+    },
+    onCardSave(ctx, card, changes) {
+      // Called when a card is saved
+      // console.log('[${id}] Card saved:', card.id);
+    },
+    onCardDelete(ctx, card) {
+      // Called when a card is deleted
+      // console.log('[${id}] Card deleted:', card.id);
+    },
+    onCardRender(ctx, card, element) {
+      // Called when a card is rendered
+      // Modify the element appearance or add interactivity
+    }
+  });
+})();`;
+        }
+        
+        // Generate CSS template
+        let cssTemplate = `/* ${name} - Styles */
+/* Created: ${today} */
+
+/* Add your custom styles here */
+/* Example:
+.card {
+  border-color: #your-color;
+}
+*/
+`;
+        
+        // Show generated code in a new modal
+        if (wizardOverlay) wizardOverlay.remove();
+        
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 900px;' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, `✨ Extension Generated: ${name}`));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        const modalBody = h('div', { className: 'modal-body' });
+        
+        modalBody.appendChild(h('div', { style: 'margin-bottom: var(--space-lg); color: var(--text-muted);' }, 
+          'Your extension template has been generated! You can now install it directly or download the code to customize further.'));
+        
+        // JavaScript Code
+        modalBody.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-sm);' }, 'JavaScript Code:'));
+        const jsCodeArea = h('textarea', {
+          readonly: true,
+          rows: 15,
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-family: monospace;
+            font-size: 0.875rem;
+            margin-bottom: var(--space-lg);
+            resize: vertical;
+          `
+        }, jsTemplate);
+        modalBody.appendChild(jsCodeArea);
+        
+        // CSS Code
+        modalBody.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-sm);' }, 'CSS Code (Optional):'));
+        const cssCodeArea = h('textarea', {
+          readonly: true,
+          rows: 8,
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-family: monospace;
+            font-size: 0.875rem;
+            margin-bottom: var(--space-lg);
+            resize: vertical;
+          `
+        }, cssTemplate);
+        modalBody.appendChild(cssCodeArea);
+        
+        // Actions
+        const actions = h('div', { style: 'display: flex; gap: var(--space-md); justify-content: flex-end;' });
+        
+        const downloadBtn = h('button', {
+          className: 'btn',
+          onclick: () => {
+            const content = JSON.stringify({
+              id,
+              meta: {
+                name,
+                type: type.charAt(0).toUpperCase() + type.slice(1),
+                creator,
+                version: '1.0.0',
+                releaseDate: today,
+                description: description || `A custom ${type} for CardSpoke`
+              },
+              js: jsTemplate,
+              css: cssTemplate,
+              enabled: false
+            }, null, 2);
+            
+            const blob = new Blob([content], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${id}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showToast('Extension downloaded!', 'success');
+          }
+        }, '💾 Download JSON');
+        
+        const installBtn = h('button', {
+          className: 'btn btn-primary',
+          onclick: () => {
+            store.mods[id] = {
+              meta: {
+                name,
+                type: type.charAt(0).toUpperCase() + type.slice(1),
+                creator,
+                version: '1.0.0',
+                releaseDate: today,
+                description: description || `A custom ${type} for CardSpoke`
+              },
+              js: jsTemplate,
+              css: cssTemplate,
+              enabled: false
+            };
+            
+            save();
+            overlay.remove();
+            showToast(`Extension "${name}" installed! Enable it in the Extensions Manager.`, 'success');
+          }
+        }, '🚀 Install Extension');
+        
+        actions.appendChild(downloadBtn);
+        actions.appendChild(installBtn);
+        modalBody.appendChild(actions);
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+      }
+
+
+      /**
+       * Show Extension Playground
+       * Sandboxed environment for testing extension code
+       */
+      function showPlayground() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 1200px; max-height: 90vh;' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, '🛝 Extension Playground'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        const modalBody = h('div', { className: 'modal-body', style: 'padding: 0; display: flex; flex-direction: column; height: calc(90vh - 60px);' });
+        
+        // Toolbar
+        const toolbar = h('div', { 
+          style: `
+            padding: var(--space-md);
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary);
+            display: flex;
+            gap: var(--space-md);
+            align-items: center;
+          `
+        });
+        
+        const runBtn = h('button', {
+          className: 'btn btn-primary',
+          style: 'font-weight: 600;',
+          onclick: () => runPlaygroundCode()
+        }, '▶️ Run Code');
+        
+        const clearBtn = h('button', {
+          className: 'btn',
+          onclick: () => {
+            if (confirm('Clear all code and console output?')) {
+              playgroundEditor.value = getPlaygroundTemplate();
+              playgroundConsole.innerHTML = '';
+            }
+          }
+        }, '🗑️ Clear');
+        
+        const templateBtn = h('button', {
+          className: 'btn',
+          onclick: () => {
+            playgroundEditor.value = getPlaygroundTemplate();
+            showToast('Template loaded', 'info');
+          }
+        }, '📝 Load Template');
+        
+        toolbar.appendChild(runBtn);
+        toolbar.appendChild(clearBtn);
+        toolbar.appendChild(templateBtn);
+        toolbar.appendChild(h('div', { style: 'flex: 1;' })); // Spacer
+        toolbar.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, 
+          'Tip: Use CIB.utils API for safe data access'));
+        
+        modalBody.appendChild(toolbar);
+        
+        // Split view: Editor (left) and Console (right)
+        const splitView = h('div', { 
+          style: `
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: var(--border);
+            overflow: hidden;
+          `
+        });
+        
+        // Editor Panel
+        const editorPanel = h('div', { 
+          style: `
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+          `
+        });
+        
+        editorPanel.appendChild(h('div', { 
+          style: `
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-secondary);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+          `
+        }, '📝 JavaScript Editor'));
+        
+        const playgroundEditor = h('textarea', {
+          id: 'playgroundEditor',
+          placeholder: 'Write your extension code here...',
+          style: `
+            flex: 1;
+            padding: var(--space-md);
+            border: none;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            resize: none;
+            overflow: auto;
+          `
+        }, getPlaygroundTemplate());
+        
+        editorPanel.appendChild(playgroundEditor);
+        splitView.appendChild(editorPanel);
+        
+        // Console Panel
+        const consolePanel = h('div', { 
+          style: `
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+          `
+        });
+        
+        consolePanel.appendChild(h('div', { 
+          style: `
+            padding: var(--space-sm) var(--space-md);
+            background: var(--bg-secondary);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+          `
+        }, '📊 Console Output'));
+        
+        const playgroundConsole = h('div', {
+          id: 'playgroundConsole',
+          style: `
+            flex: 1;
+            padding: var(--space-md);
+            overflow: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+          `
+        });
+        
+        playgroundConsole.appendChild(h('div', { style: 'color: var(--text-muted);' }, 
+          '→ Console ready. Click "Run Code" to execute your code.'));
+        
+        consolePanel.appendChild(playgroundConsole);
+        splitView.appendChild(consolePanel);
+        
+        modalBody.appendChild(splitView);
+        
+        // Function to run playground code
+        function runPlaygroundCode() {
+          const code = playgroundEditor.value;
+          playgroundConsole.innerHTML = '';
+          
+          const logEntry = (message, type = 'info') => {
+            const color = {
+              info: 'var(--text-primary)',
+              success: '#4caf50',
+              warning: '#ff9800',
+              error: '#f44336'
+            }[type];
+            
+            const entry = h('div', { 
+              style: `color: ${color}; margin-bottom: var(--space-xs); border-left: 3px solid ${color}; padding-left: var(--space-sm);` 
+            }, message);
+            playgroundConsole.appendChild(entry);
+          };
+          
+          // Create sandboxed console
+          const sandboxConsole = {
+            log: (...args) => logEntry(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' '), 'info'),
+            error: (...args) => logEntry('❌ ' + args.map(a => String(a)).join(' '), 'error'),
+            warn: (...args) => logEntry('⚠️ ' + args.map(a => String(a)).join(' '), 'warning'),
+            info: (...args) => logEntry('ℹ️ ' + args.map(a => String(a)).join(' '), 'info')
+          };
+          
+          logEntry('→ Executing code...', 'info');
+          
+          try {
+            // Use Function constructor to avoid eval and restrict scope
+            const fn = new Function('console', 'CIB', `
+              "use strict";
+              return (async () => {
+                ${code}
+              })();
+            `);
+            
+            fn(sandboxConsole, window.CIB).then(() => {
+              logEntry('✓ Code execution completed', 'success');
+            }).catch(err => {
+              logEntry('Async error: ' + err.message, 'error');
+              console.error('[Playground]', err);
+            });
+            
+          } catch (err) {
+            logEntry('Execution error: ' + err.message, 'error');
+            console.error('[Playground]', err);
+          }
+        }
+        
+        // Store references for button handlers (namespaced to avoid global pollution)
+        window.CIB = window.CIB || {};
+        window.CIB.playground = { editor: playgroundEditor, console: playgroundConsole, runCode: runPlaygroundCode };
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+      }
+      
+      /**
+       * Get playground code template
+       */
+      function getPlaygroundTemplate() {
+        return `// Extension Playground
+// Test your extension code here in a safe environment
+
+// Example 1: Use CIB.utils API to get dataset info
+const meta = await CIB.utils.getDatasetMeta();
+console.log('Dataset:', meta.name);
+console.log('Total cards:', meta.cardCount);
+
+// Example 2: Create a new card
+const result = await CIB.utils.createCard({
+  title: 'Test Card from Playground',
+  body: 'This card was created in the playground!',
+  tags: ['playground', 'test']
+});
+console.log('Created card:', result.id);
+
+// Example 3: Search for cards
+const searchResults = await CIB.utils.searchCards('test');
+console.log('Found', searchResults.length, 'cards matching "test"');
+
+// Example 4: Get all tags
+const allTags = await CIB.utils.getAllTags();
+console.log('All tags:', allTags);
+
+// Example 5: Show a toast notification
+await CIB.utils.showToast('Playground code executed!', 'success');
+
+console.log('✓ All examples completed!');
+`;
       }
 
       function showAppearanceSettings() {
@@ -3759,6 +4738,16 @@
         showModsManager();
       };
 
+      menu.extensionWizard.onclick = () => {
+        menu.overlay.classList.remove('show');
+        showExtensionWizard();
+      };
+
+      menu.playground.onclick = () => {
+        menu.overlay.classList.remove('show');
+        showPlayground();
+      };
+
       menu.bookmarks.onclick = () => {
         menu.overlay.classList.remove('show');
         showBookmarks();
@@ -3771,7 +4760,6 @@
       menu.typography.onclick = () => {
         menu.overlay.classList.remove('show');
         showTypographySelector();
-      };
       };
 
       menu.instance.onclick = () => {
