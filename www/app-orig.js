@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.11.2
+      // Version: 0.11.2.3
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,8 +25,8 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.11.2'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-14'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.11.2.3'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-11-21'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
@@ -987,7 +987,7 @@
       }
 
       function clearAllData() {
-        if (!confirm('⚠️ WARNING: This will DELETE ALL instances and data from localStorage.\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?')) {
+        if (!confirm('WARNING: This will DELETE ALL instances and data from localStorage.\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?')) {
           return;
         }
 
@@ -2165,7 +2165,7 @@
         const overlay = h('div', { className: 'modal-overlay show' });
         const modal = h('div', { className: 'modal', style: 'max-width: 700px;' });
         const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, '💾 Dataset Manager'));
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Dataset Manager'));
         const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
@@ -2379,7 +2379,7 @@
 
         const pinHelp = h('div', { 
           style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' 
-        }, '🔒 PIN encryption coming in v0.10.3 - feature currently disabled for security hardening.');
+        }, 'PIN encryption coming in v0.10.3 - feature currently disabled for security hardening.');
 
         // Create button
         const createBtn = h('button', {
@@ -2439,7 +2439,7 @@
         const overlay = h('div', { className: 'modal-overlay show' });
         const modal = h('div', { className: 'modal' });
         const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, '📊 Dataset Information'));
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Dataset Information'));
         const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
@@ -2636,7 +2636,7 @@
         const overlay = h('div', { className: 'modal-overlay show' });
         const modal = h('div', { className: 'modal', style: 'max-width: 700px;' });
         const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, '🧙 Extension Wizard'));
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Extension Wizard'));
         const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
@@ -2654,11 +2654,11 @@
         }, 'Step 1: Choose Extension Type'));
         
         const types = [
-          { value: 'theme', label: 'Theme', desc: 'Custom CSS styling for CardSpoke UI', icon: '🎨' },
-          { value: 'patch', label: 'Patch', desc: 'Small modifications or enhancements', icon: '🩹' },
-          { value: 'plugin', label: 'Plugin', desc: 'Add new functionality with JavaScript hooks', icon: '🔌' },
-          { value: 'mod', label: 'Mod', desc: 'Comprehensive modifications (CSS + JS)', icon: '⚙️' },
-          { value: 'expansion', label: 'Expansion', desc: 'Major feature additions and overhauls', icon: '📦' }
+          { value: 'theme', label: 'Theme', desc: 'Custom CSS styling for CardSpoke UI', icon: '' },
+          { value: 'patch', label: 'Patch', desc: 'Small modifications or enhancements', icon: '' },
+          { value: 'plugin', label: 'Plugin', desc: 'Add new functionality with JavaScript hooks', icon: '' },
+          { value: 'mod', label: 'Mod', desc: 'Comprehensive modifications (CSS + JS)', icon: '' },
+          { value: 'expansion', label: 'Expansion', desc: 'Major feature additions and overhauls', icon: '' }
         ];
         
         let selectedType = 'plugin';
@@ -2827,7 +2827,7 @@
             
             generateExtensionTemplate(id, name, creator, description, selectedType, overlay);
           }
-        }, '✨ Generate Extension');
+        }, 'Generate Extension');
         
         actions.appendChild(cancelBtn);
         actions.appendChild(generateBtn);
@@ -2957,7 +2957,7 @@
         const overlay = h('div', { className: 'modal-overlay show' });
         const modal = h('div', { className: 'modal', style: 'max-width: 900px;' });
         const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, `✨ Extension Generated: ${name}`));
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, `Extension Generated: ${name}`));
         const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
@@ -3038,7 +3038,7 @@
             
             showToast('Extension downloaded!', 'success');
           }
-        }, '💾 Download JSON');
+        }, 'Download JSON');
         
         const installBtn = h('button', {
           className: 'btn btn-primary',
@@ -3061,7 +3061,7 @@
             overlay.remove();
             showToast(`Extension "${name}" installed! Enable it in the Extensions Manager.`, 'success');
           }
-        }, '🚀 Install Extension');
+        }, 'Install Extension');
         
         actions.appendChild(downloadBtn);
         actions.appendChild(installBtn);
@@ -3081,7 +3081,7 @@
         const overlay = h('div', { className: 'modal-overlay show' });
         const modal = h('div', { className: 'modal', style: 'max-width: 1200px; max-height: 90vh;' });
         const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, '🛝 Extension Playground'));
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Extension Playground'));
         const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
@@ -3104,7 +3104,7 @@
           className: 'btn btn-primary',
           style: 'font-weight: 600;',
           onclick: () => runPlaygroundCode()
-        }, '▶️ Run Code');
+        }, 'Run Code');
         
         const clearBtn = h('button', {
           className: 'btn',
@@ -3114,7 +3114,7 @@
               playgroundConsole.innerHTML = '';
             }
           }
-        }, '🗑️ Clear');
+        }, 'Clear');
         
         const templateBtn = h('button', {
           className: 'btn',
@@ -3122,7 +3122,7 @@
             playgroundEditor.value = getPlaygroundTemplate();
             showToast('Template loaded', 'info');
           }
-        }, '📝 Load Template');
+        }, 'Load Template');
         
         toolbar.appendChild(runBtn);
         toolbar.appendChild(clearBtn);
@@ -3162,7 +3162,7 @@
             font-weight: 600;
             border-bottom: 1px solid var(--border);
           `
-        }, '📝 JavaScript Editor'));
+        }, 'JavaScript Editor'));
         
         const playgroundEditor = h('textarea', {
           id: 'playgroundEditor',
@@ -3201,7 +3201,7 @@
             font-weight: 600;
             border-bottom: 1px solid var(--border);
           `
-        }, '📊 Console Output'));
+        }, 'Console Output'));
         
         const playgroundConsole = h('div', {
           id: 'playgroundConsole',
@@ -3245,9 +3245,9 @@
           // Create sandboxed console
           const sandboxConsole = {
             log: (...args) => logEntry(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' '), 'info'),
-            error: (...args) => logEntry('❌ ' + args.map(a => String(a)).join(' '), 'error'),
-            warn: (...args) => logEntry('⚠️ ' + args.map(a => String(a)).join(' '), 'warning'),
-            info: (...args) => logEntry('ℹ️ ' + args.map(a => String(a)).join(' '), 'info')
+            error: (...args) => logEntry('ERROR: ' + args.map(a => String(a)).join(' '), 'error'),
+            warn: (...args) => logEntry('WARNING: ' + args.map(a => String(a)).join(' '), 'warning'),
+            info: (...args) => logEntry('INFO: ' + args.map(a => String(a)).join(' '), 'info')
           };
           
           logEntry('→ Executing code...', 'info');
@@ -3346,7 +3346,7 @@ console.log('✓ All examples completed!');
             overlay.remove();
           }
         });
-        lightOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, '☀️ Light Theme'));
+        lightOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, 'Light Theme'));
         lightOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #666;' }, 'Default light color scheme'));
         if (currentTheme === 'light') {
           lightOption.appendChild(h('div', { style: 'margin-top: var(--space-sm); color: var(--primary); font-weight: 600;' }, '✓ Active'));
@@ -3362,7 +3362,7 @@ console.log('✓ All examples completed!');
             overlay.remove();
           }
         });
-        darkOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, '🌙 Dark Theme'));
+        darkOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, 'Dark Theme'));
         darkOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #aaa;' }, 'Dark color scheme for low-light environments'));
         if (currentTheme === 'dark') {
           darkOption.appendChild(h('div', { style: 'margin-top: var(--space-sm); color: #64b5f6; font-weight: 600;' }, '✓ Active'));
@@ -3445,7 +3445,7 @@ console.log('✓ All examples completed!');
         const overlay = h('div', { className: 'modal-overlay show' });
         const modal = h('div', { className: 'modal' });
         const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, '⏱ Recent Cards'));
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Recent Cards'));
         const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
@@ -4307,7 +4307,7 @@ console.log('✓ All examples completed!');
             className: 'btn btn-secondary',
             onclick: () => showTagSuggestions(card.id),
             style: 'margin-top: var(--space-sm);'
-          }, '✨ Suggest Tags');
+          }, 'Suggest Tags');
           formGroupTags.appendChild(suggestBtn);
         }
     
@@ -4639,7 +4639,6 @@ console.log('✓ All examples completed!');
         };
       }
 
-      const gridViewSwitch = document.getElementById('gridViewSwitch');
       if (gridViewSwitch) {
         const savedGridView = localStorage.getItem('cardspoke_gridView') === 'true';
         gridViewSwitch.checked = savedGridView;
@@ -5003,51 +5002,51 @@ console.log('✓ All examples completed!');
         'ctrl+/': { action: () => showKeyboardHelp(), description: 'Show this help' },
         'escape': { action: () => handleEscape(), description: 'Close modals/go back' },
         'alt+t': { action: () => { header.themeToggle.click(); }, description: 'Toggle theme' },
-        'alt+c': { action: () => toggleViewMode(), description: 'Toggle compact view' }
-              'ctrl+d': { action: () => { 
-                if (navState.page === 'read' && navState.cardId) {
-                  const card = store.cards[navState.cardId];
-                  if (card) {
-                    const choice = confirm('Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)');
-                    const newId = duplicateCard(navState.cardId, choice);
-                    if (newId) {
-                      showToast('Card duplicated successfully');
-                      goTo('read', { cardId: newId });
-                    }
-                  }
-                }
-              }, description: 'Duplicate current card' },
-              'ctrl+t': { action: () => {
-                if (navState.page === 'edit') {
-                  const tagsInput = document.getElementById('cardTags');
-                  if (tagsInput) tagsInput.focus();
-                }
-              }, description: 'Focus tags input (when editing)' },
-              'ctrl+[': { action: () => {
-                if (navState.page === 'read' && navState.cardId) {
-                  const card = store.cards[navState.cardId];
-                  if (card && card.parentId) {
-                    goTo('read', { cardId: card.parentId });
-                  } else {
-                    goTo('list');
-                  }
-                }
-              }, description: 'Navigate to parent card' },
-              'ctrl+]': { action: () => {
-                if (navState.page === 'read' && navState.cardId) {
-                  const card = store.cards[navState.cardId];
-                  if (card && card.children.length > 0) {
-                    goTo('read', { cardId: card.children[0] });
-                  }
-                }
-              }, description: 'Navigate to first child card' },
-              'ctrl+g': { action: () => {
-                // Toggle between list and grid view
-                const gridModeEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
-                localStorage.setItem('cardspoke_gridView', (!gridModeEnabled).toString());
-                showToast(gridModeEnabled ? 'List view enabled' : 'Grid view enabled');
-                render();
-              }, description: 'Toggle grid/list view' },
+        'alt+c': { action: () => toggleViewMode(), description: 'Toggle compact view' },
+        'ctrl+d': { action: () => { 
+          if (navState.page === 'read' && navState.cardId) {
+            const card = store.cards[navState.cardId];
+            if (card) {
+              const choice = confirm('Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)');
+              const newId = duplicateCard(navState.cardId, choice);
+              if (newId) {
+                showToast('Card duplicated successfully');
+                goTo('read', { cardId: newId });
+              }
+            }
+          }
+        }, description: 'Duplicate current card' },
+        'ctrl+t': { action: () => {
+          if (navState.page === 'edit') {
+            const tagsInput = document.getElementById('cardTags');
+            if (tagsInput) tagsInput.focus();
+          }
+        }, description: 'Focus tags input (when editing)' },
+        'ctrl+[': { action: () => {
+          if (navState.page === 'read' && navState.cardId) {
+            const card = store.cards[navState.cardId];
+            if (card && card.parentId) {
+              goTo('read', { cardId: card.parentId });
+            } else {
+              goTo('list');
+            }
+          }
+        }, description: 'Navigate to parent card' },
+        'ctrl+]': { action: () => {
+          if (navState.page === 'read' && navState.cardId) {
+            const card = store.cards[navState.cardId];
+            if (card && card.children.length > 0) {
+              goTo('read', { cardId: card.children[0] });
+            }
+          }
+        }, description: 'Navigate to first child card' },
+        'ctrl+g': { action: () => {
+          // Toggle between list and grid view
+          const gridModeEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
+          localStorage.setItem('cardspoke_gridView', (!gridModeEnabled).toString());
+          showToast(gridModeEnabled ? 'List view enabled' : 'Grid view enabled');
+          render();
+        }, description: 'Toggle grid/list view' },
       };
       
       function handleEscape() {
@@ -5201,7 +5200,7 @@ console.log('✓ All examples completed!');
         },
           h('div', { className: 'menu-panel' },
             h('div', { className: 'menu-header' },
-              h('div', { className: 'menu-title' }, '🏷️ Suggested Tags'),
+              h('div', { className: 'menu-title' }, 'Suggested Tags'),
               h('button', { 
                 className: 'menu-close',
                 onclick: () => modal.remove()
@@ -5254,7 +5253,7 @@ console.log('✓ All examples completed!');
           },
             h('div', { className: 'menu-panel' },
               h('div', { className: 'menu-header' },
-                h('div', { className: 'menu-title' }, '⌨️ Keyboard Shortcuts'),
+                h('div', { className: 'menu-title' }, 'Keyboard Shortcuts'),
                 h('button', { 
                   className: 'menu-close',
                   onclick: () => helpModal.classList.remove('show')
@@ -5373,4 +5372,4 @@ console.log('✓ All examples completed!');
           e.returnValue = '';
         }
       });
-    })();
+    }})();
