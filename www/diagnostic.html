@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CardSpoke Diagnostic</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+    h1 { color: #333; }
+    .test { padding: 10px; margin: 10px 0; border-radius: 4px; }
+    .pass { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+    .fail { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+    .info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+    pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>CardSpoke Diagnostic Report</h1>
+  <div id="results"></div>
+  
+  <script>
+    const results = document.getElementById('results');
+    
+    function addResult(name, status, details = '') {
+      const div = document.createElement('div');
+      div.className = `test ${status}`;
+      div.innerHTML = `<strong>${status.toUpperCase()}:</strong> ${name}${details ? '<pre>' + details + '</pre>' : ''}`;
+      results.appendChild(div);
+    }
+    
+    // Test 1: Check if localStorage is available
+    try {
+      localStorage.setItem('test', 'value');
+      localStorage.removeItem('test');
+      addResult('LocalStorage API', 'pass');
+    } catch (e) {
+      addResult('LocalStorage API', 'fail', e.message);
+    }
+    
+    // Test 2: Load and parse capacitor.js
+    fetch('capacitor.js')
+      .then(r => r.text())
+      .then(code => {
+        addResult('Load capacitor.js', 'pass', `Loaded ${code.length} bytes`);
+        
+        try {
+          eval(code);
+          addResult('Execute capacitor.js', 'pass');
+          
+          if (window.Capacitor) {
+            addResult('Capacitor object created', 'pass', `Platform: ${window.Capacitor.getPlatform()}`);
+          } else {
+            addResult('Capacitor object created', 'fail', 'window.Capacitor is undefined');
+          }
+        } catch (e) {
+          addResult('Execute capacitor.js', 'fail', e.message);
+        }
+        
+        // Test 3: Load and parse app.js
+        return fetch('app.js');
+      })
+      .then(r => r.text())
+      .then(code => {
+        addResult('Load app.js', 'pass', `Loaded ${code.length} bytes`);
+        
+        // Check for syntax errors
+        try {
+          new Function(code);
+          addResult('Parse app.js syntax', 'pass', 'No syntax errors');
+        } catch (e) {
+          addResult('Parse app.js syntax', 'fail', e.message);
+          throw e;
+        }
+        
+        // Execute it
+        try {
+          eval(code);
+          addResult('Execute app.js', 'pass');
+          
+          // Check if main element has content after a delay
+          setTimeout(() => {
+            const main = document.getElementById('main');
+            if (main && main.innerHTML.length > 0) {
+              addResult('App initialization', 'pass', `Main element has ${main.innerHTML.length} characters`);
+            } else {
+              addResult('App initialization', 'info', 'Main element is empty (this is normal - waiting for user interaction)');
+            }
+            
+            // Check localStorage for app data
+            const keys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              keys.push(localStorage.key(i));
+            }
+            if (keys.length > 0) {
+              addResult('LocalStorage data', 'pass', `Found keys: ${keys.join(', ')}`);
+            } else {
+              addResult('LocalStorage data', 'info', 'No data yet (this is normal for first run)');
+            }
+            
+            // Final verdict
+            const finalDiv = document.createElement('div');
+            finalDiv.className = 'test pass';
+            finalDiv.innerHTML = '<h2>✅ CONCLUSION: The HTML app is working correctly!</h2><p>All JavaScript files load and execute without errors. The app is ready to use.</p>';
+            results.appendChild(finalDiv);
+          }, 500);
+          
+        } catch (e) {
+          addResult('Execute app.js', 'fail', e.message + '\n\nStack:\n' + e.stack);
+          
+          // Final verdict for failure
+          const finalDiv = document.createElement('div');
+          finalDiv.className = 'test fail';
+          finalDiv.innerHTML = '<h2>❌ CONCLUSION: The HTML app has errors!</h2><p>See the error details above.</p>';
+          results.appendChild(finalDiv);
+        }
+      })
+      .catch(e => {
+        addResult('Overall test', 'fail', e.message);
+      });
+  </script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CardSpoke Test</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    .error { color: red; background: #ffe; padding: 10px; margin: 5px 0; border: 1px solid red; }
+    .success { color: green; background: #efe; padding: 10px; margin: 5px 0; border: 1px solid green; }
+    .info { color: blue; background: #eef; padding: 10px; margin: 5px 0; border: 1px solid blue; }
+  </style>
+</head>
+<body>
+  <h1>CardSpoke App Test</h1>
+  <div id="log"></div>
+  
+  <script>
+    const log = document.getElementById('log');
+    
+    function addLog(msg, type = 'info') {
+      const div = document.createElement('div');
+      div.className = type;
+      div.textContent = new Date().toISOString() + ' - ' + msg;
+      log.appendChild(div);
+    }
+    
+    // Capture console
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+    
+    console.log = (...args) => {
+      originalLog(...args);
+      addLog('LOG: ' + args.join(' '), 'info');
+    };
+    
+    console.error = (...args) => {
+      originalError(...args);
+      addLog('ERROR: ' + args.join(' '), 'error');
+    };
+    
+    console.warn = (...args) => {
+      originalWarn(...args);
+      addLog('WARN: ' + args.join(' '), 'info');
+    };
+    
+    // Capture errors
+    window.addEventListener('error', (e) => {
+      addLog('ERROR: ' + e.message + ' at ' + e.filename + ':' + e.lineno, 'error');
+    });
+    
+    addLog('Starting test...', 'success');
+    
+    // Load capacitor.js
+    fetch('capacitor.js')
+      .then(r => r.text())
+      .then(code => {
+        addLog('Loaded capacitor.js (' + code.length + ' bytes)', 'success');
+        eval(code);
+        addLog('Executed capacitor.js', 'success');
+        
+        // Load app.js
+        return fetch('app.js');
+      })
+      .then(r => r.text())
+      .then(code => {
+        addLog('Loaded app.js (' + code.length + ' bytes)', 'success');
+        eval(code);
+        addLog('Executed app.js successfully!', 'success');
+        
+        // Check if app initialized
+        setTimeout(() => {
+          addLog('Checking app state...', 'info');
+          addLog('localStorage items: ' + localStorage.length, 'info');
+          addLog('Test complete!', 'success');
+        }, 1000);
+      })
+      .catch(e => {
+        addLog('FAILED: ' + e.message, 'error');
+      });
+  </script>
+</body>
+</html>
