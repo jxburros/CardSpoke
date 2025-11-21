@@ -1,6 +1,6 @@
 {
   "name": "cardspoke",
-  "version": "0.11.2.3",
+  "version": "0.11.2.4",
   "description": "A lightweight, extensible, multi-platform knowledge base framework",
   "main": "index.js",
   "scripts": {
