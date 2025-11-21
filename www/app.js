@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.11.2.4
+      // Version: 0.11.2.5
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.11.2.4'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.11.2.5'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-21'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot (Insect-Enthusiast)'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GitHub Copilot (Middle-Manager)'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -38,6 +38,7 @@
       // Version 0.11.0: Mega Showrunner - Backlinks, Related Cards, Enhanced Exports, and many more features
       // Version 0.11.1: Exposed CIB.utils API for mod developers with comprehensive utility functions
       // Version 0.11.2: Added Extension Wizard and Playground for mod developers
+      // Version 0.11.2.5: Enhanced footer population with error handling and debugging
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -4557,17 +4558,43 @@ console.log('✓ All examples completed!');
       
       /**
        * Populate footer with app metadata
+       * Enhanced with error handling and logging for debugging
        */
       function populateFooter() {
-        const creatorEl = document.getElementById('app-creator');
-        const versionEl = document.getElementById('app-version');
-        const dateEl = document.getElementById('app-release-date');
-        const updaterEl = document.getElementById('app-updater');
+        try {
+          const creatorEl = document.getElementById('app-creator');
+          const versionEl = document.getElementById('app-version');
+          const dateEl = document.getElementById('app-release-date');
+          const updaterEl = document.getElementById('app-updater');
 
-        if (creatorEl) creatorEl.textContent = APP_CREATOR;
-        if (versionEl) versionEl.textContent = APP_VERSION;
-        if (dateEl) dateEl.textContent = APP_RELEASE_DATE;
-        if (updaterEl) updaterEl.textContent = APP_UPDATER;
+          // Verify all elements exist
+          if (!creatorEl || !versionEl || !dateEl || !updaterEl) {
+            console.error('[Footer] Missing footer elements:', {
+              creator: !!creatorEl,
+              version: !!versionEl,
+              date: !!dateEl,
+              updater: !!updaterEl
+            });
+            return;
+          }
+
+          // Populate elements
+          creatorEl.textContent = APP_CREATOR;
+          versionEl.textContent = APP_VERSION;
+          dateEl.textContent = APP_RELEASE_DATE;
+          updaterEl.textContent = APP_UPDATER;
+
+          if (isDeveloperMode()) {
+            console.log('[Footer] Populated successfully:', {
+              creator: APP_CREATOR,
+              version: APP_VERSION,
+              date: APP_RELEASE_DATE,
+              updater: APP_UPDATER
+            });
+          }
+        } catch (error) {
+          console.error('[Footer] Error populating footer:', error);
+        }
       }
 
       /**
