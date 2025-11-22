@@ -1,18 +1,36 @@
 # CardSpoke
 
-**Version:** 0.11.2.4  
+**Version:** 0.11.3  
 **Creator:** [jxburros](https://github.com/jxburros)
 
 > A lightweight, extensible, multi-platform knowledge base framework
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.11.2.4
+## 🌟 Current Version: 0.11.3
 
 The v0.11 release series introduces the **Developer Ecosystem** with comprehensive tools for extension development, building upon the knowledge graph features from v0.11.0.
 
 
-### What's New in 0.11.2.4
+### What's New in 0.11.3
+
+**API Renaming for Brand Consistency**
+- **CardSpoke.utils API**: Renamed from CIB.utils to match CardSpoke branding
+  - `window.CardSpoke.utils` replaces `window.CIB.utils`
+  - `window.CardSpoke.mods` replaces `window.CIB_MODS`
+  - Backward compatibility maintained: `window.CIB` still works as alias
+  - All 186+ references updated across codebase
+- **Enhanced Testing**: 160 tests passing (up from 152)
+  - 8 new footer population tests to prevent regression
+  - All existing tests pass with new API names
+
+### What's New in 0.11.2.5
+
+**Bug Fixes**
+- Fixed footer display issue where version and creator information was not showing
+- Enhanced footer population with error handling and debugging
+
+### What's New in 0.11.2
 
 **Bug Fixes**
 - Fixed footer display issue where version and creator information was not showing
@@ -30,9 +48,9 @@ The v0.11 release series introduces the **Developer Ecosystem** with comprehensi
 - **Playground**: Sandboxed environment for testing extension code
   - Split-view interface with code editor and console output
   - Live code execution with error handling
-  - Pre-loaded examples demonstrating CIB.utils API
+  - Pre-loaded examples demonstrating CardSpoke.utils API
   - Safe testing environment with isolated execution
-- **CIB.utils API**: Exposed developer utility functions
+- **CardSpoke.utils API**: Exposed developer utility functions
   - Complete API for card management (create, update, search)
   - Tag management functions (get, add, remove, set)
   - Toast notifications and dataset metadata access
@@ -44,8 +62,8 @@ The v0.11 release series introduces the **Developer Ecosystem** with comprehensi
 
 ### What's New in 0.11.1
 
-**CIB.utils API**
-- Exposed window.CIB.utils for extension developers
+**CardSpoke.utils API**
+- Exposed window.CardSpoke.utils for extension developers
 - Safe, documented API for mods to interact with CardSpoke
 - Functions for card management, tags, search, and notifications
 
@@ -77,6 +95,43 @@ The v0.11 release series introduces the **Developer Ecosystem** with comprehensi
 - Card Operations: 10 tests
 - Version Validation: 2 tests
 
+
+### What's New in 0.11.0
+
+**Knowledge Graph & Navigation**
+- **Backlinks Panel**: Automatic backlink detection shows which cards link to the current card
+  - Bidirectional navigation between connected cards
+  - Enhanced content discovery through relationship mapping
+  - Dedicated section in card detail view showing all connections
+- **Related Cards**: Smart suggestions based on shared tags and connections
+  - Relationship mapping across your knowledge base
+  - Quick access to contextually relevant cards
+
+**Enhanced Views & Display**
+- **Grid View (Ctrl+G)**: Toggle between list and grid layouts for root cards
+  - Keyboard shortcut for quick view switching
+  - Optimized for visual browsing and organization
+- **Typography Presets**: 4 reading modes with different font sizes and line heights
+  - Default, Comfortable, Large, and Extra Large modes
+  - Accessible typography for different reading preferences
+  - Persistent settings saved per user
+
+**Smart Features**
+- **Smart Tag Suggestions**: Intelligent tag recommendations based on card content
+  - Context-aware tag completion
+  - Faster tagging workflow
+- **Enhanced Keyboard Shortcuts**: Comprehensive keyboard navigation
+  - **Ctrl+D**: Duplicate current card (with/without children)
+  - **Ctrl+T**: Focus tags input when editing
+  - **Ctrl+[**: Navigate to parent card
+  - **Ctrl+]**: Navigate to first child card
+  - **Ctrl+G**: Toggle grid/list view
+  - **Ctrl+/**: Show keyboard shortcuts help
+
+**Export Improvements**
+- **Markdown with Hierarchy**: Preserve card structure in markdown exports
+- **CSV with Metadata**: Export tags, dates, and custom attributes
+- Improved format compatibility for external tools
 ### What's New in 0.10.5
 
 **Tags API**
