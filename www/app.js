@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.11.2.5
+      // Version: 0.11.3
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -36,9 +36,10 @@
       // Version 0.10.5: Implemented Tags API (getTags, addTag, removeTag, setTags, getAllTags) with comprehensive tests
       // Version 0.10.6: Multi-Dataset Search - search across multiple datasets simultaneously
       // Version 0.11.0: Mega Showrunner - Backlinks, Related Cards, Enhanced Exports, and many more features
-      // Version 0.11.1: Exposed CIB.utils API for mod developers with comprehensive utility functions
+      // Version 0.11.1: Exposed CardSpoke.utils API for mod developers with comprehensive utility functions
       // Version 0.11.2: Added Extension Wizard and Playground for mod developers
       // Version 0.11.2.5: Enhanced footer population with error handling and debugging
+      // Version 0.11.3: Renamed CIB to CardSpoke for brand consistency, completed v0.11.X TODO items
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -1178,7 +1179,7 @@
         *   @param {Object} importData - Imported data structure
         */
 
-      const CIB_MODS = (() => {
+      const CardSpoke_MODS = (() => {
         // Registry of loaded mods
         const registry = {};
         // Map of mod IDs to their <style> tags
@@ -1205,8 +1206,8 @@
             registry[modId] = registry[modId] || { id: modId, hooks: {}, meta: {} };
             const sourceURL = `\n//# sourceURL=${modId}.mod.js`;
             const storeAPI = createStoreAPI(modId);
-            const runner = new Function('window', 'document', 'CIB_MODS', 'storeAPI', 'console', modData.js + sourceURL);
-            runner(window, document, CIB_MODS, storeAPI, console);
+            const runner = new Function('window', 'document', 'CardSpoke_MODS', 'storeAPI', 'console', modData.js + sourceURL);
+            runner(window, document, CardSpoke_MODS, storeAPI, console);
             if (modData.meta) registry[modId].meta = { ...modData.meta };
             registry[modId].__loaded = true;
             console.log(`[Extensions] Loaded: ${modId}`, modData.meta || {});
@@ -1332,7 +1333,7 @@
            * @returns {Object} Registry entry
            */
           register(modId, definition = {}) {
-            if (!modId) throw new Error('CIB_MODS.register requires a mod id');
+            if (!modId) throw new Error('CardSpoke.mods.register requires a mod id');
             const entry = registry[modId] || { id: modId, hooks: {}, meta: {} };
             entry.hooks = {
               onAppInit: typeof definition.onAppInit === 'function' ? definition.onAppInit : entry.hooks.onAppInit,
@@ -1406,26 +1407,30 @@
         };
       })();
 
-      window.CIB_MODS = CIB_MODS;
+      window.CardSpoke.mods = CardSpoke_MODS;
+
+      // Backward compatibility aliases for existing mods using old CIB names
+      window.CIB = window.CardSpoke; // Alias CIB -> CardSpoke
+      window.CIB_MODS = window.CardSpoke.mods; // Alias CIB_MODS -> CardSpoke.mods
 
       // =============================================================
       // --- CIB.utils API ---
       // Public utility API for mod developers
-      // Exposed as window.CIB.utils
+      // Exposed as window.CardSpoke.utils
       // =============================================================
       
       /**
-       * CIB.utils - Public utility API for extension developers
+       * CardSpoke.utils - Public utility API for extension developers
        * 
        * Provides a safe, documented API for mods to interact with CardSpoke data and UI.
        * All functions handle errors gracefully and maintain data integrity.
        * 
-       * @namespace CIB.utils
+       * @namespace CardSpoke.utils
        * @version 0.11.1
        * @since 0.11.1
        */
-      window.CIB = window.CIB || {};
-      window.CIB.utils = {
+      window.CardSpoke = window.CardSpoke || {};
+      window.CardSpoke.utils = {
         /**
          * Create a new card
          * @param {Object} data - Card data
@@ -1435,7 +1440,7 @@
          * @param {string[]} data.tags - Array of tags (optional)
          * @returns {Promise<{id: string, card: Object}>} Created card info
          * @example
-         * const result = await CIB.utils.createCard({
+         * const result = await CardSpoke.utils.createCard({
          *   title: 'My Card',
          *   body: 'Content here',
          *   parentId: null,
@@ -1457,7 +1462,7 @@
             const card = store.cards[cardId];
             return { id: cardId, card: cloneCard(card) };
           } catch (err) {
-            console.error('[CIB.utils] createCard failed:', err);
+            console.error('[CardSpoke.utils] createCard failed:', err);
             throw new Error(`Failed to create card: ${err.message}`);
           }
         },
@@ -1471,7 +1476,7 @@
          * @param {string[]} changes.tags - New tags array (optional)
          * @returns {Promise<boolean>} True if successful
          * @example
-         * await CIB.utils.updateCard('card-123', {
+         * await CardSpoke.utils.updateCard('card-123', {
          *   title: 'Updated Title',
          *   body: 'Updated content'
          * });
@@ -1496,7 +1501,7 @@
             
             return true;
           } catch (err) {
-            console.error('[CIB.utils] updateCard failed:', err);
+            console.error('[CardSpoke.utils] updateCard failed:', err);
             throw new Error(`Failed to update card: ${err.message}`);
           }
         },
@@ -1506,7 +1511,7 @@
          * @param {string} cardId - Card ID
          * @returns {Promise<string[]>} Array of tags (returns empty array on error)
          * @example
-         * const tags = await CIB.utils.getTags('card-123');
+         * const tags = await CardSpoke.utils.getTags('card-123');
          * console.log('Tags:', tags);
          */
         getTags: async function(cardId) {
@@ -1514,7 +1519,7 @@
             if (!cardId) throw new Error('cardId is required');
             return getTags(cardId);
           } catch (err) {
-            console.error('[CIB.utils] getTags failed:', err);
+            console.error('[CardSpoke.utils] getTags failed:', err);
             return [];
           }
         },
@@ -1525,7 +1530,7 @@
          * @param {string} tag - Tag to add
          * @returns {Promise<boolean>} True if tag was added successfully, false on error
          * @example
-         * const success = await CIB.utils.addTag('card-123', 'important');
+         * const success = await CardSpoke.utils.addTag('card-123', 'important');
          */
         addTag: async function(cardId, tag) {
           try {
@@ -1533,7 +1538,7 @@
             if (!tag) throw new Error('tag is required');
             return addTag(cardId, tag, false);
           } catch (err) {
-            console.error('[CIB.utils] addTag failed:', err);
+            console.error('[CardSpoke.utils] addTag failed:', err);
             return false;
           }
         },
@@ -1544,7 +1549,7 @@
          * @param {string} tag - Tag to remove
          * @returns {Promise<boolean>} True if tag was removed successfully, false on error
          * @example
-         * await CIB.utils.removeTag('card-123', 'old-tag');
+         * await CardSpoke.utils.removeTag('card-123', 'old-tag');
          */
         removeTag: async function(cardId, tag) {
           try {
@@ -1552,7 +1557,7 @@
             if (!tag) throw new Error('tag is required');
             return removeTag(cardId, tag, false);
           } catch (err) {
-            console.error('[CIB.utils] removeTag failed:', err);
+            console.error('[CardSpoke.utils] removeTag failed:', err);
             return false;
           }
         },
@@ -1563,7 +1568,7 @@
          * @param {string[]} tags - Array of tags
          * @returns {Promise<boolean>} True if successful, false on error
          * @example
-         * await CIB.utils.setTags('card-123', ['tag1', 'tag2', 'tag3']);
+         * await CardSpoke.utils.setTags('card-123', ['tag1', 'tag2', 'tag3']);
          */
         setTags: async function(cardId, tags) {
           try {
@@ -1571,7 +1576,7 @@
             if (!Array.isArray(tags)) throw new Error('tags must be an array');
             return setTags(cardId, tags, false);
           } catch (err) {
-            console.error('[CIB.utils] setTags failed:', err);
+            console.error('[CardSpoke.utils] setTags failed:', err);
             return false;
           }
         },
@@ -1580,14 +1585,14 @@
          * Get all unique tags across all cards
          * @returns {Promise<string[]>} Sorted array of all tags (returns empty array on error)
          * @example
-         * const allTags = await CIB.utils.getAllTags();
+         * const allTags = await CardSpoke.utils.getAllTags();
          * console.log('All tags:', allTags);
          */
         getAllTags: async function() {
           try {
             return getAllTags();
           } catch (err) {
-            console.error('[CIB.utils] getAllTags failed:', err);
+            console.error('[CardSpoke.utils] getAllTags failed:', err);
             return [];
           }
         },
@@ -1599,14 +1604,14 @@
          * @param {number} duration - Duration in ms (default: 3000)
          * @returns {Promise<void>}
          * @example
-         * await CIB.utils.showToast('Operation successful!', 'success');
-         * await CIB.utils.showToast('Warning!', 'warning', 5000);
+         * await CardSpoke.utils.showToast('Operation successful!', 'success');
+         * await CardSpoke.utils.showToast('Warning!', 'warning', 5000);
          */
         showToast: async function(message, type = 'info', duration = 3000) {
           try {
             showToast(message, type, duration);
           } catch (err) {
-            console.error('[CIB.utils] showToast failed:', err);
+            console.error('[CardSpoke.utils] showToast failed:', err);
           }
         },
 
@@ -1614,7 +1619,7 @@
          * Get dataset metadata
          * @returns {Promise<Object>} Dataset metadata
          * @example
-         * const meta = await CIB.utils.getDatasetMeta();
+         * const meta = await CardSpoke.utils.getDatasetMeta();
          * console.log('Dataset:', meta.name, 'Cards:', meta.cardCount);
          */
         getDatasetMeta: async function() {
@@ -1630,7 +1635,7 @@
               appVersion: APP_VERSION
             };
           } catch (err) {
-            console.error('[CIB.utils] getDatasetMeta failed:', err);
+            console.error('[CardSpoke.utils] getDatasetMeta failed:', err);
             return {};
           }
         },
@@ -1640,7 +1645,7 @@
          * @param {string} cardId - Card ID
          * @returns {Promise<Object|null>} Card object (cloned) or null if not found or on error
          * @example
-         * const card = await CIB.utils.getCard('card-123');
+         * const card = await CardSpoke.utils.getCard('card-123');
          * if (card) console.log('Found:', card.title);
          */
         getCard: async function(cardId) {
@@ -1649,7 +1654,7 @@
             const card = store.cards[cardId];
             return card ? cloneCard(card) : null;
           } catch (err) {
-            console.error('[CIB.utils] getCard failed:', err);
+            console.error('[CardSpoke.utils] getCard failed:', err);
             return null;
           }
         },
@@ -1659,7 +1664,7 @@
          * @param {string} query - Search query
          * @returns {Promise<Array>} Array of matching cards (returns empty array on error)
          * @example
-         * const results = await CIB.utils.searchCards('meeting notes');
+         * const results = await CardSpoke.utils.searchCards('meeting notes');
          * console.log('Found', results.length, 'cards');
          */
         searchCards: async function(query) {
@@ -1679,7 +1684,7 @@
             
             return results;
           } catch (err) {
-            console.error('[CIB.utils] searchCards failed:', err);
+            console.error('[CardSpoke.utils] searchCards failed:', err);
             return [];
           }
         }
@@ -1687,13 +1692,13 @@
 
       // Log API availability in developer mode
       if (isDeveloperMode()) {
-        console.log('[CIB.utils] API initialized and available at window.CIB.utils');
-        console.log('[CIB.utils] Available methods:', Object.keys(window.CIB.utils));
+        console.log('[CardSpoke.utils] API initialized and available at window.CardSpoke.utils');
+        console.log('[CardSpoke.utils] Available methods:', Object.keys(window.CardSpoke.utils));
       }
 
 
       function runModHook(hookName, ...args) {
-        CIB_MODS.runHook(hookName, ...args);
+        CardSpoke_MODS.runHook(hookName, ...args);
       }
 
       // --- DATA (CRUD) ---
@@ -2097,9 +2102,9 @@
         }
         
         save();
-        if (window.CIB_MODS && !safeMode) {
-          window.CIB_MODS.syncFromStore();
-          window.CIB_MODS.runHook('onAppInit');
+        if (window.CardSpoke.mods && !safeMode) {
+          window.CardSpoke.mods.syncFromStore();
+          window.CardSpoke.mods.runHook('onAppInit');
         }
         
         importedIds.forEach(cardId => {
@@ -2921,7 +2926,7 @@
       console.log('Available API:', ctx.api);
       
       // Example: Use CIB.utils API
-      // const meta = await CIB.utils.getDatasetMeta();
+      // const meta = await CardSpoke.utils.getDatasetMeta();
       // console.log('Dataset info:', meta);
     },
     onCardSave(ctx, card, changes) {
@@ -3262,7 +3267,7 @@
               })();
             `);
             
-            fn(sandboxConsole, window.CIB).then(() => {
+            fn(sandboxConsole, window.CardSpoke).then(() => {
               logEntry('✓ Code execution completed', 'success');
             }).catch(err => {
               logEntry('Async error: ' + err.message, 'error');
@@ -3276,8 +3281,8 @@
         }
         
         // Store references for button handlers (namespaced to avoid global pollution)
-        window.CIB = window.CIB || {};
-        window.CIB.playground = { editor: playgroundEditor, console: playgroundConsole, runCode: runPlaygroundCode };
+        window.CardSpoke = window.CardSpoke || {};
+        window.CardSpoke.playground = { editor: playgroundEditor, console: playgroundConsole, runCode: runPlaygroundCode };
         
         modal.appendChild(modalBody);
         overlay.appendChild(modal);
@@ -3292,12 +3297,12 @@
 // Test your extension code here in a safe environment
 
 // Example 1: Use CIB.utils API to get dataset info
-const meta = await CIB.utils.getDatasetMeta();
+const meta = await CardSpoke.utils.getDatasetMeta();
 console.log('Dataset:', meta.name);
 console.log('Total cards:', meta.cardCount);
 
 // Example 2: Create a new card
-const result = await CIB.utils.createCard({
+const result = await CardSpoke.utils.createCard({
   title: 'Test Card from Playground',
   body: 'This card was created in the playground!',
   tags: ['playground', 'test']
@@ -3309,11 +3314,11 @@ const searchResults = await CIB.utils.searchCards('test');
 console.log('Found', searchResults.length, 'cards matching "test"');
 
 // Example 4: Get all tags
-const allTags = await CIB.utils.getAllTags();
+const allTags = await CardSpoke.utils.getAllTags();
 console.log('All tags:', allTags);
 
 // Example 5: Show a toast notification
-await CIB.utils.showToast('Playground code executed!', 'success');
+await CardSpoke.utils.showToast('Playground code executed!', 'success');
 
 console.log('✓ All examples completed!');
 `;
