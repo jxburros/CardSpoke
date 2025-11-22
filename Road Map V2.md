@@ -1,5 +1,16 @@
-# CardSpoke — Road Map V2
-*(Updated with Pre-1.0 and Post-1.0 Feature Expansions)*
+# CardSpoke — Road Map V2.1
+*(Updated with v0.11.3 completion and Multi-Dataset Search moved to Post-1.0)*
+
+---
+
+**Update History:**
+- **V2.1 (2025-11-22):** Multi-Dataset Search moved to Post-1.0 Priority Features
+- **V2.1 (2025-11-22):** v0.11.X series completed with all QOL items
+- **V2.0:** Expanded with Pre-1.0 and Post-1.0 Feature Expansions
+
+---
+
+
 
 ---
 
@@ -242,13 +253,23 @@ Its long-term goal is to be:
 
 ### Priority Features (Before v2.0)
 
+**Multi-Dataset Search** *(Moved from v0.10, incomplete)*
+- Search across multiple datasets simultaneously
+- Dataset selector dropdown in search bar
+- Results show source dataset
+- Merged result ranking by relevance
+- Performance optimization (debounce, pagination)
+- Advanced filtering by dataset scope
+- **Status:** Deferred from v0.10/v0.11, scheduled for post-1.0 release
+
+
 **Card Layout Options**
 - Alternative card display modes (compact, expanded, list view)
-- Grid view for root cards
+- ✅ Grid view for root cards (completed in v0.11.0)
 - Timeline view for chronological content
 
 **Typography Presets**
-- Multiple "reading modes" with different font sizes and line heights
+- ✅ Multiple "reading modes" with different font sizes and line heights (completed in v0.11.0)
 - Dyslexia-friendly font options
 
 **Card Duplication & Cloning**
@@ -261,8 +282,8 @@ Its long-term goal is to be:
 - Bulk export selected cards
 
 **Card Relationships**
-- Bi-directional links (backlinks)
-- Related cards suggestions
+- ✅ Bi-directional links (backlinks) (completed in v0.11.0)
+- ✅ Related cards suggestions (completed in v0.11.0)
 - Reference/citation system
 
 **Rich Text Formatting**

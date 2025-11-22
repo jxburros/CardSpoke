@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Created for:** AI Programming Assistants  
 **Last Updated:** 2025-11-14  
-**Application Version:** 0.11.2
+**Application Version:** 0.11.3
 
 ---
 
@@ -739,36 +739,36 @@ Test responsive design:
 
 ## Developer Tools & Extensions (v0.11+)
 
-### CIB.utils API
+### CardSpoke.utils API
 
-CardSpoke exposes a comprehensive developer API at `window.CIB.utils` for extension development. This API provides safe, documented access to CardSpoke functionality.
+CardSpoke exposes a comprehensive developer API at `window.CardSpoke.utils` for extension development. This API provides safe, documented access to CardSpoke functionality.
 
 **Available Methods:**
 
 ```javascript
 // Card Management
-await CIB.utils.createCard({ title, body, parentId, tags })
-await CIB.utils.updateCard(cardId, { title, body, tags })
-await CIB.utils.getCard(cardId)
-await CIB.utils.searchCards(query)
+await CardSpoke.utils.createCard({ title, body, parentId, tags })
+await CardSpoke.utils.updateCard(cardId, { title, body, tags })
+await CardSpoke.utils.getCard(cardId)
+await CardSpoke.utils.searchCards(query)
 
 // Tag Management
-await CIB.utils.getTags(cardId)
-await CIB.utils.addTag(cardId, tag)
-await CIB.utils.removeTag(cardId, tag)
-await CIB.utils.setTags(cardId, tags)
-await CIB.utils.getAllTags()
+await CardSpoke.utils.getTags(cardId)
+await CardSpoke.utils.addTag(cardId, tag)
+await CardSpoke.utils.removeTag(cardId, tag)
+await CardSpoke.utils.setTags(cardId, tags)
+await CardSpoke.utils.getAllTags()
 
 // Utilities
-await CIB.utils.showToast(message, type, duration)
-await CIB.utils.getDatasetMeta()
+await CardSpoke.utils.showToast(message, type, duration)
+await CardSpoke.utils.getDatasetMeta()
 ```
 
 **Example Usage:**
 
 ```javascript
 // Create a card with tags
-const result = await CIB.utils.createCard({
+const result = await CardSpoke.utils.createCard({
   title: 'My Card',
   body: 'Content here',
   tags: ['important', 'work']
@@ -776,13 +776,13 @@ const result = await CIB.utils.createCard({
 console.log('Created:', result.id);
 
 // Search and update
-const cards = await CIB.utils.searchCards('meeting');
+const cards = await CardSpoke.utils.searchCards('meeting');
 for (const card of cards) {
-  await CIB.utils.addTag(card.id, 'reviewed');
+  await CardSpoke.utils.addTag(card.id, 'reviewed');
 }
 
 // Show notification
-await CIB.utils.showToast('Operation complete!', 'success');
+await CardSpoke.utils.showToast('Operation complete!', 'success');
 ```
 
 ### Extension Wizard
@@ -831,7 +831,7 @@ The Playground (🛝 in menu) provides a sandboxed testing environment:
 - Split-view: code editor + console output
 - Live code execution
 - Error boundary and safe execution
-- Pre-loaded examples using CIB.utils
+- Pre-loaded examples using CardSpoke.utils
 - Template loader for quick start
 
 **Usage:**
@@ -851,7 +851,7 @@ The Playground (🛝 in menu) provides a sandboxed testing environment:
 
 ### Extension Development Best Practices
 
-1. **Use CIB.utils API**: Don't access store directly
+1. **Use CardSpoke.utils API**: Don't access store directly
 2. **Handle Errors**: Wrap code in try-catch blocks
 3. **Test in Playground**: Validate before installing
 4. **Document Your Code**: Add comments and descriptions
