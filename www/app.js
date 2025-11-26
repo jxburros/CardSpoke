@@ -4788,6 +4788,7 @@ console.log('✓ All examples completed!');
       menu.recentCards.onclick = () => {
         menu.overlay.classList.remove('show');
         showRecentCards();
+      };
 
       menu.typography.onclick = () => {
         menu.overlay.classList.remove('show');
@@ -5406,4 +5407,4 @@ console.log('✓ All examples completed!');
           e.returnValue = '';
         }
       });
-    }})();
+    })();
