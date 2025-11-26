@@ -208,7 +208,7 @@ git checkout testing
 git pull origin testing
 ```
 
-Or download the latest release from the [releases page](../../releases).
+Or download the latest release from the [releases page](https://github.com/jxburros/CardSpoke/releases).
 
 ---
 
