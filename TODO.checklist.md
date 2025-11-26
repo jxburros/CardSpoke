@@ -9,22 +9,17 @@ New Version will be 0.11.4, please make sure to update everywhere.
 
 ## 🔥 BUGS TO FIX (High Priority)
 
-### 1. Dataset Storage Type Mismatch
+### ✅ 1. Dataset Storage Type Mismatch - FIXED in v0.11.4
 **Problem:**  
 When creating a new dataset and selecting `IndexedDB`, the Dataset Info modal still reports the storage type as `LocalStorage`.
 
-**Likely Causes:**  
-- Storage type not saved in dataset metadata  
-- Wrong property referenced in Dataset Info  
-- Dataset creation function not passing type correctly
-
-**Expected Behavior:**  
-- Dataset Info should display the actual chosen storage type.  
-- Storage type should be stored persistently.
+**Solution (v0.11.4):**
+- Storage type now saved in dataset metadata on creation
+- Dataset Info and Dataset Manager now display actual storage type from metadata
 
 ---
 
-### 2. Parent Selection Bug in Edit Mode
+### ✅ 2. Parent Selection Bug in Edit Mode - FIXED in v0.11.4
 **Problem:**  
 Editing a child card sometimes preselects the wrong parent in the dropdown.  
 Observed after:
@@ -32,71 +27,59 @@ Observed after:
 - Editing a *different* child card afterwards  
 - Parent dropdown incorrectly defaults to the duplicated card instead of the real parent
 
-**Impact:**  
-- Accidental hierarchy changes  
-- Data integrity risks
-
-**Expected Behavior:**  
-- Parent dropdown should always default to the card’s TRUE current parent.
+**Solution (v0.11.4):**
+- Fixed `h()` helper function to properly handle boolean attributes like `selected`
+- No longer sets `selected="false"` which browsers interpret as truthy
 
 ---
 
-### 3. Playground-Generated Cards Not Visible in UI
+### ✅ 3. Playground-Generated Cards Not Visible in UI - FIXED in v0.11.4
 **Problem:**  
 Running sample code in the Extension Playground logs successful creation of a card,  
 but the card does not appear in the UI.
 
-**Possible Causes:**  
-- Cards created in a sandboxed dataset context  
-- Cards not saved to active dataset  
-- Missing call to `render()` or dataset refresh function  
-- Wrong store reference inside playground context
-
-**Expected Behavior:**  
-- Cards created via playground APIs should appear immediately in the UI.
+**Solution (v0.11.4):**
+- Added `render()` call after card creation in `CardSpoke.utils.createCard()`
+- Cards now appear immediately in UI after creation via playground
 
 ---
 
-### 4. Dataset Naming Issues
+### ✅ 4. Dataset Naming Issues - FIXED in v0.11.4
 **Problem:**  
-New datasets created without a custom name generate long “auto-names” like:  
+New datasets created without a custom name generate long "auto-names" like:  
 `nested_cards_qa_dataset_abcd12345_timestamp`
 
-**Impact:**  
-- Clutters Dataset Manager  
-- Hard to visually parse  
-- Unfriendly defaults
-
-**Expected Behavior:**  
-- Auto-name formats should be short, readable, or date-based  
-(e.g., `Dataset_1`, `Cards_2025_01_14`)
+**Solution (v0.11.4):**
+- Auto-generates friendly default names like `Dataset_1`, `Dataset_2`
+- Key names are now shorter: `cards_[name]_[shortid]`
+- Display name stored in metadata for consistent display
 
 ---
 
-### 5. Missing Feedback for TXT/Markdown Downloads
+### ✅ 5. Missing Feedback for TXT/Markdown Downloads - FIXED in v0.11.4
 **Problem:**  
 Exporting TXT/Markdown triggers a toast, but:
 - No clear confirmation  
-- No “download started” indicator  
+- No "download started" indicator  
 - In some environments, download fails silently
 
-**Expected Behavior:**  
-- Show a modal or bottom-sheet confirming:  
-  “Export ready — click to download”  
-- Clear fallback if browser blocks downloads
+**Solution (v0.11.4):**
+- Added `downloadWithFeedback()` helper with improved notifications
+- Shows modal fallback if automatic download fails
+- Better toast messages with filename
 
 ---
 
-### 6. Minor UI Issues
+### ✅ 6. Minor UI Issues - FIXED in v0.11.4
 **Problems:**
 - Scrollbars appear in modals even when content fits  
 - Upload dialog always defaults to JSON tab, even if TXT was used last  
 - High-contrast mode sometimes resets dark/light theme toggles
 
-**Expected Behavior:**  
-- Conditional scrollbars only when needed  
-- Modal tabs should remember last used tab  
-- Theme toggles should not conflict
+**Solutions (v0.11.4):**
+- Added max-height constraint for conditional scrollbars
+- Upload dialog now remembers last used tab in localStorage
+- High-contrast toggle now preserves theme toggle state
 
 ---
 
@@ -106,11 +89,9 @@ Exporting TXT/Markdown triggers a toast, but:
 
 ### 7. Search Enhancements
 **Current:**  
-Search only matches card titles.
+Search already matches card titles, body text, and tags (fuzzy search implemented).
 
-**Improvements Needed:**  
-- Search card body text  
-- Search tags  
+**Additional Improvements Needed:**  
 - Filters:  
   - by tag  
   - by starred/bookmarked  
@@ -158,7 +139,7 @@ Search only matches card titles.
   - last modified date  
   - card count  
   - dataset size  
-  - storage type fix (see Bug #1)
+  - ✅ storage type fix (see Bug #1) - DONE
 
 ---
 
@@ -180,17 +161,18 @@ Search only matches card titles.
   - browsing categories (themes, mods, scripts)  
   - install/uninstall toggles  
   - developer attribution  
-  - “Unofficial Extension” disclaimer rules
+  - "Unofficial Extension" disclaimer rules
 
 ---
 
 ### 14. API / CLI Access
 **Features Needed:**
-- Local REST API OR JS API accessible via external tools  
+- ✅ Local JS API accessible via window.CardSpoke.utils - DONE
 - Operations:  
-  - add card  
-  - update card  
-  - delete card  
+  - ✅ add card - DONE
+  - ✅ update card - DONE
+  - ✅ delete card - DONE (via deleteCard internal function)
   - bulk import/export  
-  - query cards by tag, parent, body text, etc.  
+  - ✅ query cards by tag, body text - DONE (searchCards)
 - Optional: CLI for scripting
+- Optional: REST API for external tools
