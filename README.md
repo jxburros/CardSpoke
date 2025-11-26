@@ -463,9 +463,20 @@ CardSpoke is built on these principles:
 ## 📚 Documentation
 
 - [README-CAPACITOR.md](README-CAPACITOR.md) - Detailed setup and build instructions
+- [TESTING_GUIDE.md](TESTING_GUIDE.md) - How to test on PC and Android
 - [Road Map V2.md](Road%20Map%20V2.md) - Development roadmap and feature planning
 - [Extension Features.md](Extension%20Features%20(1).md) - Planned extensions and mods
 - [BRANCH_INFO.md](BRANCH_INFO.md) - Current branch information
+
+### Testing Branch
+
+For a minimal installation containing only the files needed to test on PC and Android, use the `testing` branch:
+
+```bash
+git clone -b testing https://github.com/jxburros/CardSpoke.git
+```
+
+The testing branch is automatically synced with main and contains only essential files.
 
 ## 🗺️ Roadmap
 
