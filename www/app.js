@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.11.3
+      // Version: 0.11.4
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,8 +25,8 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.11.3'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-22'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.11.4'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-11-26'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'GitHub Copilot (Constructor)'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
@@ -40,6 +40,7 @@
       // Version 0.11.2: Added Extension Wizard and Playground for mod developers
       // Version 0.11.2.5: Enhanced footer population with error handling and debugging
       // Version 0.11.3: Renamed CIB to CardSpoke for brand consistency, completed v0.11.X TODO items
+      // Version 0.11.4: Bug fixes - storage type display, parent selection, playground cards, dataset naming, export feedback, UI issues
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -135,7 +136,11 @@
           else if (k === 'onsubmit') el.onsubmit = v;
           else if (k === 'style') el.style.cssText = v;
           else if (k === 'oninput') el.oninput = v;
-          else el.setAttribute(k, v);
+          else if (k === 'selected' || k === 'disabled' || k === 'checked' || k === 'readonly') {
+            // Boolean attributes: only set if truthy
+            if (v) el.setAttribute(k, '');
+          }
+          else if (v !== false && v !== null && v !== undefined) el.setAttribute(k, v);
         });
         children.flat().forEach(ch => {
           if (typeof ch === 'string') el.appendChild(document.createTextNode(ch));
@@ -1460,6 +1465,9 @@
               save();
             }
             
+            // Refresh UI to show new card
+            render();
+            
             const card = store.cards[cardId];
             return { id: cardId, card: cloneCard(card) };
           } catch (err) {
@@ -1943,6 +1951,68 @@
         showToast(`Exported ${type} successfully`);
       }
 
+      /**
+       * Download file with feedback and fallback handling
+       * @param {Blob} blob - File blob to download
+       * @param {string} filename - Suggested filename
+       * @param {string} format - File format for display (e.g., 'TXT', 'Markdown')
+       */
+      function downloadWithFeedback(blob, filename, format) {
+        const url = URL.createObjectURL(blob);
+        
+        try {
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          
+          // Add to document for Firefox compatibility
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          
+          // Show success feedback
+          showToast(`✓ ${format} export downloaded: ${filename}`, 'success');
+          
+        } catch (err) {
+          // Fallback: show modal with download link
+          console.warn('[Export] Automatic download failed:', err);
+          
+          const overlay = h('div', { className: 'modal-overlay show' });
+          const modal = h('div', { className: 'modal' });
+          const modalHeader = h('div', { className: 'modal-header' });
+          modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Export Ready'));
+          const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+          modalHeader.appendChild(closeBtn);
+          modal.appendChild(modalHeader);
+          
+          const modalBody = h('div', { className: 'modal-body' });
+          modalBody.appendChild(h('p', { style: 'margin-bottom: var(--space-lg);' }, 
+            `Your ${format} export is ready. Click the button below to download.`));
+          
+          const downloadBtn = h('a', {
+            className: 'btn btn-primary',
+            href: url,
+            download: filename,
+            style: 'display: inline-block; text-decoration: none;'
+          }, `Download ${filename}`);
+          
+          downloadBtn.onclick = () => {
+            showToast(`✓ ${format} export downloaded`, 'success');
+            setTimeout(() => overlay.remove(), 500);
+          };
+          
+          modalBody.appendChild(downloadBtn);
+          modal.appendChild(modalBody);
+          overlay.appendChild(modal);
+          document.body.appendChild(overlay);
+          
+          showToast(`${format} export ready - click to download`, 'info');
+        }
+        
+        // Clean up blob URL after a delay
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
+
       function exportTXT() {
         let text = '# CardSpoke Export\n\n';
         function writeCard(cardId, depth = 0) {
@@ -1958,13 +2028,8 @@
         }
         store.rootOrder.forEach(id => writeCard(id));
         const blob = new Blob([text], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `cardspoke-${Date.now()}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast('Exported TXT successfully');
+        const filename = `cardspoke-${new Date().toISOString().slice(0,10)}.txt`;
+        downloadWithFeedback(blob, filename, 'TXT');
       }
 
 
@@ -1997,13 +2062,8 @@
         store.rootOrder.forEach(id => writeCardMD(id));
         
         const blob = new Blob([markdown], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `cardspoke-${Date.now()}.md`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast('✓ Exported to Markdown');
+        const filename = `cardspoke-${new Date().toISOString().slice(0,10)}.md`;
+        downloadWithFeedback(blob, filename, 'Markdown');
       }
 
       /**
@@ -2026,13 +2086,8 @@
         });
         
         const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `cardspoke-${Date.now()}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast('✓ Exported to CSV');
+        const filename = `cardspoke-${new Date().toISOString().slice(0,10)}.csv`;
+        downloadWithFeedback(blob, filename, 'CSV');
       }
       function handleExport(type) {
         if (type === 'instance-json') exportJSON('instance');
@@ -2234,10 +2289,13 @@
               
               const parsed = data ? JSON.parse(data) : null;
               const cardCount = parsed ? Object.keys(parsed.cards || {}).length : 0;
+              const datasetName = (parsed && parsed.metadata && parsed.metadata.name) || key;
+              const storageType = (parsed && parsed.metadata && parsed.metadata.storageType) || 'localstorage';
+              const storageTypeDisplay = storageType === 'indexeddb' ? 'IndexedDB' : 'LocalStorage';
               
-              datasetMeta.textContent = `Storage: LocalStorage • Size: ${formatBytes(size)} • Cards: ${cardCount}`;
+              datasetMeta.textContent = `Storage: ${storageTypeDisplay} • Size: ${formatBytes(size)} • Cards: ${cardCount}`;
             } catch (e) {
-              datasetMeta.textContent = 'Storage: LocalStorage • Unable to read dataset info';
+              datasetMeta.textContent = 'Storage: Unknown • Unable to read dataset info';
             }
 
             datasetInfo.appendChild(datasetName);
@@ -2393,22 +2451,43 @@
           className: 'btn btn-primary',
           style: 'width: 100%;',
           onclick: () => {
-            const name = document.getElementById('newDatasetName').value.trim();
+            let name = document.getElementById('newDatasetName').value.trim();
             const storageType = document.getElementById('newDatasetStorage').value;
 
+            // Generate a readable default name if none provided
             if (!name) {
-              showToast('Please enter a dataset name', 'error');
-              return;
+              const now = new Date();
+              const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '_');
+              const count = Object.keys(localStorage).filter(k => k.startsWith('cards_')).length + 1;
+              name = 'Dataset_' + count;
             }
 
-            // Generate a unique key
-            const newKey = 'nested_cards_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
+            // Generate a clean, short key using the name and a short timestamp
+            const shortId = Date.now().toString(36).slice(-4);
+            const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20);
+            const newKey = 'cards_' + cleanName + '_' + shortId;
+
+            // Store the display name and storage type in the store metadata
+            const newStore = { 
+              rootOrder: [], 
+              cards: {}, 
+              mods: {}, 
+              bookmarks: [], 
+              recentCards: [], 
+              viewMode: 'normal', 
+              activeTheme: 'light',
+              metadata: {
+                name: name,
+                storageType: storageType,
+                createdAt: Date.now()
+              }
+            };
 
             // Note: For now, we still use localStorage backend regardless of choice
             // The DatasetManager classes are in place for future enhancement
             localStorage.setItem('activeInstance', newKey);
             instanceKey = newKey;
-            store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
+            store = newStore;
             save();
             render();
             overlay.remove();
@@ -2497,13 +2576,18 @@
           return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
         };
 
+        // Get storage type and display name from store metadata
+        const displayName = (store && store.metadata && store.metadata.name) || currentKey;
+        const storageType = (store && store.metadata && store.metadata.storageType) || 'localstorage';
+        const storageTypeDisplay = storageType === 'indexeddb' ? 'IndexedDB' : 'LocalStorage';
+
         // Create info sections
         const infoHtml = `
           <div style="margin-bottom: var(--space-xl);">
             <h3 style="margin-bottom: var(--space-md); color: var(--text-primary);">Current Dataset</h3>
             <div style="background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border);">
-              <div style="margin-bottom: var(--space-sm);"><strong>Name:</strong> ${currentKey}</div>
-              <div style="margin-bottom: var(--space-sm);"><strong>Storage Type:</strong> LocalStorage</div>
+              <div style="margin-bottom: var(--space-sm);"><strong>Name:</strong> ${displayName}</div>
+              <div style="margin-bottom: var(--space-sm);"><strong>Storage Type:</strong> ${storageTypeDisplay}</div>
               <div style="margin-bottom: var(--space-sm);"><strong>Size:</strong> ${formatBytes(dataSize)}</div>
               <div style="margin-bottom: var(--space-sm);"><strong>PIN Protected:</strong> No</div>
             </div>
@@ -4694,7 +4778,13 @@ console.log('✓ All examples completed!');
           } else {
             document.documentElement.classList.remove('high-contrast');
           }
-          localStorage.setItem('cardspoke_highcontrast', enabled);
+          localStorage.setItem('cardspoke_highcontrast', enabled.toString());
+          
+          // Ensure theme toggle state is preserved
+          const currentTheme = localStorage.getItem('cardspoke_theme') || 'light';
+          if (themeSwitch) themeSwitch.checked = currentTheme === 'dark';
+          
+          showToast(enabled ? 'High contrast enabled' : 'High contrast disabled', 'info');
         };
       }
 
@@ -4753,13 +4843,14 @@ console.log('✓ All examples completed!');
         const docxAppendRadio = document.querySelector('input[name="docxImportMode"][value="append"]');
         if (docxAppendRadio) docxAppendRadio.checked = true;
 
-        // Reset to first tab
+        // Restore last used tab or default to json
+        const lastTab = localStorage.getItem('cardspoke_lastUploadTab') || 'json';
         uploadModal.tabs.forEach(t => t.classList.remove('active'));
         uploadModal.tabContents.forEach(content => content.classList.remove('active'));
-        const firstTab = document.querySelector('.modal-tab[data-tab="json"]');
-        const firstContent = document.getElementById('tab-json');
-        if (firstTab) firstTab.classList.add('active');
-        if (firstContent) firstContent.classList.add('active');
+        const tabToActivate = document.querySelector(`.modal-tab[data-tab="${lastTab}"]`) || document.querySelector('.modal-tab[data-tab="json"]');
+        const contentToActivate = document.getElementById(`tab-${lastTab}`) || document.getElementById('tab-json');
+        if (tabToActivate) tabToActivate.classList.add('active');
+        if (contentToActivate) contentToActivate.classList.add('active');
         
         // Show modal
         uploadModal.overlay.classList.add('show');
@@ -4866,6 +4957,8 @@ console.log('✓ All examples completed!');
           tab.classList.add('active');
           uploadModal.tabContents.forEach(content => content.classList.remove('active'));
           document.getElementById(`tab-${tabName}`).classList.add('active');
+          // Remember last used tab
+          localStorage.setItem('cardspoke_lastUploadTab', tabName);
         });
       });
 

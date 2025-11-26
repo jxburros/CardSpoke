@@ -172,7 +172,7 @@
       background: var(--surface);
       transition: right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
       z-index: 201;
-      overflow-y: auto;
+      overflow-y: auto; max-height: calc(90vh - 100px);
       border-left: 1px solid var(--border);
     }
     
@@ -902,7 +902,7 @@
     
     .modal-body {
       padding: var(--space-xl);
-      overflow-y: auto;
+      overflow-y: auto; max-height: calc(90vh - 100px);
       flex: 1;
     }
     
@@ -1302,7 +1302,7 @@
       .modal-content {
         width: 95%;
         max-height: 90vh;
-        overflow-y: auto;
+        overflow-y: auto; max-height: calc(90vh - 100px);
       }
 
       .modal-header {
@@ -1374,7 +1374,7 @@
 .keyboard-shortcuts {
   padding: var(--space-md);
   max-height: 70vh;
-  overflow-y: auto;
+  overflow-y: auto; max-height: calc(90vh - 100px);
 }
 
 .shortcuts-section {
