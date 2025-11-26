@@ -28,11 +28,22 @@ jobs:
         run: |
           # Check if testing branch exists
           if git ls-remote --exit-code --heads origin testing; then
-            git checkout testing
-            git reset --hard main
-          else
-            git checkout -b testing
+            echo "Testing branch exists, attempting to delete..."
+            if git push origin --delete testing; then
+              echo "Successfully deleted testing branch"
+            else
+              echo "ERROR: Could not delete testing branch."
+              echo "The branch has protection rules that prevent both force-push and deletion."
+              echo "Please either:"
+              echo "  1. Modify the branch protection rules for 'testing' branch"
+              echo "  2. Manually delete the 'testing' branch"
+              echo "  3. Use a different branch name for testing"
+              exit 1
+            fi
           fi
+
+          # Create a fresh testing branch from main
+          git checkout -b testing
 
           # Remove all files except the essential ones for testing
           # Keep: www/, capacitor.config.json, package.json, package-lock.json, 
@@ -66,16 +77,18 @@ jobs:
             fi
           done
 
-          # Check if there are changes to commit
-          if git diff --cached --quiet && git diff --quiet; then
-            echo "No changes to commit"
+          # Commit the changes
+          # Note: 'git diff --cached --quiet' returns 0 (success) when NO changes, non-zero when changes exist
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit - testing branch would be identical to main"
+            git commit --allow-empty -m "Sync testing branch from main (no changes)"
           else
-            git add -A
             git commit -m "Update testing branch with essential files only - synced from main"
           fi
 
-          # Force push to testing branch
-          git push origin testing --force
+          # Push the testing branch
+          git push origin testing
 
       - name: Summary
         run: |
