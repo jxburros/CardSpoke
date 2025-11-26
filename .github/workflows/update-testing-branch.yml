@@ -1,0 +1,95 @@
+name: Update Testing Branch
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-testing-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create or update testing branch
+        run: |
+          # Check if testing branch exists
+          if git ls-remote --exit-code --heads origin testing; then
+            git checkout testing
+            git reset --hard main
+          else
+            git checkout -b testing
+          fi
+
+          # Remove all files except the essential ones for testing
+          # Keep: www/, capacitor.config.json, package.json, package-lock.json, 
+          #       LICENSE, README.md, README-CAPACITOR.md, TESTING_GUIDE.md
+
+          # List of files/directories to keep
+          KEEP_FILES=(
+            "www"
+            "capacitor.config.json"
+            "package.json"
+            "package-lock.json"
+            "LICENSE"
+            "README.md"
+            "README-CAPACITOR.md"
+            "TESTING_GUIDE.md"
+            ".gitignore"
+            ".github"
+          )
+
+          # Get all files and directories at root level
+          for item in *; do
+            keep=false
+            for keep_item in "${KEEP_FILES[@]}"; do
+              if [[ "$item" == "$keep_item" ]]; then
+                keep=true
+                break
+              fi
+            done
+            if [[ "$keep" == "false" ]]; then
+              rm -rf "$item"
+              git rm -rf "$item" 2>/dev/null || true
+            fi
+          done
+
+          # Check if there are changes to commit
+          if git diff --cached --quiet && git diff --quiet; then
+            echo "No changes to commit"
+          else
+            git add -A
+            git commit -m "Update testing branch with essential files only
+
+          Synced from main branch.
+          Contains only files needed for PC and Android testing."
+          fi
+
+          # Force push to testing branch
+          git push origin testing --force
+
+      - name: Summary
+        run: |
+          echo "## Testing Branch Updated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The testing branch has been updated with the essential files for PC and Android testing." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Files included:" >> $GITHUB_STEP_SUMMARY
+          echo "- www/ (index.html, app.js, styles.css)" >> $GITHUB_STEP_SUMMARY
+          echo "- capacitor.config.json" >> $GITHUB_STEP_SUMMARY
+          echo "- package.json" >> $GITHUB_STEP_SUMMARY
+          echo "- package-lock.json" >> $GITHUB_STEP_SUMMARY
+          echo "- LICENSE, README.md, README-CAPACITOR.md, TESTING_GUIDE.md" >> $GITHUB_STEP_SUMMARY
