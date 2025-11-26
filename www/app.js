@@ -1407,6 +1407,7 @@
         };
       })();
 
+      window.CardSpoke = window.CardSpoke || {};
       window.CardSpoke.mods = CardSpoke_MODS;
 
       // Backward compatibility aliases for existing mods using old CIB names
