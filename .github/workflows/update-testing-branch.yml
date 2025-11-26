@@ -26,16 +26,11 @@ jobs:
 
       - name: Create or update testing branch
         run: |
-          BRANCH_EXISTS=false
-          DELETION_SUCCEEDED=false
-          
           # Check if testing branch exists
           if git ls-remote --exit-code --heads origin testing; then
-            BRANCH_EXISTS=true
             echo "Testing branch exists, attempting to delete..."
             if git push origin --delete testing; then
               echo "Successfully deleted testing branch"
-              DELETION_SUCCEEDED=true
             else
               echo "ERROR: Could not delete testing branch."
               echo "The branch has protection rules that prevent both force-push and deletion."
@@ -83,12 +78,13 @@ jobs:
           done
 
           # Commit the changes
+          # Note: 'git diff --cached --quiet' returns 0 (success) when NO changes, non-zero when changes exist
           git add -A
-          if ! git diff --cached --quiet; then
-            git commit -m "Update testing branch with essential files only - synced from main"
-          else
+          if git diff --cached --quiet; then
             echo "No changes to commit - testing branch would be identical to main"
             git commit --allow-empty -m "Sync testing branch from main (no changes)"
+          else
+            git commit -m "Update testing branch with essential files only - synced from main"
           fi
 
           # Push the testing branch
