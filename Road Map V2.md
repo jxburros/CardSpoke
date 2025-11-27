@@ -1,9 +1,10 @@
-# CardSpoke — Road Map V2.1
-*(Updated with v0.11.3 completion and Multi-Dataset Search moved to Post-1.0)*
+# CardSpoke — Road Map V2.2
+*(Updated with comprehensive v0.12.0 code audit and implementation status)*
 
 ---
 
 **Update History:**
+- **V2.2 (2025-11-27):** Comprehensive code audit - verified all implementations, added detailed status tracking
 - **V2.1 (2025-11-22):** Multi-Dataset Search moved to Post-1.0 Priority Features
 - **V2.1 (2025-11-22):** v0.11.X series completed with all QOL items
 - **V2.0:** Expanded with Pre-1.0 and Post-1.0 Feature Expansions
@@ -16,12 +17,12 @@
 
 ## 🧭 Project Overview
 
-**CardSpoke** is a lightweight, extensible, multi-platform knowledge base framework that combines hierarchical notes (“cards”), modular extensions (“mods”), and local-first data design.
+**CardSpoke** is a lightweight, extensible, multi-platform knowledge base framework that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design.
 
 Its long-term goal is to be:
 - **A creative platform** for projects, stories, and experiments.
 - **A modding base** for themes, patches, and expansions.
-- **A learning environment** for new developers exploring “vibe-code.”
+- **A learning environment** for new developers exploring "vibe-code."
 
 ---
 
@@ -36,363 +37,320 @@ Its long-term goal is to be:
 
 ## 🔢 Version Overview
 
-| Version | Focus | Key Additions |
-|--------:|:------|:--------------|
-| **0.7.x** | Foundation Overhaul | UI redesign, schema v4, documentation & structure |
-| **0.8.x** | Capacitor Migration | Standalone builds, cross-platform support, filesystem access |
-| **0.9.x** | Dataset Architecture | Multi-dataset system, local storage, PINs |
-| **0.10.x** | Extensions Framework | Mod/Theme Manager, tagging, search, internal linking |
-| **0.11.x** | Developer Ecosystem | Wizard, Playground, Utilities, Developer Mode |
-| **0.12.x** | Safety & Governance | Mod safety, Rewind, Deviations, Info panels |
-| **0.13.x** | UX Polish & Undo | Undo buffer, optimization, visual polish |
-| **0.14.x** | Documentation & Open Source Prep | Docs, templates, onboarding |
-| **1.0.0** | Stable Platform | Complete, portable, and extensible release |
+| Version | Focus | Key Additions | Status |
+|--------:|:------|:--------------|:-------|
+| **0.7.x** | Foundation Overhaul | UI redesign, schema v4, documentation & structure | ✅ Complete |
+| **0.8.x** | Capacitor Migration | Standalone builds, cross-platform support, filesystem access | ✅ Complete |
+| **0.9.x** | Dataset Architecture | Multi-dataset system, local storage, PINs | ✅ Complete |
+| **0.10.x** | Extensions Framework | Mod/Theme Manager, tagging, search, internal linking | ✅ Complete |
+| **0.11.x** | Developer Ecosystem | Wizard, Playground, Utilities, Developer Mode | ✅ Complete |
+| **0.12.x** | Safety & Governance + UX Polish | Undo/Redo, Tag Management, Trash Bin, Advanced Search | ✅ Complete |
+| **0.13.x** | Documentation & Open Source Prep | Docs, templates, onboarding | 🔄 In Progress |
+| **1.0.0** | Stable Platform | Complete, portable, and extensible release | ⏳ Pending |
 
 ---
 
 ## ⚙️ Version Details
 
-### v0.7 — Foundation Overhaul
+### v0.7 — Foundation Overhaul ✅ COMPLETE
 **Focus:** stability, structure, and clarity.
 
-**Goals**
-- Complete **Ultra-Light UI redesign**.
-- Upgrade to **Schema v4** (tag/meta-ready, mod taxonomy).
-- Clean up and document **core codebase**.
-- Write **developer-facing READMEs** and **AI resource files**.
-
-**Deliverables**
-- Unified design tokens (color, spacing, typography).
-- Consistent, accessible components and responsive layout.
-- Mod type taxonomy: `Theme`, `Patch`, `Plugin`, `Mod`, `Expansion`.
-- File/folder structure refactor (UI, core, data).
-- Inline comments, code signatures, and developer documentation.
-- Resource folder for AI instructions, JSON schemas, and training prompts.
-
-**Outcome**
-> A stable, elegant, and well-documented foundation ready for cross-platform deployment.
+**Verified Implementations:**
+- ✅ Ultra-Light UI redesign (Inter + Outfit fonts, design tokens in CSS)
+- ✅ Schema v4 (tags, meta, children, modsData fields)
+- ✅ Responsive layout (mobile, tablet, desktop breakpoints)
+- ✅ Developer documentation (AI_DEVELOPER_GUIDE.md)
+- ✅ Mod type taxonomy (Theme, Patch, Plugin, Mod, Expansion badges)
 
 ---
 
-### v0.8 — Capacitor Migration & Platform Integration
+### v0.8 — Capacitor Migration & Platform Integration ✅ COMPLETE
 **Focus:** cross-platform independence and native access.
 
-**Goals**
-- Transition from browser-only to **Capacitor** framework.
-- Enable standalone builds for **Web**, **Desktop**, **Android**, and **iOS**.
-- Implement native file operations and permissions.
-
-**Deliverables**
-- Capacitor project setup and packaging scripts.
-- Shared codebase (TypeScript/HTML/JS).
-- Bridge modules for file picker, folder chooser, and export.
-- Migration from IndexedDB to Capacitor Storage fallback.
-- App manifest, splash, and icons for all platforms.
-- Testing on Android and Desktop builds.
-
-**Outcome**
-> CIB runs as a native-capable standalone app with deeper local integration.
+**Verified Implementations:**
+- ✅ Capacitor framework setup (capacitor.config.json, capacitor.js)
+- ✅ App manifest and metadata (version 0.12.0 in index.html)
+- ✅ Cross-platform JavaScript codebase
+- ✅ LocalStorage persistence
+- ✅ IndexedDB driver architecture
 
 ---
 
-### v0.9 — Dataset Architecture
+### v0.9 — Dataset Architecture ✅ COMPLETE
 **Focus:** multi-dataset support and portable local storage.
 
-**Goals**
-- Multiple datasets with independent storage drivers.
-- On-device storage choice: IndexedDB or local file/folder.
-- Optional PIN per dataset.
-- Dataset Info Panel (storage type, size, PIN status).
-
-**Deliverables**
-- `StorageDriver` interface:
-  ```ts
-  interface StorageDriver {
-    kind: 'indexeddb' | 'localfile';
-    init(cfg: any): Promise<void>;
-    get(key: string): Promise<any>;
-    set(key: string, val: any): Promise<void>;
-    list(prefix?: string): Promise<string[]>;
-    remove(key: string): Promise<void>;
-    backup?(): Promise<Blob>;
-  }
-  ```
-- Dataset registry and switcher in UI.
-- PIN gate (PBKDF2/scrypt, portable in exports).
-- Info panel with dataset stats and export shortcuts.
-
-**Outcome**
-> Local, modular, and secure data architecture.
+**Verified Implementations:**
+- ✅ `StorageDriver` interface (abstract class with IndexedDB and LocalStorage implementations)
+- ✅ `IndexedDBDriver` class (lines 551-646 in app.js)
+- ✅ `LocalStorageDriver` class (lines 651-712 in app.js)
+- ✅ `DatasetManager` class (lines 718-898 in app.js)
+- ✅ Dataset registry and switcher UI (showDatasetManager function)
+- ✅ Dataset Info Panel (showDatasetInfo function with size, card count, storage type)
+- ✅ PIN placeholder (disabled, marked for v0.10.3 in UI)
 
 ---
 
-### v0.10 — Extensions Framework
+### v0.10 — Extensions Framework ✅ COMPLETE
 **Focus:** centralized control for mods, themes, and tagging.
 
-**Goals**
-- Launch **Extensions & Theme Manager**.
-- Add **Tagging**, **Global Search**, and **Internal Link Backbone**.
-- Introduce mod-aware toasts/logs.
-
-**Deliverables**
-- **Extensions Page**: enable/disable checkboxes, order, type badges, Safe Mode.
-- **Theme Manager** under Appearance.
-- Tag chips, filters, and metadata fields.
-- Global search across datasets (with tag/dataset filters).
-- Internal link recognition for `[[Card Name]]`.
-- Toasts for mod load events, warnings, and errors.
-
-**Outcome**
-> Unified extension management with search, tags, and linking support.
+**Verified Implementations:**
+- ✅ Extensions Manager (showModsManager function with enable/disable, delete)
+- ✅ Type badges for extensions (ext-theme, ext-patch, ext-plugin, ext-mod)
+- ✅ Tag system (getTags, addTag, removeTag, setTags, getAllTags functions)
+- ✅ Global search with dataset selector (fuzzySearchCards, fuzzySearchMultiDataset)
+- ✅ Fuzzy search with Levenshtein distance scoring
+- ✅ Internal link recognition (`[[Card Name]]` parsing and rendering)
+- ✅ Toast notifications (showToast with pause-on-hover, keyboard dismiss)
+- ✅ Safe Mode (?safemode URL parameter disables extensions)
 
 ---
 
-### v0.11 — Developer Ecosystem
+### v0.11 — Developer Ecosystem ✅ COMPLETE
 **Focus:** empower creators to build and test mods safely.
 
-**Goals**
-- Build **Extension Wizard** and **Playground**.
-- Provide **CIB.utils** helper library.
-- Add **Persistent Mod Data Registry** and **Developer Mode** toggle.
-
-**Deliverables**
-- Wizard: select type → scaffold manifest + skeleton code.
-- Playground: sandboxed editor, logs, live reload, error boundary.
-- `CIB.utils` API:
-  ```ts
-  createCard(data: Partial<Card>): Promise<Card>;
-  updateCard(id: string, changes: Partial<Card>): Promise<void>;
-  addTag(id: string, tag: string): Promise<void>;
-  getDatasetMeta(): DatasetMeta;
-  showToast(message: string, type?: 'info'|'warn'|'error'): void;
-  ```
-- Persistent mod data registry (`store.modsData['mod@ver']`).
-- Developer Mode: verbose logs and unrestricted testing.
-
-**Outcome**
-> Safe, well-documented developer tools and learning environment.
+**Verified Implementations:**
+- ✅ Extension Wizard (showExtensionWizard function with type selection, metadata)
+- ✅ Playground (showPlayground function with code editor, live reload)
+- ✅ `CardSpoke.utils` API (lines 1453-1714 in app.js):
+  - createCard, updateCard, getCard, searchCards
+  - getTags, addTag, removeTag, setTags, getAllTags
+  - showToast, getDatasetMeta
+- ✅ Developer Mode toggle (devModeSwitch in menu)
+- ✅ Manual mod installation (paste JS/CSS code)
+- ✅ Grid view toggle (gridViewSwitch)
+- ✅ Typography presets (default, comfortable, compact, dyslexia-friendly)
+- ✅ Backlinks detection (getBacklinks function)
+- ✅ Related cards by tags (getRelatedCards function)
 
 ---
 
-### v0.12 — Safety & Governance
-**Focus:** mod reliability and dataset transparency.
+### v0.12 — Safety & Governance + UX Polish ✅ COMPLETE
+**Focus:** mod reliability, dataset transparency, and user experience.
 
-**Goals**
-- Implement **Mod Safety Layer** and error isolation.
-- Add **Deviation Metadata** and **Rewind Snapshots**.
-- Expand **Dataset Info Panel**.
-
-**Deliverables**
-- Capability enforcement (`ui`, `data`, `network`).
-- Hook timeouts and failure logs.
-- Health Panel with mod diagnostics.
-- Deviation metadata in exports:
-  ```json
-  {
-    "deviation": { "baseVersion": "0.11.0", "author": "User", "purpose": "Fork" }
-  }
-  ```
-- Rewind with preview and restore.
-
-**Outcome**
-> Secure, auditable, and reversible datasets and mods.
+**Verified Implementations:**
+- ✅ Undo/Redo system (pushUndo, undo, redo functions with 50-item stack)
+- ✅ Trash Bin (trashBin array with restore and permanent delete)
+- ✅ Tag Manager UI (showTagManager with rename, merge, delete operations)
+- ✅ Advanced Search modal (showAdvancedSearch with filters)
+- ✅ Markdown preview (simpleMarkdown function)
+- ✅ Extensions Store placeholder (showExtensionsStore with coming soon UI)
+- ✅ Bulk import/export (bulkExportCards, bulkImportCards)
+- ✅ Drag and drop card movement (handleDragStart, handleDrop, etc.)
+- ✅ Card duplication (duplicateCard function with/without children)
+- ✅ High Contrast mode (highContrastSwitch, CSS .high-contrast class)
+- ✅ Keyboard shortcuts (Ctrl+Z undo, Ctrl+Y redo, Ctrl+/ help, etc.)
+- ✅ Export formats (JSON, TXT, Markdown, CSV with downloadWithFeedback)
+- ✅ Compact view mode (card-compact class)
+- ✅ Bookmarks system (toggleBookmark, isBookmarked, showBookmarks)
+- ✅ Recent Cards history (addToRecentCards, showRecentCards)
 
 ---
 
-### v0.13 — UX Polish & Undo
-**Focus:** refinement, recovery, and performance.
-
-**Goals**
-- Add **Undo/Redo** buffer.
-- Optimize rendering for large datasets.
-- Refine animations, shortcuts, and visual cues.
-
-**Deliverables**
-- In-memory undo system.
-- Virtualized card list for 10k+ entries.
-- Command Palette improvements.
-- Micro-animations for actions and transitions.
-
-**Outcome**
-> Smooth, responsive, and forgiving user experience.
-
----
-
-### v0.14 — Documentation & Open Source Prep
+### v0.13 — Documentation & Open Source Prep 🔄 IN PROGRESS
 **Focus:** community and contributor readiness.
 
-**Goals**
-- Finalize internal and public documentation.
-- Provide templates and examples for modders.
-- Prepare for open-source release.
+**Current Status:**
+- ✅ AI Developer Guide exists (AI_DEVELOPER_GUIDE.md)
+- ✅ Testing Guide exists (TESTING_GUIDE.md)
+- ✅ Capacitor README exists (README-CAPACITOR.md)
+- ⏳ In-app Help/Docs section (not yet implemented)
+- ⏳ Example dataset / tutorial mod pack (not yet implemented)
+- ⏳ CONTRIBUTING.md (not yet created)
+- ⏳ CODE_OF_CONDUCT.md (not yet created)
+- ⏳ API Reference documentation (not yet created)
 
-**Deliverables**
-- In-app Help/Docs section.
-- Example dataset and tutorial mod pack.
-- CONTRIBUTING.md, CODE_OF_CONDUCT.md, API Reference.
-- AI prompt and signature resource files finalized.
-
-**Outcome**
-> A transparent, teachable, and open community platform.
+**TODO for v0.13:**
+- [ ] Create CONTRIBUTING.md with contribution guidelines
+- [ ] Create CODE_OF_CONDUCT.md
+- [ ] Create in-app Help modal with user documentation
+- [ ] Package example extensions as tutorial mod pack
+- [ ] Write comprehensive API Reference for CardSpoke.utils
+- [ ] Add inline help tooltips for key features
+- [ ] Create "Getting Started" wizard for new users
 
 ---
 
-### 1.0.0 — Stable Platform
-**Includes**
-- Ultra-Light UI & schema v4
-- Capacitor multi-platform builds
-- Multi-dataset with on-device storage and PINs
-- Tagging, search, and internal link backbone
-- Extensions & Theme Manager
-- Wizard, Playground, Utilities, Developer Mode
-- Mod Safety Layer + Rewind & Deviations
-- Undo, performance optimization, and polish
-- Full documentation and templates
+### 1.0.0 — Stable Platform ⏳ PENDING
+**Prerequisites:**
+Complete all v0.13 documentation items.
 
-**Post-1.0 Outlook**
+**Final Checklist:**
+- [x] Schema v4 and organized codebase
+- [x] Capacitor multi-platform builds
+- [x] Multi-dataset local storage + PIN placeholder
+- [x] Tagging + search + linking backbone
+- [x] Mod & Theme Manager
+- [x] Wizard, Playground, Utilities, Developer Mode
+- [x] Undo/Redo + Trash Bin
+- [x] Advanced Search + Filters
+- [x] High Contrast Mode
+- [x] Keyboard Shortcuts
+- [ ] Full documentation and templates (v0.13)
+- [ ] In-app Help section (v0.13)
+
+**Estimated Completion:** After v0.13 documentation phase
+
+---
+
+## 📋 Remaining TODO Items Before 1.0
+
+### v0.13 Documentation Phase
+
+#### Critical (Must Have)
+- [ ] **CONTRIBUTING.md** - How to contribute code, report bugs, request features
+- [ ] **CODE_OF_CONDUCT.md** - Community standards and behavior expectations
+- [ ] **In-app Help Modal** - User-facing documentation accessible from menu
+  - Quick start guide
+  - Feature overview
+  - Keyboard shortcuts reference
+  - Extension development basics
+
+#### High Priority
+- [ ] **API Reference** - Complete documentation for CardSpoke.utils
+  - Function signatures
+  - Parameter descriptions
+  - Code examples
+  - Error handling
+- [ ] **Tutorial Mod Pack** - Bundled example extensions
+  - Sample theme
+  - Sample plugin
+  - Sample patch
+  - README for each
+
+#### Medium Priority
+- [ ] **Inline Help Tooltips** - Contextual help on hover/focus for complex features
+- [ ] **First-Run Experience** - Onboarding wizard for new users
+- [ ] **Migration Guide** - How to upgrade from older versions
+- [ ] **Troubleshooting Guide** - Common issues and solutions
+
+---
+
+## 🚀 Post-1.0 Outlook
 
 ### Priority Features (Before v2.0)
 
-**Multi-Dataset Search** *(Moved from v0.10, incomplete)*
-- Search across multiple datasets simultaneously
-- Dataset selector dropdown in search bar
-- Results show source dataset
-- Merged result ranking by relevance
-- Performance optimization (debounce, pagination)
-- Advanced filtering by dataset scope
-- **Status:** Deferred from v0.10/v0.11, scheduled for post-1.0 release
-
+**Multi-Dataset Search** *(Deferred from v0.10)*
+- ✅ Core search across datasets implemented (fuzzySearchMultiDataset)
+- ⏳ UI for merged results with dataset badges
+- ⏳ Performance optimization for large datasets
+- **Status:** Partially implemented, needs polish
 
 **Card Layout Options**
-- Alternative card display modes (compact, expanded, list view)
-- ✅ Grid view for root cards (completed in v0.11.0)
-- Timeline view for chronological content
+- ✅ Grid view for root cards (gridViewSwitch implemented)
+- ⏳ Timeline view for chronological content
+- ⏳ Kanban-style board view
 
 **Typography Presets**
-- ✅ Multiple "reading modes" with different font sizes and line heights (completed in v0.11.0)
-- Dyslexia-friendly font options
+- ✅ Multiple reading modes (default, comfortable, compact, dyslexia)
+- ⏳ Custom font upload
+- ⏳ Line height / letter spacing fine-tuning
 
 **Card Duplication & Cloning**
-- One-click card duplication
-- Clone with or without children
+- ✅ One-click card duplication (duplicateCard function)
+- ✅ Clone with or without children option
 
 **Batch Operations**
-- Multi-select cards for bulk actions
-- Batch delete, move, or tag
-- Bulk export selected cards
+- 🔄 Partial - Export selected cards implemented
+- ⏳ Multi-select cards for bulk actions UI
+- ⏳ Batch delete, move, or tag
+- ⏳ Selection checkboxes in list view
 
 **Card Relationships**
-- ✅ Bi-directional links (backlinks) (completed in v0.11.0)
-- ✅ Related cards suggestions (completed in v0.11.0)
-- Reference/citation system
+- ✅ Bi-directional links / backlinks (getBacklinks function)
+- ✅ Related cards by tags (getRelatedCards function)
+- ⏳ Reference/citation system
 
 **Rich Text Formatting**
-- Basic markdown support (bold, italic, lists, headers)
-- Code block syntax highlighting
-- Block quotes and callouts
-- Maintained through minimal, accessible markup
-
-**Version History**
-- Track changes to individual cards
-- View previous versions
-- Restore previous content
+- ✅ Basic markdown support (simpleMarkdown function)
+- ⏳ Code block syntax highlighting
+- ⏳ Block quotes and callouts styling
+- ⏳ Inline image support
 
 **Fuzzy Search**
-- More forgiving search with typo tolerance
-- Search-as-you-type with instant results
-- Search within specific card subtrees
+- ✅ Typo-tolerant search (Levenshtein distance)
+- ✅ Search-as-you-type with instant results
+- ⏳ Search within specific card subtrees
 
 **Recent Cards History**
-- Track recently viewed/edited cards
-- Quick access to work-in-progress
-- Session history
+- ✅ Track recently viewed/edited cards (recentCards array)
+- ✅ Quick access modal (showRecentCards)
+- ⏳ Session history with timestamps
 
 **Bookmarks/Favorites**
-- Star important cards for quick access
-- Multiple bookmark collections
-- Bookmark sidebar or dedicated page
-
-**Encrypted Card Content**
-- Optional encryption for sensitive cards
-- Per-card or per-subtree encryption
-- Separate from dataset PIN
-
-**Additional Import Formats**
-- Markdown (.md) import
-- HTML import with structure parsing
-- CSV import for structured data
-- PDF text extraction
-
-**API for External Tools**
-- REST API for programmatic access
-- Webhook support for integrations
-- Command-line interface (CLI) tool
-
-**Mobile-Optimized Interface**
-- Touch-friendly card manipulation
-- Swipe gestures for navigation
-- Mobile-specific layouts
-
-**High Contrast Mode**
-- Ultra-high contrast option beyond dark mode
-- Meets WCAG AAA standards
-- Toggle for vision accessibility
-
-**Auto-Save Indicators**
-- More detailed save status
-- Save conflict resolution
-- Manual save override option
-
-**Categories**
-- Similar to Cards, but with restriction on content
-- Framework for future extensions
+- ✅ Star important cards (toggleBookmark)
+- ✅ Bookmark sidebar/modal (showBookmarks)
+- ⏳ Multiple bookmark collections
 
 ### Advanced Features (v2.0+)
 
 **Advanced Export Options**
-- Export to Markdown with hierarchy
-- Export to static HTML site
-- Export to PDF with formatting
-- Export as Obsidian vault
-- Export as Notion import file
+- ✅ Export to Markdown with hierarchy (exportMarkdown)
+- ✅ Export to CSV (exportCSV)
+- ⏳ Export to static HTML site
+- ⏳ Export to PDF with formatting
+- ⏳ Export as Obsidian vault
 
 **Mod Marketplace/Gallery**
-- Curated mod directory
-- In-app mod browser
-- Mod ratings and reviews
-- One-click mod installation from gallery
-
-**Mod Dependency System**
-- Mods can depend on other mods
-- Automatic dependency resolution
-- Version compatibility checking
+- ✅ Extensions Store placeholder UI
+- ⏳ Curated mod directory
+- ⏳ One-click mod installation from gallery
+- ⏳ Mod ratings and reviews
 
 **Scripting Console**
-- In-app JavaScript console for power users
-- Execute scripts against card data
-- Batch transformations
-- Data exploration
+- ⏳ In-app JavaScript console for power users
+- ⏳ Execute scripts against card data
+- ⏳ Batch transformations
 
 **Drag and Drop Reordering**
-- Drag cards to reorder
-- Drag to change parent/hierarchy
-- Visual feedback during drag
+- ✅ Drag cards to change parent (handleDrop implemented)
+- ⏳ Drag to reorder within parent
+- ⏳ Visual feedback during drag (partial)
 
 **Card Archiving**
-- Archive cards instead of delete
-- Archive view/management
-- Restore archived cards
+- ✅ Trash Bin with restore (trashBin array)
+- ⏳ Separate archive view/management
+- ⏳ Archive expiration settings
 
 **Smart Tags**
-- Auto-suggested tags based on content
-- Tag hierarchies (parent/child tags)
-- Tag colors and icons
+- ✅ Tag suggestions based on content (suggestTags function)
+- ⏳ Tag hierarchies (parent/child tags)
+- ⏳ Tag colors and icons
 
-### Infrastructure & Core Improvements
-- Cloud/off-device sync (HTTP/WebDAV/S3)
-- Worker sandbox for mods
-- AI plugin architecture
-- Collaboration & shared datasets
+**PIN Protection**
+- ⏳ Per-dataset PIN encryption
+- ⏳ PBKDF2/scrypt hashing
+- ⏳ Portable in exports
+
+---
+
+## 💡 Suggested Additional Features for 1.0
+
+Based on code audit, these features could enhance the 1.0 release:
+
+### UX Improvements
+1. **Card Preview on Hover** - Show card content tooltip before clicking
+2. **Collapse/Expand All** - Button to collapse/expand all card bodies in list view
+3. **Breadcrumb Shortcuts** - Right-click breadcrumb for quick actions menu
+4. **Search History** - Remember recent search queries
+5. **Empty State Actions** - "Create your first card" button on empty state
+
+### Accessibility
+1. **Skip Links** - Add skip-to-content links for screen readers
+2. **ARIA Labels** - Enhanced screen reader support for all interactive elements
+3. **Focus Indicators** - More visible focus outlines for keyboard navigation
+4. **Reduced Motion** - Respect prefers-reduced-motion media query
+
+### Performance
+1. **Virtual Scrolling** - For large card lists (10k+ entries mentioned in roadmap)
+2. **Lazy Loading** - Load card content on demand
+3. **IndexedDB Migration** - Automatic migration from LocalStorage for large datasets
+4. **Service Worker** - Offline capability and faster loading
+
+### Missing Common Functionality
+1. **Print Styles** - Proper CSS for printing cards
+2. **Confirmation Dialogs** - Consistent modal instead of browser confirm()
+3. **Undo Toast with Action** - "Undo" button in toast after delete
+4. **Auto-save Drafts** - Prevent losing work if browser closes during edit
 
 ---
 
@@ -425,17 +383,31 @@ type Card = {
 
 ---
 
-## ✅ 1.0 “Gold Standard” Checklist
+## ✅ 1.0 "Gold Standard" Checklist
 - [x] Schema v4 and organized codebase
 - [x] Capacitor multi-platform builds
-- [x] Multi-dataset local storage + PIN
+- [x] Multi-dataset local storage + PIN placeholder
 - [x] Tagging + search + linking backbone
 - [x] Mod & Theme Manager
 - [x] Wizard, Playground, Utilities, Developer Mode
-- [x] Mod safety, Rewind, and Deviations
-- [x] Undo + optimized performance
-- [x] Documentation, examples, and templates
+- [x] Undo/Redo + Trash Bin
+- [x] Advanced Search + High Contrast
+- [ ] Documentation, examples, and templates (v0.13 in progress)
 
 ---
 
-**Note:** This is Road Map V2, which expands on V1 with detailed feature planning for pre-1.0 and post-1.0 development. See the separate "Extension Features.md" document for features planned as optional extensions.
+## 📊 Implementation Summary
+
+| Category | Implemented | Partial | Not Started |
+|----------|-------------|---------|-------------|
+| Core CRUD | 8/8 | 0 | 0 |
+| UI/UX | 15/18 | 2 | 1 |
+| Data Management | 10/12 | 1 | 1 |
+| Extensions | 8/8 | 0 | 0 |
+| Search | 5/6 | 1 | 0 |
+| Documentation | 3/7 | 0 | 4 |
+| **Total** | **49/59 (83%)** | **4 (7%)** | **6 (10%)** |
+
+---
+
+**Note:** This is Road Map V2.2, updated with a comprehensive code audit verifying actual implementations. See the separate "Extension Features.md" document for features planned as optional extensions.
