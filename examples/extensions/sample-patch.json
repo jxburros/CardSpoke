@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "name": "Timestamp Patch",
+    "type": "Patch",
+    "version": "1.0.0",
+    "creator": "CardSpoke Team",
+    "description": "Adds creation date display to cards. This sample demonstrates how to create a patch that enhances existing functionality."
+  },
+  "css": ".card-timestamp {\n  font-size: 0.7rem;\n  color: var(--text-secondary);\n  opacity: 0.7;\n  margin-top: 4px;\n}\n\n.card-timestamp::before {\n  content: '📅 Created: ';\n}",
+  "js": "(function() {\n  'use strict';\n  \n  const api = window.CardSpoke.utils;\n  \n  // Format date nicely\n  function formatDate(timestamp) {\n    if (!timestamp) return 'Unknown';\n    const date = new Date(timestamp);\n    return date.toLocaleDateString('en-US', {\n      year: 'numeric',\n      month: 'short',\n      day: 'numeric'\n    });\n  }\n  \n  // Add timestamps to cards\n  function addTimestamps() {\n    const cards = document.querySelectorAll('.card');\n    \n    cards.forEach(cardEl => {\n      // Skip if already has timestamp\n      if (cardEl.querySelector('.card-timestamp')) return;\n      \n      // Get card ID from data attribute or other means\n      const cardId = cardEl.dataset.cardId;\n      if (!cardId) return;\n      \n      const card = api.getCard(cardId);\n      if (!card || !card.meta) return;\n      \n      const timestamp = document.createElement('div');\n      timestamp.className = 'card-timestamp';\n      timestamp.textContent = formatDate(card.meta.createdAt || card.meta.updatedAt);\n      \n      const cardBody = cardEl.querySelector('.card-body');\n      if (cardBody) {\n        cardBody.appendChild(timestamp);\n      }\n    });\n  }\n  \n  // Observe for changes\n  const observer = new MutationObserver(() => {\n    setTimeout(addTimestamps, 100);\n  });\n  \n  observer.observe(document.body, { childList: true, subtree: true });\n  \n  // Initial run\n  addTimestamps();\n  \n  api.showToast('Timestamp Patch applied!', 'success');\n})();"
+}

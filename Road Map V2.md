@@ -153,18 +153,18 @@ Its long-term goal is to be:
 - ✅ AI Developer Guide exists (AI_DEVELOPER_GUIDE.md)
 - ✅ Testing Guide exists (TESTING_GUIDE.md)
 - ✅ Capacitor README exists (README-CAPACITOR.md)
-- ⏳ In-app Help/Docs section (not yet implemented)
-- ⏳ Example dataset / tutorial mod pack (not yet implemented)
-- ⏳ CONTRIBUTING.md (not yet created)
-- ⏳ CODE_OF_CONDUCT.md (not yet created)
-- ⏳ API Reference documentation (not yet created)
+- ✅ In-app Help/Docs section (v0.12.1)
+- ✅ Example extensions / tutorial mod pack (v0.12.1)
+- ✅ CONTRIBUTING.md (v0.12.1)
+- ✅ CODE_OF_CONDUCT.md (v0.12.1)
+- ✅ API Reference documentation (v0.12.1)
 
 **TODO for v0.13:**
-- [ ] Create CONTRIBUTING.md with contribution guidelines
-- [ ] Create CODE_OF_CONDUCT.md
-- [ ] Create in-app Help modal with user documentation
-- [ ] Package example extensions as tutorial mod pack
-- [ ] Write comprehensive API Reference for CardSpoke.utils
+- [x] Create CONTRIBUTING.md with contribution guidelines
+- [x] Create CODE_OF_CONDUCT.md
+- [x] Create in-app Help modal with user documentation
+- [x] Package example extensions as tutorial mod pack
+- [x] Write comprehensive API Reference for CardSpoke.utils
 - [ ] Add inline help tooltips for key features
 - [ ] Create "Getting Started" wizard for new users
 
@@ -186,7 +186,7 @@ Complete all v0.13 documentation items.
 - [x] High Contrast Mode
 - [x] Keyboard Shortcuts
 - [ ] Full documentation and templates (v0.13)
-- [ ] In-app Help section (v0.13)
+- [x] In-app Help section (v0.13)
 
 **Estimated Completion:** After v0.13 documentation phase
 
@@ -197,21 +197,21 @@ Complete all v0.13 documentation items.
 ### v0.13 Documentation Phase
 
 #### Critical (Must Have)
-- [ ] **CONTRIBUTING.md** - How to contribute code, report bugs, request features
-- [ ] **CODE_OF_CONDUCT.md** - Community standards and behavior expectations
-- [ ] **In-app Help Modal** - User-facing documentation accessible from menu
+- [x] **CONTRIBUTING.md** - How to contribute code, report bugs, request features
+- [x] **CODE_OF_CONDUCT.md** - Community standards and behavior expectations
+- [x] **In-app Help Modal** - User-facing documentation accessible from menu
   - Quick start guide
   - Feature overview
   - Keyboard shortcuts reference
   - Extension development basics
 
 #### High Priority
-- [ ] **API Reference** - Complete documentation for CardSpoke.utils
+- [x] **API Reference** - Complete documentation for CardSpoke.utils
   - Function signatures
   - Parameter descriptions
   - Code examples
   - Error handling
-- [ ] **Tutorial Mod Pack** - Bundled example extensions
+- [x] **Tutorial Mod Pack** - Bundled example extensions
   - Sample theme
   - Sample plugin
   - Sample patch
