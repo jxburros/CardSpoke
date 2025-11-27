@@ -403,10 +403,10 @@ The CardSpoke implementation demonstrates **excellent alignment** with the speci
 - [x] Wizard, Playground, Utilities, Developer Mode
 - [x] Undo/Redo + Trash Bin
 - [x] Advanced Search + High Contrast
-- [ ] README version sync
-- [ ] CONTRIBUTING.md
-- [ ] CODE_OF_CONDUCT.md
-- [ ] In-app Help section
+- [x] README version sync
+- [x] CONTRIBUTING.md
+- [x] CODE_OF_CONDUCT.md
+- [x] In-app Help section
 
 ---
 

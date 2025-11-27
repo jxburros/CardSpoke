@@ -2,8 +2,8 @@
 
 **Version:** 1.0  
 **Created for:** AI Programming Assistants  
-**Last Updated:** 2025-11-26  
-**Application Version:** 0.12.0
+**Last Updated:** 2025-11-27  
+**Application Version:** 0.12.1
 
 ---
 
@@ -1006,6 +1006,6 @@ For questions or clarifications, refer to the inline comments in `www/app.js` or
 ---
 
 **Document Version:** 1.0  
-**Last Updated:** 2025-11-26  
+**Last Updated:** 2025-11-27  
 **Maintained By:** jxburros  
 **Contributors:** Github Copilot

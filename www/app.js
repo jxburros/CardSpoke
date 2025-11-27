@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.12.0
+      // Version: 0.12.1
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.12.0'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-26'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot (Constructor)'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.12.1'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-11-27'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GitHub Copilot (Showrunner)'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -42,6 +42,7 @@
       // Version 0.11.3: Renamed CIB to CardSpoke for brand consistency, completed v0.11.X TODO items
       // Version 0.11.4: Bug fixes - storage type display, parent selection, playground cards, dataset naming, export feedback, UI issues
       // Version 0.12.0: Complete TODO list - Undo/Redo, Tag Management, Advanced Search, Markdown Preview, Extensions Store, Bulk Import/Export, Drag-and-Drop
+      // Version 0.12.1: Documentation update, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README sync for 1.0 release prep
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -89,7 +90,9 @@
         downloadMarkdown: document.getElementById('menuDownloadMarkdown'),
         downloadCSV: document.getElementById('menuDownloadCSV'),
         downloadMods: document.getElementById('menuDownloadMods'),
-        clearAll: document.getElementById('menuClearAll')
+        clearAll: document.getElementById('menuClearAll'),
+        help: document.getElementById('menuHelp'),
+        keyboardShortcuts: document.getElementById('menuKeyboardShortcuts')
       };
       
       const searchContainer = document.getElementById('searchContainer');
@@ -4979,6 +4982,16 @@ console.log('✓ All examples completed!');
         clearAllData();
       };
 
+      menu.help.onclick = () => {
+        menu.overlay.classList.remove('show');
+        showHelp();
+      };
+
+      menu.keyboardShortcuts.onclick = () => {
+        menu.overlay.classList.remove('show');
+        showKeyboardHelp();
+      };
+
       header.homeBtn.onclick = () => {
         goTo('list', { cardId: null });
       };
@@ -7329,6 +7342,104 @@ console.log('✓ All examples completed!');
         
         document.body.appendChild(modal);
       }
+
+      // =========================================================
+      // In-app Help Modal (v0.12.1)
+      // =========================================================
+      function showHelp() {
+        let helpModal = document.getElementById('inAppHelpModal');
+        
+        if (!helpModal) {
+          helpModal = h('div', { 
+            id: 'inAppHelpModal', 
+            className: 'menu-overlay',
+            onclick: (e) => { if (e.target === helpModal) helpModal.classList.remove('show'); }
+          },
+            h('div', { className: 'menu-panel', style: 'max-width: 600px; max-height: 80vh; overflow-y: auto;' },
+              h('div', { className: 'menu-header' },
+                h('div', { className: 'menu-title' }, 'Help & Documentation'),
+                h('button', { 
+                  className: 'menu-close',
+                  onclick: () => helpModal.classList.remove('show')
+                }, '✕')
+              ),
+              h('div', { style: 'padding: var(--space-md);' },
+                // Quick Start Section
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, '🚀 Quick Start'),
+                  h('p', { style: 'margin-bottom: var(--space-xs);' }, '1. Click "New Card" to create your first card'),
+                  h('p', { style: 'margin-bottom: var(--space-xs);' }, '2. Add content, tags, and child cards'),
+                  h('p', { style: 'margin-bottom: var(--space-xs);' }, '3. Use search to find cards quickly'),
+                  h('p', {}, '4. Organize with bookmarks and recent cards')
+                ),
+                
+                // Features Section
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, '✨ Key Features'),
+                  h('div', { style: 'display: grid; gap: var(--space-sm);' },
+                    h('div', {}, '📝 <strong>Cards</strong> — Hierarchical notes with parent-child relationships'),
+                    h('div', {}, '🏷️ <strong>Tags</strong> — Organize and filter cards with tags'),
+                    h('div', {}, '🔗 <strong>Links</strong> — Reference other cards with [[Card Name]]'),
+                    h('div', {}, '🔍 <strong>Search</strong> — Fuzzy search across all cards'),
+                    h('div', {}, '⭐ <strong>Bookmarks</strong> — Star important cards for quick access'),
+                    h('div', {}, '↩️ <strong>Undo/Redo</strong> — Ctrl+Z / Ctrl+Y for changes'),
+                    h('div', {}, '🗑️ <strong>Trash Bin</strong> — Recover deleted cards'),
+                    h('div', {}, '🧩 <strong>Extensions</strong> — Customize with themes and plugins')
+                  )
+                ),
+                
+                // Keyboard Shortcuts Section
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, '⌨️ Keyboard Shortcuts'),
+                  h('div', { style: 'display: grid; grid-template-columns: auto 1fr; gap: var(--space-xs) var(--space-md);' },
+                    h('kbd', { style: 'background: var(--bg-alt); padding: 2px 6px; border-radius: 4px;' }, 'Ctrl+N'),
+                    h('span', {}, 'New card'),
+                    h('kbd', { style: 'background: var(--bg-alt); padding: 2px 6px; border-radius: 4px;' }, 'Ctrl+F'),
+                    h('span', {}, 'Search'),
+                    h('kbd', { style: 'background: var(--bg-alt); padding: 2px 6px; border-radius: 4px;' }, 'Ctrl+Z'),
+                    h('span', {}, 'Undo'),
+                    h('kbd', { style: 'background: var(--bg-alt); padding: 2px 6px; border-radius: 4px;' }, 'Ctrl+Y'),
+                    h('span', {}, 'Redo'),
+                    h('kbd', { style: 'background: var(--bg-alt); padding: 2px 6px; border-radius: 4px;' }, 'Ctrl+/'),
+                    h('span', {}, 'All shortcuts')
+                  )
+                ),
+                
+                // Extensions Section
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, '🧩 Extensions'),
+                  h('p', { style: 'margin-bottom: var(--space-xs);' }, 'CardSpoke supports themes, plugins, and mods:'),
+                  h('ul', { style: 'margin-left: var(--space-md); margin-bottom: var(--space-sm);' },
+                    h('li', {}, 'Use the Extension Wizard to create custom extensions'),
+                    h('li', {}, 'Test code in the Playground'),
+                    h('li', {}, 'Access CardSpoke.utils API for card management')
+                  )
+                ),
+                
+                // Data & Privacy Section
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, '🔒 Data & Privacy'),
+                  h('p', {}, 'Your data is stored locally on your device. CardSpoke never sends your data to external servers. Export anytime to JSON, Markdown, or CSV.')
+                ),
+                
+                // Version Info
+                h('div', { style: 'padding-top: var(--space-md); border-top: 1px solid var(--border); text-align: center; color: var(--text-secondary);' },
+                  h('p', {}, `CardSpoke v${APP_VERSION}`),
+                  h('p', { style: 'font-size: var(--text-sm);' }, 
+                    h('a', { href: 'https://github.com/jxburros/CardSpoke', target: '_blank', style: 'color: var(--primary);' }, 'GitHub'),
+                    ' · ',
+                    h('a', { href: 'https://github.com/jxburros/CardSpoke/blob/main/README.md', target: '_blank', style: 'color: var(--primary);' }, 'Documentation')
+                  )
+                )
+              )
+            )
+          );
+          document.body.appendChild(helpModal);
+        }
+        
+        helpModal.classList.add('show');
+      }
+
       function showKeyboardHelp() {
         let helpModal = document.getElementById('keyboardHelpModal');
         

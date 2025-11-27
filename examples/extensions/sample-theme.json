@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "name": "Purple Night Theme",
+    "type": "Theme",
+    "version": "1.0.0",
+    "creator": "CardSpoke Team",
+    "description": "A dark purple theme with elegant styling. This sample demonstrates how to create CSS-only theme extensions."
+  },
+  "css": ":root {\n  --primary: #8b5cf6;\n  --primary-hover: #7c3aed;\n  --bg: #1e1b2e;\n  --bg-alt: #2d2640;\n  --text: #e2e0e9;\n  --text-secondary: #a8a3b3;\n  --border: #3d3556;\n  --card-bg: #252137;\n  --success: #34d399;\n  --warning: #fbbf24;\n  --error: #f87171;\n}\n\n.header {\n  background: linear-gradient(135deg, #2d2640 0%, #1e1b2e 100%);\n  border-bottom: 2px solid var(--primary);\n}\n\n.brand {\n  background: linear-gradient(135deg, #8b5cf6, #a78bfa);\n  -webkit-background-clip: text;\n  -webkit-text-fill-color: transparent;\n  background-clip: text;\n}\n\n.card {\n  border-left: 3px solid var(--primary);\n  transition: transform 0.2s, box-shadow 0.2s;\n}\n\n.card:hover {\n  transform: translateX(4px);\n  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);\n}",
+  "js": "// Theme loaded notification\nCardSpoke.utils.showToast('Purple Night Theme activated!', 'success');"
+}
