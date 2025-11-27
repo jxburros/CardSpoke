@@ -29,87 +29,120 @@
     </div>
   </header>
 
-    <div class="menu-overlay" id="menuOverlay">
+  <div class="menu-overlay" id="menuOverlay">
     <div class="menu-panel">
       <div class="menu-header">
         <div class="menu-title">Menu</div>
         <button class="menu-close" id="menuClose">✕</button>
       </div>
       
-      <!-- Cards Section -->
       <div class="menu-section">
-        <div class="menu-section-title">Cards</div>
-        <button class="menu-item" id="menuNewCard">+ New Card</button>
-        <button class="menu-item" id="menuBookmarks">★ Bookmarks</button>
-        <button class="menu-item" id="menuRecentCards">◷ Recent Cards</button>
-        <button class="menu-item" id="menuAdvancedSearch">🔍 Advanced Search</button>
-        <button class="menu-item" id="menuTagManager">🏷 Tag Manager</button>
-        <button class="menu-item" id="menuTrashBin">🗑 Trash Bin</button>
+        <div class="menu-section-title">Actions</div>
+        <button class="menu-item" id="menuNewCard">
+          New Card
+        </button>
+        <button class="menu-item" id="menuUpload">
+          Upload
+        </button>
+        <button class="menu-item" id="menuExtensions">
+          Extensions
+        </button>
+        <button class="menu-item" id="menuExtensionsStore">
+          Extensions Store
+        </button>
+        <button class="menu-item" id="menuExtensionWizard">
+          Extension Wizard
+        </button>
+        <button class="menu-item" id="menuPlayground">
+          Playground
+        </button>
+        <button class="menu-item" id="menuAppearance">
+          Appearance
+        </button>
       </div>
       
-      <!-- Extensions Section with Submenu -->
       <div class="menu-section">
-        <div class="menu-section-title">Extensions</div>
-        <button class="menu-item" id="menuExtensions">📦 Installed Extensions</button>
-        <button class="menu-item" id="menuExtensionsStore">🛒 Extensions Store</button>
-        <div class="menu-subsection">
-          <div class="menu-subsection-title">Developer Tools</div>
-          <button class="menu-item menu-item-indent" id="menuExtensionWizard">🧙 Extension Wizard</button>
-          <button class="menu-item menu-item-indent" id="menuPlayground">⚗ Playground</button>
-        </div>
+        <div class="menu-section-title">Navigate</div>
+        <button class="menu-item" id="menuBookmarks">
+          Bookmarks
+        </button>
+        <button class="menu-item" id="menuRecentCards">
+          Recent Cards
+        </button>
+        <button class="menu-item" id="menuAdvancedSearch">
+          Advanced Search
+        </button>
+        <button class="menu-item" id="menuTagManager">
+          Tag Manager
+        </button>
+        <button class="menu-item" id="menuTrashBin">
+          Trash Bin
+        </button>
       </div>
       
-      <!-- Data Section with Nested Export Options -->
       <div class="menu-section">
         <div class="menu-section-title">Data</div>
-        <button class="menu-item" id="menuInstance">📁 Dataset Manager</button>
-        <button class="menu-item" id="menuDatasetInfo">ℹ Dataset Info</button>
-        <button class="menu-item" id="menuUpload">📤 Import Data</button>
-        <div class="menu-subsection">
-          <div class="menu-subsection-title">Export</div>
-          <button class="menu-item menu-item-indent" id="menuDownloadJSON">JSON (Full Backup)</button>
-          <button class="menu-item menu-item-indent" id="menuDownloadMarkdown">Markdown</button>
-          <button class="menu-item menu-item-indent" id="menuDownloadTXT">Plain Text</button>
-          <button class="menu-item menu-item-indent" id="menuDownloadCSV">CSV</button>
-          <button class="menu-item menu-item-indent" id="menuDownloadMods">Extensions Only</button>
-        </div>
-        <button class="menu-item menu-item-danger" id="menuClearAll">⚠ Clear All Data</button>
+        <button class="menu-item" id="menuInstance">
+          Dataset Manager
+        </button>
+        <button class="menu-item" id="menuDatasetInfo">
+          Dataset Info
+        </button>
+        <button class="menu-item" id="menuDownloadJSON">
+          Download All Data (JSON)
+        </button>
+        <button class="menu-item" id="menuDownloadTXT">
+          Download All Cards (TXT)
+        </button>
+        <button class="menu-item" id="menuDownloadMods">
+          Download Mods (JSON)
+        </button>
+        <button class="menu-item" id="menuDownloadMarkdown">
+          Download Cards (Markdown)
+        </button>
+        <button class="menu-item" id="menuDownloadCSV">
+          Download Cards (CSV)
+        </button>
+        <button class="menu-item menu-item-danger" id="menuClearAll">
+          Clear All Data
+        </button>
       </div>
 
-      <!-- View Section -->
       <div class="menu-section">
         <div class="menu-section-title">View</div>
         <div class="menu-item-toggle">
-          <label for="themeSwitch" class="menu-item-label">🌙 Dark Mode</label>
+          <label for="themeSwitch" class="menu-item-label">Dark Mode</label>
           <label class="switch-toggle">
             <input type="checkbox" id="themeSwitch">
             <span class="switch-slider"></span>
           </label>
         </div>
         <div class="menu-item-toggle">
-          <label for="viewModeSwitch" class="menu-item-label">📋 Compact View</label>
+          <label for="viewModeSwitch" class="menu-item-label">Compact View</label>
           <label class="switch-toggle">
             <input type="checkbox" id="viewModeSwitch">
             <span class="switch-slider"></span>
           </label>
         </div>
         <div class="menu-item-toggle">
-          <label for="gridViewSwitch" class="menu-item-label">⊞ Grid View</label>
+          <label for="gridViewSwitch" class="menu-item-label">Grid View</label>
           <label class="switch-toggle">
             <input type="checkbox" id="gridViewSwitch">
             <span class="switch-slider"></span>
           </label>
         </div>
-        <button class="menu-item" id="menuTypography">Aa Typography</button>
+        <div class="menu-item">
+          <button id="menuTypography" class="menu-btn">Typography</button>
+        </div>
         <div class="menu-item-toggle">
-          <label for="highContrastSwitch" class="menu-item-label">◐ High Contrast</label>
+          <label for="highContrastSwitch" class="menu-item-label">High Contrast</label>
           <label class="switch-toggle">
             <input type="checkbox" id="highContrastSwitch">
             <span class="switch-slider"></span>
           </label>
         </div>
         <div class="menu-item-toggle">
-          <label for="devModeSwitch" class="menu-item-label">🔧 Developer Mode</label>
+          <label for="devModeSwitch" class="menu-item-label">Developer Mode</label>
           <label class="switch-toggle">
             <input type="checkbox" id="devModeSwitch">
             <span class="switch-slider"></span>
@@ -117,15 +150,17 @@
         </div>
       </div>
 
-      <!-- Help Section -->
       <div class="menu-section">
         <div class="menu-section-title">Help</div>
-        <button class="menu-item" id="menuHelp">📖 Help & Documentation</button>
-        <button class="menu-item" id="menuKeyboardShortcuts">⌨ Keyboard Shortcuts</button>
+        <button class="menu-item" id="menuHelp">
+          Help & Documentation
+        </button>
+        <button class="menu-item" id="menuKeyboardShortcuts">
+          Keyboard Shortcuts
+        </button>
       </div>
     </div>
   </div>
-
   </div>
 
   <div class="container">

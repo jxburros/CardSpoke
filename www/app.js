@@ -2729,7 +2729,7 @@
           // Show AI assistants if specified (v0.12.2)
           if (meta.ai_assistants) {
             modItem.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); font-style: italic;' }, 
-              '🤖 AI: ' + meta.ai_assistants));
+              'AI: ' + meta.ai_assistants));
           }
           
           const deleteBtn = h('button', {
@@ -2786,12 +2786,12 @@
         }, 'Step 1: Choose Extension Type'));
         
         const types = [
-          { value: 'theme', label: 'Theme', desc: 'Custom CSS styling for CardSpoke UI', icon: '🎨' },
-          { value: 'patch', label: 'Patch', desc: 'Small modifications or enhancements', icon: '🩹' },
-          { value: 'plugin', label: 'Plugin', desc: 'Add new functionality with JavaScript hooks', icon: '🔌' },
-          { value: 'mod', label: 'Mod', desc: 'Comprehensive modifications (CSS + JS)', icon: '⚙️' },
-          { value: 'kit', label: 'Kit', desc: 'Bundle of related extensions (themes + plugins)', icon: '📦' },
-          { value: 'expansion', label: 'Expansion', desc: 'Major feature additions and overhauls', icon: '🚀' }
+          { value: 'theme', label: 'Theme', desc: 'Custom CSS styling for CardSpoke UI', icon: '' },
+          { value: 'patch', label: 'Patch', desc: 'Small modifications or enhancements', icon: '' },
+          { value: 'plugin', label: 'Plugin', desc: 'Add new functionality with JavaScript hooks', icon: '' },
+          { value: 'mod', label: 'Mod', desc: 'Comprehensive modifications (CSS + JS)', icon: '' },
+          { value: 'kit', label: 'Kit', desc: 'Bundle of related extensions (themes + plugins)', icon: '' },
+          { value: 'expansion', label: 'Expansion', desc: 'Major feature additions and overhauls', icon: '' }
         ];
         
         let selectedType = 'plugin';
