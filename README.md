@@ -1,16 +1,64 @@
 # CardSpoke
 
-**Version:** 0.11.3  
+**Version:** 0.12.1  
 **Creator:** [jxburros](https://github.com/jxburros)
 
 > A lightweight, extensible, multi-platform knowledge base framework
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.11.3
+## 🌟 Current Version: 0.12.1
 
 The v0.11 release series introduces the **Developer Ecosystem** with comprehensive tools for extension development, building upon the knowledge graph features from v0.11.0.
 
+
+The v0.12 release series completes the **Safety & Governance** phase with comprehensive undo/redo, tag management, and advanced search features, preparing CardSpoke for the 1.0 stable release.
+
+### What's New in 0.12.1
+
+**Documentation & Open Source Readiness**
+- **CONTRIBUTING.md**: Comprehensive contribution guidelines for developers
+- **CODE_OF_CONDUCT.md**: Community standards for a welcoming environment
+- **README Updates**: Synchronized version numbers and feature documentation
+- **Pre-1.0 Preparation**: Final documentation polish for stable release
+
+### What's New in 0.12.0
+
+**Undo/Redo System**
+- Full undo/redo with `Ctrl+Z` / `Ctrl+Y` keyboard shortcuts
+- 50-item undo stack for extensive change tracking
+- Trash Bin for recovering deleted cards
+- Undo support for card creation, updates, parent changes, and tag modifications
+
+**Tag Management**
+- **Tag Manager Modal**: View, rename, merge, and delete tags
+- Rename tags across all cards at once
+- Merge multiple tags into one
+- Delete unused tags to keep your workspace clean
+
+**Advanced Search**
+- **Advanced Search Modal**: Filter by tag, bookmarks, and date
+- Search within specific date ranges
+- Filter to show only bookmarked cards
+- Combine multiple filters for precise results
+
+**Drag-and-Drop**
+- Drag cards to change their parent
+- Visual indicators during drag (opacity, border highlight)
+- Prevents dropping onto descendant cards
+- Intuitive card reorganization
+
+**Additional Features**
+- **Markdown Preview**: Basic markdown rendering (headers, bold, italic, code, lists)
+- **Extensions Store Placeholder**: UI preview of upcoming marketplace
+- **Bulk Import/Export**: Functions for batch card operations
+- **High Contrast Mode**: Improved accessibility with WCAG AAA compliant theme
+- **Enhanced Keyboard Shortcuts**: Extended shortcut system
+
+**Testing**
+- 177 comprehensive tests (up from 160 in v0.11.3)
+- New test suites for undo/redo, tag management, and menu handlers
+- 100% test pass rate
 
 ### What's New in 0.11.3
 
@@ -483,13 +531,12 @@ The testing branch is automatically synced with main and contains only essential
 CardSpoke is actively developed with a clear path to version 1.0. Current focus areas:
 
 - ✅ **v0.7**: Foundation Overhaul - UI redesign, Schema v4
-- ✅ **v0.8**: Capacitor Migration & Navigator Suite - Cross-platform support, responsive design
-- 🚧 **v0.9**: Dataset Architecture - Multi-dataset support, local storage (Current)
-- 📅 **v0.10**: Extensions Framework - Mod/Theme Manager, tagging, search
-- 📅 **v0.11**: Developer Ecosystem - Wizard, Playground, utilities
-- 📅 **v0.12**: Safety & Governance - Mod safety, Rewind, Deviations
-- 📅 **v0.13**: UX Polish & Undo - Optimization, visual polish
-- 📅 **v0.14**: Documentation & Open Source Prep
+- ✅ **v0.8**: Capacitor Migration - Cross-platform support, Navigator Suite
+- ✅ **v0.9**: Dataset Architecture - Multi-dataset support, local storage
+- ✅ **v0.10**: Extensions Framework - Mod/Theme Manager, tagging, search
+- ✅ **v0.11**: Developer Ecosystem - Wizard, Playground, CardSpoke.utils API
+- ✅ **v0.12**: Safety & Governance - Undo/Redo, Tag Management, Advanced Search
+- 🚧 **v0.13**: Documentation & Open Source Prep (Current)
 - 🎯 **v1.0**: Stable Platform Release
 
 See the [Road Map V2.md](Road%20Map%20V2.md) for complete version details and feature planning.

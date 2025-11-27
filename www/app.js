@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.12.0
+      // Version: 0.12.1
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.12.0'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-26'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot (Constructor)'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.12.1'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-11-27'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GitHub Copilot (Showrunner)'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -42,6 +42,7 @@
       // Version 0.11.3: Renamed CIB to CardSpoke for brand consistency, completed v0.11.X TODO items
       // Version 0.11.4: Bug fixes - storage type display, parent selection, playground cards, dataset naming, export feedback, UI issues
       // Version 0.12.0: Complete TODO list - Undo/Redo, Tag Management, Advanced Search, Markdown Preview, Extensions Store, Bulk Import/Export, Drag-and-Drop
+      // Version 0.12.1: Documentation update, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README sync for 1.0 release prep
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
