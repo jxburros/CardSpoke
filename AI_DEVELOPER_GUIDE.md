@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Created for:** AI Programming Assistants  
 **Last Updated:** 2025-11-27  
-**Application Version:** 0.12.1
+**Application Version:** 0.12.2
 
 ---
 

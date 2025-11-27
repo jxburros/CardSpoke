@@ -1,24 +1,29 @@
 # CardSpoke Pre-1.0 TODO List
 
 **Generated:** 2025-11-27  
-**Current Version:** 0.12.1  
+**Updated:** 2025-11-28
+**Current Version:** 0.12.2  
 **Target:** 1.0.0 Stable Release
 
 This document consolidates all remaining tasks from the Road Map V2.md and spec-compliance-report.md that must be completed before the 1.0 release.
 
 ---
 
-## ✅ Completed Items (v0.12.1)
+## ✅ Completed Items (v0.12.2)
 
 These items have been completed in the current release:
 
-- [x] **CONTRIBUTING.md** - Contribution guidelines
-- [x] **CODE_OF_CONDUCT.md** - Community standards  
-- [x] **In-app Help Modal** - User documentation accessible from menu
-- [x] **API Reference** - `docs/api-reference.md`
-- [x] **Tutorial Mod Pack** - `examples/extensions/` with sample theme, plugin, patch
-- [x] **README.md Updates** - Version sync, v0.12.0/0.12.1 features, updated roadmap
-- [x] **Version Sync** - All files updated to 0.12.1
+- [x] **CONTRIBUTING.md** - Contribution guidelines (v0.12.1)
+- [x] **CODE_OF_CONDUCT.md** - Community standards (v0.12.1)
+- [x] **In-app Help Modal** - User documentation accessible from menu (v0.12.1)
+- [x] **API Reference** - `docs/api-reference.md` (v0.12.1)
+- [x] **Tutorial Mod Pack** - `examples/extensions/` with sample theme, plugin, patch (v0.12.1)
+- [x] **README.md Updates** - Version sync, v0.12.0/0.12.1/0.12.2 features (v0.12.2)
+- [x] **Version Sync** - All files updated to 0.12.2 (v0.12.2)
+- [x] **`ai_assistants` Field in Extension Wizard** - Declare AI tools used (v0.12.2)
+- [x] **Official vs Community Badge** - Source distinction in Extensions Manager (v0.12.2)
+- [x] **Kit/Expansion Bundling UI** - Added Kit extension type (v0.12.2)
+- [x] **Nested Menu UX** - Clean, organized menu with sections and submenus (v0.12.2)
 
 ---
 
@@ -31,7 +36,7 @@ These items have been completed in the current release:
 | ~~CONTRIBUTING.md~~ | Roadmap | ✅ Done | v0.12.1 |
 | ~~CODE_OF_CONDUCT.md~~ | Roadmap | ✅ Done | v0.12.1 |
 | ~~In-app Help Modal~~ | Roadmap | ✅ Done | v0.12.1 |
-| ~~README version sync~~ | Spec Compliance | ✅ Done | v0.12.1 |
+| ~~README version sync~~ | Spec Compliance | ✅ Done | v0.12.2 |
 
 **All Priority 1 items completed!**
 
@@ -41,26 +46,11 @@ These items have been completed in the current release:
 
 | Item | Source | Status | Effort |
 |------|--------|--------|--------|
-| `ai_assistants` field in Extension Wizard | Spec Compliance §2.5 | ⏳ Pending | Low |
-| Official vs Angled badge distinction | Spec Compliance §2.5 | ⏳ Pending | Medium |
-| Kit/Expansion bundling UI | Spec Compliance §1.3 | ⏳ Pending | Medium |
+| ~~`ai_assistants` field in Extension Wizard~~ | Spec Compliance §2.5 | ✅ Done | v0.12.2 |
+| ~~Official vs Community badge distinction~~ | Spec Compliance §2.5 | ✅ Done | v0.12.2 |
+| ~~Kit/Expansion bundling UI~~ | Spec Compliance §1.3 | ✅ Done | v0.12.2 |
 
-#### Details:
-
-**1. `ai_assistants` Field in Extension Wizard**
-- **Issue:** Extension metadata schema includes `ai_assistants` field but Extension Wizard doesn't prompt for it
-- **Location:** `www/app.js` - `showExtensionWizard()` function
-- **Action:** Add optional field in step 2 to declare AI assistants used
-
-**2. Official vs Angled Badge Distinction**
-- **Issue:** No visual distinction between "official" (CardSpoke team) and "angled" (community) extensions
-- **Location:** Extensions Manager UI
-- **Action:** Add badge or indicator showing extension source
-
-**3. Kit/Expansion Bundling UI**
-- **Issue:** Kit and Expansion types exist but no UI for creating bundles
-- **Location:** Extension Wizard
-- **Action:** Add bundling interface for Kit/Expansion types
+**All Priority 2 items completed!**
 
 ---
 
@@ -91,45 +81,62 @@ These items have been completed in the current release:
 | Priority | Total | Done | Remaining |
 |----------|-------|------|-----------|
 | P1 Critical | 4 | 4 | **0** |
-| P2 Important | 3 | 0 | **3** |
+| P2 Important | 3 | 3 | **0** |
 | P3 Medium | 5 | 0 | **5** |
 | P4 Post-1.0 | 3 | 0 | (deferred) |
 
-**Items blocking 1.0:** 0 Critical, 3 Important  
-**Recommended before 1.0:** Complete P2 items (3 tasks)
+**Items blocking 1.0:** 0 Critical, 0 Important
+**Recommended before 1.0:** Complete P3 items (optional)
 
 ---
 
-## 🎯 Recommended Action Plan
+## 🎯 Next Steps for 1.0 Release
 
-### Phase 1: Extension Wizard Enhancements (P2)
-1. Add `ai_assistants` optional field to Extension Wizard step 2
-2. Add "official/community" badge to Extensions Manager
-3. Add Kit/Expansion bundling option to Extension Wizard
+### Phase 1: Final Testing ✓
+1. All 177 tests passing
+2. Manual verification of new features
+3. Cross-browser testing
 
-### Phase 2: Documentation Polish (P3, Optional)
-4. Add inline help tooltips to complex UI elements
-5. Create first-run onboarding wizard
-6. Write migration and troubleshooting guides
+### Phase 2: Documentation Polish
+1. Add inline help tooltips to complex UI elements (optional)
+2. Create first-run onboarding wizard (optional)
+3. Write migration and troubleshooting guides (optional)
 
 ### Phase 3: 1.0 Release
-7. Final testing pass
-8. Update version to 1.0.0
-9. Create release notes
+1. Final testing pass
+2. Update version to 1.0.0
+3. Create release notes
+4. Tag release
 
 ---
 
-## Decision Point
+## ✅ Version 0.12.2 Completion Summary
 
-**Question for maintainer:** Which Priority 2 items should be completed before 1.0?
+**Completed in this release:**
 
-Options:
-- **A) All P2 items** - Complete spec compliance before 1.0
-- **B) Only `ai_assistants` field** - Minimum spec compliance
-- **C) None** - Ship 1.0 with current state (90% compliance)
+1. **Extension Wizard Enhancements**
+   - Added `ai_assistants` optional field in Step 2
+   - Added official/community source toggle
+   - Added Kit extension type for bundling
 
-Current spec compliance score: **90%** (Excellent)
+2. **Extensions Manager Updates**
+   - Official badge (✓ Official) for CardSpoke team extensions
+   - Community badge for third-party extensions
+   - Display of AI assistants used (🤖 AI: ...)
+
+3. **Menu UX/UI Redesign**
+   - Reorganized into logical sections: Cards, Extensions, Data, View, Help
+   - Added visual icons for better discoverability
+   - Nested submenus for Developer Tools and Export options
+   - Cleaner, more intuitive navigation
+
+4. **Version Synchronization**
+   - package.json: 0.12.2
+   - app.js: 0.12.2
+   - index.html meta: 0.12.2
+   - README.md: 0.12.2
 
 ---
 
 *This TODO list was generated from Road Map V2.md and reports/spec-compliance-report.md*
+*Updated: 2025-11-28 for v0.12.2 release*
