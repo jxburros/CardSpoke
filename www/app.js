@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.12.1
+      // Version: 0.12.2
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,8 +25,8 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.12.1'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-27'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.12.2'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-11-28'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'GitHub Copilot (Showrunner)'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
@@ -43,6 +43,7 @@
       // Version 0.11.4: Bug fixes - storage type display, parent selection, playground cards, dataset naming, export feedback, UI issues
       // Version 0.12.0: Complete TODO list - Undo/Redo, Tag Management, Advanced Search, Markdown Preview, Extensions Store, Bulk Import/Export, Drag-and-Drop
       // Version 0.12.1: Documentation update, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README sync for 1.0 release prep
+      // Version 0.12.2: Pre-1.0 TODO items - Extension Wizard ai_assistants field, official/community badges, nested menu UX
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -2692,6 +2693,13 @@
             const badge = h('span', { className: badgeClass }, meta.type);
             headerLeft.appendChild(badge);
           }
+          // Add official/community source badge (v0.12.2)
+          if (meta.source) {
+            const sourceBadge = h('span', { 
+              className: 'ext-badge ext-badge-' + (meta.source === 'official' ? 'official' : 'community')
+            }, meta.source === 'official' ? '✓ Official' : 'Community');
+            headerLeft.appendChild(sourceBadge);
+          }
           modHeader.appendChild(headerLeft);
           const toggleBtn = h('button', {
             className: modData.enabled ? 'btn btn-danger' : 'btn btn-primary',
@@ -2717,6 +2725,11 @@
           }
           if (meta.description) {
             modItem.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); margin-top: var(--space-sm);' }, meta.description));
+          }
+          // Show AI assistants if specified (v0.12.2)
+          if (meta.ai_assistants) {
+            modItem.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); font-style: italic;' }, 
+              '🤖 AI: ' + meta.ai_assistants));
           }
           
           const deleteBtn = h('button', {
@@ -2773,11 +2786,12 @@
         }, 'Step 1: Choose Extension Type'));
         
         const types = [
-          { value: 'theme', label: 'Theme', desc: 'Custom CSS styling for CardSpoke UI', icon: '' },
-          { value: 'patch', label: 'Patch', desc: 'Small modifications or enhancements', icon: '' },
-          { value: 'plugin', label: 'Plugin', desc: 'Add new functionality with JavaScript hooks', icon: '' },
-          { value: 'mod', label: 'Mod', desc: 'Comprehensive modifications (CSS + JS)', icon: '' },
-          { value: 'expansion', label: 'Expansion', desc: 'Major feature additions and overhauls', icon: '' }
+          { value: 'theme', label: 'Theme', desc: 'Custom CSS styling for CardSpoke UI', icon: '🎨' },
+          { value: 'patch', label: 'Patch', desc: 'Small modifications or enhancements', icon: '🩹' },
+          { value: 'plugin', label: 'Plugin', desc: 'Add new functionality with JavaScript hooks', icon: '🔌' },
+          { value: 'mod', label: 'Mod', desc: 'Comprehensive modifications (CSS + JS)', icon: '⚙️' },
+          { value: 'kit', label: 'Kit', desc: 'Bundle of related extensions (themes + plugins)', icon: '📦' },
+          { value: 'expansion', label: 'Expansion', desc: 'Major feature additions and overhauls', icon: '🚀' }
         ];
         
         let selectedType = 'plugin';
@@ -2908,6 +2922,40 @@
         descGroup.appendChild(descInput);
         form.appendChild(descGroup);
         
+        // AI Assistants Field (v0.12.2 - Spec Compliance §2.5)
+        const aiGroup = h('div', {});
+        aiGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'AI Assistants Used (Optional)'));
+        aiGroup.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-xs);' }, 
+          'List any AI tools used to create this extension (e.g., "GitHub Copilot, ChatGPT")'));
+        const aiInput = h('input', {
+          type: 'text',
+          placeholder: 'e.g., GitHub Copilot, ChatGPT',
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 1rem;
+          `
+        });
+        aiGroup.appendChild(aiInput);
+        form.appendChild(aiGroup);
+        
+        // Official/Community Toggle (v0.12.2 - Spec Compliance §2.5)
+        const sourceGroup = h('div', { style: 'margin-top: var(--space-md);' });
+        const sourceLabel = h('label', { 
+          style: 'display: flex; align-items: center; gap: var(--space-sm); cursor: pointer;'
+        });
+        const sourceCheck = h('input', { type: 'checkbox' });
+        sourceLabel.appendChild(sourceCheck);
+        sourceLabel.appendChild(document.createTextNode('This is an official CardSpoke extension'));
+        sourceGroup.appendChild(sourceLabel);
+        sourceGroup.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-left: 24px;' }, 
+          'Check if this extension is from the CardSpoke team (leave unchecked for community extensions)'));
+        form.appendChild(sourceGroup);
+        
         metaSection.appendChild(form);
         modalBody.appendChild(metaSection);
         
@@ -2926,6 +2974,8 @@
             const id = idInput.value.trim();
             const creator = creatorInput.value.trim() || 'Anonymous';
             const description = descInput.value.trim();
+            const aiAssistants = aiInput.value.trim();
+            const isOfficial = sourceCheck.checked;
             
             if (!name) {
               showToast('Please enter an extension name', 'error');
@@ -2944,7 +2994,7 @@
               return;
             }
             
-            generateExtensionTemplate(id, name, creator, description, selectedType, overlay);
+            generateExtensionTemplate(id, name, creator, description, selectedType, overlay, aiAssistants, isOfficial);
           }
         }, 'Generate Extension');
         
@@ -2960,7 +3010,7 @@
       /**
        * Generate extension template code
        */
-      function generateExtensionTemplate(id, name, creator, description, type, wizardOverlay) {
+      function generateExtensionTemplate(id, name, creator, description, type, wizardOverlay, aiAssistants = '', isOfficial = false) {
         const today = new Date().toISOString().split('T')[0];
         
         // Generate JavaScript template based on type
@@ -2983,7 +3033,9 @@
       creator: '${creator}',
       version: '1.0.0',
       releaseDate: '${today}',
-      description: '${description || 'A custom theme for CardSpoke'}'
+      description: '${description || 'A custom theme for CardSpoke'}',
+      source: '${isOfficial ? 'official' : 'community'}',
+      ai_assistants: '${aiAssistants || ''}'
     },
     onAppInit(ctx) {
       console.log('[${id}] Theme loaded');
@@ -3004,7 +3056,9 @@
       creator: '${creator}',
       version: '1.0.0',
       releaseDate: '${today}',
-      description: '${description || 'A small enhancement to CardSpoke'}'
+      description: '${description || 'A small enhancement to CardSpoke'}',
+      source: '${isOfficial ? 'official' : 'community'}',
+      ai_assistants: '${aiAssistants || ''}'
     },
     onAppInit(ctx) {
       console.log('[${id}] Patch loaded');
@@ -3031,7 +3085,9 @@
       creator: '${creator}',
       version: '1.0.0',
       releaseDate: '${today}',
-      description: '${description || 'A custom extension for CardSpoke'}'
+      description: '${description || 'A custom extension for CardSpoke'}',
+      source: '${isOfficial ? 'official' : 'community'}',
+      ai_assistants: '${aiAssistants || ''}'
     },
     onAppInit(ctx) {
       console.log('[${id}] Extension loaded');
@@ -3140,7 +3196,9 @@
                 creator,
                 version: '1.0.0',
                 releaseDate: today,
-                description: description || `A custom ${type} for CardSpoke`
+                description: description || `A custom ${type} for CardSpoke`,
+                source: isOfficial ? 'official' : 'community',
+                ai_assistants: aiAssistants || ''
               },
               js: jsTemplate,
               css: cssTemplate,
@@ -3169,7 +3227,9 @@
                 creator,
                 version: '1.0.0',
                 releaseDate: today,
-                description: description || `A custom ${type} for CardSpoke`
+                description: description || `A custom ${type} for CardSpoke`,
+                source: isOfficial ? 'official' : 'community',
+                ai_assistants: aiAssistants || ''
               },
               js: jsTemplate,
               css: cssTemplate,

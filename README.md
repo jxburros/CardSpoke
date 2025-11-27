@@ -1,18 +1,32 @@
 # CardSpoke
 
-**Version:** 0.12.1  
+**Version:** 0.12.2  
 **Creator:** [jxburros](https://github.com/jxburros)
 
 > A lightweight, extensible, multi-platform knowledge base framework
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.12.1
+## 🌟 Current Version: 0.12.2
 
 The v0.11 release series introduces the **Developer Ecosystem** with comprehensive tools for extension development, building upon the knowledge graph features from v0.11.0.
 
 
 The v0.12 release series completes the **Safety & Governance** phase with comprehensive undo/redo, tag management, and advanced search features, preparing CardSpoke for the 1.0 stable release.
+
+### What's New in 0.12.2
+
+**Pre-1.0 Completion Items**
+- **Extension Wizard Enhancements**:
+  - Added `ai_assistants` field to declare AI tools used in extension creation
+  - Added official/community source toggle for extension classification
+  - Added Kit extension type for bundling multiple extensions
+- **Extensions Manager**: Official vs Community badges to distinguish extension sources
+- **Redesigned Menu**: Clean, nested menu structure with visual hierarchy
+  - Cards, Extensions, Data, View, and Help sections
+  - Nested submenus for Developer Tools and Export options
+  - Consistent icons and improved discoverability
+- **Documentation**: Updated all version references to 0.12.2
 
 ### What's New in 0.12.1
 
