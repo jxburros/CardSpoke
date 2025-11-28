@@ -1054,13 +1054,11 @@
     }
     
     .backlinks-section .section-title::before {
-      content: "🔗 ";
-      opacity: 0.7;
+      content: "";
     }
     
     .related-section .section-title::before {
-      content: "🔗 ";
-      opacity: 0.7;
+      content: "";
     }
     
     /* =============================================================
