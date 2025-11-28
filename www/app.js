@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.12.2
+      // Version: 0.12.3
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.12.2'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.12.3'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-28'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot (Showrunner)'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -44,6 +44,7 @@
       // Version 0.12.0: Complete TODO list - Undo/Redo, Tag Management, Advanced Search, Markdown Preview, Extensions Store, Bulk Import/Export, Drag-and-Drop
       // Version 0.12.1: Documentation update, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README sync for 1.0 release prep
       // Version 0.12.2: Pre-1.0 TODO items - Extension Wizard ai_assistants field, official/community badges, nested menu UX
+      // Version 0.12.3: TODO list - Clickable brand logo, accessibility improvements, CIB renamed to CardSpoke, scalable fonts
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -66,7 +67,8 @@
       const header = {
         homeBtn: document.getElementById('homeBtn'),
         themeToggle: document.getElementById('themeToggle'),
-        menuBtn: document.getElementById('menuBtn')
+        menuBtn: document.getElementById('menuBtn'),
+        brandBtn: document.getElementById('brandBtn')
       };
       
       const menu = {
@@ -74,23 +76,15 @@
         closeBtn: document.getElementById('menuClose'),
         newCard: document.getElementById('menuNewCard'),
         upload: document.getElementById('menuUpload'),
-        extensions: document.getElementById('menuExtensions'),
-        extensionsStore: document.getElementById('menuExtensionsStore'),
+        extensionsHub: document.getElementById('menuExtensionsHub'),
+        appearance: document.getElementById('menuAppearance'),
         tagManager: document.getElementById('menuTagManager'),
         advancedSearch: document.getElementById('menuAdvancedSearch'),
         trashBin: document.getElementById('menuTrashBin'),
-        extensionWizard: document.getElementById('menuExtensionWizard'),
-        playground: document.getElementById('menuPlayground'),
         bookmarks: document.getElementById('menuBookmarks'),
         typography: document.getElementById('menuTypography'),
         recentCards: document.getElementById('menuRecentCards'),
-        instance: document.getElementById('menuInstance'),
-        datasetInfo: document.getElementById('menuDatasetInfo'),
-        downloadJSON: document.getElementById('menuDownloadJSON'),
-        downloadTXT: document.getElementById('menuDownloadTXT'),
-        downloadMarkdown: document.getElementById('menuDownloadMarkdown'),
-        downloadCSV: document.getElementById('menuDownloadCSV'),
-        downloadMods: document.getElementById('menuDownloadMods'),
+        dataHub: document.getElementById('menuDataHub'),
         clearAll: document.getElementById('menuClearAll'),
         help: document.getElementById('menuHelp'),
         keyboardShortcuts: document.getElementById('menuKeyboardShortcuts')
@@ -267,6 +261,51 @@
         
         scheduleRemoval();
       }
+
+      /**
+       * Focus trapping for accessibility (v0.12.3)
+       * Traps focus within a modal element
+       * @param {HTMLElement} modal - Modal element to trap focus in
+       * @returns {Function} Cleanup function to remove trap
+       */
+      function trapFocus(modal) {
+        const focusableElements = modal.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstFocusable = focusableElements[0];
+        const lastFocusable = focusableElements[focusableElements.length - 1];
+        
+        const handleKeyDown = (e) => {
+          if (e.key !== 'Tab') return;
+          
+          if (e.shiftKey) {
+            // Shift + Tab
+            if (document.activeElement === firstFocusable) {
+              e.preventDefault();
+              lastFocusable.focus();
+            }
+          } else {
+            // Tab
+            if (document.activeElement === lastFocusable) {
+              e.preventDefault();
+              firstFocusable.focus();
+            }
+          }
+        };
+        
+        modal.addEventListener('keydown', handleKeyDown);
+        
+        // Focus first element
+        if (firstFocusable) {
+          firstFocusable.focus();
+        }
+        
+        // Return cleanup function
+        return () => {
+          modal.removeEventListener('keydown', handleKeyDown);
+        };
+      }
+
 
       /**
        * Check if developer mode is enabled
@@ -1147,7 +1186,7 @@
         * =============================================================
         * 
         * Extensions can register hooks to execute custom code at key points
-        * in the application lifecycle. Use CIB_MODS.register() to add hooks.
+        * in the application lifecycle. Use CardSpoke_MODS.register() to add hooks.
         * 
         * IMPLEMENTED HOOKS:
         * ------------------
@@ -1435,10 +1474,10 @@
 
       // Backward compatibility aliases for existing mods using old CIB names
       window.CIB = window.CardSpoke; // Alias CIB -> CardSpoke
-      window.CIB_MODS = window.CardSpoke.mods; // Alias CIB_MODS -> CardSpoke.mods
+      window.CardSpoke_MODS = window.CardSpoke.mods; // Alias CardSpoke_MODS -> CardSpoke.mods
 
       // =============================================================
-      // --- CIB.utils API ---
+      // --- CardSpoke.utils API ---
       // Public utility API for mod developers
       // Exposed as window.CardSpoke.utils
       // =============================================================
@@ -2342,8 +2381,8 @@
                   instanceKey = key;
                   load();
                   if (!safeMode) {
-                    CIB_MODS.syncFromStore();
-                    CIB_MODS.runHook('onAppInit');
+                    CardSpoke_MODS.syncFromStore();
+                    CardSpoke_MODS.runHook('onAppInit');
                   }
                   render();
                   overlay.remove();
@@ -2368,8 +2407,8 @@
                     localStorage.setItem('activeInstance', otherKey);
                     instanceKey = otherKey;
                     load();
-                    CIB_MODS.syncFromStore();
-                    CIB_MODS.runHook('onAppInit');
+                    CardSpoke_MODS.syncFromStore();
+                    CardSpoke_MODS.runHook('onAppInit');
                     render();
                   }
                   overlay.remove();
@@ -2671,6 +2710,533 @@
         };
       }
 
+
+      /**
+       * Show Extensions Hub - unified interface for extensions management (v0.12.3)
+       * Combines Extensions, Extensions Store, Extension Wizard, and Playground
+       */
+      function showExtensionsHub(initialTab = 'installed') {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 900px; max-height: 90vh;' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, '🧩 Extensions Hub'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove(), 'aria-label': 'Close' }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        // Tabs for different sections
+        const tabContainer = h('div', { className: 'modal-tabs', role: 'tablist' });
+        const tabs = [
+          { id: 'installed', label: '📦 Installed', ariaLabel: 'View installed extensions' },
+          { id: 'store', label: '🛒 Store', ariaLabel: 'Browse extensions store' },
+          { id: 'wizard', label: '🧙 Wizard', ariaLabel: 'Create new extension' },
+          { id: 'playground', label: '🛝 Playground', ariaLabel: 'Test extension code' }
+        ];
+        
+        let activeTab = initialTab;
+        
+        function renderTabContent() {
+          const existingBody = modal.querySelector('.modal-body');
+          if (existingBody) existingBody.remove();
+          
+          const modalBody = h('div', { className: 'modal-body', style: 'max-height: calc(90vh - 150px); overflow-y: auto;' });
+          
+          switch (activeTab) {
+            case 'installed':
+              renderInstalledTab(modalBody);
+              break;
+            case 'store':
+              renderStoreTab(modalBody);
+              break;
+            case 'wizard':
+              renderWizardTab(modalBody, overlay);
+              break;
+            case 'playground':
+              renderPlaygroundTab(modalBody);
+              break;
+          }
+          
+          modal.appendChild(modalBody);
+        }
+        
+        function renderInstalledTab(container) {
+          const mods = Object.entries(store.mods || {});
+          
+          if (mods.length === 0) {
+            container.appendChild(h('div', { className: 'empty', style: 'padding: var(--space-2xl);' }, 
+              'No extensions installed. Browse the Store or create one with the Wizard!'));
+            return;
+          }
+          
+          const devMode = isDeveloperMode();
+          
+          mods.forEach(function([modId, modData]) {
+            const modItem = h('div', {
+              style: 'background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: var(--space-md);'
+            });
+            
+            const modHeader = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
+            const modInfo = h('div', {});
+            modInfo.appendChild(h('div', { style: 'font-weight: 700; font-size: var(--text-lg);' }, modData.meta?.name || modId));
+            modInfo.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, 
+              'v' + (modData.meta?.version || '1.0.0') + ' by ' + (modData.meta?.creator || 'Unknown')));
+            modHeader.appendChild(modInfo);
+            
+            const toggleBtn = h('button', {
+              className: modData.enabled ? 'btn btn-primary' : 'btn',
+              onclick: function() {
+                if (modData.enabled) CardSpoke_MODS.disable(modId);
+                else CardSpoke_MODS.enable(modId);
+                overlay.remove();
+                showExtensionsHub('installed');
+              }
+            }, modData.enabled ? 'Enabled ✓' : 'Disabled');
+            modHeader.appendChild(toggleBtn);
+            
+            modItem.appendChild(modHeader);
+            
+            if (modData.meta?.description) {
+              modItem.appendChild(h('div', { style: 'margin-bottom: var(--space-sm);' }, modData.meta.description));
+            }
+            
+            // Actions row
+            const actionsRow = h('div', { style: 'display: flex; gap: var(--space-sm);' });
+            
+            if (devMode) {
+              const exportBtn = h('button', {
+                className: 'btn',
+                style: 'font-size: var(--text-sm);',
+                onclick: function() {
+                  const blob = new Blob([JSON.stringify(modData, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = h('a', { href: url, download: modId + '.json' });
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  showToast('Extension exported');
+                }
+              }, 'Export');
+              actionsRow.appendChild(exportBtn);
+            }
+            
+            const deleteBtn = h('button', {
+              className: 'btn btn-danger',
+              style: 'font-size: var(--text-sm);',
+              onclick: function() {
+                if (confirm('Delete extension "' + (modData.meta?.name || modId) + '"?')) {
+                  CardSpoke_MODS.disable(modId);
+                  delete store.mods[modId];
+                  save();
+                  showToast('Extension deleted');
+                  overlay.remove();
+                  showExtensionsHub('installed');
+                }
+              }
+            }, 'Delete');
+            actionsRow.appendChild(deleteBtn);
+            
+            modItem.appendChild(actionsRow);
+            container.appendChild(modItem);
+          });
+          
+          // Upload Extension button
+          const uploadSection = h('div', { style: 'margin-top: var(--space-xl); padding-top: var(--space-xl); border-top: 1px solid var(--border);' });
+          uploadSection.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md);' }, 'Install Extension'));
+          
+          const uploadArea = h('div', { 
+            className: 'file-upload-area',
+            style: 'padding: var(--space-xl);',
+            onclick: function() {
+              const input = h('input', { type: 'file', accept: '.json', style: 'display:none' });
+              input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = function(ev) {
+                    try {
+                      const modData = JSON.parse(ev.target.result);
+                      const modId = modData.id || file.name.replace('.json', '');
+                      store.mods[modId] = modData;
+                      save();
+                      CardSpoke_MODS.syncFromStore();
+                      showToast('Extension installed: ' + (modData.meta?.name || modId));
+                      overlay.remove();
+                      showExtensionsHub('installed');
+                    } catch (err) {
+                      showToast('Invalid extension file', 'error');
+                    }
+                  };
+                  reader.readAsText(file);
+                }
+              };
+              input.click();
+            }
+          });
+          uploadArea.appendChild(h('div', { className: 'upload-text' }, 'Click to install extension (.json)'));
+          uploadSection.appendChild(uploadArea);
+          container.appendChild(uploadSection);
+        }
+        
+        function renderStoreTab(container) {
+          const banner = h('div', {
+            style: 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: var(--space-2xl); border-radius: var(--radius); margin-bottom: var(--space-xl); text-align: center;'
+          });
+          banner.appendChild(h('div', { style: 'font-size: 48px; margin-bottom: var(--space-md);' }, '🏪'));
+          banner.appendChild(h('div', { style: 'font-size: var(--text-xl); font-weight: 700; margin-bottom: var(--space-sm);' }, 'Extensions Store'));
+          banner.appendChild(h('div', { style: 'opacity: 0.9;' }, 'Coming Soon! Browse and install community extensions.'));
+          container.appendChild(banner);
+          
+          const categories = [
+            { icon: '🎨', name: 'Themes', desc: 'Visual styles and color schemes' },
+            { icon: '🔧', name: 'Tools', desc: 'Productivity enhancements' },
+            { icon: '📊', name: 'Analytics', desc: 'Data visualization' },
+            { icon: '🔗', name: 'Integrations', desc: 'External services' }
+          ];
+          
+          const grid = h('div', { style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-lg);' });
+          categories.forEach(function(cat) {
+            const card = h('div', {
+              style: 'padding: var(--space-lg); border: 1px solid var(--border); border-radius: var(--radius); text-align: center;'
+            });
+            card.appendChild(h('div', { style: 'font-size: 32px; margin-bottom: var(--space-sm);' }, cat.icon));
+            card.appendChild(h('div', { style: 'font-weight: 700;' }, cat.name));
+            card.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, cat.desc));
+            grid.appendChild(card);
+          });
+          container.appendChild(grid);
+        }
+        
+        function renderWizardTab(container, overlayRef) {
+          container.appendChild(h('div', { style: 'font-weight: 700; font-size: var(--text-lg); margin-bottom: var(--space-lg);' }, 
+            '🧙 Create New Extension'));
+          
+          const form = h('form', { 
+            style: 'display: flex; flex-direction: column; gap: var(--space-lg);',
+            onsubmit: function(e) {
+              e.preventDefault();
+              const formData = new FormData(e.target);
+              const modId = formData.get('name').toLowerCase().replace(/[^a-z0-9-]/g, '-');
+              const newMod = {
+                id: modId,
+                meta: {
+                  name: formData.get('name'),
+                  type: formData.get('type'),
+                  creator: formData.get('creator'),
+                  version: '1.0.0',
+                  releaseDate: new Date().toISOString().split('T')[0],
+                  description: formData.get('description')
+                },
+                js: formData.get('js') || '',
+                css: formData.get('css') || '',
+                enabled: false
+              };
+              store.mods[modId] = newMod;
+              save();
+              showToast('Extension created: ' + newMod.meta.name);
+              overlayRef.remove();
+              showExtensionsHub('installed');
+            }
+          });
+          
+          form.appendChild(createFormGroup('Name', 'text', 'name', 'My Extension', true));
+          form.appendChild(createFormGroup('Creator', 'text', 'creator', 'Your Name', true));
+          form.appendChild(createFormGroup('Description', 'text', 'description', 'A brief description'));
+          
+          const typeGroup = h('div', { className: 'form-group' });
+          typeGroup.appendChild(h('label', { className: 'form-label' }, 'Type'));
+          const typeSelect = h('select', { className: 'form-select', name: 'type' });
+          ['Theme', 'Patch', 'Plugin', 'Mod'].forEach(function(t) {
+            typeSelect.appendChild(h('option', { value: t }, t));
+          });
+          typeGroup.appendChild(typeSelect);
+          form.appendChild(typeGroup);
+          
+          const jsGroup = h('div', { className: 'form-group' });
+          jsGroup.appendChild(h('label', { className: 'form-label' }, 'JavaScript (optional)'));
+          jsGroup.appendChild(h('textarea', { 
+            className: 'form-textarea', 
+            name: 'js', 
+            placeholder: "CardSpoke_MODS.register('my-mod', { onAppInit(ctx) { console.log('Hello!'); } });",
+            style: 'min-height: 100px; font-family: monospace;'
+          }));
+          form.appendChild(jsGroup);
+          
+          const cssGroup = h('div', { className: 'form-group' });
+          cssGroup.appendChild(h('label', { className: 'form-label' }, 'CSS (optional)'));
+          cssGroup.appendChild(h('textarea', { 
+            className: 'form-textarea', 
+            name: 'css', 
+            placeholder: '/* Custom styles */',
+            style: 'min-height: 80px; font-family: monospace;'
+          }));
+          form.appendChild(cssGroup);
+          
+          form.appendChild(h('button', { type: 'submit', className: 'btn btn-primary' }, 'Create Extension'));
+          container.appendChild(form);
+        }
+        
+        function createFormGroup(label, type, name, placeholder, required) {
+          const group = h('div', { className: 'form-group' });
+          group.appendChild(h('label', { className: 'form-label' }, label));
+          group.appendChild(h('input', { 
+            type: type, 
+            className: 'form-input', 
+            name: name, 
+            placeholder: placeholder,
+            required: required || false
+          }));
+          return group;
+        }
+        
+        function renderPlaygroundTab(container) {
+          container.appendChild(h('div', { style: 'font-weight: 700; font-size: var(--text-lg); margin-bottom: var(--space-md);' }, 
+            '🛝 Code Playground'));
+          container.appendChild(h('div', { style: 'color: var(--text-muted); margin-bottom: var(--space-lg);' }, 
+            'Test CardSpoke API code in a sandboxed environment.'));
+          
+          const codeArea = h('textarea', {
+            className: 'form-textarea',
+            style: 'min-height: 200px; font-family: monospace; font-size: var(--text-sm);',
+            placeholder: "// Example: Use CardSpoke.utils API\nconst meta = await CardSpoke.utils.getDatasetMeta();\nconsole.log('Dataset:', meta.name);\n\n// Search cards\nconst results = await CardSpoke.utils.searchCards('test');\nconsole.log('Found:', results.length, 'cards');",
+            id: 'playgroundCode'
+          });
+          container.appendChild(codeArea);
+          
+          const outputArea = h('pre', {
+            style: 'background: #1e1e1e; color: #d4d4d4; padding: var(--space-lg); border-radius: var(--radius); min-height: 100px; margin-top: var(--space-lg); overflow: auto; font-family: monospace; font-size: var(--text-sm);',
+            id: 'playgroundOutput'
+          }, '// Output will appear here');
+          container.appendChild(outputArea);
+          
+          const btnRow = h('div', { style: 'display: flex; gap: var(--space-md); margin-top: var(--space-lg);' });
+          
+          const runBtn = h('button', {
+            className: 'btn btn-primary',
+            onclick: function() {
+              const code = document.getElementById('playgroundCode').value;
+              const output = document.getElementById('playgroundOutput');
+              output.textContent = '';
+              
+              const sandboxConsole = {
+                log: function() { output.textContent += Array.from(arguments).join(' ') + '\n'; },
+                error: function() { output.textContent += '❌ ' + Array.from(arguments).join(' ') + '\n'; },
+                warn: function() { output.textContent += '⚠️ ' + Array.from(arguments).join(' ') + '\n'; }
+              };
+              
+              try {
+                const fn = new Function('console', 'CardSpoke', 'return (async () => {' + code + '})();');
+                fn(sandboxConsole, window.CardSpoke).then(function() {
+                  output.textContent += '\n✅ Code executed successfully';
+                }).catch(function(err) {
+                  output.textContent += '\n❌ Error: ' + err.message;
+                });
+              } catch (err) {
+                output.textContent = '❌ Syntax Error: ' + err.message;
+              }
+            }
+          }, '▶️ Run Code');
+          btnRow.appendChild(runBtn);
+          
+          const clearBtn = h('button', {
+            className: 'btn',
+            onclick: function() {
+              document.getElementById('playgroundCode').value = '';
+              document.getElementById('playgroundOutput').textContent = '// Output will appear here';
+            }
+          }, 'Clear');
+          btnRow.appendChild(clearBtn);
+          
+          container.appendChild(btnRow);
+        }
+        
+        // Create tabs
+        tabs.forEach(function(tab) {
+          const tabBtn = h('button', {
+            className: 'modal-tab' + (activeTab === tab.id ? ' active' : ''),
+            'data-tab': tab.id,
+            role: 'tab',
+            'aria-selected': (activeTab === tab.id).toString(),
+            'aria-label': tab.ariaLabel,
+            onclick: function() {
+              activeTab = tab.id;
+              // Update tab styles
+              tabContainer.querySelectorAll('.modal-tab').forEach(function(t) {
+                t.classList.remove('active');
+                t.setAttribute('aria-selected', 'false');
+              });
+              this.classList.add('active');
+              this.setAttribute('aria-selected', 'true');
+              renderTabContent();
+            }
+          }, tab.label);
+          tabContainer.appendChild(tabBtn);
+        });
+        
+        modal.appendChild(tabContainer);
+        renderTabContent();
+        
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        trapFocus(modal);
+        
+        overlay.onclick = function(e) {
+          if (e.target === overlay) overlay.remove();
+        };
+      }
+
+
+
+      /**
+       * Show Data Hub - unified interface for dataset and export management (v0.12.3)
+       * Combines Dataset Manager, Dataset Info, and all export options
+       */
+      function showDataHub() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 700px; max-height: 90vh;' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, '📦 Data & Export'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove(), 'aria-label': 'Close' }, '✕');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        const modalBody = h('div', { className: 'modal-body', style: 'max-height: calc(90vh - 100px); overflow-y: auto;' });
+        
+        // Dataset Info Section
+        const infoSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
+        infoSection.appendChild(h('div', { 
+          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
+        }, '📊 Dataset Info'));
+        
+        const cardCount = Object.keys(store.cards || {}).length;
+        const tagCount = getAllTags().length;
+        const modCount = Object.keys(store.mods || {}).length;
+        const bookmarkCount = (store.bookmarks || []).length;
+        
+        const statsGrid = h('div', { style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-lg);' });
+        
+        const stats = [
+          { label: 'Cards', value: cardCount, icon: '📄' },
+          { label: 'Tags', value: tagCount, icon: '🏷️' },
+          { label: 'Extensions', value: modCount, icon: '🧩' },
+          { label: 'Bookmarks', value: bookmarkCount, icon: '⭐' }
+        ];
+        
+        stats.forEach(function(stat) {
+          const statCard = h('div', {
+            style: 'background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); text-align: center; border: 1px solid var(--border);'
+          });
+          statCard.appendChild(h('div', { style: 'font-size: 24px; margin-bottom: var(--space-xs);' }, stat.icon));
+          statCard.appendChild(h('div', { style: 'font-size: var(--text-2xl); font-weight: 700;' }, String(stat.value)));
+          statCard.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, stat.label));
+          statsGrid.appendChild(statCard);
+        });
+        
+        infoSection.appendChild(statsGrid);
+        
+        // Storage info
+        const storageInfo = h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' });
+        try {
+          const key = instanceKey || 'nested_cards_store';
+          const storeSize = JSON.stringify(store).length;
+          storageInfo.textContent = 'Storage: ~' + Math.round(storeSize / 1024) + ' KB used';
+        } catch(e) {
+          storageInfo.textContent = 'Storage: Unable to calculate';
+        }
+        infoSection.appendChild(storageInfo);
+        
+        modalBody.appendChild(infoSection);
+        
+        // Export Section
+        const exportSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
+        exportSection.appendChild(h('div', { 
+          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
+        }, '📤 Export Data'));
+        
+        const exportOptions = [
+          { id: 'json', label: 'Full Backup (JSON)', desc: 'Complete dataset with all cards and settings', icon: '📋' },
+          { id: 'txt', label: 'Cards as Text', desc: 'Plain text format for reading', icon: '📝' },
+          { id: 'markdown', label: 'Cards as Markdown', desc: 'Formatted markdown with headers and tags', icon: '📖' },
+          { id: 'csv', label: 'Cards as CSV', desc: 'Spreadsheet format for analysis', icon: '📊' },
+          { id: 'mods', label: 'Extensions Only', desc: 'Export all installed extensions', icon: '🧩' }
+        ];
+        
+        exportOptions.forEach(function(opt) {
+          const exportBtn = h('button', {
+            className: 'btn',
+            style: 'width: 100%; text-align: left; padding: var(--space-lg); margin-bottom: var(--space-sm); border: 1px solid var(--border); border-radius: var(--radius); display: flex; align-items: center; gap: var(--space-md);',
+            onclick: function() {
+              switch (opt.id) {
+                case 'json':
+                  downloadWithFeedback(JSON.stringify(store, null, 2), 'cardspoke-backup-' + Date.now() + '.json', 'application/json');
+                  break;
+                case 'txt':
+                  const txtContent = Object.values(store.cards || {}).map(function(c) {
+                    return '=== ' + (c.title || '(Untitled)') + ' ===\n' + (c.body || '');
+                  }).join('\n\n');
+                  downloadWithFeedback(txtContent, 'cardspoke-cards-' + Date.now() + '.txt', 'text/plain');
+                  break;
+                case 'markdown':
+                  const mdContent = Object.values(store.cards || {}).map(function(c) {
+                    var md = '# ' + (c.title || '(Untitled)') + '\n';
+                    if (c.tags && c.tags.length) md += 'Tags: ' + c.tags.map(function(t) { return '#' + t; }).join(' ') + '\n';
+                    md += '\n' + (c.body || '');
+                    return md;
+                  }).join('\n\n---\n\n');
+                  downloadWithFeedback(mdContent, 'cardspoke-cards-' + Date.now() + '.md', 'text/markdown');
+                  break;
+                case 'csv':
+                  var csvContent = 'ID,Title,Body,Tags,Parent\n';
+                  Object.values(store.cards || {}).forEach(function(c) {
+                    csvContent += '"' + c.id + '","' + (c.title || '').replace(/"/g, '""') + '","' + (c.body || '').replace(/"/g, '""') + '","' + (c.tags || []).join(';') + '","' + (c.parentId || '') + '"\n';
+                  });
+                  downloadWithFeedback(csvContent, 'cardspoke-cards-' + Date.now() + '.csv', 'text/csv');
+                  break;
+                case 'mods':
+                  downloadWithFeedback(JSON.stringify(store.mods || {}, null, 2), 'cardspoke-extensions-' + Date.now() + '.json', 'application/json');
+                  break;
+              }
+              showToast('Export complete: ' + opt.label);
+            }
+          });
+          exportBtn.appendChild(h('span', { style: 'font-size: 20px;' }, opt.icon));
+          const textDiv = h('div', {});
+          textDiv.appendChild(h('div', { style: 'font-weight: 600;' }, opt.label));
+          textDiv.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, opt.desc));
+          exportBtn.appendChild(textDiv);
+          exportSection.appendChild(exportBtn);
+        });
+        
+        modalBody.appendChild(exportSection);
+        
+        // Dataset Management Section
+        const manageSection = h('div', {});
+        manageSection.appendChild(h('div', { 
+          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
+        }, '⚙️ Dataset Management'));
+        
+        const renameBtn = h('button', {
+          className: 'btn',
+          style: 'margin-right: var(--space-md);',
+          onclick: function() {
+            editDatasetName();
+            overlay.remove();
+          }
+        }, 'Rename Dataset');
+        manageSection.appendChild(renameBtn);
+        
+        modalBody.appendChild(manageSection);
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        trapFocus(modal);
+        
+        overlay.onclick = function(e) {
+          if (e.target === overlay) overlay.remove();
+        };
+      }
+
       function showModsManager() {
         const overlay = h('div', { className: 'modal-overlay show' });
         const modal = h('div', { className: 'modal' });
@@ -2704,8 +3270,8 @@
           const toggleBtn = h('button', {
             className: modData.enabled ? 'btn btn-danger' : 'btn btn-primary',
             onclick: () => {
-              if (modData.enabled) CIB_MODS.disable(modId);
-              else CIB_MODS.enable(modId);
+              if (modData.enabled) CardSpoke_MODS.disable(modId);
+              else CardSpoke_MODS.enable(modId);
               overlay.remove();
               showModsManager();
             }
@@ -2737,7 +3303,7 @@
             style: 'font-size: var(--text-sm); margin-top: var(--space-md);',
             onclick: () => {
               if (confirm(`Delete extension "${meta.name || modId}"?`)) {
-                CIB_MODS.disable(modId);
+                CardSpoke_MODS.disable(modId);
                 delete store.mods[modId];
                 save();
                 overlay.remove();
@@ -3026,7 +3592,7 @@
   // Theme extensions primarily use CSS
   // This file can be left minimal or used for dynamic theme switching
   
-  CIB_MODS.register('${id}', {
+  CardSpoke_MODS.register('${id}', {
     meta: {
       name: '${name}',
       type: 'Theme',
@@ -3049,7 +3615,7 @@
 (function() {
   'use strict';
   
-  CIB_MODS.register('${id}', {
+  CardSpoke_MODS.register('${id}', {
     meta: {
       name: '${name}',
       type: 'Patch',
@@ -3078,7 +3644,7 @@
 (function() {
   'use strict';
   
-  CIB_MODS.register('${id}', {
+  CardSpoke_MODS.register('${id}', {
     meta: {
       name: '${name}',
       type: '${type.charAt(0).toUpperCase() + type.slice(1)}',
@@ -3094,7 +3660,7 @@
       console.log('App Version:', ctx.appVersion);
       console.log('Available API:', ctx.api);
       
-      // Example: Use CIB.utils API
+      // Example: Use CardSpoke.utils API
       // const meta = await CardSpoke.utils.getDatasetMeta();
       // console.log('Dataset info:', meta);
     },
@@ -3308,7 +3874,7 @@
         toolbar.appendChild(templateBtn);
         toolbar.appendChild(h('div', { style: 'flex: 1;' })); // Spacer
         toolbar.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, 
-          'Tip: Use CIB.utils API for safe data access'));
+          'Tip: Use CardSpoke.utils API for safe data access'));
         
         modalBody.appendChild(toolbar);
         
@@ -3469,7 +4035,7 @@
         return `// Extension Playground
 // Test your extension code here in a safe environment
 
-// Example 1: Use CIB.utils API to get dataset info
+// Example 1: Use CardSpoke.utils API to get dataset info
 const meta = await CardSpoke.utils.getDatasetMeta();
 console.log('Dataset:', meta.name);
 console.log('Total cards:', meta.cardCount);
@@ -3483,7 +4049,7 @@ const result = await CardSpoke.utils.createCard({
 console.log('Created card:', result.id);
 
 // Example 3: Search for cards
-const searchResults = await CIB.utils.searchCards('test');
+const searchResults = await CardSpoke.utils.searchCards('test');
 console.log('Found', searchResults.length, 'cards matching "test"');
 
 // Example 4: Get all tags
@@ -3499,68 +4065,196 @@ console.log('✓ All examples completed!');
 
       function showAppearanceSettings() {
         const overlay = h('div', { className: 'modal-overlay show' });
-        const modal = h('div', { className: 'modal' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 600px;' });
         const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Appearance Settings'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, '🎨 Appearance Settings'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove(), 'aria-label': 'Close' }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
         
         const modalBody = h('div', { className: 'modal-body' });
         
-        // Theme selector section
+        // View Mode Section
+        const viewSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
+        viewSection.appendChild(h('div', { 
+          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
+        }, 'View Options'));
+        
+        // Compact View Toggle
+        const compactViewEnabled = store.viewMode === 'compact';
+        const compactRow = h('div', { 
+          className: 'menu-item-toggle',
+          style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px; margin-bottom: var(--space-md);'
+        });
+        const compactLabel = h('label', { className: 'menu-item-label' }, 'Compact View');
+        const compactToggle = h('label', { className: 'switch-toggle' });
+        const compactInput = h('input', { 
+          type: 'checkbox', 
+          checked: compactViewEnabled,
+          onchange: function(e) {
+            store.viewMode = e.target.checked ? 'compact' : 'normal';
+            save();
+            render();
+          }
+        });
+        const compactSlider = h('span', { className: 'switch-slider' });
+        compactToggle.appendChild(compactInput);
+        compactToggle.appendChild(compactSlider);
+        compactRow.appendChild(compactLabel);
+        compactRow.appendChild(compactToggle);
+        viewSection.appendChild(compactRow);
+        
+        // Grid View Toggle
+        const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
+        const gridRow = h('div', { 
+          className: 'menu-item-toggle',
+          style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px; margin-bottom: var(--space-md);'
+        });
+        const gridLabel = h('label', { className: 'menu-item-label' }, 'Grid View');
+        const gridToggle = h('label', { className: 'switch-toggle' });
+        const gridInput = h('input', { 
+          type: 'checkbox', 
+          checked: gridViewEnabled,
+          onchange: function(e) {
+            localStorage.setItem('cardspoke_gridView', e.target.checked.toString());
+            render();
+          }
+        });
+        const gridSlider = h('span', { className: 'switch-slider' });
+        gridToggle.appendChild(gridInput);
+        gridToggle.appendChild(gridSlider);
+        gridRow.appendChild(gridLabel);
+        gridRow.appendChild(gridToggle);
+        viewSection.appendChild(gridRow);
+        
+        // High Contrast Toggle
+        const highContrastEnabled = localStorage.getItem('cardspoke_highContrast') === 'true';
+        const contrastRow = h('div', { 
+          className: 'menu-item-toggle',
+          style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px;'
+        });
+        const contrastLabel = h('label', { className: 'menu-item-label' }, 'High Contrast');
+        const contrastToggle = h('label', { className: 'switch-toggle' });
+        const contrastInput = h('input', { 
+          type: 'checkbox', 
+          checked: highContrastEnabled,
+          onchange: function(e) {
+            localStorage.setItem('cardspoke_highContrast', e.target.checked.toString());
+            if (e.target.checked) {
+              document.documentElement.classList.add('high-contrast');
+            } else {
+              document.documentElement.classList.remove('high-contrast');
+            }
+          }
+        });
+        const contrastSlider = h('span', { className: 'switch-slider' });
+        contrastToggle.appendChild(contrastInput);
+        contrastToggle.appendChild(contrastSlider);
+        contrastRow.appendChild(contrastLabel);
+        contrastRow.appendChild(contrastToggle);
+        viewSection.appendChild(contrastRow);
+        
+        modalBody.appendChild(viewSection);
+        
+        // Typography Section
+        const typoSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
+        typoSection.appendChild(h('div', { 
+          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
+        }, '📖 Typography'));
+        
+        const currentTypography = localStorage.getItem('cardspoke_typography') || 'default';
+        const typographyPresets = [
+          { id: 'default', name: 'Default', desc: 'Standard reading size' },
+          { id: 'comfortable', name: 'Comfortable', desc: 'Larger text, more spacing' },
+          { id: 'compact', name: 'Compact', desc: 'Smaller text, denser layout' },
+          { id: 'dyslexia', name: 'Dyslexia-Friendly', desc: 'Optimized for readability' }
+        ];
+        
+        typographyPresets.forEach(function(preset) {
+          const isActive = currentTypography === preset.id;
+          const presetOption = h('div', {
+            style: 'padding: var(--space-md); border: 2px solid ' + (isActive ? 'var(--text)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-md); cursor: pointer;',
+            onclick: function() {
+              localStorage.setItem('cardspoke_typography', preset.id);
+              document.documentElement.setAttribute('data-typography', preset.id);
+              showToast('Typography: ' + preset.name);
+              overlay.remove();
+              showAppearanceSettings();
+            }
+          });
+          presetOption.appendChild(h('div', { style: 'font-weight: 600;' }, (isActive ? '✓ ' : '') + preset.name));
+          presetOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, preset.desc));
+          typoSection.appendChild(presetOption);
+        });
+        
+        modalBody.appendChild(typoSection);
+        
+        // Theme Section
         const themeSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
         themeSection.appendChild(h('div', { 
-          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
-        }, 'Theme'));
+          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
+        }, '🌓 Theme'));
         
         const currentTheme = store.activeTheme || 'light';
         
         // Light theme option
         const lightOption = h('div', { 
           className: 'theme-option',
-          style: `padding: var(--space-lg); border: 2px solid ${currentTheme === 'light' ? 'var(--primary)' : 'var(--border)'}; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: white; color: black;`,
-          onclick: () => {
+          style: 'padding: var(--space-lg); border: 2px solid ' + (currentTheme === 'light' ? 'var(--text)' : 'var(--border)') + '; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: white; color: black;',
+          onclick: function() {
             applyTheme('light');
             overlay.remove();
           }
         });
-        lightOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, 'Light Theme'));
+        lightOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, (currentTheme === 'light' ? '✓ ' : '') + 'Light Theme'));
         lightOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #666;' }, 'Default light color scheme'));
-        if (currentTheme === 'light') {
-          lightOption.appendChild(h('div', { style: 'margin-top: var(--space-sm); color: var(--primary); font-weight: 600;' }, '✓ Active'));
-        }
         themeSection.appendChild(lightOption);
         
         // Dark theme option
         const darkOption = h('div', { 
           className: 'theme-option',
-          style: `padding: var(--space-lg); border: 2px solid ${currentTheme === 'dark' ? 'var(--primary)' : 'var(--border)'}; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: #1a1a1a; color: white;`,
-          onclick: () => {
+          style: 'padding: var(--space-lg); border: 2px solid ' + (currentTheme === 'dark' ? 'white' : 'var(--border)') + '; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: #1a1a1a; color: white;',
+          onclick: function() {
             applyTheme('dark');
             overlay.remove();
           }
         });
-        darkOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, 'Dark Theme'));
-        darkOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #aaa;' }, 'Dark color scheme for low-light environments'));
-        if (currentTheme === 'dark') {
-          darkOption.appendChild(h('div', { style: 'margin-top: var(--space-sm); color: #64b5f6; font-weight: 600;' }, '✓ Active'));
-        }
+        darkOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, (currentTheme === 'dark' ? '✓ ' : '') + 'Dark Theme'));
+        darkOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #aaa;' }, 'Dark color scheme'));
         themeSection.appendChild(darkOption);
         
-        modalBody.appendChild(themeSection);
-        
-        // Future: Theme extensions could be listed here
-        const extensionNote = h('div', { 
-          style: 'padding: var(--space-md); background: var(--bg-secondary); border-radius: 4px; font-size: var(--text-sm); color: var(--text-muted);'
+        // Custom themes from extensions
+        const themeExtensions = Object.values(store.mods || {}).filter(function(mod) {
+          return mod.meta && mod.meta.type === 'Theme' && mod.enabled;
         });
-        extensionNote.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, '💡 Theme Extensions'));
-        extensionNote.appendChild(h('div', {}, 'Custom theme extensions can be installed via the Extensions Manager to add more color schemes.'));
-        modalBody.appendChild(extensionNote);
+        
+        if (themeExtensions.length > 0) {
+          themeSection.appendChild(h('div', { 
+            style: 'font-weight: 600; margin: var(--space-lg) 0 var(--space-md);'
+          }, 'Installed Theme Extensions:'));
+          
+          themeExtensions.forEach(function(theme) {
+            const themeOption = h('div', {
+              style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px; margin-bottom: var(--space-sm);'
+            });
+            themeOption.appendChild(h('div', { style: 'font-weight: 600;' }, theme.meta.name || theme.id));
+            themeOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, 'By ' + (theme.meta.creator || 'Unknown')));
+            themeSection.appendChild(themeOption);
+          });
+        }
+        
+        modalBody.appendChild(themeSection);
         
         modal.appendChild(modalBody);
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
+        
+        // Set up focus trap
+        trapFocus(modal);
+        
+        overlay.onclick = function(e) {
+          if (e.target === overlay) overlay.remove();
+        };
       }
 
       function showBookmarks() {
@@ -4066,11 +4760,11 @@ console.log('✓ All examples completed!');
       function renderBreadcrumbs() {
         breadcrumbs.innerHTML = '';
         if (navState.page === 'search') {
-          breadcrumbs.appendChild(h('div', { className: 'breadcrumb current' }, 'Search Results'));
+          breadcrumbs.appendChild(h('span', { className: 'breadcrumb current', 'aria-current': 'page' }, 'Search Results'));
           return;
         }
         if (navState.page === 'edit') {
-          breadcrumbs.appendChild(h('div', { className: 'breadcrumb current' }, navState.cardId ? 'Edit Card' : 'New Card'));
+          breadcrumbs.appendChild(h('span', { className: 'breadcrumb current', 'aria-current': 'page' }, navState.cardId ? 'Edit Card' : 'New Card'));
           return;
         }
         let current = navState.cardId;
@@ -4082,14 +4776,16 @@ console.log('✓ All examples completed!');
           current = c.parentId;
         }
         if (path.length === 0) {
-          breadcrumbs.appendChild(h('div', { className: 'breadcrumb current' }, 'All Cards'));
+          breadcrumbs.appendChild(h('span', { className: 'breadcrumb current', 'aria-current': 'page' }, 'All Cards'));
         } else {
-          const home = h('div', { className: 'breadcrumb', onclick: () => goTo('list', { cardId: null }) }, 'All Cards');
+          const home = h('button', { className: 'breadcrumb', onclick: () => goTo('list', { cardId: null }), 'aria-label': 'Go to All Cards' }, 'All Cards');
           breadcrumbs.appendChild(home);
           path.forEach((c, i) => {
             const isCurrent = (i === path.length - 1 && navState.page === 'list');
             const cls = isCurrent ? 'breadcrumb current' : 'breadcrumb';
-            const chip = h('div', { className: cls, onclick: isCurrent ? null : () => goTo('list', { cardId: c.id }) }, c.title || '(Untitled)');
+            const chip = isCurrent 
+              ? h('span', { className: cls, 'aria-current': 'page' }, c.title || '(Untitled)')
+              : h('button', { className: cls, onclick: () => goTo('list', { cardId: c.id }), 'aria-label': 'Go to ' + (c.title || 'Untitled') }, c.title || '(Untitled)');
             breadcrumbs.appendChild(chip);
           });
         }
@@ -4140,7 +4836,7 @@ console.log('✓ All examples completed!');
       function renderCardTile(card) {
         const isCompact = store.viewMode === 'compact';
         const cardClasses = isCompact ? 'card card-compact' : 'card';
-        const cardEl = h('div', { className: cardClasses, onclick: () => goTo('read', { cardId: card.id }) });
+        const cardEl = h('button', { className: cardClasses + ' card-tile', onclick: () => goTo('read', { cardId: card.id }), 'aria-label': 'Open card: ' + (card.title || 'Untitled') });
         cardEl.dataset.cardId = card.id;
         cardEl.dataset.renderType = 'list';
 
@@ -4447,7 +5143,42 @@ console.log('✓ All examples completed!');
         formGroup1.appendChild(h('input', { type: 'text', id: 'cardTitle', className: 'form-input', value: card.title, oninput: () => { dirty = true; } }));
         form.appendChild(formGroup1);
         const formGroup2 = h('div', { className: 'form-group' });
-        formGroup2.appendChild(h('label', { className: 'form-label' }, 'Body'));
+        const bodyLabelRow = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
+        bodyLabelRow.appendChild(h('label', { className: 'form-label', style: 'margin-bottom: 0;' }, 'Body'));
+        
+        // Add upload button for importing text from files (v0.12.3)
+        const importBodyBtn = h('button', {
+          type: 'button',
+          className: 'btn',
+          style: 'font-size: var(--text-sm);',
+          onclick: function() {
+            const fileInput = h('input', { type: 'file', accept: '.txt,.md,.text', style: 'display: none' });
+            fileInput.onchange = function(e) {
+              const file = e.target.files[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                  const currentBody = document.getElementById('cardBody');
+                  if (currentBody.value && !confirm('Replace existing content?')) {
+                    currentBody.value += '\n\n' + ev.target.result;
+                  } else {
+                    currentBody.value = ev.target.result;
+                  }
+                  dirty = true;
+                  showToast('Content imported from ' + file.name);
+                };
+                reader.onerror = function() {
+                  showToast('Failed to read file', 'error');
+                };
+                reader.readAsText(file);
+              }
+            };
+            fileInput.click();
+          }
+        }, '📄 Import from File');
+        bodyLabelRow.appendChild(importBodyBtn);
+        formGroup2.appendChild(bodyLabelRow);
+        
         const bodyTextarea = h('textarea', { id: 'cardBody', className: 'form-textarea' });
         bodyTextarea.value = card.body;
         bodyTextarea.addEventListener('input', () => { dirty = true; });
@@ -4889,17 +5620,30 @@ console.log('✓ All examples completed!');
       
       // --- Menu Handlers ---
       
+      // Focus trap cleanup function
+      let menuFocusTrapCleanup = null;
+      
       header.menuBtn.onclick = () => {
         menu.overlay.classList.add('show');
+        // Set up focus trap for accessibility
+        menuFocusTrapCleanup = trapFocus(menu.overlay.querySelector('.menu-panel'));
       };
 
       menu.closeBtn.onclick = () => {
         menu.overlay.classList.remove('show');
+        if (menuFocusTrapCleanup) {
+          menuFocusTrapCleanup();
+          menuFocusTrapCleanup = null;
+        }
       };
 
       menu.overlay.onclick = (e) => {
         if (e.target === menu.overlay) {
           menu.overlay.classList.remove('show');
+          if (menuFocusTrapCleanup) {
+            menuFocusTrapCleanup();
+            menuFocusTrapCleanup = null;
+          }
         }
       };
 
@@ -4944,17 +5688,10 @@ console.log('✓ All examples completed!');
         uploadModal.overlay.classList.add('show');
       };
 
-      menu.extensions.onclick = () => {
+      menu.extensionsHub.onclick = () => {
         menu.overlay.classList.remove('show');
-        showModsManager();
+        showExtensionsHub('installed');
       };
-
-      if (menu.extensionsStore) {
-        menu.extensionsStore.onclick = () => {
-          menu.overlay.classList.remove('show');
-          showExtensionsStore();
-        };
-      }
 
       if (menu.tagManager) {
         menu.tagManager.onclick = () => {
@@ -4977,14 +5714,9 @@ console.log('✓ All examples completed!');
         };
       }
 
-      menu.extensionWizard.onclick = () => {
+      menu.appearance.onclick = () => {
         menu.overlay.classList.remove('show');
-        showExtensionWizard();
-      };
-
-      menu.playground.onclick = () => {
-        menu.overlay.classList.remove('show');
-        showPlayground();
+        showAppearanceSettings();
       };
 
       menu.bookmarks.onclick = () => {
@@ -5002,39 +5734,9 @@ console.log('✓ All examples completed!');
         showTypographySelector();
       };
 
-      menu.instance.onclick = () => {
+      menu.dataHub.onclick = () => {
         menu.overlay.classList.remove('show');
-        showDatasetManager();
-      };
-
-      menu.datasetInfo.onclick = () => {
-        menu.overlay.classList.remove('show');
-        showDatasetInfo();
-      };
-
-      menu.downloadJSON.onclick = () => {
-        menu.overlay.classList.remove('show');
-        handleExport('instance-json');
-      };
-
-      menu.downloadTXT.onclick = () => {
-        menu.overlay.classList.remove('show');
-        handleExport('instance-txt');
-      };
-
-      menu.downloadMarkdown.onclick = () => {
-        menu.overlay.classList.remove('show');
-        exportMarkdown();
-      };
-
-      menu.downloadCSV.onclick = () => {
-        menu.overlay.classList.remove('show');
-        exportCSV();
-      };
-
-      menu.downloadMods.onclick = () => {
-        menu.overlay.classList.remove('show');
-        handleExport('mods-json');
+        showDataHub();
       };
 
       menu.clearAll.onclick = () => {
@@ -5053,6 +5755,10 @@ console.log('✓ All examples completed!');
       };
 
       header.homeBtn.onclick = () => {
+        goTo('list', { cardId: null });
+      };
+
+      header.brandBtn.onclick = () => {
         goTo('list', { cardId: null });
       };
 
@@ -7620,8 +8326,8 @@ console.log('✓ All examples completed!');
         showToast('Safe Mode Active - Extensions Disabled', 'warning');
       }
       
-      if (!safeMode) CIB_MODS.syncFromStore();        // Initialize mods from store (skip in safe mode)
-      if (!safeMode) CIB_MODS.runHook('onAppInit');   // Run mod initialization hooks (skip in safe mode)
+      if (!safeMode) CardSpoke_MODS.syncFromStore();        // Initialize mods from store (skip in safe mode)
+      if (!safeMode) CardSpoke_MODS.runHook('onAppInit');   // Run mod initialization hooks (skip in safe mode)
       render();                        // Initial render
       populateFooter();                // Re-populate footer to ensure it displays
 

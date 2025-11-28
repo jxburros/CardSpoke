@@ -9,21 +9,21 @@
       --text: #000000;
       --text-medium: #404040;
       --text-muted: #666666;
-      --text-ghost: #d4d4d4;
+      --text-ghost: #a0a0a0;
       
       /* Typography - FONT SWAP */
       --font-brand: "Inter", sans-serif; /* CHANGED */
       --font: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; /* CHANGED */
       
-      --text-xs: 12px;
-      --text-sm: 14px;
-      --text-base: 15px;
-      --text-lg: 18px;
-      --text-xl: 22px;
-      --text-2xl: 32px;
-      --text-3xl: 44px;
-      --text-brand: 56px;
-      --text-number: 120px;
+      --text-xs: 0.75rem;
+      --text-sm: 0.875rem;
+      --text-base: 0.9375rem;
+      --text-lg: 1.125rem;
+      --text-xl: 1.375rem;
+      --text-2xl: 2rem;
+      --text-3xl: 2.75rem;
+      --text-brand: 3.5rem;
+      --text-number: 7.5rem;
       
       /* Generous spacing - REDUCED PADDING AGAIN */
       --space-xs: 2px;
@@ -1967,4 +1967,80 @@ body.dark-mode .shortcut-item:hover {
 :root.dark .ext-badge-community {
   background-color: #616161;
   color: #fff;
+}
+
+/* =============================================================
+   BRAND BUTTON STYLES (v0.12.3)
+   Making brand clickable to navigate home
+   ============================================================= */
+
+button.brand {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+button.brand:hover {
+  opacity: 0.8;
+}
+
+button.brand:focus {
+  outline: 2px solid var(--text);
+  outline-offset: 4px;
+}
+
+/* =============================================================
+   REDUCED MOTION SUPPORT (v0.12.3)
+   Disable animations for users who prefer reduced motion
+   ============================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  .toast {
+    animation: none;
+  }
+  
+  .menu-panel {
+    transition: none;
+  }
+  
+  .save-status.pending {
+    animation: none;
+  }
+}
+
+/* =============================================================
+   CARD TILE AS BUTTON (v0.12.3)
+   Making card tiles keyboard accessible
+   ============================================================= */
+
+button.card-tile {
+  text-align: left;
+  width: 100%;
+}
+
+button.card-tile:focus {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* Breadcrumb button styles */
+button.breadcrumb {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+button.breadcrumb:focus {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
 }
