@@ -1,21 +1,36 @@
 # Planning Archives
 
-This directory contains historical planning documents from the "Mega" agent operations.
+This directory contains historical planning documents from agent operations and development campaigns.
 
 ## Contents
 
-### Mega Agent Campaign
-Large-scale feature implementation campaign focused on v0.9.3 development.
+### v0.11.X Development Planning
+Planning documents for the v0.11.X Knowledge Management release cycle.
+
+**Files:**
+- `middle-manager-plan-0.11.X.md` - Middle manager's detailed task breakdown for v0.11.X
+- `PRE-1.0-TODO.md` - Pre-1.0 release preparation checklist
+
+### Operation Quantum Leap 🔮 (v0.11.0)
+Large-scale feature campaign that brought CardSpoke from v0.10.6 to v0.11.0.
+
+**Files:**
+- `quantum-leap-plan.md` - Comprehensive implementation plan
+- `quantum-leap-progress.md` - Initial progress tracking
+- `quantum-leap-summary.md` - Campaign completion summary
+
+**Outcomes:**
+- 7 new features (Backlinks, Related Cards, Grid View, Typography, Smart Tags, Keyboard Shortcuts, Export)
+- 152 tests passing
+- Full backward compatibility
+
+### Operation Synthesis Wave 🌊 (v0.9.3)
+Earlier development campaign focused on core feature implementation.
 
 **Files:**
 - `mega-plan.md` - Comprehensive implementation plan
 - `mega-progress-initial.md` - Initial progress tracking
 - `mega-summary.md` - Campaign completion summary
-
-**Campaign Focus:**
-- Roadmap Feature Implementation
-- Operation Synthesis Wave 🌊
-- Multiple features from Priority Features (Before v2.0) section
 
 **Outcomes:**
 - Fuzzy Search implementation
