@@ -45,7 +45,7 @@ Its long-term goal is to be:
 | **0.10.x** | Extensions Framework | Mod/Theme Manager, tagging, search, internal linking | ✅ Complete |
 | **0.11.x** | Developer Ecosystem | Wizard, Playground, Utilities, Developer Mode | ✅ Complete |
 | **0.12.x** | Safety & Governance + UX Polish | Undo/Redo, Tag Management, Trash Bin, Advanced Search | ✅ Complete |
-| **0.13.x** | Documentation & Open Source Prep | Docs, templates, onboarding | 🔄 In Progress |
+| **0.13.x** | Documentation & Open Source Prep | Docs, templates, onboarding | ✅ Complete |
 | **1.0.0** | Stable Platform | Complete, portable, and extensible release | ⏳ Pending |
 
 ---
@@ -146,7 +146,7 @@ Its long-term goal is to be:
 
 ---
 
-### v0.13 — Documentation & Open Source Prep 🔄 IN PROGRESS
+### v0.13 — Documentation & Open Source Prep ✅ COMPLETE
 **Focus:** community and contributor readiness.
 
 **Current Status:**
@@ -185,10 +185,10 @@ Complete all v0.13 documentation items.
 - [x] Advanced Search + Filters
 - [x] High Contrast Mode
 - [x] Keyboard Shortcuts
-- [ ] Full documentation and templates (v0.13)
+- [x] Full documentation and templates (v0.13)
 - [x] In-app Help section (v0.13)
 
-**Estimated Completion:** After v0.13 documentation phase
+**Estimated Completion:** Ready for v1.0 release
 
 ---
 
@@ -392,7 +392,7 @@ type Card = {
 - [x] Wizard, Playground, Utilities, Developer Mode
 - [x] Undo/Redo + Trash Bin
 - [x] Advanced Search + High Contrast
-- [ ] Documentation, examples, and templates (v0.13 in progress)
+- [x] Documentation, examples, and templates (v0.13)
 
 ---
 

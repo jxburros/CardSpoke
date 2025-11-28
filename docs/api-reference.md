@@ -1,7 +1,7 @@
 # CardSpoke API Reference
 
-**Version:** 0.12.1  
-**Last Updated:** 2025-11-27
+**Version:** 0.13.0  
+**Last Updated:** 2025-11-28
 
 This document provides comprehensive documentation for the `CardSpoke.utils` API, which allows extension developers to interact with CardSpoke programmatically.
 
@@ -380,6 +380,7 @@ function createProjectStructure(projectName) {
 
 | Version | Changes |
 |---------|---------|
+| 0.13.0 | Version sync and documentation refresh |
 | 0.12.1 | API documentation created |
 | 0.11.3 | Renamed from CIB.utils to CardSpoke.utils |
 | 0.11.1 | Initial API release |
