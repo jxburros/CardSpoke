@@ -2713,7 +2713,7 @@
         const overlay = h('div', { className: 'modal-overlay show' });
         const modal = h('div', { className: 'modal', style: 'max-width: 900px; max-height: 90vh;' });
         const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, '🧩 Extensions Hub'));
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Extensions Hub'));
         const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove(), 'aria-label': 'Close' }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
@@ -2721,10 +2721,10 @@
         // Tabs for different sections
         const tabContainer = h('div', { className: 'modal-tabs', role: 'tablist' });
         const tabs = [
-          { id: 'installed', label: '📦 Installed', ariaLabel: 'View installed extensions' },
-          { id: 'store', label: '🛒 Store', ariaLabel: 'Browse extensions store' },
-          { id: 'wizard', label: '🧙 Wizard', ariaLabel: 'Create new extension' },
-          { id: 'playground', label: '🛝 Playground', ariaLabel: 'Test extension code' }
+          { id: 'installed', label: 'Installed', ariaLabel: 'View installed extensions' },
+          { id: 'store', label: 'Store', ariaLabel: 'Browse extensions store' },
+          { id: 'wizard', label: 'Wizard', ariaLabel: 'Create new extension' },
+          { id: 'playground', label: 'Playground', ariaLabel: 'Test extension code' }
         ];
         
         let activeTab = initialTab;
@@ -2874,16 +2874,16 @@
           const banner = h('div', {
             style: 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: var(--space-2xl); border-radius: var(--radius); margin-bottom: var(--space-xl); text-align: center;'
           });
-          banner.appendChild(h('div', { style: 'font-size: 48px; margin-bottom: var(--space-md);' }, '🏪'));
+          banner.appendChild(h('div', { style: 'font-size: 48px; margin-bottom: var(--space-md);' }, ''));
           banner.appendChild(h('div', { style: 'font-size: var(--text-xl); font-weight: 700; margin-bottom: var(--space-sm);' }, 'Extensions Store'));
           banner.appendChild(h('div', { style: 'opacity: 0.9;' }, 'Coming Soon! Browse and install community extensions.'));
           container.appendChild(banner);
           
           const categories = [
-            { icon: '🎨', name: 'Themes', desc: 'Visual styles and color schemes' },
-            { icon: '🔧', name: 'Tools', desc: 'Productivity enhancements' },
-            { icon: '📊', name: 'Analytics', desc: 'Data visualization' },
-            { icon: '🔗', name: 'Integrations', desc: 'External services' }
+            { icon: '', name: 'Themes', desc: 'Visual styles and color schemes' },
+            { icon: '', name: 'Tools', desc: 'Productivity enhancements' },
+            { icon: '', name: 'Analytics', desc: 'Data visualization' },
+            { icon: '', name: 'Integrations', desc: 'External services' }
           ];
           
           const grid = h('div', { style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-lg);' });
@@ -2901,7 +2901,7 @@
         
         function renderWizardTab(container, overlayRef) {
           container.appendChild(h('div', { style: 'font-weight: 700; font-size: var(--text-lg); margin-bottom: var(--space-lg);' }, 
-            '🧙 Create New Extension'));
+            'Create New Extension'));
           
           const form = h('form', { 
             style: 'display: flex; flex-direction: column; gap: var(--space-lg);',
@@ -2983,7 +2983,7 @@
         
         function renderPlaygroundTab(container) {
           container.appendChild(h('div', { style: 'font-weight: 700; font-size: var(--text-lg); margin-bottom: var(--space-md);' }, 
-            '🛝 Code Playground'));
+            'Code Playground'));
           container.appendChild(h('div', { style: 'color: var(--text-muted); margin-bottom: var(--space-lg);' }, 
             'Test CardSpoke API code in a sandboxed environment.'));
           
@@ -3012,22 +3012,22 @@
               
               const sandboxConsole = {
                 log: function() { output.textContent += Array.from(arguments).join(' ') + '\n'; },
-                error: function() { output.textContent += '❌ ' + Array.from(arguments).join(' ') + '\n'; },
-                warn: function() { output.textContent += '⚠️ ' + Array.from(arguments).join(' ') + '\n'; }
+                error: function() { output.textContent += '[ERROR] ' + Array.from(arguments).join(' ') + '\n'; },
+                warn: function() { output.textContent += '[WARN] ' + Array.from(arguments).join(' ') + '\n'; }
               };
               
               try {
                 const fn = new Function('console', 'CardSpoke', 'return (async () => {' + code + '})();');
                 fn(sandboxConsole, window.CardSpoke).then(function() {
-                  output.textContent += '\n✅ Code executed successfully';
+                  output.textContent += '\n[OK] Code executed successfully';
                 }).catch(function(err) {
-                  output.textContent += '\n❌ Error: ' + err.message;
+                  output.textContent += '\n[ERROR] Error: ' + err.message;
                 });
               } catch (err) {
-                output.textContent = '❌ Syntax Error: ' + err.message;
+                output.textContent = '[ERROR] Syntax Error: ' + err.message;
               }
             }
-          }, '▶️ Run Code');
+          }, 'Run Code');
           btnRow.appendChild(runBtn);
           
           const clearBtn = h('button', {
@@ -3088,7 +3088,7 @@
         const overlay = h('div', { className: 'modal-overlay show' });
         const modal = h('div', { className: 'modal', style: 'max-width: 700px; max-height: 90vh;' });
         const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, '📦 Data & Export'));
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Data & Export'));
         const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove(), 'aria-label': 'Close' }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
@@ -3099,7 +3099,7 @@
         const infoSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
         infoSection.appendChild(h('div', { 
           style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
-        }, '📊 Dataset Info'));
+        }, 'Dataset Info'));
         
         const cardCount = Object.keys(store.cards || {}).length;
         const tagCount = getAllTags().length;
@@ -3109,10 +3109,10 @@
         const statsGrid = h('div', { style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-lg);' });
         
         const stats = [
-          { label: 'Cards', value: cardCount, icon: '📄' },
-          { label: 'Tags', value: tagCount, icon: '🏷️' },
-          { label: 'Extensions', value: modCount, icon: '🧩' },
-          { label: 'Bookmarks', value: bookmarkCount, icon: '⭐' }
+          { label: 'Cards', value: cardCount, icon: '' },
+          { label: 'Tags', value: tagCount, icon: '' },
+          { label: 'Extensions', value: modCount, icon: '' },
+          { label: 'Bookmarks', value: bookmarkCount, icon: '' }
         ];
         
         stats.forEach(function(stat) {
@@ -3144,14 +3144,14 @@
         const exportSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
         exportSection.appendChild(h('div', { 
           style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
-        }, '📤 Export Data'));
+        }, 'Export Data'));
         
         const exportOptions = [
-          { id: 'json', label: 'Full Backup (JSON)', desc: 'Complete dataset with all cards and settings', icon: '📋' },
-          { id: 'txt', label: 'Cards as Text', desc: 'Plain text format for reading', icon: '📝' },
-          { id: 'markdown', label: 'Cards as Markdown', desc: 'Formatted markdown with headers and tags', icon: '📖' },
-          { id: 'csv', label: 'Cards as CSV', desc: 'Spreadsheet format for analysis', icon: '📊' },
-          { id: 'mods', label: 'Extensions Only', desc: 'Export all installed extensions', icon: '🧩' }
+          { id: 'json', label: 'Full Backup (JSON)', desc: 'Complete dataset with all cards and settings', icon: '' },
+          { id: 'txt', label: 'Cards as Text', desc: 'Plain text format for reading', icon: '' },
+          { id: 'markdown', label: 'Cards as Markdown', desc: 'Formatted markdown with headers and tags', icon: '' },
+          { id: 'csv', label: 'Cards as CSV', desc: 'Spreadsheet format for analysis', icon: '' },
+          { id: 'mods', label: 'Extensions Only', desc: 'Export all installed extensions', icon: '' }
         ];
         
         exportOptions.forEach(function(opt) {
@@ -3206,7 +3206,7 @@
         const manageSection = h('div', {});
         manageSection.appendChild(h('div', { 
           style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
-        }, '⚙️ Dataset Management'));
+        }, 'Dataset Management'));
         
         const renameBtn = h('button', {
           className: 'btn',
@@ -4061,7 +4061,7 @@ console.log('✓ All examples completed!');
         const overlay = h('div', { className: 'modal-overlay show' });
         const modal = h('div', { className: 'modal', style: 'max-width: 600px;' });
         const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, '🎨 Appearance Settings'));
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Appearance Settings'));
         const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove(), 'aria-label': 'Close' }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
@@ -4177,7 +4177,7 @@ console.log('✓ All examples completed!');
         const typoSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
         typoSection.appendChild(h('div', { 
           style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
-        }, '📖 Typography'));
+        }, 'Typography'));
         
         const currentTypography = localStorage.getItem('cardspoke_typography') || 'default';
         const typographyPresets = [
@@ -4210,7 +4210,7 @@ console.log('✓ All examples completed!');
         const themeSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
         themeSection.appendChild(h('div', { 
           style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
-        }, '🌓 Theme'));
+        }, 'Theme'));
         
         const currentTheme = store.activeTheme || 'light';
         
@@ -5192,7 +5192,7 @@ console.log('✓ All examples completed!');
             };
             fileInput.click();
           }
-        }, '📄 Import from File');
+        }, 'Import from File');
         bodyLabelRow.appendChild(importBodyBtn);
         formGroup2.appendChild(bodyLabelRow);
         
@@ -7921,7 +7921,7 @@ console.log('✓ All examples completed!');
         },
           h('div', { className: 'menu-panel' },
             h('div', { className: 'menu-header' },
-              h('div', { className: 'menu-title' }, '📖 Typography'),
+              h('div', { className: 'menu-title' }, 'Typography'),
               h('button', { 
                 className: 'menu-close',
                 onclick: () => modal.remove()
@@ -8096,7 +8096,7 @@ console.log('✓ All examples completed!');
               h('div', { style: 'padding: var(--space-md);' },
                 // Quick Start Section
                 h('div', { style: 'margin-bottom: var(--space-lg);' },
-                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, '🚀 Quick Start'),
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Quick Start'),
                   h('p', { style: 'margin-bottom: var(--space-xs);' }, '1. Click "New Card" to create your first card'),
                   h('p', { style: 'margin-bottom: var(--space-xs);' }, '2. Add content, tags, and child cards'),
                   h('p', { style: 'margin-bottom: var(--space-xs);' }, '3. Use search to find cards quickly'),
@@ -8105,22 +8105,22 @@ console.log('✓ All examples completed!');
                 
                 // Features Section
                 h('div', { style: 'margin-bottom: var(--space-lg);' },
-                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, '✨ Key Features'),
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Key Features'),
                   h('div', { style: 'display: grid; gap: var(--space-sm);' },
-                    h('div', {}, '📝 <strong>Cards</strong> — Hierarchical notes with parent-child relationships'),
-                    h('div', {}, '🏷️ <strong>Tags</strong> — Organize and filter cards with tags'),
-                    h('div', {}, '🔗 <strong>Links</strong> — Reference other cards with [[Card Name]]'),
-                    h('div', {}, '🔍 <strong>Search</strong> — Fuzzy search across all cards'),
-                    h('div', {}, '⭐ <strong>Bookmarks</strong> — Star important cards for quick access'),
-                    h('div', {}, '↩️ <strong>Undo/Redo</strong> — Ctrl+Z / Ctrl+Y for changes'),
-                    h('div', {}, '🗑️ <strong>Trash Bin</strong> — Recover deleted cards'),
-                    h('div', {}, '🧩 <strong>Extensions</strong> — Customize with themes and plugins')
+                    h('div', {}, h('strong', {}, 'Cards'), ' — Hierarchical notes with parent-child relationships'),
+                    h('div', {}, h('strong', {}, 'Tags'), ' — Organize and filter cards with tags'),
+                    h('div', {}, h('strong', {}, 'Links'), ' — Reference other cards with [[Card Name]]'),
+                    h('div', {}, h('strong', {}, 'Search'), ' — Fuzzy search across all cards'),
+                    h('div', {}, h('strong', {}, 'Bookmarks'), ' — Star important cards for quick access'),
+                    h('div', {}, h('strong', {}, 'Undo/Redo'), ' — Ctrl+Z / Ctrl+Y for changes'),
+                    h('div', {}, h('strong', {}, 'Trash Bin'), ' — Recover deleted cards'),
+                    h('div', {}, h('strong', {}, 'Extensions'), ' — Customize with themes and plugins')
                   )
                 ),
                 
                 // Keyboard Shortcuts Section
                 h('div', { style: 'margin-bottom: var(--space-lg);' },
-                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, '⌨️ Keyboard Shortcuts'),
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Keyboard Shortcuts'),
                   h('div', { style: 'display: grid; grid-template-columns: auto 1fr; gap: var(--space-xs) var(--space-md);' },
                     h('kbd', { style: 'background: var(--bg-alt); padding: 2px 6px; border-radius: 4px;' }, 'Ctrl+N'),
                     h('span', {}, 'New card'),
@@ -8137,7 +8137,7 @@ console.log('✓ All examples completed!');
                 
                 // Extensions Section
                 h('div', { style: 'margin-bottom: var(--space-lg);' },
-                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, '🧩 Extensions'),
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Extensions'),
                   h('p', { style: 'margin-bottom: var(--space-xs);' }, 'CardSpoke supports themes, plugins, and mods:'),
                   h('ul', { style: 'margin-left: var(--space-md); margin-bottom: var(--space-sm);' },
                     h('li', {}, 'Use the Extension Wizard to create custom extensions'),
@@ -8148,7 +8148,7 @@ console.log('✓ All examples completed!');
                 
                 // Data & Privacy Section
                 h('div', { style: 'margin-bottom: var(--space-lg);' },
-                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, '🔒 Data & Privacy'),
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Data & Privacy'),
                   h('p', {}, 'Your data is stored locally on your device. CardSpoke never sends your data to external servers. Export anytime to JSON, Markdown, or CSV.')
                 ),
                 

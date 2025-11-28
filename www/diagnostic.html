@@ -99,7 +99,7 @@
             // Final verdict
             const finalDiv = document.createElement('div');
             finalDiv.className = 'test pass';
-            finalDiv.innerHTML = '<h2>✅ CONCLUSION: The HTML app is working correctly!</h2><p>All JavaScript files load and execute without errors. The app is ready to use.</p>';
+            finalDiv.innerHTML = '<h2>[OK] CONCLUSION: The HTML app is working correctly!</h2><p>All JavaScript files load and execute without errors. The app is ready to use.</p>';
             results.appendChild(finalDiv);
           }, 500);
           
@@ -109,7 +109,7 @@
           // Final verdict for failure
           const finalDiv = document.createElement('div');
           finalDiv.className = 'test fail';
-          finalDiv.innerHTML = '<h2>❌ CONCLUSION: The HTML app has errors!</h2><p>See the error details above.</p>';
+          finalDiv.innerHTML = '<h2>[ERROR] CONCLUSION: The HTML app has errors!</h2><p>See the error details above.</p>';
           results.appendChild(finalDiv);
         }
       })
