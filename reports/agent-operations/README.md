@@ -35,6 +35,23 @@ Documentation synchronization and maintenance.
 
 **Focus:** Keeping all README files and developer guides synchronized with current version
 
+### Insect Enthusiast Agent
+Testing, verification, and quality assurance operations.
+
+**Files:**
+- `insect-verification.md` - Testing verification report
+
+**Focus:** Test coverage verification and bug tracking
+
+### Agent Workflow Improvements
+Documentation of agent ecosystem improvements.
+
+**Files:**
+- `agent-improvements-summary.md` - Summary of workflow improvements
+- `agent-improvements-COMPLETE.md` - Detailed completion report
+
+**Focus:** Protocol standardization, training documentation, agent coordination
+
 ## Purpose
 
 These reports serve as:
