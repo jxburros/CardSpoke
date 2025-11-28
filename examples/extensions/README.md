@@ -39,6 +39,18 @@ A word count plugin that shows word counts for cards.
 ### 3. sample-patch.json
 A patch that adds creation timestamps to card headers.
 
+### 4. sample-plugin-mini.json
+A tiny plugin that adds emoji markers to status tags. Useful for verifying that lightweight plugins install correctly.
+
+### 5. sample-plugin-timer.json
+A medium-size plugin that embeds a focus timer widget with presets, persistence, and toasts for feedback.
+
+### 6. sample-theme-contrast.json
+An accessibility-oriented, high-contrast theme to test CSS-only customizations with a larger style payload.
+
+### 7. sample-patch-keyboard.json
+A lightweight patch that introduces keyboard shortcuts for search, quick note creation, and board navigation.
+
 ## Creating Your Own Extension
 
 ### Basic Structure

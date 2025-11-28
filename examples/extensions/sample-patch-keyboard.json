@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "name": "Keyboard Shortcut Patch",
+    "type": "Patch",
+    "version": "1.0.0",
+    "creator": "CardSpoke Team",
+    "description": "Adds quick keyboard shortcuts for search, new cards, and cycling boards to validate lightweight patch delivery."
+  },
+  "js": "(function() {\n  'use strict';\n\n  const api = window.CardSpoke.utils;\n\n  function handleKeydown(event) {\n    if (event.target && ['INPUT', 'TEXTAREA'].includes(event.target.tagName)) return;\n\n    if (event.key === '/') {\n      event.preventDefault();\n      const search = document.querySelector('input[type=\"search\"], .search input');\n      if (search) search.focus();\n    }\n\n    if (event.key.toLowerCase() === 'n') {\n      event.preventDefault();\n      api.createCard('Quick Note', 'Jot something down...');\n      api.showToast('New note created', 'info');\n    }\n\n    if (event.key === 'Tab' && event.shiftKey) {\n      event.preventDefault();\n      api.navigateBoards(-1);\n    } else if (event.key === 'Tab') {\n      event.preventDefault();\n      api.navigateBoards(1);\n    }\n  }\n\n  document.addEventListener('keydown', handleKeydown);\n  api.showToast('Keyboard Shortcut Patch active', 'success');\n})();"
+}
