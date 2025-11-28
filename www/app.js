@@ -5143,7 +5143,42 @@ console.log('✓ All examples completed!');
         formGroup1.appendChild(h('input', { type: 'text', id: 'cardTitle', className: 'form-input', value: card.title, oninput: () => { dirty = true; } }));
         form.appendChild(formGroup1);
         const formGroup2 = h('div', { className: 'form-group' });
-        formGroup2.appendChild(h('label', { className: 'form-label' }, 'Body'));
+        const bodyLabelRow = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
+        bodyLabelRow.appendChild(h('label', { className: 'form-label', style: 'margin-bottom: 0;' }, 'Body'));
+        
+        // Add upload button for importing text from files (v0.12.3)
+        const importBodyBtn = h('button', {
+          type: 'button',
+          className: 'btn',
+          style: 'font-size: var(--text-sm);',
+          onclick: function() {
+            const fileInput = h('input', { type: 'file', accept: '.txt,.md,.text', style: 'display: none' });
+            fileInput.onchange = function(e) {
+              const file = e.target.files[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                  const currentBody = document.getElementById('cardBody');
+                  if (currentBody.value && !confirm('Replace existing content?')) {
+                    currentBody.value += '\n\n' + ev.target.result;
+                  } else {
+                    currentBody.value = ev.target.result;
+                  }
+                  dirty = true;
+                  showToast('Content imported from ' + file.name);
+                };
+                reader.onerror = function() {
+                  showToast('Failed to read file', 'error');
+                };
+                reader.readAsText(file);
+              }
+            };
+            fileInput.click();
+          }
+        }, '📄 Import from File');
+        bodyLabelRow.appendChild(importBodyBtn);
+        formGroup2.appendChild(bodyLabelRow);
+        
         const bodyTextarea = h('textarea', { id: 'cardBody', className: 'form-textarea' });
         bodyTextarea.value = card.body;
         bodyTextarea.addEventListener('input', () => { dirty = true; });
