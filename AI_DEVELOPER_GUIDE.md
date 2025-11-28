@@ -802,7 +802,8 @@ The Extension Wizard (🧙 in menu) helps developers create new extensions:
 2. **Patch**: Small enhancements with minimal code
 3. **Plugin**: Functionality additions using hooks
 4. **Mod**: Comprehensive modifications (CSS + JS)
-5. **Expansion**: Major feature additions
+5. **Kit**: Bundle of related extensions (themes + plugins)
+6. **Expansion**: Major feature additions
 
 **Generated Structure:**
 
@@ -860,48 +861,61 @@ The Playground (🛝 in menu) provides a sandboxed testing environment:
 7. **Respect User Data**: Don't modify without permission
 
 
-## Extension System (Future)
+## Extension System
 
-### Mod Hooks
+### Mod Hooks (Implemented)
 
-CardSpoke will support extension hooks:
+CardSpoke supports extension hooks for executing custom code at key points in the application lifecycle. Extensions register hooks using `CardSpoke_MODS.register()`:
 
 ```javascript
-function runModHook(hookName, ...args) {
-  for (const modId in store.mods) {
-    const mod = store.mods[modId];
-    if (mod.enabled && mod.hooks && mod.hooks[hookName]) {
-      try {
-        mod.hooks[hookName](...args);
-      } catch (err) {
-        console.error(`Mod ${modId} hook ${hookName} failed:`, err);
-      }
-    }
+CardSpoke_MODS.register('my-extension', {
+  meta: {
+    name: 'My Extension',
+    type: 'Plugin',
+    version: '1.0.0'
+  },
+  onAppInit(ctx) {
+    console.log('Extension loaded!');
+  },
+  onCardSave(ctx, card, saveInfo) {
+    console.log('Card saved:', card.id, saveInfo);
   }
-}
+});
 ```
 
-Available hooks:
-- `onCardSave(card, context)`
-- `onCardDelete(cardId)`
-- `onCardView(card)`
-- `onNavigate(page, options)`
-- `onSearch(query, results)`
+**Implemented Hooks:**
+- `onAppInit(context)` - Called once when app initializes or mod is first enabled
+- `onCardSave(context, card, saveInfo)` - Called when a card is created or updated
+  - `saveInfo`: `{ isNew: boolean, source: string }`
+- `onCardDelete(context, card)` - Called when a card is deleted
+- `onCardRender(context, card, element)` - Called after a card is rendered to the DOM
+
+**Planned Hooks:**
+- `onNavigate(context, navState)` - Called when navigation changes
+- `onSearch(context, query, results)` - Called when search is performed
+- `onThemeChange(context, themeName)` - Called when theme changes
+- `onExport(context, exportData)` - Called before data export
+- `onImport(context, importData)` - Called after data import
 
 ### Mod Structure
 
+Mods are stored in `store.mods` with this structure:
+
 ```javascript
 {
-  id: string,
-  name: string,
-  creator: string,
-  version: string,
-  releaseDate: string,
-  type: 'theme' | 'patch' | 'plugin' | 'mod',
-  enabled: boolean,
-  js: string,      // JavaScript code
-  css: string,     // CSS code
-  hooks: object    // Hook functions
+  enabled: boolean,        // Whether the mod is active
+  js: string,              // JavaScript code
+  css: string,             // CSS styles
+  meta: {
+    name: string,          // Display name (required)
+    type: string,          // 'theme' | 'patch' | 'plugin' | 'mod' | 'kit' | 'expansion'
+    creator: string,       // Author name
+    version: string,       // Version string
+    releaseDate: string,   // Release date
+    description: string,   // What the mod does
+    source: string,        // 'official' | 'community' (v0.12.2+)
+    ai_assistants: string  // AI tools used in creation (v0.12.2+)
+  }
 }
 ```
 

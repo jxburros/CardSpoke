@@ -1,8 +1,8 @@
-# CardSpoke Schema Reference - Version 0.9.3
+# CardSpoke Schema Reference - Version 0.13.0
 
-**Version:** 0.9.3
+**Version:** 0.13.0
 **Schema Version:** 4
-**Date:** 2025-11-13
+**Date:** 2025-11-28
 **Status:** Current Reference Documentation
 
 ---
@@ -115,7 +115,7 @@ Cards are the fundamental data structure in CardSpoke, representing individual n
 
 ### Card Creation
 
-Cards are created using the `createCard()` function defined at `/home/user/CardSpoke/www/app.js:743`:
+Cards are created using the `createCard()` function defined in `www/app.js`:
 
 ```javascript
 function createCard(title, body, parentId = null, skipSave = false, skipHooks = false)
@@ -146,10 +146,13 @@ Mods (also called Extensions) are JavaScript/CSS plugins that extend CardSpoke's
   css: string,             // CSS styles for the mod
   meta: {                  // Metadata about the mod
     name: string,          // Display name (required)
+    type?: string,         // 'theme' | 'patch' | 'plugin' | 'mod' | 'kit' | 'expansion'
     creator?: string,      // Creator/author name (optional)
     version?: string,      // Version string (optional)
     releaseDate?: string,  // Release date (optional)
-    description?: string   // Mod description (optional)
+    description?: string,  // Mod description (optional)
+    source?: string,       // 'official' | 'community' (v0.12.2+)
+    ai_assistants?: string // AI tools used in creation (v0.12.2+)
   }
 }
 ```
@@ -231,18 +234,23 @@ Mods (also called Extensions) are JavaScript/CSS plugins that extend CardSpoke's
 
 Mods are stored in the `store.mods` object with their ID as the key. Mods can be installed:
 
-1. **From File Upload** (see `/home/user/CardSpoke/www/app.js:2277`):
-   - Accepts `.js` files or JSON packages
+1. **From File Upload** (Upload Modal → Mods Tab):
+   - Accepts `.json` files containing mod packages
    - Defaults `enabled` to `false`
-   - Extracts metadata from package or uses filename
+   - Extracts metadata from package
 
-2. **From Inline Creation** (see `/home/user/CardSpoke/www/app.js:2309`):
-   - Created via the "Create New Extension" UI
-   - User provides name, creator, version, and releaseDate
+2. **From Extension Wizard** (Menu → Extension Wizard):
+   - Interactive wizard for creating new extensions
+   - User provides name, creator, version, type, and description
+   - JavaScript and CSS templates auto-generated
+   - Defaults `enabled` to `false`
+
+3. **From Inline Creation** (Upload Modal → Create New):
+   - Manual entry of name, creator, version, and releaseDate
    - JavaScript and CSS entered in text areas
    - Defaults `enabled` to `false`
 
-3. **From Package Import** (see `/home/user/CardSpoke/www/app.js:1122`):
+4. **From Package Import** (Data Hub → Import):
    - Imported as part of a full data package
    - Preserves original `enabled` state
    - Includes all metadata from export
@@ -338,18 +346,19 @@ Required fields when installing mods:
 ## Code References
 
 ### Card Operations
-- **Create:** `www/app.js:743` - `createCard()`
-- **Update:** `www/app.js:777` - `updateCard()`
-- **Delete:** `www/app.js:789` - `deleteCard()`
+- **Create:** `www/app.js` - `createCard()`
+- **Update:** `www/app.js` - `updateCard()`
+- **Delete:** `www/app.js` - `deleteCard()`
 
 ### Mod Operations
-- **Enable:** `www/app.js:665` - `CIB_MODS.enable()`
-- **Disable:** `www/app.js:677` - `CIB_MODS.disable()`
-- **List:** `www/app.js:716` - `CIB_MODS.listMods()`
+- **Enable:** `www/app.js` - `CardSpoke_MODS.enable()`
+- **Disable:** `www/app.js` - `CardSpoke_MODS.disable()`
+- **List:** `www/app.js` - `CardSpoke_MODS.listMods()`
+- **Register:** `www/app.js` - `CardSpoke_MODS.register()`
 
 ### Store Definition
-- **Store initialization:** `www/app.js:38`
-- **Schema version constant:** `www/app.js:36`
+- **Store initialization:** `www/app.js` - See `store` variable definition
+- **Schema version constant:** `www/app.js` - `SCHEMA_VERSION = 4`
 
 ---
 
@@ -406,5 +415,5 @@ If schema changes are needed in future versions:
 ---
 
 **Document Status:** Current Reference
-**Last Updated:** 2025-11-13
-**Verified Against:** CardSpoke v0.9.3 codebase
+**Last Updated:** 2025-11-28
+**Verified Against:** CardSpoke v0.13.0 codebase

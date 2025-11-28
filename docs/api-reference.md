@@ -316,18 +316,29 @@ if (cardId && typeof cardId === 'string') {
 ```javascript
 // Simple extension that adds a word count to card titles
 (function() {
+  'use strict';
   const api = window.CardSpoke.utils;
   
-  // Hook into card rendering
-  CardSpoke.hooks.register('afterRenderCard', (cardId) => {
-    const card = api.getCard(cardId);
-    if (card) {
-      const wordCount = card.body.split(/\s+/).filter(w => w).length;
-      console.log(`Card "${card.title}" has ${wordCount} words`);
+  // Register extension with CardSpoke
+  CardSpoke_MODS.register('word-count-example', {
+    meta: {
+      name: 'Word Count Example',
+      type: 'Plugin',
+      version: '1.0.0',
+      description: 'Shows word count in console when cards render'
+    },
+    onAppInit(ctx) {
+      console.log('Word Count Extension loaded!');
+      api.showToast('Word Count Extension loaded!', 'success');
+    },
+    onCardRender(ctx, card, element) {
+      // Count words when a card is rendered
+      if (card && card.body) {
+        const wordCount = card.body.split(/\s+/).filter(w => w).length;
+        console.log(`Card "${card.title}" has ${wordCount} words`);
+      }
     }
   });
-  
-  api.showToast('Word Count Extension loaded!', 'success');
 })();
 ```
 
