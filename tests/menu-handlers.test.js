@@ -12,17 +12,13 @@ test('menu handlers are correctly scoped (not nested)', () => {
   const appCode = readFileSync(appPath, 'utf8');
   
   // List of menu handler assignments that should each be at their own scope
+  // Updated for v0.12.3: consolidated menu structure
   const handlers = [
     'menu.recentCards.onclick',
-    'menu.typography.onclick',
-    'menu.instance.onclick',
-    'menu.datasetInfo.onclick',
-    'menu.downloadJSON.onclick',
-    'menu.downloadTXT.onclick',
-    'menu.downloadMarkdown.onclick',
-    'menu.downloadCSV.onclick',
-    'menu.downloadMods.onclick',
-    'menu.clearAll.onclick'
+    'menu.dataHub.onclick',
+    'menu.clearAll.onclick',
+    'menu.extensionsHub.onclick',
+    'menu.appearance.onclick'
   ];
   
   // Check that each handler definition ends with '};' before the next one
