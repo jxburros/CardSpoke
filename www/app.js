@@ -98,12 +98,6 @@
       const breadcrumbs = document.getElementById('breadcrumbs');
       const main = document.getElementById('main');
       const toastContainer = document.getElementById('toastContainer');
-      
-      const themeSwitch = document.getElementById('themeSwitch');
-      const viewModeSwitch = document.getElementById('viewModeSwitch');
-      const highContrastSwitch = document.getElementById('highContrastSwitch');
-      const gridViewSwitch = document.getElementById('gridViewSwitch');
-      const devModeSwitch = document.getElementById('devModeSwitch');
 
       const uploadModal = {
         overlay: document.getElementById('uploadModal'),
@@ -5460,10 +5454,8 @@ console.log('✓ All examples completed!');
       function applyTheme(theme) {
         if (theme === 'dark') {
           document.documentElement.classList.add('dark');
-          if (themeSwitch) themeSwitch.checked = true; // Sync switch
         } else {
           document.documentElement.classList.remove('dark');
-          if (themeSwitch) themeSwitch.checked = false; // Sync switch
         }
         
         // Save to store for persistence across dataset switches
@@ -5584,62 +5576,9 @@ console.log('✓ All examples completed!');
         applyTheme(isDark ? 'light' : 'dark');
       };
       
-      if (themeSwitch) {
-        themeSwitch.onchange = () => {
-          applyTheme(themeSwitch.checked ? 'dark' : 'light');
-        };
-      }
-      
-      if (viewModeSwitch) {
-        viewModeSwitch.checked = (store.viewMode === 'compact');
-        viewModeSwitch.onchange = () => {
-          toggleViewMode();
-          viewModeSwitch.checked = (store.viewMode === 'compact');
-        };
-      }
-
-      if (gridViewSwitch) {
-        const savedGridView = localStorage.getItem('cardspoke_gridView') === 'true';
-        gridViewSwitch.checked = savedGridView;
-        gridViewSwitch.onchange = () => {
-          const enabled = gridViewSwitch.checked;
-          localStorage.setItem('cardspoke_gridView', enabled.toString());
-          showToast(enabled ? 'Grid view enabled' : 'List view enabled');
-          render();
-        };
-      }
-
-      if (highContrastSwitch) {
-        const savedHC = localStorage.getItem('cardspoke_highcontrast') === 'true';
-        if (savedHC) document.documentElement.classList.add('high-contrast');
-        highContrastSwitch.checked = savedHC;
-        highContrastSwitch.onchange = () => {
-          const enabled = highContrastSwitch.checked;
-          if (enabled) {
-            document.documentElement.classList.add('high-contrast');
-          } else {
-            document.documentElement.classList.remove('high-contrast');
-          }
-          localStorage.setItem('cardspoke_highcontrast', enabled.toString());
-          
-          // Ensure theme toggle state is preserved
-          const currentTheme = localStorage.getItem('cardspoke_theme') || 'light';
-          if (themeSwitch) themeSwitch.checked = currentTheme === 'dark';
-          
-          showToast(enabled ? 'High contrast enabled' : 'High contrast disabled', 'info');
-        };
-      }
-
-      if (devModeSwitch) {
-        const savedDevMode = localStorage.getItem('cardspoke_devmode') === 'true';
-        devModeSwitch.checked = savedDevMode;
-        devModeSwitch.onchange = () => {
-          const enabled = devModeSwitch.checked;
-          localStorage.setItem('cardspoke_devmode', enabled);
-          console.log(`[Developer Mode] ${enabled ? 'Enabled' : 'Disabled'}`);
-          showToast(`Developer Mode ${enabled ? 'Enabled' : 'Disabled'}`, 'info');
-        };
-      }
+      // Apply saved high contrast mode on startup
+      const savedHC = localStorage.getItem('cardspoke_highcontrast') === 'true';
+      if (savedHC) document.documentElement.classList.add('high-contrast');
       
       // --- Menu Handlers ---
       
