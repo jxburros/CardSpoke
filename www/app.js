@@ -1815,12 +1815,13 @@
         // Store previous state for undo support (v0.12.0 fix)
         // Always track undo regardless of skipHooks - skipHooks only controls mod hooks
         const previousState = cloneCard(card);
+        const updateTimestamp = Date.now();
         pushUndo('updateCard', { 
           cardId: id, 
           previousState: previousState,
-          newState: { ...updates, updatedAt: Date.now() }
+          newState: { ...updates, updatedAt: updateTimestamp }
         });
-        Object.assign(card, updates, { updatedAt: Date.now() });
+        Object.assign(card, updates, { updatedAt: updateTimestamp });
         if (!skipSave) save();
         if (!skipHooks) runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'update' });
       }
@@ -3113,7 +3114,7 @@
         }, 'Dataset Info'));
         
         // Dataset name with rename capability (v0.12.3 fix)
-        const currentDatasetName = (store.metadata && store.metadata.name) || instanceKey || 'Default';
+        const currentDatasetName = ((store.metadata && store.metadata.name) || instanceKey || 'Default').trim();
         const nameRow = h('div', { 
           style: 'display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-lg); background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius); border: 1px solid var(--border);'
         });
@@ -3131,7 +3132,7 @@
           className: 'btn btn-primary',
           onclick: function() {
             const newName = nameInput.value.trim();
-            if (newName && newName !== currentDatasetName) {
+            if (newName && newName !== currentDatasetName.trim()) {
               if (!store.metadata) store.metadata = {};
               store.metadata.name = newName;
               store.metadata.updatedAt = Date.now();
