@@ -4154,6 +4154,29 @@ console.log('✓ All examples completed!');
         contrastRow.appendChild(contrastToggle);
         viewSection.appendChild(contrastRow);
         
+        // Developer Mode Toggle
+        const devModeEnabled = localStorage.getItem('cardspoke_devmode') === 'true';
+        const devRow = h('div', { 
+          className: 'menu-item-toggle',
+          style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px; margin-top: var(--space-md);'
+        });
+        const devLabel = h('label', { className: 'menu-item-label' }, 'Developer Mode');
+        const devToggle = h('label', { className: 'switch-toggle' });
+        const devInput = h('input', { 
+          type: 'checkbox', 
+          checked: devModeEnabled,
+          onchange: function(e) {
+            localStorage.setItem('cardspoke_devmode', e.target.checked.toString());
+            showToast(e.target.checked ? 'Developer mode enabled' : 'Developer mode disabled');
+          }
+        });
+        const devSlider = h('span', { className: 'switch-slider' });
+        devToggle.appendChild(devInput);
+        devToggle.appendChild(devSlider);
+        devRow.appendChild(devLabel);
+        devRow.appendChild(devToggle);
+        viewSection.appendChild(devRow);
+        
         modalBody.appendChild(viewSection);
         
         // Typography Section
@@ -5729,10 +5752,12 @@ console.log('✓ All examples completed!');
         showRecentCards();
       };
 
-      menu.typography.onclick = () => {
-        menu.overlay.classList.remove('show');
-        showTypographySelector();
-      };
+      if (menu.typography) {
+        menu.typography.onclick = () => {
+          menu.overlay.classList.remove('show');
+          showTypographySelector();
+        };
+      }
 
       menu.dataHub.onclick = () => {
         menu.overlay.classList.remove('show');
