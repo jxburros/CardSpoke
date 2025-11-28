@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.12.3
+      // Version: 0.13.0
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,7 +25,7 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.12.3'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.13.0'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-28'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
@@ -45,6 +45,7 @@
       // Version 0.12.1: Documentation update, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README sync for 1.0 release prep
       // Version 0.12.2: Pre-1.0 TODO items - Extension Wizard ai_assistants field, official/community badges, nested menu UX
       // Version 0.12.3: TODO list - Clickable brand logo, accessibility improvements, CIB renamed to CardSpoke, scalable fonts
+      // Version 0.13.0: Documentation & Open Source Prep - Updated all documentation to reflect current state, version sync across all files
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)

@@ -1,20 +1,29 @@
 # CardSpoke
 
-**Version:** 0.12.2  
+**Version:** 0.13.0  
 **Creator:** [jxburros](https://github.com/jxburros)
 
 > A lightweight, extensible, multi-platform knowledge base framework
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.12.2
+## 🌟 Current Version: 0.13.0
 
-The v0.11 release series introduces the **Developer Ecosystem** with comprehensive tools for extension development, building upon the knowledge graph features from v0.11.0.
+The v0.13 release series represents the **Documentation & Open Source Prep** phase, ensuring all documentation is current and synchronized with the codebase, preparing CardSpoke for the 1.0 stable release.
 
+### What's New in 0.13.0
 
-The v0.12 release series completes the **Safety & Governance** phase with comprehensive undo/redo, tag management, and advanced search features, preparing CardSpoke for the 1.0 stable release.
+**Documentation & Open Source Prep**
+- **Version Synchronization**: All version references updated to 0.13.0 across the entire codebase
+- **Documentation Refresh**: Comprehensive documentation update reflecting current app state
+- **Open Source Readiness**: Final preparation for 1.0 stable release
+- **177 Passing Tests**: Full test suite validates all functionality
 
-### What's New in 0.12.2
+### Previous Releases Summary
+
+The v0.12 release series completed the **Safety & Governance** phase with comprehensive undo/redo, tag management, and advanced search features.
+
+### What's New in 0.13.0
 
 **Pre-1.0 Completion Items**
 - **Extension Wizard Enhancements**:
@@ -26,7 +35,7 @@ The v0.12 release series completes the **Safety & Governance** phase with compre
   - Cards, Extensions, Data, View, and Help sections
   - Nested submenus for Developer Tools and Export options
   - Consistent icons and improved discoverability
-- **Documentation**: Updated all version references to 0.12.2
+- **Documentation**: Updated all version references to 0.13.0
 
 ### What's New in 0.12.1
 
@@ -550,7 +559,7 @@ CardSpoke is actively developed with a clear path to version 1.0. Current focus 
 - ✅ **v0.10**: Extensions Framework - Mod/Theme Manager, tagging, search
 - ✅ **v0.11**: Developer Ecosystem - Wizard, Playground, CardSpoke.utils API
 - ✅ **v0.12**: Safety & Governance - Undo/Redo, Tag Management, Advanced Search
-- 🚧 **v0.13**: Documentation & Open Source Prep (Current)
+- ✅ **v0.13**: Documentation & Open Source Prep - Version sync, documentation refresh
 - 🎯 **v1.0**: Stable Platform Release
 
 See the [Road Map V2.md](Road%20Map%20V2.md) for complete version details and feature planning.
