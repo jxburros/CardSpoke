@@ -2017,3 +2017,30 @@ button.brand:focus {
     animation: none;
   }
 }
+
+/* =============================================================
+   CARD TILE AS BUTTON (v0.12.3)
+   Making card tiles keyboard accessible
+   ============================================================= */
+
+button.card-tile {
+  text-align: left;
+  width: 100%;
+}
+
+button.card-tile:focus {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* Breadcrumb button styles */
+button.breadcrumb {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+button.breadcrumb:focus {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}

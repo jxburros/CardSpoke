@@ -83,6 +83,7 @@
         trashBin: document.getElementById('menuTrashBin'),
         extensionWizard: document.getElementById('menuExtensionWizard'),
         playground: document.getElementById('menuPlayground'),
+        appearance: document.getElementById('menuAppearance'),
         bookmarks: document.getElementById('menuBookmarks'),
         typography: document.getElementById('menuTypography'),
         recentCards: document.getElementById('menuRecentCards'),
@@ -269,6 +270,51 @@
         
         scheduleRemoval();
       }
+
+      /**
+       * Focus trapping for accessibility (v0.12.3)
+       * Traps focus within a modal element
+       * @param {HTMLElement} modal - Modal element to trap focus in
+       * @returns {Function} Cleanup function to remove trap
+       */
+      function trapFocus(modal) {
+        const focusableElements = modal.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstFocusable = focusableElements[0];
+        const lastFocusable = focusableElements[focusableElements.length - 1];
+        
+        const handleKeyDown = (e) => {
+          if (e.key !== 'Tab') return;
+          
+          if (e.shiftKey) {
+            // Shift + Tab
+            if (document.activeElement === firstFocusable) {
+              e.preventDefault();
+              lastFocusable.focus();
+            }
+          } else {
+            // Tab
+            if (document.activeElement === lastFocusable) {
+              e.preventDefault();
+              firstFocusable.focus();
+            }
+          }
+        };
+        
+        modal.addEventListener('keydown', handleKeyDown);
+        
+        // Focus first element
+        if (firstFocusable) {
+          firstFocusable.focus();
+        }
+        
+        // Return cleanup function
+        return () => {
+          modal.removeEventListener('keydown', handleKeyDown);
+        };
+      }
+
 
       /**
        * Check if developer mode is enabled
@@ -3501,68 +3547,196 @@ console.log('✓ All examples completed!');
 
       function showAppearanceSettings() {
         const overlay = h('div', { className: 'modal-overlay show' });
-        const modal = h('div', { className: 'modal' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 600px;' });
         const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Appearance Settings'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, '🎨 Appearance Settings'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove(), 'aria-label': 'Close' }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
         
         const modalBody = h('div', { className: 'modal-body' });
         
-        // Theme selector section
+        // View Mode Section
+        const viewSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
+        viewSection.appendChild(h('div', { 
+          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
+        }, 'View Options'));
+        
+        // Compact View Toggle
+        const compactViewEnabled = store.viewMode === 'compact';
+        const compactRow = h('div', { 
+          className: 'menu-item-toggle',
+          style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px; margin-bottom: var(--space-md);'
+        });
+        const compactLabel = h('label', { className: 'menu-item-label' }, 'Compact View');
+        const compactToggle = h('label', { className: 'switch-toggle' });
+        const compactInput = h('input', { 
+          type: 'checkbox', 
+          checked: compactViewEnabled,
+          onchange: function(e) {
+            store.viewMode = e.target.checked ? 'compact' : 'normal';
+            save();
+            render();
+          }
+        });
+        const compactSlider = h('span', { className: 'switch-slider' });
+        compactToggle.appendChild(compactInput);
+        compactToggle.appendChild(compactSlider);
+        compactRow.appendChild(compactLabel);
+        compactRow.appendChild(compactToggle);
+        viewSection.appendChild(compactRow);
+        
+        // Grid View Toggle
+        const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
+        const gridRow = h('div', { 
+          className: 'menu-item-toggle',
+          style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px; margin-bottom: var(--space-md);'
+        });
+        const gridLabel = h('label', { className: 'menu-item-label' }, 'Grid View');
+        const gridToggle = h('label', { className: 'switch-toggle' });
+        const gridInput = h('input', { 
+          type: 'checkbox', 
+          checked: gridViewEnabled,
+          onchange: function(e) {
+            localStorage.setItem('cardspoke_gridView', e.target.checked.toString());
+            render();
+          }
+        });
+        const gridSlider = h('span', { className: 'switch-slider' });
+        gridToggle.appendChild(gridInput);
+        gridToggle.appendChild(gridSlider);
+        gridRow.appendChild(gridLabel);
+        gridRow.appendChild(gridToggle);
+        viewSection.appendChild(gridRow);
+        
+        // High Contrast Toggle
+        const highContrastEnabled = localStorage.getItem('cardspoke_highContrast') === 'true';
+        const contrastRow = h('div', { 
+          className: 'menu-item-toggle',
+          style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px;'
+        });
+        const contrastLabel = h('label', { className: 'menu-item-label' }, 'High Contrast');
+        const contrastToggle = h('label', { className: 'switch-toggle' });
+        const contrastInput = h('input', { 
+          type: 'checkbox', 
+          checked: highContrastEnabled,
+          onchange: function(e) {
+            localStorage.setItem('cardspoke_highContrast', e.target.checked.toString());
+            if (e.target.checked) {
+              document.documentElement.classList.add('high-contrast');
+            } else {
+              document.documentElement.classList.remove('high-contrast');
+            }
+          }
+        });
+        const contrastSlider = h('span', { className: 'switch-slider' });
+        contrastToggle.appendChild(contrastInput);
+        contrastToggle.appendChild(contrastSlider);
+        contrastRow.appendChild(contrastLabel);
+        contrastRow.appendChild(contrastToggle);
+        viewSection.appendChild(contrastRow);
+        
+        modalBody.appendChild(viewSection);
+        
+        // Typography Section
+        const typoSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
+        typoSection.appendChild(h('div', { 
+          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
+        }, '📖 Typography'));
+        
+        const currentTypography = localStorage.getItem('cardspoke_typography') || 'default';
+        const typographyPresets = [
+          { id: 'default', name: 'Default', desc: 'Standard reading size' },
+          { id: 'comfortable', name: 'Comfortable', desc: 'Larger text, more spacing' },
+          { id: 'compact', name: 'Compact', desc: 'Smaller text, denser layout' },
+          { id: 'dyslexia', name: 'Dyslexia-Friendly', desc: 'Optimized for readability' }
+        ];
+        
+        typographyPresets.forEach(function(preset) {
+          const isActive = currentTypography === preset.id;
+          const presetOption = h('div', {
+            style: 'padding: var(--space-md); border: 2px solid ' + (isActive ? 'var(--text)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-md); cursor: pointer;',
+            onclick: function() {
+              localStorage.setItem('cardspoke_typography', preset.id);
+              document.documentElement.setAttribute('data-typography', preset.id);
+              showToast('Typography: ' + preset.name);
+              overlay.remove();
+              showAppearanceSettings();
+            }
+          });
+          presetOption.appendChild(h('div', { style: 'font-weight: 600;' }, (isActive ? '✓ ' : '') + preset.name));
+          presetOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, preset.desc));
+          typoSection.appendChild(presetOption);
+        });
+        
+        modalBody.appendChild(typoSection);
+        
+        // Theme Section
         const themeSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
         themeSection.appendChild(h('div', { 
-          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
-        }, 'Theme'));
+          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
+        }, '🌓 Theme'));
         
         const currentTheme = store.activeTheme || 'light';
         
         // Light theme option
         const lightOption = h('div', { 
           className: 'theme-option',
-          style: `padding: var(--space-lg); border: 2px solid ${currentTheme === 'light' ? 'var(--primary)' : 'var(--border)'}; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: white; color: black;`,
-          onclick: () => {
+          style: 'padding: var(--space-lg); border: 2px solid ' + (currentTheme === 'light' ? 'var(--text)' : 'var(--border)') + '; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: white; color: black;',
+          onclick: function() {
             applyTheme('light');
             overlay.remove();
           }
         });
-        lightOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, 'Light Theme'));
+        lightOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, (currentTheme === 'light' ? '✓ ' : '') + 'Light Theme'));
         lightOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #666;' }, 'Default light color scheme'));
-        if (currentTheme === 'light') {
-          lightOption.appendChild(h('div', { style: 'margin-top: var(--space-sm); color: var(--primary); font-weight: 600;' }, '✓ Active'));
-        }
         themeSection.appendChild(lightOption);
         
         // Dark theme option
         const darkOption = h('div', { 
           className: 'theme-option',
-          style: `padding: var(--space-lg); border: 2px solid ${currentTheme === 'dark' ? 'var(--primary)' : 'var(--border)'}; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: #1a1a1a; color: white;`,
-          onclick: () => {
+          style: 'padding: var(--space-lg); border: 2px solid ' + (currentTheme === 'dark' ? 'white' : 'var(--border)') + '; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: #1a1a1a; color: white;',
+          onclick: function() {
             applyTheme('dark');
             overlay.remove();
           }
         });
-        darkOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, 'Dark Theme'));
-        darkOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #aaa;' }, 'Dark color scheme for low-light environments'));
-        if (currentTheme === 'dark') {
-          darkOption.appendChild(h('div', { style: 'margin-top: var(--space-sm); color: #64b5f6; font-weight: 600;' }, '✓ Active'));
-        }
+        darkOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, (currentTheme === 'dark' ? '✓ ' : '') + 'Dark Theme'));
+        darkOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #aaa;' }, 'Dark color scheme'));
         themeSection.appendChild(darkOption);
         
-        modalBody.appendChild(themeSection);
-        
-        // Future: Theme extensions could be listed here
-        const extensionNote = h('div', { 
-          style: 'padding: var(--space-md); background: var(--bg-secondary); border-radius: 4px; font-size: var(--text-sm); color: var(--text-muted);'
+        // Custom themes from extensions
+        const themeExtensions = Object.values(store.mods || {}).filter(function(mod) {
+          return mod.meta && mod.meta.type === 'Theme' && mod.enabled;
         });
-        extensionNote.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, '💡 Theme Extensions'));
-        extensionNote.appendChild(h('div', {}, 'Custom theme extensions can be installed via the Extensions Manager to add more color schemes.'));
-        modalBody.appendChild(extensionNote);
+        
+        if (themeExtensions.length > 0) {
+          themeSection.appendChild(h('div', { 
+            style: 'font-weight: 600; margin: var(--space-lg) 0 var(--space-md);'
+          }, 'Installed Theme Extensions:'));
+          
+          themeExtensions.forEach(function(theme) {
+            const themeOption = h('div', {
+              style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px; margin-bottom: var(--space-sm);'
+            });
+            themeOption.appendChild(h('div', { style: 'font-weight: 600;' }, theme.meta.name || theme.id));
+            themeOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, 'By ' + (theme.meta.creator || 'Unknown')));
+            themeSection.appendChild(themeOption);
+          });
+        }
+        
+        modalBody.appendChild(themeSection);
         
         modal.appendChild(modalBody);
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
+        
+        // Set up focus trap
+        trapFocus(modal);
+        
+        overlay.onclick = function(e) {
+          if (e.target === overlay) overlay.remove();
+        };
       }
 
       function showBookmarks() {
@@ -4068,11 +4242,11 @@ console.log('✓ All examples completed!');
       function renderBreadcrumbs() {
         breadcrumbs.innerHTML = '';
         if (navState.page === 'search') {
-          breadcrumbs.appendChild(h('div', { className: 'breadcrumb current' }, 'Search Results'));
+          breadcrumbs.appendChild(h('span', { className: 'breadcrumb current', 'aria-current': 'page' }, 'Search Results'));
           return;
         }
         if (navState.page === 'edit') {
-          breadcrumbs.appendChild(h('div', { className: 'breadcrumb current' }, navState.cardId ? 'Edit Card' : 'New Card'));
+          breadcrumbs.appendChild(h('span', { className: 'breadcrumb current', 'aria-current': 'page' }, navState.cardId ? 'Edit Card' : 'New Card'));
           return;
         }
         let current = navState.cardId;
@@ -4084,14 +4258,16 @@ console.log('✓ All examples completed!');
           current = c.parentId;
         }
         if (path.length === 0) {
-          breadcrumbs.appendChild(h('div', { className: 'breadcrumb current' }, 'All Cards'));
+          breadcrumbs.appendChild(h('span', { className: 'breadcrumb current', 'aria-current': 'page' }, 'All Cards'));
         } else {
-          const home = h('div', { className: 'breadcrumb', onclick: () => goTo('list', { cardId: null }) }, 'All Cards');
+          const home = h('button', { className: 'breadcrumb', onclick: () => goTo('list', { cardId: null }), 'aria-label': 'Go to All Cards' }, 'All Cards');
           breadcrumbs.appendChild(home);
           path.forEach((c, i) => {
             const isCurrent = (i === path.length - 1 && navState.page === 'list');
             const cls = isCurrent ? 'breadcrumb current' : 'breadcrumb';
-            const chip = h('div', { className: cls, onclick: isCurrent ? null : () => goTo('list', { cardId: c.id }) }, c.title || '(Untitled)');
+            const chip = isCurrent 
+              ? h('span', { className: cls, 'aria-current': 'page' }, c.title || '(Untitled)')
+              : h('button', { className: cls, onclick: () => goTo('list', { cardId: c.id }), 'aria-label': 'Go to ' + (c.title || 'Untitled') }, c.title || '(Untitled)');
             breadcrumbs.appendChild(chip);
           });
         }
@@ -4142,7 +4318,7 @@ console.log('✓ All examples completed!');
       function renderCardTile(card) {
         const isCompact = store.viewMode === 'compact';
         const cardClasses = isCompact ? 'card card-compact' : 'card';
-        const cardEl = h('div', { className: cardClasses, onclick: () => goTo('read', { cardId: card.id }) });
+        const cardEl = h('button', { className: cardClasses + ' card-tile', onclick: () => goTo('read', { cardId: card.id }), 'aria-label': 'Open card: ' + (card.title || 'Untitled') });
         cardEl.dataset.cardId = card.id;
         cardEl.dataset.renderType = 'list';
 
@@ -4891,17 +5067,30 @@ console.log('✓ All examples completed!');
       
       // --- Menu Handlers ---
       
+      // Focus trap cleanup function
+      let menuFocusTrapCleanup = null;
+      
       header.menuBtn.onclick = () => {
         menu.overlay.classList.add('show');
+        // Set up focus trap for accessibility
+        menuFocusTrapCleanup = trapFocus(menu.overlay.querySelector('.menu-panel'));
       };
 
       menu.closeBtn.onclick = () => {
         menu.overlay.classList.remove('show');
+        if (menuFocusTrapCleanup) {
+          menuFocusTrapCleanup();
+          menuFocusTrapCleanup = null;
+        }
       };
 
       menu.overlay.onclick = (e) => {
         if (e.target === menu.overlay) {
           menu.overlay.classList.remove('show');
+          if (menuFocusTrapCleanup) {
+            menuFocusTrapCleanup();
+            menuFocusTrapCleanup = null;
+          }
         }
       };
 
@@ -4982,6 +5171,11 @@ console.log('✓ All examples completed!');
       menu.extensionWizard.onclick = () => {
         menu.overlay.classList.remove('show');
         showExtensionWizard();
+      };
+
+      menu.appearance.onclick = () => {
+        menu.overlay.classList.remove('show');
+        showAppearanceSettings();
       };
 
       menu.playground.onclick = () => {
