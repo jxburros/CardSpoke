@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "name": "High Contrast Theme",
+    "type": "Theme",
+    "version": "1.0.0",
+    "creator": "CardSpoke Team",
+    "description": "Accessibility-focused palette with high contrast, clear borders, and roomy spacing. Good for testing CSS-only themes."
+  },
+  "css": "body {\n  --bg: #0e1116;\n  --bg-alt: #151a22;\n  --text-primary: #f8fafc;\n  --text-secondary: #c7d2fe;\n  --border: #2d3748;\n  --accent: #9f7aea;\n  --accent-contrast: #f0abfc;\n  --button-bg: #1e293b;\n  --button-text: #f8fafc;\n  letter-spacing: 0.01em;\n}\n\n.app-shell, .board, .card, .panel {\n  background: var(--bg-alt);\n  border: 1px solid var(--border);\n  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);\n}\n\n.navbar, .sidebar {\n  background: #0b0e13;\n  border-right: 1px solid var(--border);\n}\n\n.button, button, .btn {\n  background: linear-gradient(135deg, #7c3aed, #3b82f6);\n  color: #fff;\n  border: none;\n  border-radius: 10px;\n  font-weight: 700;\n}\n\n.button:hover, button:hover, .btn:hover {\n  transform: translateY(-1px);\n  box-shadow: 0 6px 16px rgba(63, 81, 181, 0.35);\n}\n\n.card h3, .board h2, .panel h4 {\n  letter-spacing: 0.03em;\n  text-transform: uppercase;\n}\n\n.tag-chip {\n  background: rgba(159, 122, 234, 0.15);\n  color: #ede9fe;\n  border: 1px solid rgba(159, 122, 234, 0.4);\n}\n\ninput, textarea {\n  background: #0b0e13;\n  color: var(--text-primary);\n  border: 1px solid var(--border);\n  border-radius: 8px;\n}\n\n::selection {\n  background: rgba(63, 81, 181, 0.65);\n  color: #fff;\n}"
+}
