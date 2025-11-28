@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.12.2
+      // Version: 0.12.3
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.12.2'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.12.3'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-28'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot (Showrunner)'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -44,6 +44,7 @@
       // Version 0.12.0: Complete TODO list - Undo/Redo, Tag Management, Advanced Search, Markdown Preview, Extensions Store, Bulk Import/Export, Drag-and-Drop
       // Version 0.12.1: Documentation update, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README sync for 1.0 release prep
       // Version 0.12.2: Pre-1.0 TODO items - Extension Wizard ai_assistants field, official/community badges, nested menu UX
+      // Version 0.12.3: TODO list - Clickable brand logo, accessibility improvements, CIB renamed to CardSpoke, scalable fonts
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -66,7 +67,8 @@
       const header = {
         homeBtn: document.getElementById('homeBtn'),
         themeToggle: document.getElementById('themeToggle'),
-        menuBtn: document.getElementById('menuBtn')
+        menuBtn: document.getElementById('menuBtn'),
+        brandBtn: document.getElementById('brandBtn')
       };
       
       const menu = {
@@ -1147,7 +1149,7 @@
         * =============================================================
         * 
         * Extensions can register hooks to execute custom code at key points
-        * in the application lifecycle. Use CIB_MODS.register() to add hooks.
+        * in the application lifecycle. Use CardSpoke_MODS.register() to add hooks.
         * 
         * IMPLEMENTED HOOKS:
         * ------------------
@@ -1435,10 +1437,10 @@
 
       // Backward compatibility aliases for existing mods using old CIB names
       window.CIB = window.CardSpoke; // Alias CIB -> CardSpoke
-      window.CIB_MODS = window.CardSpoke.mods; // Alias CIB_MODS -> CardSpoke.mods
+      window.CardSpoke_MODS = window.CardSpoke.mods; // Alias CardSpoke_MODS -> CardSpoke.mods
 
       // =============================================================
-      // --- CIB.utils API ---
+      // --- CardSpoke.utils API ---
       // Public utility API for mod developers
       // Exposed as window.CardSpoke.utils
       // =============================================================
@@ -2342,8 +2344,8 @@
                   instanceKey = key;
                   load();
                   if (!safeMode) {
-                    CIB_MODS.syncFromStore();
-                    CIB_MODS.runHook('onAppInit');
+                    CardSpoke_MODS.syncFromStore();
+                    CardSpoke_MODS.runHook('onAppInit');
                   }
                   render();
                   overlay.remove();
@@ -2368,8 +2370,8 @@
                     localStorage.setItem('activeInstance', otherKey);
                     instanceKey = otherKey;
                     load();
-                    CIB_MODS.syncFromStore();
-                    CIB_MODS.runHook('onAppInit');
+                    CardSpoke_MODS.syncFromStore();
+                    CardSpoke_MODS.runHook('onAppInit');
                     render();
                   }
                   overlay.remove();
@@ -2704,8 +2706,8 @@
           const toggleBtn = h('button', {
             className: modData.enabled ? 'btn btn-danger' : 'btn btn-primary',
             onclick: () => {
-              if (modData.enabled) CIB_MODS.disable(modId);
-              else CIB_MODS.enable(modId);
+              if (modData.enabled) CardSpoke_MODS.disable(modId);
+              else CardSpoke_MODS.enable(modId);
               overlay.remove();
               showModsManager();
             }
@@ -2737,7 +2739,7 @@
             style: 'font-size: var(--text-sm); margin-top: var(--space-md);',
             onclick: () => {
               if (confirm(`Delete extension "${meta.name || modId}"?`)) {
-                CIB_MODS.disable(modId);
+                CardSpoke_MODS.disable(modId);
                 delete store.mods[modId];
                 save();
                 overlay.remove();
@@ -3026,7 +3028,7 @@
   // Theme extensions primarily use CSS
   // This file can be left minimal or used for dynamic theme switching
   
-  CIB_MODS.register('${id}', {
+  CardSpoke_MODS.register('${id}', {
     meta: {
       name: '${name}',
       type: 'Theme',
@@ -3049,7 +3051,7 @@
 (function() {
   'use strict';
   
-  CIB_MODS.register('${id}', {
+  CardSpoke_MODS.register('${id}', {
     meta: {
       name: '${name}',
       type: 'Patch',
@@ -3078,7 +3080,7 @@
 (function() {
   'use strict';
   
-  CIB_MODS.register('${id}', {
+  CardSpoke_MODS.register('${id}', {
     meta: {
       name: '${name}',
       type: '${type.charAt(0).toUpperCase() + type.slice(1)}',
@@ -3094,7 +3096,7 @@
       console.log('App Version:', ctx.appVersion);
       console.log('Available API:', ctx.api);
       
-      // Example: Use CIB.utils API
+      // Example: Use CardSpoke.utils API
       // const meta = await CardSpoke.utils.getDatasetMeta();
       // console.log('Dataset info:', meta);
     },
@@ -3308,7 +3310,7 @@
         toolbar.appendChild(templateBtn);
         toolbar.appendChild(h('div', { style: 'flex: 1;' })); // Spacer
         toolbar.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, 
-          'Tip: Use CIB.utils API for safe data access'));
+          'Tip: Use CardSpoke.utils API for safe data access'));
         
         modalBody.appendChild(toolbar);
         
@@ -3469,7 +3471,7 @@
         return `// Extension Playground
 // Test your extension code here in a safe environment
 
-// Example 1: Use CIB.utils API to get dataset info
+// Example 1: Use CardSpoke.utils API to get dataset info
 const meta = await CardSpoke.utils.getDatasetMeta();
 console.log('Dataset:', meta.name);
 console.log('Total cards:', meta.cardCount);
@@ -3483,7 +3485,7 @@ const result = await CardSpoke.utils.createCard({
 console.log('Created card:', result.id);
 
 // Example 3: Search for cards
-const searchResults = await CIB.utils.searchCards('test');
+const searchResults = await CardSpoke.utils.searchCards('test');
 console.log('Found', searchResults.length, 'cards matching "test"');
 
 // Example 4: Get all tags
@@ -5053,6 +5055,10 @@ console.log('✓ All examples completed!');
       };
 
       header.homeBtn.onclick = () => {
+
+      header.brandBtn.onclick = () => {
+        goTo('list', { cardId: null });
+      };
         goTo('list', { cardId: null });
       };
 
@@ -7620,8 +7626,8 @@ console.log('✓ All examples completed!');
         showToast('Safe Mode Active - Extensions Disabled', 'warning');
       }
       
-      if (!safeMode) CIB_MODS.syncFromStore();        // Initialize mods from store (skip in safe mode)
-      if (!safeMode) CIB_MODS.runHook('onAppInit');   // Run mod initialization hooks (skip in safe mode)
+      if (!safeMode) CardSpoke_MODS.syncFromStore();        // Initialize mods from store (skip in safe mode)
+      if (!safeMode) CardSpoke_MODS.runHook('onAppInit');   // Run mod initialization hooks (skip in safe mode)
       render();                        // Initial render
       populateFooter();                // Re-populate footer to ensure it displays
 
