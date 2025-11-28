@@ -51,9 +51,6 @@ An accessibility-oriented, high-contrast theme to test CSS-only customizations w
 ### 7. sample-patch-keyboard.json
 A lightweight patch that introduces keyboard shortcuts for search, quick note creation, and board navigation.
 
-### 8. sample-expansion-atlas.json
-A massive expansion bundle that packages multiple extensions: a command center plugin, navigation patch, aurora-inspired theme, and seeded demo content to stress-test large installs.
-
 ## Creating Your Own Extension
 
 ### Basic Structure
