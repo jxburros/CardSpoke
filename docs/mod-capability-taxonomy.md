@@ -1,9 +1,9 @@
 # Mod Capability Taxonomy
 
-**Version:** 0.9.0-DRAFT  
+**Version:** 0.13.0  
 **Author:** Showrunner Agent / jxburros  
-**Date:** 2025-11-12  
-**Status:** Design Document  
+**Date:** 2025-11-28  
+**Status:** Design Document (Planned for v1.0+)  
 
 ---
 
@@ -545,6 +545,6 @@ Start with minimal capabilities, request more as needed:
 
 ---
 
-**Document Status:** DRAFT - Ready for Review  
-**Next Steps:** Implementation in v0.10.0  
+**Document Status:** Design Document - Planned for v1.0+  
+**Next Steps:** Implementation after v1.0 stable release  
 **Review Required:** Security team, Mod developers

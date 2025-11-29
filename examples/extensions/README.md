@@ -7,8 +7,11 @@ This directory contains example extensions to help you learn how to create your 
 | Type | Description | Example |
 |------|-------------|---------|
 | **Theme** | CSS-only cosmetic changes | `sample-theme.json` |
-| **Plugin** | Adds features without modifying core | `sample-plugin.json` |
 | **Patch** | Small fixes or enhancements | `sample-patch.json` |
+| **Plugin** | Adds features without modifying core | `sample-plugin.json` |
+| **Mod** | Comprehensive modifications (CSS + JS) | See Atlas Expansion |
+| **Kit** | Bundle of related extensions | N/A |
+| **Expansion** | Major feature additions | `sample-expansion-atlas.json` |
 
 ## Getting Started
 
@@ -33,23 +36,26 @@ This directory contains example extensions to help you learn how to create your 
 ### 1. sample-theme.json
 A simple dark purple theme demonstrating CSS customization.
 
-### 2. sample-plugin.json
-A word count plugin that shows word counts for cards.
+### 2. sample-theme-contrast.json
+An accessibility-oriented, high-contrast theme to test CSS-only customizations with a larger style payload.
 
 ### 3. sample-patch.json
 A patch that adds creation timestamps to card headers.
 
-### 4. sample-plugin-mini.json
+### 4. sample-patch-keyboard.json
+A lightweight patch that introduces keyboard shortcuts for search, quick note creation, and board navigation.
+
+### 5. sample-plugin.json
+A word count plugin that shows word counts for cards.
+
+### 6. sample-plugin-mini.json
 A tiny plugin that adds emoji markers to status tags. Useful for verifying that lightweight plugins install correctly.
 
-### 5. sample-plugin-timer.json
+### 7. sample-plugin-timer.json
 A medium-size plugin that embeds a focus timer widget with presets, persistence, and toasts for feedback.
 
-### 6. sample-theme-contrast.json
-An accessibility-oriented, high-contrast theme to test CSS-only customizations with a larger style payload.
-
-### 7. sample-patch-keyboard.json
-A lightweight patch that introduces keyboard shortcuts for search, quick note creation, and board navigation.
+### 8. sample-expansion-atlas.json
+A comprehensive expansion pack demonstrating bundled extensions including a command center, navigation ribbon, theme, and data seeds.
 
 ## Creating Your Own Extension
 
@@ -61,12 +67,26 @@ A lightweight patch that introduces keyboard shortcuts for search, quick note cr
     "type": "Plugin",
     "version": "1.0.0",
     "creator": "Your Name",
-    "description": "What it does"
+    "description": "What it does",
+    "source": "community",
+    "ai_assistants": ""
   },
   "js": "// Your JavaScript code here",
   "css": "/* Your CSS styles here */"
 }
 ```
+
+### Extension Metadata Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Display name of the extension |
+| `type` | Yes | One of: Theme, Patch, Plugin, Mod, Kit, Expansion |
+| `version` | Yes | Semantic version (e.g., "1.0.0") |
+| `creator` | No | Author name |
+| `description` | No | Brief description |
+| `source` | No | "official" or "community" (v0.12.2+) |
+| `ai_assistants` | No | AI tools used in creation (v0.12.2+) |
 
 ### Using the CardSpoke API
 ```javascript
@@ -74,16 +94,43 @@ A lightweight patch that introduces keyboard shortcuts for search, quick note cr
 const api = window.CardSpoke.utils;
 
 // Create cards
-api.createCard('Title', 'Body');
+await api.createCard({ title: 'My Card', body: 'Content', tags: ['tag1'] });
 
-// Add tags
-api.addTag(cardId, 'my-tag');
+// Update cards
+await api.updateCard(cardId, { title: 'New Title' });
+
+// Add/remove tags
+await api.addTag(cardId, 'my-tag');
+await api.removeTag(cardId, 'old-tag');
 
 // Show notifications
-api.showToast('Hello!', 'success');
+await api.showToast('Hello!', 'success');
 
 // Search cards
-const results = api.searchCards('query');
+const results = await api.searchCards('query');
+```
+
+### Registering Hooks
+```javascript
+CardSpoke_MODS.register('my-extension', {
+  meta: {
+    name: 'My Extension',
+    type: 'Plugin',
+    version: '1.0.0'
+  },
+  onAppInit(ctx) {
+    console.log('Extension loaded!');
+  },
+  onCardSave(ctx, card, saveInfo) {
+    console.log('Card saved:', card.id);
+  },
+  onCardDelete(ctx, card) {
+    console.log('Card deleted:', card.id);
+  },
+  onCardRender(ctx, card, element) {
+    // Modify card appearance
+  }
+});
 ```
 
 ## Best Practices
