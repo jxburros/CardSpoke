@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "name": "Harbor Breeze Theme",
+    "type": "Theme",
+    "version": "1.0.0",
+    "creator": "CardSpoke Team",
+    "description": "A calm coastal palette with nautical accents to validate CSS-only themes."
+  },
+  "css": ":root {\n  --primary: #1f6feb;\n  --primary-hover: #1a5bc2;\n  --bg: #0d1726;\n  --bg-alt: #12263a;\n  --text: #e8f0ff;\n  --text-secondary: #a7bbd6;\n  --border: #24405f;\n  --card-bg: #132742;\n  --success: #2dd4bf;\n  --warning: #fbbf24;\n  --error: #f87171;\n}\n\nbody {\n  background: radial-gradient(circle at 12% 20%, rgba(31, 111, 235, 0.18), transparent 30%),\n              radial-gradient(circle at 80% 0%, rgba(45, 212, 191, 0.12), transparent 32%),\n              #0b1422;\n  color: var(--text);\n}\n\n.header, .board-header, .card-detail-header {\n  background: linear-gradient(120deg, rgba(31, 111, 235, 0.85), rgba(45, 212, 191, 0.75));\n  border-bottom: 2px solid rgba(255, 255, 255, 0.1);\n  color: #0b1422;\n  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);\n}\n\n.brand {\n  letter-spacing: 0.04em;\n  font-weight: 800;\n}\n\n.card, .card-detail {\n  background: var(--card-bg);\n  border: 1px solid var(--border);\n  box-shadow: 0 12px 30px rgba(10, 20, 34, 0.35);\n  transition: transform 0.2s ease, box-shadow 0.2s ease;\n}\n\n.card:hover {\n  transform: translateY(-2px);\n  box-shadow: 0 16px 40px rgba(10, 20, 34, 0.45);\n}\n\nbutton, .btn {\n  border-radius: 10px;\n  font-weight: 700;\n  border: 1px solid rgba(255, 255, 255, 0.2);\n  background: linear-gradient(135deg, rgba(31, 111, 235, 0.9), rgba(45, 212, 191, 0.85));\n  color: #0b1422;\n}\n\n.tag, .tag-chip {\n  background: rgba(45, 212, 191, 0.15);\n  color: var(--text);\n  border: 1px solid rgba(45, 212, 191, 0.35);\n}\n\n::-webkit-scrollbar-thumb {\n  background: linear-gradient(180deg, rgba(31, 111, 235, 0.8), rgba(45, 212, 191, 0.8));\n  border-radius: 12px;\n}",
+  "js": "CardSpoke.utils.showToast('Harbor Breeze Theme activated', 'info');"
+}

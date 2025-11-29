@@ -57,6 +57,15 @@ A medium-size plugin that embeds a focus timer widget with presets, persistence,
 ### 8. sample-expansion-atlas.json
 A comprehensive expansion pack demonstrating bundled extensions including a command center, navigation ribbon, theme, and data seeds.
 
+### 9. example-theme-harbor.json
+An ocean-inspired CSS-only theme that uses gradient headers and nautical accents to verify theme installs.
+
+### 10. example-mod-focus.json
+A mixed CSS/JS mod that adds a focus toggle (Shift+Z), floating ribbon, and live list counts for testing full-mod behavior.
+
+### 11. example-plugin-progress.json
+A checklist-aware plugin that shows progress chips based on markdown checkboxes on cards to validate plugin installs.
+
 ## Creating Your Own Extension
 
 ### Basic Structure
