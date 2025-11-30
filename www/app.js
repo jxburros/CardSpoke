@@ -4802,6 +4802,32 @@ console.log('✓ All examples completed!');
           style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
         }, 'View Options'));
         
+        // Rich Text Toggle (NEW)
+        const richTextEnabled = localStorage.getItem('cardspoke_richtext') === 'true';
+        const richTextRow = h('div', { 
+          className: 'menu-item-toggle',
+          style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px; margin-bottom: var(--space-md);'
+        });
+        const richTextLabel = h('div', { className: 'menu-item-label' });
+        richTextLabel.appendChild(h('span', { style: 'display: block;' }, 'Rich Text'));
+        richTextLabel.appendChild(h('span', { style: 'font-size: var(--text-sm); color: var(--text-muted); display: block;' }, 'Enable markdown formatting in card body'));
+        const richTextToggle = h('label', { className: 'switch-toggle' });
+        const richTextInput = h('input', { 
+          type: 'checkbox', 
+          checked: richTextEnabled,
+          onchange: function(e) {
+            localStorage.setItem('cardspoke_richtext', e.target.checked ? 'true' : 'false');
+            showToast(e.target.checked ? 'Rich Text enabled' : 'Rich Text disabled');
+            render();
+          }
+        });
+        const richTextSlider = h('span', { className: 'switch-slider' });
+        richTextToggle.appendChild(richTextInput);
+        richTextToggle.appendChild(richTextSlider);
+        richTextRow.appendChild(richTextLabel);
+        richTextRow.appendChild(richTextToggle);
+        viewSection.appendChild(richTextRow);
+        
         // Compact View Toggle
         const compactViewEnabled = store.viewMode === 'compact';
         const compactRow = h('div', { 
@@ -4968,24 +4994,84 @@ console.log('✓ All examples completed!');
         darkOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #aaa;' }, 'Dark color scheme'));
         themeSection.appendChild(darkOption);
         
-        // Custom themes from extensions
+        // Custom themes from extensions (ENHANCED)
         const themeExtensions = Object.values(store.mods || {}).filter(function(mod) {
-          return mod.meta && mod.meta.type === 'Theme' && mod.enabled;
+          return mod.meta && mod.meta.type === 'Theme';
         });
+        
+        // Get active theme extension ID
+        const activeThemeExtension = localStorage.getItem('cardspoke_activeThemeExtension') || null;
         
         if (themeExtensions.length > 0) {
           themeSection.appendChild(h('div', { 
             style: 'font-weight: 600; margin: var(--space-lg) 0 var(--space-md);'
-          }, 'Installed Theme Extensions:'));
+          }, 'Installed Theme Extensions'));
           
           themeExtensions.forEach(function(theme) {
+            const isActive = activeThemeExtension === theme.id;
             const themeOption = h('div', {
-              style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px; margin-bottom: var(--space-sm);'
+              style: 'padding: var(--space-md); border: 2px solid ' + (isActive ? 'var(--primary)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer; display: flex; justify-content: space-between; align-items: center;',
+              onclick: function() {
+                if (theme.enabled) {
+                  // Apply the theme extension
+                  localStorage.setItem('cardspoke_activeThemeExtension', theme.id);
+                  // Add a class to document for the theme
+                  document.documentElement.className = document.documentElement.className
+                    .split(' ')
+                    .filter(c => !c.startsWith('theme-ext-'))
+                    .join(' ');
+                  document.documentElement.classList.add('theme-ext-' + theme.id);
+                  showToast('Theme applied: ' + (theme.meta.name || theme.id));
+                  overlay.remove();
+                  showAppearanceSettings();
+                } else {
+                  showToast('Enable this extension first in Extensions Hub', 'info');
+                }
+              }
             });
-            themeOption.appendChild(h('div', { style: 'font-weight: 600;' }, theme.meta.name || theme.id));
-            themeOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, 'By ' + (theme.meta.creator || 'Unknown')));
+            
+            const themeInfo = h('div', {});
+            themeInfo.appendChild(h('div', { style: 'font-weight: 600;' }, (isActive ? '✓ ' : '') + (theme.meta.name || theme.id)));
+            themeInfo.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, 'By ' + (theme.meta.creator || 'Unknown')));
+            if (theme.meta.description) {
+              themeInfo.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-top: var(--space-xs);' }, theme.meta.description));
+            }
+            themeOption.appendChild(themeInfo);
+            
+            // Status badge
+            const statusBadge = h('span', {
+              style: 'font-size: var(--text-xs); padding: 2px 8px; border-radius: 10px; background: ' + (theme.enabled ? 'var(--success, #28a745)' : 'var(--text-muted)') + '; color: white;'
+            }, theme.enabled ? 'Enabled' : 'Disabled');
+            themeOption.appendChild(statusBadge);
+            
             themeSection.appendChild(themeOption);
           });
+          
+          // Add "Reset to Default" button if a theme extension is active
+          if (activeThemeExtension) {
+            const resetBtn = h('button', {
+              className: 'btn',
+              style: 'width: 100%; margin-top: var(--space-md);',
+              onclick: function() {
+                localStorage.removeItem('cardspoke_activeThemeExtension');
+                document.documentElement.className = document.documentElement.className
+                  .split(' ')
+                  .filter(c => !c.startsWith('theme-ext-'))
+                  .join(' ');
+                showToast('Theme reset to default');
+                overlay.remove();
+                showAppearanceSettings();
+              }
+            }, 'Reset to Default Theme');
+            themeSection.appendChild(resetBtn);
+          }
+        } else {
+          themeSection.appendChild(h('div', { 
+            style: 'padding: var(--space-lg); background: var(--bg-secondary); border-radius: 4px; text-align: center; color: var(--text-muted);'
+          },
+            h('div', { style: 'margin-bottom: var(--space-sm);' }, 'No custom themes installed'),
+            h('div', { style: 'font-size: var(--text-sm);' }, 'Install theme extensions from the Extensions Hub')
+          ));
         }
         
         modalBody.appendChild(themeSection);
@@ -5846,7 +5932,10 @@ console.log('✓ All examples completed!');
         const detail = h('div', { className: 'card-detail' });
         detail.appendChild(h('div', { className: 'card-detail-title' }, card.title || '(Untitled)'));
         if (card.body) {
-          detail.appendChild(card.isRichText ? renderRichTextBody(card.body) : renderCardBody(card.body));
+          // Check global Rich Text setting OR per-card setting
+          const globalRichText = localStorage.getItem('cardspoke_richtext') === 'true';
+          const useRichText = globalRichText || card.isRichText;
+          detail.appendChild(useRichText ? renderRichTextBody(card.body) : renderCardBody(card.body));
         }
         // Tags display
         const _tags = (card.tags && card.tags.length ? card.tags : extractTags(card.body));
