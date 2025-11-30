@@ -1,296 +1,375 @@
 # CardSpoke AI Developer Guide
 
-**Version:** 1.1  
-**Created for:** AI Programming Assistants  
-**Last Updated:** 2025-11-30  
-**Application Version:** 0.13.1
+**For AI Programming Assistants Working with CardSpoke**
 
----
-
-## Purpose
-
-This document provides AI developers with a comprehensive understanding of CardSpoke's architecture, patterns, and conventions to enable effective code modifications, bug fixes, and feature development without full repository access.
+This guide provides comprehensive instructions for AI developers to effectively work with the CardSpoke codebase. It covers architecture, patterns, conventions, and critical development workflows based solely on the existing code.
 
 ---
 
 ## Table of Contents
 
-1. [Architecture Overview](#architecture-overview)
-2. [Core Concepts](#core-concepts)
-3. [File Structure](#file-structure)
-4. [Data Model & Schema](#data-model--schema)
-5. [Key Patterns & Conventions](#key-patterns--conventions)
-6. [Common Operations](#common-operations)
-7. [Styling Guidelines](#styling-guidelines)
-8. [Development Guidelines](#development-guidelines)
-9. [Version Management](#version-management)
-10. [Testing & Validation](#testing--validation)
+1. [Quick Overview](#quick-overview)
+2. [Architecture & Design](#architecture--design)
+3. [Critical Development Rules](#critical-development-rules)
+4. [Codebase Organization](#codebase-organization)
+5. [Data Model & Storage](#data-model--storage)
+6. [Core Patterns](#core-patterns)
+7. [Common Operations](#common-operations)
+8. [Extension System](#extension-system)
+9. [Testing](#testing)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
-## Architecture Overview
+## Quick Overview
+
+### What is CardSpoke?
+
+CardSpoke is a **lightweight, local-first knowledge management application** that:
+- Runs entirely in the browser (no server required)
+- Uses vanilla JavaScript (no heavy frameworks)
+- Stores data locally using IndexedDB or LocalStorage
+- Supports cross-platform deployment via Capacitor (Android, iOS)
+- Provides a robust extension system for customization
+
+### Key Stats
+
+- **Main Application**: Single file (`www/app.js`) ~356 KB
+- **Styling**: Single file (`www/styles.css`) ~54 KB
+- **Lines of Code**: ~8,698 lines in app.js
+- **Tests**: 188+ tests across 18 test files
+- **Version**: 1.0.0 (app.js) / Schema v4
+- **Build Process**: None required for web version
+
+---
+
+## Architecture & Design
 
 ### Technology Stack
 
-- **Framework**: Vanilla JavaScript (no heavy frameworks)
-- **UI**: Custom CSS with design tokens
-- **Storage**: Capacitor Preferences, IndexedDB
-- **Cross-Platform**: Capacitor
-- **Build System**: Node.js, npm
+```
+Core: Vanilla JavaScript (ES6+)
+UI: Custom HTML/CSS (no frameworks)
+Storage: IndexedDB (primary) + LocalStorage (fallback)
+Cross-Platform: Capacitor 7.4.4
+Testing: uvu (lightweight test runner)
+Build: npm scripts (only for native builds)
+```
 
-### Application Structure
+### Design Philosophy
 
-CardSpoke is a single-page application (SPA) with:
-- **Zero external runtime dependencies** in the browser
-- **Capacitor plugins** for native functionality
-- **Local-first data storage** (no server required)
-- **Modular architecture** ready for extensions
+1. **Local-First**: All data stored on device
+2. **Zero Dependencies**: No external runtime libraries
+3. **Privacy-Focused**: No tracking, analytics, or data transmission
+4. **Extensible**: Rich API for community-driven features
+5. **Lightweight**: Single-file architecture
+6. **Well-Tested**: Comprehensive test coverage
 
-### Core Philosophy
+### Application Flow
 
-1. **Lightweight**: Minimal code, maximum clarity
-2. **Portable**: All data user-controlled
-3. **Extendable**: Features added through mods
-4. **Readable**: Human-understandable code
-5. **Educational**: Easy to learn and modify
+```
+1. Load index.html
+   ↓
+2. Load capacitor.js (platform detection)
+   ↓
+3. Execute app.js (IIFE wraps entire application)
+   ↓
+4. Initialize storage drivers (IndexedDB/LocalStorage)
+   ↓
+5. Load data from storage
+   ↓
+6. Initialize DatasetManager
+   ↓
+7. Load and initialize extensions
+   ↓
+8. Run extension hooks (onAppInit)
+   ↓
+9. Render initial UI
+   ↓
+10. Set up event listeners
+```
 
 ---
 
-## Core Concepts
+## Critical Development Rules
 
-### Cards
+### Version Management (MANDATORY)
 
-The fundamental unit of data in CardSpoke. Each card represents a piece of information with:
-- Hierarchical relationships (parent-child)
-- Free-form text content (title + body)
-- Metadata (tags, custom attributes)
-- Extension data (mod-specific)
+**EVERY TIME you modify `app.js`, you MUST update these constants:**
 
-### Navigation State
-
-The app maintains a navigation state that determines what the user sees:
-- `page`: Current view ('list', 'card', 'search', 'extensions')
-- `cardId`: Currently viewed card ID
-- `parentId`: Parent context for operations
-- `searchQuery`: Active search term
-
-### Data Store
-
-A single in-memory object that represents the entire dataset:
 ```javascript
-{
-  rootOrder: [],         // Array of root-level card IDs
-  cards: {},            // Map of cardId -> Card object
-  mods: {},             // Installed modifications
-  bookmarks: [],        // Bookmarked card IDs
-  recentCards: [],      // Recently accessed card IDs
-  viewMode: 'normal'    // 'normal' or 'compact'
-}
+// Location: www/app.js, lines 27-30
+const APP_CREATOR = 'jxburros';
+const APP_VERSION = '1.0.0';           // <-- UPDATE THIS
+const APP_RELEASE_DATE = '2025-11-30'; // <-- UPDATE THIS (YYYY-MM-DD)
+const APP_UPDATER = 'Claude Code (Sonnet 4.5)'; // <-- UPDATE THIS
+```
+
+**Version Increment Rules:**
+- If user doesn't specify, append ".1" (e.g., "1.0.0" → "1.0.0.1")
+- Minor changes: Increment patch (1.0.0 → 1.0.1)
+- New features: Increment minor (1.0.0 → 1.1.0)
+- Breaking changes: Increment major (1.0.0 → 2.0.0)
+
+### Schema Version
+
+**Current Schema**: v4 (set at line 52)
+
+```javascript
+const SCHEMA_VERSION = 4;
+```
+
+**DO NOT change this** unless you're implementing schema migrations.
+
+### Code Preservation
+
+- **NEVER remove existing features** unless explicitly requested
+- **NEVER break backwards compatibility** without migration plan
+- **ALWAYS maintain functionality** during refactoring
+- **ALWAYS test thoroughly** after changes
+
+---
+
+## Codebase Organization
+
+### File Structure
+
+```
+www/
+├── index.html          # HTML shell (12 KB)
+├── app.js              # Entire application (356 KB)
+├── styles.css          # All styling (54 KB)
+├── capacitor.js        # Capacitor bridge
+├── test.html           # Test runner UI
+└── diagnostic.html     # Debug utilities
+
+tests/
+├── helpers.js          # Test utilities
+└── *.test.js           # 18 test files (188+ tests)
+
+types/
+└── extensions.d.ts     # TypeScript definitions
+
+docs/
+├── api-reference.md
+├── extension-cookbook.md
+└── [other docs]
+```
+
+### app.js Structure (Line Ranges)
+
+```javascript
+// Lines 1-100: IIFE wrapper, metadata, constants
+// Lines 100-400: Utility functions (h(), uid(), debounce, etc.)
+// Lines 400-600: Fuzzy search (Levenshtein distance)
+// Lines 587-1000: Storage drivers (IndexedDBDriver, LocalStorageDriver)
+// Lines 793-1000: DatasetManager class
+// Lines 985-1200: Save/load functions
+// Lines 1200-1400: Navigation (goTo, goBack)
+// Lines 1288-2300: Extension system (CardSpoke_MODS)
+// Lines 2300-2600: Card CRUD operations
+// Lines 2600-2900: Card utilities (tags, bookmarks)
+// Lines 2900-3300: UI panels (Dataset Manager, Extensions Hub)
+// Lines 3300-4600: Extension wizards and playground
+// Lines 4600-5100: Settings and appearance
+// Lines 5100-5400: Import/export functions
+// Lines 5400-5600: Tag management
+// Lines 5600-6000: Rendering functions
+// Lines 6000-6400: Search results rendering
+// Lines 6400-6700: Main render dispatch
+// Lines 6700-7100: Theme management
+// Lines 7100-7400: Undo/redo system
+// Lines 7400-7700: Trash bin, tag management
+// Lines 7700-8100: Drag and drop
+// Lines 8100-8400: Help modals
+// Lines 8400-8600: Keyboard shortcuts
+// Lines 8600-8700: App initialization
 ```
 
 ---
 
-## File Structure
+## Data Model & Storage
 
+### Store Structure
+
+The entire application state lives in the `store` object:
+
+```javascript
+const store = {
+  rootOrder: [],        // Array of root card IDs in display order
+  cards: {},            // Map of cardId → card object
+  mods: {},             // Map of modId → extension object
+  bookmarks: [],        // Array of bookmarked card IDs
+  recentCards: [],      // Array of recently viewed IDs (max 10)
+  viewMode: 'normal',   // 'normal' or 'compact'
+  activeTheme: 'light'  // 'light' or 'dark'
+};
 ```
-CardSpoke/
-├── www/                        # Web assets
-│   ├── index.html             # Main HTML structure
-│   ├── styles.css             # All application styles
-│   ├── app.js                 # Application JavaScript
-│   └── capacitor.js           # Capacitor initialization
-├── android/                   # Android native (generated)
-├── ios/                       # iOS native (generated)
-├── capacitor.config.json      # Capacitor configuration
-├── package.json               # Dependencies
-├── README.md                  # User documentation
-├── README-CAPACITOR.md        # Build instructions
-├── BRANCH_INFO.md            # Branch information
-├── AI_DEVELOPER_GUIDE.md     # This file
-├── Road Map V2.md            # Development roadmap
-├── cardspoke_objectives_v_1 (1).md  # Project objectives
-└── TO DO.md                  # Current tasks
-```
-
----
-
-## Data Model & Schema
-
-### Schema Version 4
-
-CardSpoke uses Schema v4, introduced in version 0.7.
 
 ### Card Object
 
 ```javascript
 {
-  id: string,              // Unique identifier (UUID-like)
-  title: string,           // Card title
-  body: string,            // Card content
-  parentId: string | null, // Parent card ID (null for root)
-  children: string[],      // Array of child card IDs
-  tags: string[],          // Array of tag strings
-  meta: object,            // Optional metadata
-  attributes: object,      // Optional custom attributes
-  modsData: object         // Mod-specific data
+  id: string,           // UUID-like identifier
+  title: string,        // Card title
+  body: string,         // Card content
+  parentId: string | null,  // Parent card ID (null = root)
+  children: string[],   // Array of child card IDs
+  tags: string[],       // Array of lowercase tags
+  createdAt: number,    // Unix timestamp (ms)
+  updatedAt: number,    // Unix timestamp (ms)
+  modsData: object      // Extension-specific data storage
 }
 ```
 
-### Dataset Metadata
+### Navigation State
 
 ```javascript
-{
-  id: string,
-  name: string,
-  storage: {
-    driver: 'indexeddb' | 'localfile',
-    config: object
-  },
-  pin: {                   // Optional
-    algo: 'pbkdf2' | 'scrypt',
-    salt: string,
-    hash: string,
-    iterations: number
-  },
-  deviation: {             // Optional
-    baseVersion: string,
-    author: string,
-    purpose: string
-  },
-  createdAt: number,
-  updatedAt: number
-}
+const navState = {
+  page: 'list',         // 'list' | 'card' | 'search' | 'extensions'
+  cardId: null,         // Currently viewed card ID
+  parentId: null,       // Parent context for operations
+  searchQuery: ''       // Active search term
+};
 ```
+
+### Storage Architecture
+
+**Three Layers:**
+
+1. **In-Memory**: `store` object (runtime)
+2. **Storage Driver**: Abstract interface (IndexedDBDriver or LocalStorageDriver)
+3. **Physical Storage**: IndexedDB or LocalStorage
+
+**Storage Keys:**
+- Data: `data_${instanceKey}`
+- Mods: `mods_${instanceKey}`
+- Active instance: `activeInstance`
+
+**Auto-Save:**
+- Debounced: 500ms after last change
+- Minimum interval: 100ms between saves
+- Triggered by: `dirty = true; save();`
 
 ---
 
-## Key Patterns & Conventions
+## Core Patterns
 
-### 1. Naming Conventions
+### 1. State Mutation Pattern
 
-**Functions:**
-- Use camelCase: `createCard()`, `deleteCard()`, `renderCardList()`
-- Action verbs first: `show`, `hide`, `toggle`, `render`, `create`, `delete`
-- Specific names: `renderCardDetail()` not `showCard()`
+**ALWAYS follow this pattern when modifying data:**
 
-**Variables:**
-- camelCase for local: `cardId`, `parentCard`, `searchQuery`
-- UPPER_SNAKE for constants: `APP_VERSION`, `SCHEMA_VERSION`
-- Descriptive names: `activeCardId` not `id`
-
-**CSS Classes:**
-- Kebab-case: `card-header`, `menu-item`, `btn-primary`
-- BEM-like structure: `card`, `card-title`, `card-actions`
-- State modifiers: `.active`, `.hidden`, `.disabled`
-
-### 2. State Management
-
-All state changes should:
-1. Update the in-memory `store` object
-2. Mark data as dirty: `dirty = true`
-3. Trigger a debounced save: `save()` is already debounced
-4. Update UI if needed: call render functions
-
-Example:
 ```javascript
-function updateCardTitle(cardId, newTitle) {
-  const card = store.cards[cardId];
-  if (!card) return;
-  
-  card.title = newTitle;
+function updateSomething() {
+  // 1. Modify the store
+  store.cards[cardId].title = newTitle;
+
+  // 2. Mark as dirty
   dirty = true;
-  save(); // Debounced automatically
-  
-  // Update UI if currently viewing this card
-  if (navState.cardId === cardId) {
-    renderCardDetail(cardId);
-  }
+
+  // 3. Trigger save (debounced automatically)
+  save();
+
+  // 4. Update UI if needed
+  render();
 }
 ```
 
-### 3. Navigation Pattern
-
-Navigation uses a state-based approach:
+### 2. Navigation Pattern
 
 ```javascript
-function navigate(page, options = {}) {
+function goTo(page, cardId = null) {
   // Save current state to history
   navHistory.push({ ...navState });
-  
+
   // Update navigation state
   navState.page = page;
-  navState.cardId = options.cardId || null;
-  navState.parentId = options.parentId || null;
-  
-  // Render appropriate view
-  renderView();
-  
-  // Update breadcrumbs if needed
-  renderBreadcrumbs();
+  navState.cardId = cardId;
+
+  // Render
+  render();
+}
+
+function goBack() {
+  if (navHistory.length === 0) return;
+
+  navState = navHistory.pop();
+  render();
 }
 ```
 
-### 4. UI Rendering
-
-CardSpoke uses direct DOM manipulation:
+### 3. Rendering Pattern
 
 ```javascript
-function renderCardList(cards, container) {
-  // Clear container
-  container.innerHTML = '';
-  
-  // Create and append elements
-  cards.forEach(card => {
-    const cardEl = createCardElement(card);
-    container.appendChild(cardEl);
-  });
+function render() {
+  // Dispatch based on page
+  if (navState.page === 'list') {
+    renderCardList();
+  } else if (navState.page === 'card') {
+    renderCardDetail();
+  } else if (navState.page === 'search') {
+    renderSearchResults();
+  }
+
+  // Update header/footer
+  updateHeader();
+  updateFooter();
 }
 ```
 
-### 5. Event Handling
-
-Use event delegation for dynamic content:
+### 4. Event Delegation Pattern
 
 ```javascript
-// At initialization
+// Set up once at initialization
 main.addEventListener('click', (e) => {
-  const cardBtn = e.target.closest('.card-btn');
+  const cardBtn = e.target.closest('.card-item');
   if (cardBtn) {
-    const action = cardBtn.dataset.action;
     const cardId = cardBtn.dataset.id;
-    handleCardAction(action, cardId);
+    goTo('card', cardId);
   }
 });
 ```
 
-### 6. Data Persistence
-
-All saves are automatic and debounced:
+### 5. HTML Builder Pattern
 
 ```javascript
-const save = debounce(() => {
-  if (!dirty) return;
-  
-  try {
-    localStorage.setItem(instanceKey, JSON.stringify(store));
-    dirty = false;
-    updateSaveStatus('saved');
-  } catch (err) {
-    console.error('Save failed:', err);
-    updateSaveStatus('error');
+function h(tag, attrs = {}, ...children) {
+  const el = document.createElement(tag);
+
+  for (const [key, value] of Object.entries(attrs)) {
+    if (key === 'className') el.className = value;
+    else if (key === 'dataset') {
+      for (const [dk, dv] of Object.entries(value)) {
+        el.dataset[dk] = dv;
+      }
+    } else if (key.startsWith('on')) {
+      el.addEventListener(key.slice(2).toLowerCase(), value);
+    } else {
+      el.setAttribute(key, value);
+    }
   }
-}, 1000);
+
+  children.flat(Infinity).forEach(child => {
+    if (child != null) {
+      el.append(typeof child === 'string' ? child : child);
+    }
+  });
+
+  return el;
+}
 ```
 
 ---
 
 ## Common Operations
 
-### Creating a Card
+### Create Card
 
 ```javascript
 function createCard(title = '', body = '', parentId = null) {
-  const id = generateId();
+  const id = uid();
+  const now = Date.now();
+
   const card = {
     id,
     title,
@@ -298,789 +377,494 @@ function createCard(title = '', body = '', parentId = null) {
     parentId,
     children: [],
     tags: [],
-    meta: {},
-    attributes: {},
+    createdAt: now,
+    updatedAt: now,
     modsData: {}
   };
-  
+
   store.cards[id] = card;
-  
-  // Add to parent's children or root order
-  if (parentId) {
-    const parent = store.cards[parentId];
-    if (parent) parent.children.push(id);
+
+  if (parentId && store.cards[parentId]) {
+    store.cards[parentId].children.push(id);
   } else {
     store.rootOrder.unshift(id);
   }
-  
+
   dirty = true;
   save();
-  
-  runModHook('onCardSave', card, { isNew: true });
-  
+
+  CardSpoke_MODS.runHook('onCardSave', card, { isNew: true });
+
   return card;
 }
 ```
 
-### Deleting a Card
+### Update Card
 
 ```javascript
-function deleteCard(id) {
-  const card = store.cards[id];
+function updateCard(cardId, updates) {
+  const card = store.cards[cardId];
   if (!card) return false;
-  
-  // Recursively delete children
-  [...card.children].forEach(childId => deleteCard(childId));
-  
-  // Remove from parent's children or root order
-  if (card.parentId) {
-    const parent = store.cards[card.parentId];
-    if (parent) {
-      const idx = parent.children.indexOf(id);
-      if (idx !== -1) parent.children.splice(idx, 1);
-    }
-  } else {
-    const idx = store.rootOrder.indexOf(id);
-    if (idx !== -1) store.rootOrder.splice(idx, 1);
-  }
-  
-  // Remove from bookmarks and recent
-  if (store.bookmarks) {
-    const bmIdx = store.bookmarks.indexOf(id);
-    if (bmIdx !== -1) store.bookmarks.splice(bmIdx, 1);
-  }
-  if (store.recentCards) {
-    const rcIdx = store.recentCards.indexOf(id);
-    if (rcIdx !== -1) store.recentCards.splice(rcIdx, 1);
-  }
-  
-  delete store.cards[id];
+
+  Object.assign(card, updates);
+  card.updatedAt = Date.now();
+
   dirty = true;
   save();
-  
-  runModHook('onCardDelete', id);
-  
+
+  CardSpoke_MODS.runHook('onCardSave', card, { isNew: false });
+
   return true;
 }
 ```
 
-### Searching Cards
+### Delete Card
 
 ```javascript
-function searchCards(query) {
-  if (!query) return [];
-  
-  const lowerQuery = query.toLowerCase();
-  const results = [];
-  
-  for (const id in store.cards) {
-    const card = store.cards[id];
-    if (card.title.toLowerCase().includes(lowerQuery) ||
-        card.body.toLowerCase().includes(lowerQuery) ||
-        card.tags.some(tag => tag.toLowerCase().includes(lowerQuery))) {
-      results.push(card);
-    }
+function deleteCard(cardId) {
+  const card = store.cards[cardId];
+  if (!card) return false;
+
+  // Recursively delete children
+  [...card.children].forEach(childId => deleteCard(childId));
+
+  // Remove from parent
+  if (card.parentId && store.cards[card.parentId]) {
+    const parent = store.cards[card.parentId];
+    parent.children = parent.children.filter(id => id !== cardId);
+  } else {
+    store.rootOrder = store.rootOrder.filter(id => id !== cardId);
   }
-  
-  return results;
+
+  // Remove from bookmarks/recent
+  store.bookmarks = store.bookmarks.filter(id => id !== cardId);
+  store.recentCards = store.recentCards.filter(id => id !== cardId);
+
+  delete store.cards[cardId];
+
+  dirty = true;
+  save();
+
+  CardSpoke_MODS.runHook('onCardDelete', card);
+
+  return true;
 }
 ```
 
-### Managing Tags
+### Tag Management
 
 ```javascript
-// Get all tags for a card
-function getTags(cardId) {
-  const card = store.cards[cardId];
-  if (!card) return [];
-  return card.tags || [];
-}
-
-// Add a tag to a card
-function addTag(cardId, tag, skipSave = false) {
+// Add tag (normalized)
+function addTag(cardId, tag) {
   const card = store.cards[cardId];
   if (!card) return false;
-  
-  // Normalize tag: remove # prefix, lowercase, trim
+
   const normalizedTag = tag.replace(/^#/, '').toLowerCase().trim();
-  if (!normalizedTag) return false;
-  
-  // Initialize tags array if needed
-  if (!card.tags) card.tags = [];
-  
-  // Prevent duplicates (case-insensitive)
-  if (card.tags.some(t => t.toLowerCase() === normalizedTag)) {
-    return false;
-  }
-  
+  if (!normalizedTag || card.tags.includes(normalizedTag)) return false;
+
   card.tags.push(normalizedTag);
   card.updatedAt = Date.now();
-  
-  if (!skipSave) {
-    dirty = true;
-    save();
-  }
-  
+
+  dirty = true;
+  save();
+
   return true;
 }
 
-// Remove a tag from a card
-function removeTag(cardId, tag, skipSave = false) {
-  const card = store.cards[cardId];
-  if (!card || !card.tags) return false;
-  
-  const normalizedTag = tag.replace(/^#/, '').toLowerCase().trim();
-  
-  const initialLength = card.tags.length;
-  card.tags = card.tags.filter(t => t.toLowerCase() !== normalizedTag);
-  
-  if (card.tags.length === initialLength) {
-    return false; // Tag wasn't found
-  }
-  
-  card.updatedAt = Date.now();
-  
-  if (!skipSave) {
-    dirty = true;
-    save();
-  }
-  
-  return true;
-}
-
-// Set all tags for a card at once
-function setTags(cardId, tags, skipSave = false) {
+// Remove tag
+function removeTag(cardId, tag) {
   const card = store.cards[cardId];
   if (!card) return false;
-  
-  // Normalize and deduplicate tags
-  const normalizedTags = tags
-    .map(tag => tag.replace(/^#/, '').toLowerCase().trim())
-    .filter(tag => tag.length > 0);
-  
-  const uniqueTags = [...new Set(normalizedTags)];
-  
-  card.tags = uniqueTags;
+
+  const normalizedTag = tag.toLowerCase().trim();
+  const initialLength = card.tags.length;
+
+  card.tags = card.tags.filter(t => t !== normalizedTag);
+
+  if (card.tags.length === initialLength) return false;
+
   card.updatedAt = Date.now();
-  
-  if (!skipSave) {
-    dirty = true;
-    save();
-  }
-  
+  dirty = true;
+  save();
+
   return true;
 }
 
-// Get all unique tags across all cards
+// Get all unique tags
 function getAllTags() {
   const allTags = new Set();
-  
-  for (const id in store.cards) {
-    const card = store.cards[id];
-    if (card.tags && Array.isArray(card.tags)) {
-      card.tags.forEach(tag => allTags.add(tag.toLowerCase()));
-    }
-  }
-  
+  Object.values(store.cards).forEach(card => {
+    if (card.tags) card.tags.forEach(tag => allTags.add(tag));
+  });
   return Array.from(allTags).sort();
 }
 ```
 
-**Tags API Features:**
-- Tags are automatically normalized (lowercase, no # prefix required)
-- Duplicate prevention is built-in
-- All functions return boolean success status (except getTags and getAllTags)
-- Tags are stored as simple strings in the card.tags array
-- Case-insensitive matching for tag comparison
-- Optional `skipSave` parameter for batch operations
+### Search Cards
 
+```javascript
+function searchCards(query) {
+  if (!query) return [];
 
----
+  const lowerQuery = query.toLowerCase();
+  const results = [];
 
-## Styling Guidelines
+  for (const id in store.cards) {
+    const card = store.cards[id];
+    const titleMatch = card.title.toLowerCase().includes(lowerQuery);
+    const bodyMatch = card.body.toLowerCase().includes(lowerQuery);
+    const tagMatch = card.tags.some(t => t.includes(lowerQuery));
 
-### Design System
-
-CardSpoke uses CSS custom properties (design tokens):
-
-```css
-:root {
-  /* Colors */
-  --bg: #ffffff;
-  --surface: #ffffff;
-  --border: #f0f0f0;
-  --text: #000000;
-  --text-medium: #404040;
-  --text-muted: #666666;
-  
-  /* Typography */
-  --font-brand: "Inter", sans-serif;
-  --font: "Outfit", sans-serif;
-  --text-xs: 12px;
-  --text-sm: 14px;
-  --text-base: 15px;
-  --text-lg: 18px;
-  --text-xl: 22px;
-  
-  /* Spacing */
-  --space-xs: 2px;
-  --space-sm: 4px;
-  --space-md: 8px;
-  --space-lg: 12px;
-  --space-xl: 16px;
-  --space-2xl: 24px;
-}
-```
-
-### Dark Mode
-
-Dark mode uses a `.dark` class on `:root`:
-
-```css
-:root.dark {
-  --bg: #000000;
-  --surface: #0a0a0a;
-  --border: #1a1a1a;
-  --text: #ffffff;
-  --text-medium: #cccccc;
-  --text-muted: #999999;
-}
-```
-
-### Responsive Design
-
-Three breakpoints for responsive design:
-- **1024px**: Tablet and below
-- **768px**: Mobile devices
-- **480px**: Small mobile devices
-
-```css
-@media (max-width: 768px) {
-  .brand {
-    font-size: 32px;
+    if (titleMatch || bodyMatch || tagMatch) {
+      results.push(card);
+    }
   }
-  
-  .card {
-    padding: var(--space-xl);
-  }
+
+  return results;
 }
 ```
 
-### Design Principles
-
-1. **High Contrast**: Black and white by default
-2. **Bold Typography**: Large, clear text
-3. **Generous Spacing**: Ample white space
-4. **Minimal Icons**: Simple, clear symbols
-5. **Content First**: Design frames content
-
 ---
 
-## Development Guidelines
+## Extension System
 
-### When Making Changes
+### CardSpoke.utils API (Public API)
 
-1. **Update Version Metadata**: Always update `APP_VERSION`, `APP_RELEASE_DATE`, and `APP_UPDATER` in `app.js`
-2. **Maintain Compatibility**: Don't break existing data or features
-3. **Follow Patterns**: Use existing code patterns
-4. **Test Thoroughly**: Test all affected functionality
-5. **Document Changes**: Update comments and documentation
-
-### Version Numbering
-
-- **Major.Minor.Patch** format (e.g., 0.8.2)
-- Increment patch for small fixes/features
-- Increment minor for new features
-- Increment major for breaking changes
-
-### Code Comments
-
-Add comments for:
-- Complex algorithms
-- Non-obvious logic
-- Public APIs
-- Important assumptions
-
-Don't comment:
-- Obvious code
-- Temporary debugging
-- Redundant descriptions
-
-### Error Handling
-
-Always handle errors gracefully:
-
-```javascript
-try {
-  // Operation
-} catch (err) {
-  console.error('Operation failed:', err);
-  showToast('Operation failed', 'error');
-  // Recover if possible
-}
-```
-
-### Mod Execution Error Handling
-
-Mod hooks are wrapped in try-catch blocks to prevent one failing mod from breaking the entire application. When a mod error occurs:
-
-1. The error is logged to console with mod ID and hook name context
-2. A user-facing toast notification is displayed
-3. Other mods continue to execute normally
-
-```javascript
-try {
-  entry.hooks[hookName](buildContext(modId), ...args);
-  if (hookName === 'onAppInit') initializedMods.add(modId);
-} catch (err) {
-  console.error(`[Mods] Error in ${modId}.${hookName}:`, err);
-  showToast(`Extension error: ${modId} (${hookName})`, 'error');
-}
-```
-
-This pattern ensures that:
-- Users are informed when extensions malfunction
-- The core application remains stable
-- Developers can debug issues using console logs
-
----
-
-## Version Management
-
-### App Metadata Constants
-
-Located at the top of `app.js`:
-
-```javascript
-const APP_CREATOR = 'jxburros';
-const APP_VERSION = '0.8.2';
-const APP_RELEASE_DATE = '2025-11-12';
-const APP_UPDATER = 'Github Copilot';
-```
-
-### Update Protocol
-
-When modifying code:
-
-1. Update `APP_VERSION` (increment appropriately)
-2. Update `APP_RELEASE_DATE` (today's date)
-3. Update `APP_UPDATER` (your AI name)
-4. Add version comment describing changes
-5. Update HTML meta tag if needed
-
-### HTML Version Tag
-
-In `index.html`:
-
-```html
-<meta name="app:version" content="0.8.2">
-<meta name="app:author" content="jxburros">
-```
-
----
-
-## Testing & Validation
-
-### Manual Testing Checklist
-
-When making changes, test:
-
-1. **Card Operations**
-   - Create new card
-   - Edit card title and body
-   - Delete card
-   - Move card (change parent)
-   - Duplicate card
-
-2. **Navigation**
-   - Navigate between cards
-   - Use breadcrumbs
-   - Use back button
-   - Search functionality
-
-3. **Data Persistence**
-   - Changes save automatically
-   - Page reload preserves data
-   - Export/import works
-
-4. **UI/UX**
-   - Dark mode toggle
-   - Responsive layout on different sizes
-   - Menu interactions
-   - Toast notifications
-
-5. **Edge Cases**
-   - Empty dataset
-   - Large dataset (100+ cards)
-   - Deep nesting (10+ levels)
-   - Special characters in content
-   - Long titles/content
-
-### Browser Testing
-
-Test in:
-- Chrome/Edge (Chromium)
-- Firefox
-- Safari (if possible)
-
-### Mobile Testing
-
-Test responsive design:
-- Phone portrait (375px)
-- Phone landscape (667px)
-- Tablet portrait (768px)
-- Tablet landscape (1024px)
-
----
-
-
-
----
-
-## Developer Tools & Extensions (v0.11+)
-
-### CardSpoke.utils API
-
-CardSpoke exposes a comprehensive developer API at `window.CardSpoke.utils` for extension development. This API provides safe, documented access to CardSpoke functionality.
-
-**Available Methods:**
+Exposed at `window.CardSpoke.utils`:
 
 ```javascript
 // Card Management
-await CardSpoke.utils.createCard({ title, body, parentId, tags })
-await CardSpoke.utils.updateCard(cardId, { title, body, tags })
-await CardSpoke.utils.getCard(cardId)
-await CardSpoke.utils.searchCards(query)
+CardSpoke.utils.createCard(title, body?, parentId?)
+CardSpoke.utils.updateCard(cardId, updates)
+CardSpoke.utils.getCard(cardId)
+CardSpoke.utils.searchCards(query)
 
 // Tag Management
-await CardSpoke.utils.getTags(cardId)
-await CardSpoke.utils.addTag(cardId, tag)
-await CardSpoke.utils.removeTag(cardId, tag)
-await CardSpoke.utils.setTags(cardId, tags)
-await CardSpoke.utils.getAllTags()
+CardSpoke.utils.getTags(cardId)
+CardSpoke.utils.addTag(cardId, tag)
+CardSpoke.utils.removeTag(cardId, tag)
+CardSpoke.utils.setTags(cardId, tags)
+CardSpoke.utils.getAllTags()
 
-// Accessibility & Theme API (v0.13.1)
-await CardSpoke.utils.getAccessibilitySettings()  // Get all accessibility settings
-await CardSpoke.utils.setTheme('light' | 'dark')  // Set theme
-await CardSpoke.utils.getTheme()                  // Get current theme
-await CardSpoke.utils.setTypography(preset)       // Set typography preset
-await CardSpoke.utils.getTypography()             // Get current typography
-await CardSpoke.utils.setHighContrast(boolean)    // Toggle high contrast mode
-await CardSpoke.utils.isHighContrast()            // Check high contrast status
-await CardSpoke.utils.prefersReducedMotion()      // Check reduced motion preference
-await CardSpoke.utils.getThemeVariables()         // Get list of customizable CSS variables
-const unsub = CardSpoke.utils.onThemeChange(callback) // Listen for theme changes
+// Accessibility
+CardSpoke.utils.getAccessibilitySettings()
+CardSpoke.utils.setTheme('light' | 'dark')
+CardSpoke.utils.getTheme()
+CardSpoke.utils.setTypography('default' | 'comfortable' | 'compact' | 'dyslexia')
+CardSpoke.utils.getTypography()
+CardSpoke.utils.setHighContrast(boolean)
+CardSpoke.utils.isHighContrast()
+CardSpoke.utils.onThemeChange(callback)
+CardSpoke.utils.getThemeVariables()
 
-// Utilities
-await CardSpoke.utils.showToast(message, type, duration)
-await CardSpoke.utils.getDatasetMeta()
+// UI
+CardSpoke.utils.showToast(message, type?, duration?)
+CardSpoke.utils.getDatasetMeta()
 ```
 
-**Example Usage:**
+### Extension Hooks
+
+Extensions register hooks via `CardSpoke_MODS.register()`:
+
+**Available Hooks (14 total):**
 
 ```javascript
-// Create a card with tags
-const result = await CardSpoke.utils.createCard({
-  title: 'My Card',
-  body: 'Content here',
-  tags: ['important', 'work']
-});
-console.log('Created:', result.id);
-
-// Search and update
-const cards = await CardSpoke.utils.searchCards('meeting');
-for (const card of cards) {
-  await CardSpoke.utils.addTag(card.id, 'reviewed');
-}
-
-// Show notification
-await CardSpoke.utils.showToast('Operation complete!', 'success');
-
-// Accessibility example (v0.13.1)
-const settings = await CardSpoke.utils.getAccessibilitySettings();
-console.log('Current theme:', settings.theme);
-console.log('Typography preset:', settings.typography);
-
-// Listen for theme changes
-const unsub = CardSpoke.utils.onThemeChange((theme) => {
-  console.log('Theme changed to:', theme);
-  // Update your extension's appearance
-});
-// Later: unsub() to stop listening
+onAppInit(ctx)                      // App initialized
+onEnable(ctx)                       // Extension enabled
+onDisable(ctx)                      // Extension disabled
+onUninstall(ctx)                    // Before uninstall
+onCardSave(ctx, card, saveInfo)     // Card saved
+onCardDelete(ctx, card)             // Card deleted
+onCardRender(ctx, card, element)    // Card rendered
+onNavigate(ctx, navState)           // Navigation changed
+onSearch(ctx, query, results)       // Search performed
+onThemeChange(ctx, theme)           // Theme changed
+onTypographyChange(ctx, preset)     // Typography changed
+onHighContrastChange(ctx, enabled)  // High contrast toggled
+onExport(ctx, data)                 // Before export
+onImport(ctx, info)                 // After import
 ```
 
-### Extension Wizard
-
-The Extension Wizard (🧙 in menu) helps developers create new extensions:
-
-**Features:**
-- Interactive step-by-step interface
-- Five extension types: Theme, Patch, Plugin, Mod, Expansion
-- Auto-generates manifest and skeleton code
-- Download as JSON or install directly
-- Includes working code examples
-
-**Extension Types:**
-
-1. **Theme**: Pure CSS styling modifications
-2. **Patch**: Small enhancements with minimal code
-3. **Plugin**: Functionality additions using hooks
-4. **Mod**: Comprehensive modifications (CSS + JS)
-5. **Kit**: Bundle of related extensions (themes + plugins)
-6. **Expansion**: Major feature additions
-
-**Generated Structure:**
+### Extension Structure
 
 ```javascript
 {
   id: 'my-extension',
+  enabled: boolean,
+  js: 'string of JavaScript code',
+  css: 'string of CSS code',
   meta: {
     name: 'My Extension',
-    type: 'Plugin',
-    creator: 'Your Name',
+    type: 'Theme' | 'Patch' | 'Plugin' | 'Mod' | 'Kit' | 'Expansion',
+    creator: 'Author Name',
     version: '1.0.0',
-    releaseDate: '2025-11-14',
-    description: 'Description here'
-  },
-  js: '// JavaScript code',
-  css: '/* CSS styles */',
-  enabled: false
+    releaseDate: 'YYYY-MM-DD',
+    description: 'What it does',
+    source: 'official' | 'community',
+    ai_assistants: 'AI tools used'
+  }
 }
 ```
 
-### Playground
+### Safe Execution
 
-The Playground (🛝 in menu) provides a sandboxed testing environment:
-
-**Features:**
-- Split-view: code editor + console output
-- Live code execution
-- Error boundary and safe execution
-- Pre-loaded examples using CardSpoke.utils
-- Template loader for quick start
-
-**Usage:**
-
-1. Open Playground from menu
-2. Write or edit code in left panel
-3. Click "▶️ Run Code" to execute
-4. View output in right panel (console)
-5. Use "📝 Load Template" for examples
-
-**Safety:**
-
-- Code runs in isolated context
-- Errors are caught and displayed
-- Original data remains safe
-- Can test without affecting main app
-
-### Extension Development Best Practices
-
-1. **Use CardSpoke.utils API**: Don't access store directly
-2. **Handle Errors**: Wrap code in try-catch blocks
-3. **Test in Playground**: Validate before installing
-4. **Document Your Code**: Add comments and descriptions
-5. **Version Control**: Track changes in metadata
-6. **Minimize Side Effects**: Keep modifications focused
-7. **Respect User Data**: Don't modify without permission
-
-
-## Extension System
-
-### Mod Hooks (Implemented)
-
-CardSpoke supports extension hooks for executing custom code at key points in the application lifecycle. Extensions register hooks using `CardSpoke_MODS.register()`:
+Extensions are wrapped in try-catch blocks:
 
 ```javascript
-CardSpoke_MODS.register('my-extension', {
-  meta: {
-    name: 'My Extension',
-    type: 'Plugin',
-    version: '1.0.0'
-  },
-  onAppInit(ctx) {
-    console.log('Extension loaded!');
-  },
-  onCardSave(ctx, card, saveInfo) {
-    console.log('Card saved:', card.id, saveInfo);
-  },
-  // Accessibility hooks (v0.13.1)
-  onThemeChange(ctx, theme) {
-    console.log('Theme changed to:', theme);
-  },
-  onTypographyChange(ctx, preset) {
-    console.log('Typography preset:', preset);
-  },
-  onHighContrastChange(ctx, enabled) {
-    console.log('High contrast:', enabled);
-  }
-});
-```
+try {
+  entry.hooks[hookName](buildContext(modId), ...args);
+} catch (err) {
+  console.error(`[Mods] Error in ${modId}.${hookName}:`, err);
+  showToast(`Extension error: ${modId} (${hookName})`, 'error');
 
-**Implemented Hooks:**
-- `onAppInit(context)` - Called once when app initializes or mod is first enabled
-- `onCardSave(context, card, saveInfo)` - Called when a card is created or updated
-  - `saveInfo`: `{ isNew: boolean, source: string }`
-- `onCardDelete(context, card)` - Called when a card is deleted
-- `onCardRender(context, card, element)` - Called after a card is rendered to the DOM
-- `onThemeChange(context, theme)` - Called when light/dark theme changes (v0.13.1)
-  - `theme`: `'light'` or `'dark'`
-- `onTypographyChange(context, preset)` - Called when typography preset changes (v0.13.1)
-  - `preset`: `'default'`, `'comfortable'`, `'compact'`, or `'dyslexia'`
-- `onHighContrastChange(context, enabled)` - Called when high contrast mode is toggled (v0.13.1)
-  - `enabled`: `boolean`
-
-**Planned Hooks:**
-- `onNavigate(context, navState)` - Called when navigation changes
-- `onSearch(context, query, results)` - Called when search is performed
-- `onExport(context, exportData)` - Called before data export
-- `onImport(context, importData)` - Called after data import
-
-### Customizable Accessibility CSS Variables (v0.13.1)
-
-Themes can customize accessibility features by overriding these CSS custom properties:
-
-**Typography Presets:**
-- `--typography-font-size-default`, `--typography-line-height-default`
-- `--typography-font-size-comfortable`, `--typography-line-height-comfortable`
-- `--typography-font-size-compact`, `--typography-line-height-compact`
-- `--typography-font-size-dyslexia`, `--typography-line-height-dyslexia`
-- `--typography-letter-spacing-dyslexia`, `--typography-word-spacing-dyslexia`
-- `--typography-font-dyslexia`
-
-**High Contrast Mode:**
-- `--hc-bg`, `--hc-bg-secondary`, `--hc-bg-tertiary`
-- `--hc-text`, `--hc-text-secondary`
-- `--hc-border`, `--hc-accent`, `--hc-accent-hover`
-- `--hc-border-width`, `--hc-button-border-width`, `--hc-card-border-width`
-
-**Focus States:**
-- `--focus-outline-color`, `--focus-outline-width`
-- `--focus-outline-offset`, `--focus-outline-style`
-
-### Mod Structure
-
-Mods are stored in `store.mods` with this structure:
-
-```javascript
-{
-  enabled: boolean,        // Whether the mod is active
-  js: string,              // JavaScript code
-  css: string,             // CSS styles
-  meta: {
-    name: string,          // Display name (required)
-    type: string,          // 'theme' | 'patch' | 'plugin' | 'mod' | 'kit' | 'expansion'
-    creator: string,       // Author name
-    version: string,       // Version string
-    releaseDate: string,   // Release date
-    description: string,   // What the mod does
-    source: string,        // 'official' | 'community' (v0.12.2+)
-    ai_assistants: string  // AI tools used in creation (v0.12.2+)
+  // Auto-disable after 3 consecutive errors
+  errorCounts[modId] = (errorCounts[modId] || 0) + 1;
+  if (errorCounts[modId] >= 3) {
+    CardSpoke_MODS.disable(modId);
+    showToast(`Extension ${modId} disabled due to errors`, 'error');
   }
 }
 ```
 
 ---
 
-## Common Pitfalls & Solutions
+## Testing
 
-### Pitfall 1: Forgetting to Set Dirty Flag
+### Running Tests
 
-**Problem**: Changes don't persist after reload.
+```bash
+# Run all tests once
+npm test
 
-**Solution**: Always set `dirty = true` after modifying `store`.
+# Watch mode
+npm run test:watch
+```
 
-### Pitfall 2: Not Cloning Objects
+### Test Framework
 
-**Problem**: Reference issues when duplicating cards.
+**uvu** - Ultra-fast test runner
 
-**Solution**: Use `cloneCard()` helper or `JSON.parse(JSON.stringify())`.
+```javascript
+import { test } from 'uvu';
+import * as assert from 'uvu/assert';
 
-### Pitfall 3: Hardcoded IDs
+test('card creation', () => {
+  const card = createCard('Test', 'Body');
+  assert.ok(card.id);
+  assert.is(card.title, 'Test');
+  assert.is(card.body, 'Body');
+});
 
-**Problem**: Conflicts and poor scalability.
+test.run();
+```
 
-**Solution**: Always use `generateId()` for new items.
+### Test Coverage
 
-### Pitfall 4: Direct DOM Access in Loops
+**188+ tests across 18 files:**
 
-**Problem**: Slow rendering for large lists.
+- accessibility-api.test.js (accessibility features)
+- backlinks-related.test.js (relationship discovery)
+- card-links.test.js (linking functionality)
+- card-lookup.test.js (retrieval operations)
+- card-operations.test.js (CRUD operations)
+- footer.test.js (footer component)
+- menu-handlers.test.js (menu interactions)
+- multi-dataset-search.test.js (cross-dataset search)
+- navigator-suite.test.js (bookmarks, recent, navigation)
+- search-navigation.test.js (search UI)
+- store-structure.test.js (data validation)
+- tag-management.test.js (tag operations)
+- tags-api.test.js (tags API)
+- ui-state.test.js (UI state management)
+- undo-redo.test.js (undo/redo system)
+- version-validation.test.js (version checking)
 
-**Solution**: Build HTML strings or use DocumentFragments.
+### Test Execution
 
-### Pitfall 5: Not Handling Edge Cases
+- **Total tests**: 188+
+- **Execution time**: <15ms
+- **Pass rate**: 100%
 
-**Problem**: Crashes on empty or unusual data.
+---
 
-**Solution**: Validate inputs and handle null/undefined.
+## Troubleshooting
+
+### Common Issues
+
+**1. Changes Don't Persist**
+- **Cause**: Forgot to set `dirty = true`
+- **Fix**: Always set `dirty = true` after modifying `store`
+
+**2. Circular References**
+- **Cause**: Card's children array includes the card itself
+- **Fix**: Validate parent-child relationships before adding
+
+**3. Missing Cards in UI**
+- **Cause**: Card not in `rootOrder` or parent's `children`
+- **Fix**: Ensure card is properly linked during creation
+
+**4. Extension Errors**
+- **Cause**: Extension code throws errors
+- **Fix**: Check console for error messages, use safe mode (`?safemode`)
+
+**5. Storage Quota Exceeded**
+- **Cause**: Too much data for LocalStorage
+- **Fix**: Use IndexedDB driver instead
+
+### Safe Mode
+
+Launch with extensions disabled:
+
+```
+file:///path/to/www/index.html?safemode
+```
+
+Detected via:
+
+```javascript
+const isSafeMode = new URLSearchParams(window.location.search).has('safemode');
+```
+
+### Debug Tools
+
+**Console Commands:**
+
+```javascript
+// View entire store
+console.log(store);
+
+// View specific card
+console.log(store.cards['card-id']);
+
+// View all tags
+console.log(getAllTags());
+
+// View navigation state
+console.log(navState);
+
+// View extension info
+console.log(CardSpoke_MODS.inspectMod('mod-id'));
+```
+
+---
+
+## Best Practices
+
+### DO:
+- ✅ Update version metadata on every change
+- ✅ Set `dirty = true` after modifying store
+- ✅ Use helper functions (`h()`, `uid()`, etc.)
+- ✅ Follow existing code patterns
+- ✅ Write tests for new features
+- ✅ Handle errors gracefully
+- ✅ Validate user input
+- ✅ Use event delegation
+- ✅ Document complex logic
+
+### DON'T:
+- ❌ Remove existing features without permission
+- ❌ Break backwards compatibility
+- ❌ Modify SCHEMA_VERSION without migration
+- ❌ Hardcode IDs or keys
+- ❌ Access DOM directly in loops
+- ❌ Skip error handling
+- ❌ Forget to debounce expensive operations
+- ❌ Use heavy dependencies
+- ❌ Ignore test failures
 
 ---
 
 ## Quick Reference
 
-### Key Functions
+### Key Functions by Purpose
 
-| Function | Purpose |
-|----------|---------|
-| `createCard(title, body, parentId)` | Create new card |
-| `deleteCard(id)` | Delete card and children |
-| `updateCard(id, updates)` | Update card properties |
-| `duplicateCard(id, withChildren)` | Clone a card |
-| `searchCards(query)` | Search for cards |
-| `getTags(cardId)` | Get all tags for a card |
-| `addTag(cardId, tag)` | Add a tag to a card |
-| `removeTag(cardId, tag)` | Remove a tag from a card |
-| `setTags(cardId, tags)` | Set all tags for a card |
-| `getAllTags()` | Get all unique tags across all cards |
-| `navigate(page, options)` | Change navigation state |
-| `save()` | Persist data (debounced) |
-| `load()` | Load data from storage |
-| `exportJSON()` | Export dataset as JSON |
-| `importJSON(data)` | Import dataset from JSON |
+**Cards:**
+- `createCard(title, body, parentId)` - Create new card
+- `updateCard(cardId, updates)` - Update card
+- `deleteCard(cardId)` - Delete card and descendants
+- `duplicateCard(cardId, withChildren)` - Clone card
 
-### Key Variables
+**Tags:**
+- `getTags(cardId)` - Get card's tags
+- `addTag(cardId, tag)` - Add tag
+- `removeTag(cardId, tag)` - Remove tag
+- `setTags(cardId, tags)` - Set all tags
+- `getAllTags()` - Get all unique tags
 
-| Variable | Purpose |
-|----------|---------|
-| `store` | Main data store |
-| `navState` | Current navigation state |
-| `navHistory` | Navigation history |
-| `dirty` | Unsaved changes flag |
-| `instanceKey` | Storage key for active dataset |
+**Navigation:**
+- `goTo(page, cardId)` - Navigate to page/card
+- `goBack()` - Go back in history
 
-### Key DOM Elements
+**Search:**
+- `searchCards(query)` - Search by title/body/tags
+- `fuzzySearch(query, results)` - Fuzzy search with Levenshtein
 
-| Element | Purpose |
-|---------|---------|
-| `main` | Main content area |
-| `breadcrumbs` | Breadcrumb navigation |
-| `searchInput` | Search text input |
-| `menu.overlay` | Side menu overlay |
-| `toastContainer` | Toast notifications |
+**Storage:**
+- `save()` - Save store (debounced)
+- `load()` - Load store from storage
+- `exportJSON()` - Export as JSON
+- `importJSON(data)` - Import from JSON
+
+**UI:**
+- `render()` - Main render dispatch
+- `showToast(msg, type, duration)` - Show notification
+- `h(tag, attrs, ...children)` - Create DOM element
+
+---
+
+## Version History (Recent)
+
+```
+1.0.0 (2025-11-30)
+- Production release
+- Schema v4 stable
+
+0.14.0 (2025-11-30)
+- Accessibility API enhancements
+- Theme customization for extensions
+
+0.13.0 (2025-11-XX)
+- Documentation refresh
+- Extension wizard improvements
+
+0.12.0 (2025-11-XX)
+- Undo/redo system
+- Tag management
+- Advanced search
+- Drag-and-drop
+
+0.11.0 (2025-11-XX)
+- Backlinks & related cards
+- Grid view
+- Typography presets
+```
 
 ---
 
 ## Resources
 
 - **Repository**: https://github.com/jxburros/CardSpoke
-- **Capacitor Docs**: https://capacitorjs.com/
-- **Schema**: See Data Model section above
-- **Roadmap**: See Road Map V2.md
-- **Objectives**: See cardspoke_objectives_v_1 (1).md
+- **API Reference**: `docs/api-reference.md`
+- **Extension Cookbook**: `docs/extension-cookbook.md`
+- **Schema Reference**: `docs/schema-reference-v0.13.md`
+- **Test Guide**: `tests/README.md`
 
 ---
 
-## Conclusion
+## Final Notes
 
-This guide provides the essential knowledge needed to work with CardSpoke effectively. The codebase is designed to be readable and self-documenting, so don't hesitate to explore the source files directly.
+**Remember:**
+1. **Update version metadata** on every change to `app.js`
+2. **Set `dirty = true`** after modifying `store`
+3. **Follow existing patterns** for consistency
+4. **Test thoroughly** before considering work complete
+5. **Document complex logic** for future maintainers
 
-For questions or clarifications, refer to the inline comments in `www/app.js` or the other documentation files.
-
-**Remember**: CardSpoke prioritizes simplicity, clarity, and user control. All changes should reflect these values.
+CardSpoke prioritizes **simplicity**, **clarity**, and **user control**. All changes should reflect these values.
 
 ---
 
-**Document Version:** 1.1  
-**Last Updated:** 2025-11-30  
-**Maintained By:** jxburros  
-**Contributors:** GitHub Copilot
+**Guide Version**: 2.0
+**Last Updated**: 2025-11-30
+**For**: AI Programming Assistants
+**Compatibility**: CardSpoke 1.0.0+
