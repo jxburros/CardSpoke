@@ -1,6 +1,6 @@
-# CardSpoke Schema Reference - Version 0.13.0
+# CardSpoke Schema Reference - Version 0.14.0
 
-**Version:** 0.13.0
+**Version:** 0.14.0
 **Schema Version:** 4
 **Date:** 2025-11-28
 **Status:** Current Reference Documentation
@@ -416,4 +416,4 @@ If schema changes are needed in future versions:
 
 **Document Status:** Current Reference
 **Last Updated:** 2025-11-28
-**Verified Against:** CardSpoke v0.13.0 codebase
+**Verified Against:** CardSpoke v0.14.0 codebase

@@ -823,6 +823,7 @@ function createProjectStructure(projectName) {
 | Version | Changes |
 |---------|---------|
 | 0.14.0 | Added lifecycle hooks (onEnable, onDisable, onUninstall), async hook support, event bus, developer tools, hot reload, enhanced error handling, hook validation, TypeScript definitions |
+| 0.14.0 | Accessibility API, lifecycle hooks, async hooks, event bus, developer tools, hot reload, enhanced error handling |, theme hooks, CSS variables for extensions |
 | 0.13.0 | Version sync and documentation refresh |
 | 0.12.1 | API documentation created |
 | 0.11.3 | Renamed from CardSpoke.utils to CardSpoke.utils |
