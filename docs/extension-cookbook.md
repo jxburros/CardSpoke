@@ -1,6 +1,6 @@
 # Extension Development Cookbook
 
-**Version:** 0.14.0
+**Version:** 0.15.0
 **Last Updated:** 2025-11-30
 
 This cookbook provides practical recipes and patterns for common extension development tasks in CardSpoke.
@@ -36,7 +36,7 @@ This cookbook provides practical recipes and patterns for common extension devel
     meta: {
       name: 'My Extension',
       type: 'Plugin',
-      version: '1.0.0',
+      version: '0.15.0',
       creator: 'Your Name',
       description: 'What this extension does'
     },
@@ -357,7 +357,7 @@ CardSpoke_MODS.register('card-metadata', {
     // Example: Track when card was last modified by this extension
     await this.setCardMetadata(ctx, card.id, {
       lastModified: Date.now(),
-      version: '1.0.0'
+      version: '0.15.0'
     });
   }
 });

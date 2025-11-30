@@ -1,6 +1,6 @@
 # CardSpoke API Reference
 
-**Version:** 0.14.0
+**Version:** 0.15.0
 **Last Updated:** 2025-11-30
 
 This document provides comprehensive documentation for the `CardSpoke.utils` API and the `CardSpoke_MODS` extension system, which allow extension developers to interact with CardSpoke programmatically.
@@ -375,7 +375,7 @@ CardSpoke_MODS.register('my-extension', {
   meta: {
     name: 'My Extension',
     type: 'Plugin',
-    version: '1.0.0'
+    version: '0.15.0'
   },
   onAppInit(ctx) {
     console.log('Extension loaded!');
@@ -755,7 +755,7 @@ CardSpoke_MODS.register('my-extension', {
     meta: {
       name: 'Word Count Example',
       type: 'Plugin',
-      version: '1.0.0',
+      version: '0.15.0',
       description: 'Shows word count in console when cards render'
     },
     onAppInit(ctx) {
