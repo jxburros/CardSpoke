@@ -9,7 +9,7 @@ All items in this TODO list have been completed in version 0.12.3.
 - [x] Add upload button for adding/editing cards to be able to import text from TXT or doc files to add to the card's details → **Import from File button in card edit form**
 - [x] Combine all dataset/download buttons into one UI with one path in the menu → **Data Hub**
 - [x] The large "CardSpoke" in the upper left should be clickable and bring the user home → **Brand logo is now a button**
-- [x] Check all code and documentation for references to "CIB" and change them to now reflect the new name, CardSpoke → **All CIB_MODS changed to CardSpoke_MODS**
+- [x] Check all code and documentation for references to "CardSpoke" and change them to now reflect the new name, CardSpoke → **All CardSpoke_MODS changed to CardSpoke_MODS**
 
 ## Accessibility Audit - All Complete ✅
 
@@ -66,7 +66,7 @@ All items in this TODO list have been completed in version 0.12.3.
 Version 0.12.3 delivers:
 - **Simplified Menu Structure**: Extensions Hub and Data Hub consolidate 15+ menu items into 2
 - **Full Accessibility Compliance**: All critical, medium, and low priority accessibility issues resolved
-- **Improved Branding**: CIB references updated to CardSpoke throughout codebase
+- **Improved Branding**: CardSpoke references updated to CardSpoke throughout codebase
 - **Enhanced UX**: Clickable logo, keyboard navigation, focus trapping, and reduced motion support
 
 All 177 tests continue to pass.

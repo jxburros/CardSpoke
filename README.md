@@ -86,10 +86,10 @@ The v0.12 release series completed the **Safety & Governance** phase with compre
 ### What's New in 0.11.3
 
 **API Renaming for Brand Consistency**
-- **CardSpoke.utils API**: Renamed from CIB.utils to match CardSpoke branding
-  - `window.CardSpoke.utils` replaces `window.CIB.utils`
-  - `window.CardSpoke.mods` replaces `window.CIB_MODS`
-  - Backward compatibility maintained: `window.CIB` still works as alias
+- **CardSpoke.utils API**: Renamed from CardSpoke.utils to match CardSpoke branding
+  - `window.CardSpoke.utils` replaces `window.CardSpoke.utils`
+  - `window.CardSpoke.mods` replaces `window.CardSpoke_MODS`
+  - Backward compatibility maintained: `window.CardSpoke` still works as alias
   - All 186+ references updated across codebase
 - **Enhanced Testing**: 160 tests passing (up from 152)
   - 8 new footer population tests to prevent regression

@@ -25,7 +25,7 @@ agentResult:
           status: "done"
         - name: "Persistent Mod Data Registry"
           status: "done"
-        - name: "CIB.utils API"
+        - name: "CardSpoke.utils API"
           status: "partial"
         - name: "Extension Wizard"
           status: "not-started"
@@ -88,7 +88,7 @@ agentResult:
     
     # Key Finding
     strategicPivot:
-      description: "Version 0.11.0 represents a strategic pivot from planned Developer Ecosystem (Wizard, Playground, CIB.utils) to implementing 7 high-value Priority Features (backlinks, related cards, grid view, typography, smart tags, shortcuts, enhanced exports)"
+      description: "Version 0.11.0 represents a strategic pivot from planned Developer Ecosystem (Wizard, Playground, CardSpoke.utils) to implementing 7 high-value Priority Features (backlinks, related cards, grid view, typography, smart tags, shortcuts, enhanced exports)"
       reasoning: "Priority Features deliver immediate user value for knowledge management, while Developer Ecosystem requires significant infrastructure work"
       evidence: "PR #48 'huge update with many features' using 'mega-showrunner' agent"
       impact: "Positive - users gain powerful relationship tracking and content intelligence features"
@@ -106,7 +106,7 @@ agentResult:
       - "Update README.md to document v0.11.0 features (30 min)"
     high:
       - "Create RELEASE_NOTES_V0.11.0.md explaining strategic pivot (1 hour)"
-      - "Expose CIB.utils API for mod developers (2 hours)"
+      - "Expose CardSpoke.utils API for mod developers (2 hours)"
     medium:
       - "Decide v0.12.0 direction: return to v0.11 plan OR continue with Priority Features OR skip to v0.12 Safety & Governance"
   

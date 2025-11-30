@@ -417,7 +417,7 @@ Extend search to multiple datasets.
 
 After completing v0.10 tasks:
 - **v0.10.1-0.10.3:** Polish, performance tuning, bug fixes
-- **v0.11:** Developer Ecosystem (Wizard, Playground, CIB.utils)
+- **v0.11:** Developer Ecosystem (Wizard, Playground, CardSpoke.utils)
 - **v0.12:** Safety & Governance (Mod safety, Rewind, Deviations)
 - **v1.0:** Final polish and documentation
 

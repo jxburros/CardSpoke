@@ -45,20 +45,20 @@ The v0.11 phase deviated from the original roadmap (Developer Ecosystem) and del
 
 ### QUALITY-OF-LIFE IMPROVEMENTS (P2 Priority)
 
-#### QOL-001: Expose CIB.utils API for Mod Developers
+#### QOL-001: Expose CardSpoke.utils API for Mod Developers
 - **Size:** Small (S) — 2-4 hours
 - **Priority:** P2 (High)
 - **Dependencies:** None
 - **Owner:** Constructor or Insect-Enthusiast
-- **Description:** Make utility functions available as `window.CIB.utils.*` for mod developers
+- **Description:** Make utility functions available as `window.CardSpoke.utils.*` for mod developers
 - **Evidence:** Functions exist (createCard, updateCard, getTags, addTag, showToast) but not exposed globally
 - **Location:** www/app.js (create wrapper around line 1421+)
 - **Acceptance Criteria:**
-  - [ ] `CIB.utils.createCard()` callable from browser console
-  - [ ] `CIB.utils.updateCard()` callable
-  - [ ] `CIB.utils.getTags()` callable
-  - [ ] [ ] `CIB.utils.addTag()` callable
-  - [ ] `CIB.utils.showToast()` callable
+  - [ ] `CardSpoke.utils.createCard()` callable from browser console
+  - [ ] `CardSpoke.utils.updateCard()` callable
+  - [ ] `CardSpoke.utils.getTags()` callable
+  - [ ] [ ] `CardSpoke.utils.addTag()` callable
+  - [ ] `CardSpoke.utils.showToast()` callable
   - [ ] Documentation added to AI_DEVELOPER_GUIDE.md
   - [ ] Tests added for API exposure
 
@@ -223,7 +223,7 @@ The v0.11 phase deviated from the original roadmap (Developer Ecosystem) and del
 3. **QOL-004:** Add footer population test (1-2 hours) — Prevent regression
 
 ### Sprint 2: Developer Experience (2-4 hours)
-4. **QOL-001:** Expose CIB.utils API (2-4 hours) — Enables mod developers
+4. **QOL-001:** Expose CardSpoke.utils API (2-4 hours) — Enables mod developers
 
 ### Sprint 3: Optional Enhancements (5-7 days — defer to v0.12 if needed)
 5. **NEXT-003:** Multi-dataset search (1-2 days) — Complete v0.10 feature
@@ -256,7 +256,7 @@ The v0.11 phase deviated from the original roadmap (Developer Ecosystem) and del
 ## Dependencies Graph
 
 ```
-QOL-001 (CIB.utils API)
+QOL-001 (CardSpoke.utils API)
   └─ (enables) NEXT-001, NEXT-002 (but not blocking)
 
 QOL-002 (README)
@@ -306,7 +306,7 @@ NEXT-004 (Performance)
 - [x] Footer display issue resolved (v0.11.2.5)
 - [ ] README.md updated with v0.11 features
 - [ ] RELEASE_NOTES_v0.11.0.md created
-- [ ] CIB.utils API exposed for mod developers
+- [ ] CardSpoke.utils API exposed for mod developers
 - [ ] Footer population tests added
 - [ ] All tests passing (152+)
 - [ ] No regressions

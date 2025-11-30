@@ -19,7 +19,7 @@ This release series (v0.11.0 through v0.11.3) ultimately delivered BOTH the pivo
 ### Original v0.11 Plan (from Road Map V2)
 - Extension Wizard for scaffolding mods
 - Playground for testing extension code
-- CIB.utils API for developers
+- CardSpoke.utils API for developers
 - Persistent Mod Data Registry
 - Developer Mode toggle
 
@@ -44,7 +44,7 @@ The team recognized that CardSpoke needed stronger core features before focusing
 - Playground (originally planned feature)
 
 **v0.11.3 — Brand Consistency**
-- Renamed CIB to CardSpoke across all APIs
+- Renamed CardSpoke to CardSpoke across all APIs
 - 160 comprehensive tests (up from 127)
 
 ---
@@ -163,7 +163,7 @@ New shortcuts added:
 **Problem Solved:** Extension developers had no safe API to interact with CardSpoke.
 
 **Solution:**
-- Exposed `window.CardSpoke.utils` API (formerly CIB.utils)
+- Exposed `window.CardSpoke.utils` API (formerly CardSpoke.utils)
 - Functions for card management: `createCard`, `updateCard`, `getCard`, `searchCards`
 - Tag management: `getTags`, `addTag`, `removeTag`, `setTags`, `getAllTags`
 - Utilities: `showToast`, `getDatasetMeta`
@@ -215,11 +215,11 @@ New shortcuts added:
 
 ### 10. API Renaming (v0.11.3)
 
-**Problem Solved:** "CIB" (Card Info Base) was outdated branding from before CardSpoke name.
+**Problem Solved:** "CardSpoke" (Card Info Base) was outdated branding from before CardSpoke name.
 
 **Solution:**
-- Renamed `window.CIB.utils` → `window.CardSpoke.utils`
-- Renamed `window.CIB_MODS` → `window.CardSpoke.mods`
+- Renamed `window.CardSpoke.utils` → `window.CardSpoke.utils`
+- Renamed `window.CardSpoke_MODS` → `window.CardSpoke.mods`
 - Added backward compatibility aliases
 - Updated 186+ references across codebase and documentation
 
@@ -235,11 +235,11 @@ New shortcuts added:
 
 ### For Extension Developers
 
-**If using old CIB names:**
+**If using old CardSpoke names:**
 ```javascript
 // Old way (still works via aliases)
-window.CIB.utils.createCard({ title: 'Test' });
-window.CIB_MODS.register('my-mod', { ... });
+window.CardSpoke.utils.createCard({ title: 'Test' });
+window.CardSpoke_MODS.register('my-mod', { ... });
 
 // New way (recommended)
 window.CardSpoke.utils.createCard({ title: 'Test' });
