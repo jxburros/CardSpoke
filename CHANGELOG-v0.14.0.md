@@ -7,6 +7,13 @@
 
 This release significantly enhances the CardSpoke extension system based on a comprehensive analysis and recommendations. The focus is on improving developer experience, adding robust lifecycle management, enabling better debugging, and maintaining full backward compatibility.
 
+### 2025-11-30 Supplemental Improvements
+- Tag editor now supports auto-splitting on commas/whitespace and shows tags as chips.
+- Large lists use incremental rendering, lazy previews, and debounced search navigation.
+- Search results support keyboard navigation with highlighted matches.
+- Rich text editing (optional Markdown) adds bold, italic, headers, and bullets.
+- Extension hooks now have stronger error boundaries with user-facing toasts.
+
 ---
 
 ## New Features

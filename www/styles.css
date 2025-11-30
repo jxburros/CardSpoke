@@ -568,6 +568,44 @@
       gap: var(--space-sm);
       margin-top: auto;
     }
+
+    .tag-editor {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-secondary);
+    }
+
+    .tag-editor-input {
+      flex: 1;
+      min-width: 140px;
+      border: none;
+      background: transparent;
+      outline: none;
+      padding: 4px;
+      color: var(--text);
+    }
+
+    .tag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--bg-tertiary, #e5e7eb);
+      color: var(--text);
+      font-size: var(--text-sm);
+    }
+
+    .tag-chip-remove {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+    }
     
     .card-tag {
       font-size: var(--text-sm);
@@ -806,6 +844,28 @@
       min-height: 180px;
       resize: vertical;
       line-height: 1.6;
+    }
+
+    .rich-toolbar {
+      display: flex;
+      gap: 6px;
+      margin: 6px 0;
+    }
+
+    .rich-body h1,
+    .rich-body h2,
+    .rich-body h3 {
+      margin: 8px 0;
+      font-weight: 700;
+    }
+
+    .rich-body ul {
+      padding-left: 20px;
+      list-style: disc;
+    }
+
+    .search-result-selected {
+      outline: 2px solid var(--primary);
     }
     
     .form-children {
