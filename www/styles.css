@@ -725,7 +725,22 @@
     :root.dark .search-clear:hover {
       background: #1a1a1a;
     }
-    
+
+    /* Search result selection highlight (v1.0.0) */
+    .search-result-selected {
+      outline: 3px solid var(--primary) !important;
+      outline-offset: 2px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+      transform: scale(1.02);
+      transition: all 0.2s ease;
+      position: relative;
+      z-index: 1;
+    }
+
+    :root.dark .search-result-selected {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+    }
+
     /* =============================================================
        BUTTONS
        ============================================================= */
@@ -2162,4 +2177,181 @@ button.breadcrumb {
 button.breadcrumb:focus {
   outline: var(--focus-outline-width, 2px) var(--focus-outline-style, solid) var(--focus-outline-color, var(--text));
   outline-offset: var(--focus-outline-offset, 2px);
+}
+
+/* =============================================================
+   PRINT STYLESHEET (v1.0.0)
+   Clean print output for cards
+   ============================================================= */
+
+@media print {
+  /* Hide navigation and UI elements */
+  .header,
+  .breadcrumbs,
+  .menu-overlay,
+  .search-container,
+  .app-footer,
+  .card-detail-actions,
+  .toast-container {
+    display: none !important;
+  }
+
+  /* Reset background and colors for print */
+  body,
+  .container,
+  main {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Card styling for print */
+  .card-detail {
+    padding: 20mm;
+    max-width: 100%;
+  }
+
+  .card-detail-title {
+    font-size: 24pt;
+    margin-bottom: 12pt;
+    color: black !important;
+    page-break-after: avoid;
+  }
+
+  .card-detail-body {
+    font-size: 12pt;
+    line-height: 1.6;
+    color: black !important;
+    margin-bottom: 12pt;
+  }
+
+  /* Tags */
+  .card-tags {
+    margin: 12pt 0;
+    page-break-inside: avoid;
+  }
+
+  .card-tag {
+    background: #f0f0f0 !important;
+    color: black !important;
+    border: 1px solid #ccc !important;
+    padding: 4pt 8pt;
+    margin-right: 4pt;
+    font-size: 10pt;
+  }
+
+  /* Children section */
+  .children-section,
+  .backlinks-section,
+  .related-section {
+    margin-top: 20pt;
+    page-break-inside: avoid;
+  }
+
+  .children-title,
+  .section-title {
+    font-size: 14pt;
+    font-weight: bold;
+    margin-bottom: 8pt;
+    color: black !important;
+    page-break-after: avoid;
+  }
+
+  .card-grid {
+    display: block;
+  }
+
+  .card-tile {
+    border: 1px solid #ccc !important;
+    padding: 8pt !important;
+    margin-bottom: 8pt;
+    background: white !important;
+    page-break-inside: avoid;
+  }
+
+  .card-tile-title {
+    font-size: 11pt;
+    color: black !important;
+  }
+
+  /* Page breaks */
+  h1, h2, h3 {
+    page-break-after: avoid;
+  }
+
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* Add page numbers */
+  @page {
+    margin: 20mm;
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+    }
+  }
+}
+
+/* =============================================================
+   ADDITIONAL MOBILE OPTIMIZATIONS (v1.0.0)
+   Improved touch targets and mobile UX
+   ============================================================= */
+
+@media (max-width: 768px) {
+  /* Improve button spacing for touch */
+  .card-detail-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--space-md);
+  }
+
+  .card-detail-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Better modal sizing on mobile */
+  .modal {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    max-height: 90vh;
+    margin: auto;
+  }
+
+  /* Improve card grid on mobile */
+  .card-grid {
+    grid-template-columns: 1fr !important;
+    gap: var(--space-md);
+  }
+
+  /* Touch-friendly card tiles */
+  .card-tile {
+    min-height: 80px;
+    padding: var(--space-lg) !important;
+  }
+
+  /* Make search input easier to use on mobile */
+  .search-input {
+    font-size: 16px !important; /* Prevent zoom on iOS */
+  }
+
+  /* Improve form layouts on mobile */
+  .form-group {
+    margin-bottom: var(--space-xl);
+  }
+
+  .form-input,
+  .form-textarea {
+    font-size: 16px; /* Prevent zoom on iOS */
+    padding: var(--space-md);
+  }
+
+  /* Better tag display on mobile */
+  .card-tags {
+    flex-wrap: wrap;
+  }
+
+  .card-tag {
+    margin-bottom: var(--space-xs);
+  }
 }
