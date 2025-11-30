@@ -1,73 +1,90 @@
-    (function() {
-      'use strict';
-      
-      // =============================================================
-      // CardSpoke JavaScript Application
-      // Version: 1.0.0
-      // Creator: jxburros
-      // Schema: v4
-      // =============================================================
-      
-      // =============================================================
-      // --- AI DEVELOPER INSTRUCTIONS ---
-      //
-      // 1. UPDATE VERSION & METADATA:
-      //    Before saving, you MUST update the constants below.
-      //    - APP_VERSION: If user does not specify, append ".1" (e.g., "0.7.4" -> "0.7.4.1").
-      //    - APP_RELEASE_DATE: Set to today's date (YYYY-MM-DD).
-      //    - APP_UPDATER: Add your AI name.
-      //
-      // 2. MAINTAIN FUNCTIONALITY:
-      //    Do not remove or break existing features unless explicitly requested.
-      //    All changes should be additive or improvements.
-      //
-      // =============================================================
-      
-      // --- APP METADATA & SIGNATURES ---
-      const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '1.0.0'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-30'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'Claude Code (Sonnet 4.5)'; // <-- AI: UPDATE THIS
-      // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
-      // Version 0.9.1: Added user-facing error notifications for mod execution failures
-      // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
-      // Version 0.9.3: Previous updates
-      // Version 0.9.4: Added StorageDriver architecture, Dataset Info Panel, storage analytics
-      // Version 0.10.5: Implemented Tags API (getTags, addTag, removeTag, setTags, getAllTags) with comprehensive tests
-      // Version 0.10.6: Multi-Dataset Search - search across multiple datasets simultaneously
-      // Version 0.11.0: Mega Showrunner - Backlinks, Related Cards, Enhanced Exports, and many more features
-      // Version 0.11.1: Exposed CardSpoke.utils API for mod developers with comprehensive utility functions
-      // Version 0.11.2: Added Extension Wizard and Playground for mod developers
-      // Version 0.11.2.5: Enhanced footer population with error handling and debugging
-      // Version 0.11.3: Brand alignment and v0.11.X TODO items
-      // Version 0.11.4: Bug fixes - storage type display, parent selection, playground cards, dataset naming, export feedback, UI issues
-      // Version 0.12.0: Complete TODO list - Undo/Redo, Tag Management, Advanced Search, Markdown Preview, Extensions Store, Bulk Import/Export, Drag-and-Drop
-      // Version 0.12.1: Documentation update, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README sync for 1.0 release prep
-      // Version 0.12.2: Pre-1.0 TODO items - Extension Wizard ai_assistants field, official/community badges, nested menu UX
-      // Version 0.12.3: TODO list - Clickable brand logo, accessibility improvements, CardSpoke naming, scalable fonts
-      // Version 0.13.0: Documentation & Open Source Prep - Updated all documentation to reflect current state, version sync across all files
-      // Version 0.13.1: Accessibility & Theme Customization for Extensions - Exposed CSS variables and API for theme customization of accessibility features
-      
-      // --- CORE APP STATE ---
-      const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
-      let instanceKey = localStorage.getItem('activeInstance') || 'nested_cards_store';
-      let store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' }; // Main data store
-      let navState = { page: 'list', cardId: null, parentId: null, searchQuery: '' }; // Navigation state
-      let navHistory = []; // Navigation history for back button
-      let dirty = false; // Tracks unsaved changes
-      let searchResultsState = { items: [], elements: [], selectedIndex: 0 };
+// =============================================================
+// CardSpoke JavaScript Application
+// Version: 1.0.0
+// Creator: jxburros
+// Schema: v4
+// Refactored: ES Modules for better maintainability
+// =============================================================
 
-      // --- UNDO/REDO SYSTEM STATE (v0.12.0) ---
-      const undoStack = [];
-      const redoStack = [];
-      const trashBin = [];
-      const MAX_UNDO_STACK = 50;
-      const MAX_TRASH_SIZE = 100;
-      let draggedCardId = null;
-      let dragOverCardId = null;
+'use strict';
 
-      // --- DOM ELEMENTS ---
-      const header = {
+// =============================================================
+// --- ES MODULE IMPORTS ---
+// Import shared functionality from modular files
+// Note: Many functions are still defined locally for backward compatibility.
+// The modules serve as a reference for future refactoring.
+// =============================================================
+import { 
+  h, uid, debounce, normalizeTagInput, escapeHtml, highlightText, 
+  cloneCard, trapFocus, formatBytes 
+} from './modules/core/utils.js';
+// Note: simpleMarkdown is defined locally at line ~7379
+
+import { 
+  APP_CREATOR, APP_VERSION, APP_RELEASE_DATE, APP_UPDATER, SCHEMA_VERSION,
+  state as moduleState, getStore, setStore, getNavState, setNavState, 
+  createDefaultStore, isRichTextEnabled, setRichTextEnabled,
+  getActiveThemeExtension, setActiveThemeExtension
+} from './modules/core/state.js';
+// Note: isDeveloperMode is defined locally at line ~359
+
+// Storage classes (StorageDriver, IndexedDBDriver, LocalStorageDriver, DatasetManager)
+// and save functions are defined locally starting at line ~366.
+// Module versions exist in ./modules/core/storage.js for future refactoring.
+
+import { showToast, initToast } from './modules/ui/toast.js';
+
+// Note: applyTheme, showAppearanceSettings, etc. are defined locally below
+// The module versions in ./modules/ui/appearance.js can be used in future refactoring
+
+// =============================================================
+// --- AI DEVELOPER INSTRUCTIONS ---
+//
+// 1. UPDATE VERSION & METADATA:
+//    Version constants are now in modules/core/state.js
+//    Update there when making changes.
+//
+// 2. MAINTAIN FUNCTIONALITY:
+//    Do not remove or break existing features unless explicitly requested.
+//    All changes should be additive or improvements.
+//
+// 3. MODULAR ARCHITECTURE:
+//    - Core utilities: modules/core/utils.js
+//    - App state: modules/core/state.js
+//    - Storage: modules/core/storage.js (reference implementation)
+//    - Toast notifications: modules/ui/toast.js
+//    - Appearance settings: modules/ui/appearance.js (reference implementation)
+//
+// =============================================================
+
+// Version History (see modules/core/state.js for version constants)
+// Version 1.0.0: Major refactor - ES Modules for maintainability, Rich Text toggle, Theme extensions handler
+// Version 0.13.1: Accessibility & Theme Customization for Extensions
+// (see previous versions in git history)
+
+// --- CORE APP STATE (using module state) ---
+// These are local references to module state for backward compatibility
+let store = moduleState.store;
+let navState = moduleState.navState;
+let navHistory = moduleState.navHistory;
+let instanceKey = moduleState.instanceKey;
+let dirty = moduleState.dirty;
+let searchResultsState = moduleState.searchResultsState;
+
+// --- UNDO/REDO SYSTEM STATE (v0.12.0) ---
+const undoStack = moduleState.undoStack;
+const redoStack = moduleState.redoStack;
+const trashBin = moduleState.trashBin;
+const MAX_UNDO_STACK = moduleState.MAX_UNDO_STACK;
+const MAX_TRASH_SIZE = moduleState.MAX_TRASH_SIZE;
+let draggedCardId = moduleState.draggedCardId;
+let dragOverCardId = moduleState.dragOverCardId;
+
+// Note: save, saveNow, load, clearAllData, showAppearanceSettings, applyTheme 
+// are defined later in this file with local implementations
+
+// --- DOM ELEMENTS ---
+const header = {
         homeBtn: document.getElementById('homeBtn'),
         themeToggle: document.getElementById('themeToggle'),
         menuBtn: document.getElementById('menuBtn'),
@@ -131,248 +148,13 @@
       };
 
       // --- UTILITIES ---
-      
-      /**
-       * Helper function to create DOM elements
-       * @param {string} tag - HTML tag name
-       * @param {Object} props - Element properties and attributes
-       * @param {...(string|HTMLElement)} children - Child elements or text
-       * @returns {HTMLElement} Created DOM element
-       */
-      function h(tag, props = {}, ...children) {
-        const el = document.createElement(tag);
-        Object.entries(props).forEach(([k, v]) => {
-          if (k === 'className') el.className = v;
-          else if (k === 'onclick') el.onclick = v;
-          else if (k === 'onsubmit') el.onsubmit = v;
-          else if (k === 'style') el.style.cssText = v;
-          else if (k === 'oninput') el.oninput = v;
-          else if (k === 'onchange') el.onchange = v;
-          else if (k === 'selected' || k === 'disabled' || k === 'checked' || k === 'readonly') {
-            // Boolean attributes: only set if truthy
-            if (v) el.setAttribute(k, '');
-          }
-          else if (v !== false && v !== null && v !== undefined) el.setAttribute(k, v);
-        });
-        children.flat().forEach(ch => {
-          if (typeof ch === 'string') el.appendChild(document.createTextNode(ch));
-          else if (ch) el.appendChild(ch);
-        });
-        return el;
-      }
-
-      /**
-       * Generate unique ID based on timestamp and random string
-       * @returns {string} Unique identifier
-       */
-      function uid() {
-        return Date.now().toString(36) + Math.random().toString(36).substring(2);
-      }
-
-      /**
-       * Debounce function - delays execution until after wait time has elapsed
-       * @param {Function} func - Function to debounce
-       * @param {number} wait - Wait time in milliseconds
-       * @returns {Function} Debounced function
-       */
-      function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-          const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-          };
-          clearTimeout(timeout);
-          timeout = setTimeout(later, wait);
-        };
-      }
-
-      /** Normalize and split tag input */
-      function normalizeTagInput(raw) {
-        if (!raw) return [];
-        return raw
-          .split(/[\s,]+/)
-          .map(tag => tag.replace(/^#/, '').toLowerCase().trim())
-          .filter(Boolean);
-      }
-
-      /** Escape HTML */
-      function escapeHtml(str) {
-        return (str || '')
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-      }
-
-      /** Highlight matched query terms within text */
-      function highlightText(text, query) {
-        if (!query || !text) return document.createTextNode(text || '');
-        const terms = query.split(/\s+/).filter(Boolean).map(t => t.toLowerCase());
-        if (!terms.length) return document.createTextNode(text);
-        let html = escapeHtml(text);
-        terms.forEach(term => {
-          const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          html = html.replace(new RegExp(safeTerm, 'gi'), match => `<mark>${match}</mark>`);
-        });
-        const span = document.createElement('span');
-        span.innerHTML = html;
-        return span;
-      }
-
-      /**
-       * Show toast notification
-       * @param {string} message - Message to display
-       * @param {'success'|'error'|'info'} type - Type of notification
-       */
-      /**
-       * Show a toast notification with auto-dismiss and pause on hover
-       * @param {string} message - Message to display
-       * @param {string} type - Toast type: 'success', 'error', 'warning', 'info'
-       * @param {number} duration - Duration in milliseconds (default: 3000)
-       */
-      function showToast(message, type = 'success', duration = 3000) {
-        const toast = h('div', { 
-          className: `toast ${type}`,
-          role: 'alert',
-          'aria-live': type === 'error' ? 'assertive' : 'polite',
-          'aria-atomic': 'true',
-          tabindex: '0'
-        }, message);
-        toastContainer.appendChild(toast);
-        
-        let timeoutId = null;
-        let isPaused = false;
-        let remainingTime = duration;
-        let startTime = Date.now();
-        
-        const scheduleRemoval = () => {
-          startTime = Date.now();
-          timeoutId = setTimeout(() => {
-            if (!isPaused) {
-              toast.style.opacity = '0';
-              setTimeout(() => toast.remove(), 300);
-            }
-          }, remainingTime);
-        };
-        
-        const pauseTimer = () => {
-          if (!isPaused && timeoutId) {
-            clearTimeout(timeoutId);
-            remainingTime -= (Date.now() - startTime);
-            isPaused = true;
-          }
-        };
-        
-        const resumeTimer = () => {
-          if (isPaused) {
-            isPaused = false;
-            scheduleRemoval();
-          }
-        };
-        
-        toast.addEventListener('mouseenter', pauseTimer);
-        toast.addEventListener('mouseleave', resumeTimer);
-        
-        // Add click to dismiss
-        toast.style.cursor = 'pointer';
-        const dismissToast = () => {
-          clearTimeout(timeoutId);
-          toast.style.opacity = '0';
-          setTimeout(() => toast.remove(), 300);
-        };
-        
-        toast.addEventListener('click', dismissToast);
-        
-        // Add keyboard support (Escape or Enter to dismiss)
-        toast.addEventListener('keydown', (e) => {
-          if (e.key === 'Escape' || e.key === 'Enter') {
-            e.preventDefault();
-            dismissToast();
-          }
-        });
-        
-        scheduleRemoval();
-      }
-
-      /**
-       * Focus trapping for accessibility (v0.12.3)
-       * Traps focus within a modal element
-       * @param {HTMLElement} modal - Modal element to trap focus in
-       * @returns {Function} Cleanup function to remove trap
-       */
-      function trapFocus(modal) {
-        const focusableElements = modal.querySelectorAll(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        const firstFocusable = focusableElements[0];
-        const lastFocusable = focusableElements[focusableElements.length - 1];
-        
-        const handleKeyDown = (e) => {
-          if (e.key !== 'Tab') return;
-          
-          if (e.shiftKey) {
-            // Shift + Tab
-            if (document.activeElement === firstFocusable) {
-              e.preventDefault();
-              lastFocusable.focus();
-            }
-          } else {
-            // Tab
-            if (document.activeElement === lastFocusable) {
-              e.preventDefault();
-              firstFocusable.focus();
-            }
-          }
-        };
-        
-        modal.addEventListener('keydown', handleKeyDown);
-        
-        // Focus first element
-        if (firstFocusable) {
-          firstFocusable.focus();
-        }
-        
-        // Return cleanup function
-        return () => {
-          modal.removeEventListener('keydown', handleKeyDown);
-        };
-      }
-
-
-      /**
-       * Check if developer mode is enabled
-       * @returns {boolean} True if developer mode is active
-       */
-      function isDeveloperMode() {
-        return localStorage.getItem('cardspoke_devmode') === 'true';
-      }
-
+      // Imported from modules: h, uid, debounce, normalizeTagInput, escapeHtml, 
+      // highlightText, cloneCard, trapFocus, formatBytes, showToast
+      // Locally defined: simpleMarkdown (~line 7379), isDeveloperMode (~line 359)
 
       function bootError(msg) {
         main.innerHTML = '';
         main.appendChild(h('div', { className: 'empty' }, 'Error: ' + msg));
-      }
-
-      /**
-       * Clone a card object deeply to avoid reference issues
-       * @param {Object} card - Card object to clone
-       * @returns {Object|null} Cloned card object or null
-       */
-      function cloneCard(card) {
-        if (!card) return null;
-        let modsData = {};
-        if (card.modsData) {
-          try {
-            modsData = JSON.parse(JSON.stringify(card.modsData));
-          } catch (err) {
-            modsData = { ...card.modsData };
-          }
-        }
-        return {
-          ...card,
-          children: Array.isArray(card.children) ? card.children.slice() : [],
-          modsData
-        };
       }
 
 
@@ -8784,4 +8566,3 @@ console.log('✓ All examples completed!');
           e.returnValue = '';
         }
       });
-    })();

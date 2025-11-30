@@ -37,15 +37,24 @@ test('menu handlers are correctly scoped (not nested)', () => {
   }
 });
 
-test('IIFE closes correctly at end of file', () => {
+test('File format is valid (ES Module or IIFE)', () => {
   const appCode = readFileSync(appPath, 'utf8');
-  
-  // The file should end with })(); not }})(); 
-  // (one closing brace for the IIFE, not two)
   const lines = appCode.trim().split('\n');
   const lastLine = lines[lines.length - 1].trim();
+  const firstNonEmptyLine = lines.find(line => line.trim().length > 0)?.trim() || '';
   
-  assert.is(lastLine, '})();', 'File should end with })(); (single closing brace for IIFE)');
+  // Check if it's an ES Module (has import statements) or IIFE (wrapped in function)
+  const isESModule = appCode.includes('import {') || appCode.includes("import '");
+  const isIIFE = firstNonEmptyLine.startsWith('(function()') || firstNonEmptyLine === '(function() {';
+  
+  assert.ok(isESModule || isIIFE, 'File should be either an ES Module (with imports) or an IIFE');
+  
+  // If it's an IIFE, check that it closes correctly
+  if (isIIFE && !isESModule) {
+    assert.is(lastLine, '})();', 'IIFE should end with })();');
+  }
+  
+  // ES Module format is valid - no additional checks needed
 });
 
 test.run();
