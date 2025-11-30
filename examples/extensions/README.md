@@ -149,6 +149,16 @@ CardSpoke_MODS.register('my-extension', {
   onCardRender(ctx, card, element) {
     // Modify card appearance
   },
+  // Lifecycle hooks (v0.14.0)
+  onEnable(ctx) {
+    console.log('Extension enabled!');
+  },
+  onDisable(ctx) {
+    console.log('Extension disabled - cleanup here');
+  },
+  onUninstall(ctx) {
+    console.log('Extension uninstalled - final cleanup');
+  },
   // Accessibility hooks (v0.13.1)
   onThemeChange(ctx, theme) {
     console.log('Theme changed to:', theme);
@@ -244,13 +254,100 @@ Your theme should work with both light and dark mode:
 }
 ```
 
+## New Features in v0.14.0
+
+### Lifecycle Hooks
+
+Extensions can now clean up resources when disabled or uninstalled:
+
+```javascript
+CardSpoke_MODS.register('timer-plugin', {
+  interval: null,
+
+  onEnable(ctx) {
+    this.interval = setInterval(() => console.log('tick'), 1000);
+  },
+
+  onDisable(ctx) {
+    if (this.interval) clearInterval(this.interval);
+  },
+
+  onUninstall(ctx) {
+    localStorage.removeItem('timer-settings');
+  }
+});
+```
+
+### Async Hook Support
+
+All hooks now support async/await:
+
+```javascript
+CardSpoke_MODS.register('api-sync', {
+  async onCardSave(ctx, card) {
+    await fetch('https://api.example.com/sync', {
+      method: 'POST',
+      body: JSON.stringify(card)
+    });
+  }
+});
+```
+
+### Event Bus
+
+Extensions can communicate with each other:
+
+```javascript
+// Extension A
+CardSpoke_MODS.events.emit('data:updated', { count: 42 });
+
+// Extension B
+CardSpoke_MODS.events.on('data:updated', (data) => {
+  console.log('Data updated:', data.count);
+});
+```
+
+### Hot Reload
+
+Reload extensions without page refresh:
+
+```javascript
+CardSpoke_MODS.reload('my-extension');
+```
+
+### Developer Tools
+
+Debug extensions with built-in tools:
+
+```javascript
+// Inspect extension
+const info = CardSpoke_MODS.devTools.inspectMod('my-extension');
+console.log('Hooks:', info.hooks);
+console.log('Errors:', info.errorCount);
+
+// Get performance stats
+const stats = CardSpoke_MODS.devTools.getHookStats('my-extension');
+
+// View error log
+const errors = CardSpoke_MODS.devTools.getErrorLog();
+```
+
+### TypeScript Support
+
+TypeScript definitions available in `/types/extensions.d.ts` for full autocomplete and type checking.
+
+---
+
 ## Best Practices
 
 1. **Test in Playground first** - Use the Playground to test code before creating an extension
 2. **Use meaningful names** - Make your extension easy to identify
-3. **Handle errors** - Wrap code in try/catch to prevent crashes
-4. **Document your extension** - Include a description of what it does
-5. **Version your extensions** - Use semantic versioning (1.0.0)
+3. **Handle errors** - Wrap code in try/catch to prevent crashes (or let auto-disable handle it)
+4. **Clean up resources** - Use `onDisable` and `onUninstall` hooks to clean up timers, observers, etc.
+5. **Document your extension** - Include a description of what it does
+6. **Version your extensions** - Use semantic versioning (1.0.0)
+7. **Use async when needed** - All hooks support async/await for API calls
+8. **Hook validation** - Typos in hook names will show console warnings
 
 ## Resources
 
