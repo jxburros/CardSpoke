@@ -133,7 +133,9 @@ Here are the key features you can test:
 
 ### Search & Organization
 - [ ] Search for cards
+- [ ] Navigate search results with arrow keys and open with Enter
 - [ ] Add/remove tags
+- [ ] Confirm tags split on commas/whitespace and render as chips
 - [ ] Filter by tags
 
 ### Export/Import

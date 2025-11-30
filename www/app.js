@@ -25,8 +25,8 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.13.1.1'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-12-01'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.13.1.2'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-11-30'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'GPT-5.1-Codex-Max'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
@@ -55,6 +55,7 @@
       let navState = { page: 'list', cardId: null, parentId: null, searchQuery: '' }; // Navigation state
       let navHistory = []; // Navigation history for back button
       let dirty = false; // Tracks unsaved changes
+      let searchResultsState = { items: [], elements: [], selectedIndex: 0 };
 
       // --- UNDO/REDO SYSTEM STATE (v0.12.0) ---
       const undoStack = [];
@@ -100,6 +101,7 @@
       const breadcrumbs = document.getElementById('breadcrumbs');
       const main = document.getElementById('main');
       const toastContainer = document.getElementById('toastContainer');
+      let previewObserver = null;
 
       const uploadModal = {
         overlay: document.getElementById('uploadModal'),
@@ -181,6 +183,38 @@
           clearTimeout(timeout);
           timeout = setTimeout(later, wait);
         };
+      }
+
+      /** Normalize and split tag input */
+      function normalizeTagInput(raw) {
+        if (!raw) return [];
+        return raw
+          .split(/[\s,]+/)
+          .map(tag => tag.replace(/^#/, '').toLowerCase().trim())
+          .filter(Boolean);
+      }
+
+      /** Escape HTML */
+      function escapeHtml(str) {
+        return (str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+
+      /** Highlight matched query terms within text */
+      function highlightText(text, query) {
+        if (!query || !text) return document.createTextNode(text || '');
+        const terms = query.split(/\s+/).filter(Boolean).map(t => t.toLowerCase());
+        if (!terms.length) return document.createTextNode(text);
+        let html = escapeHtml(text);
+        terms.forEach(term => {
+          const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          html = html.replace(new RegExp(safeTerm, 'gi'), match => `<mark>${match}</mark>`);
+        });
+        const span = document.createElement('span');
+        span.innerHTML = html;
+        return span;
       }
 
       /**
@@ -2323,7 +2357,17 @@
 
 
       function runModHook(hookName, ...args) {
-        CardSpoke_MODS.runHook(hookName, ...args);
+        try {
+          const start = performance.now();
+          CardSpoke_MODS.runHook(hookName, ...args);
+          const duration = performance.now() - start;
+          if (duration > 120) {
+            console.warn(`Mod hook ${hookName} took ${Math.round(duration)}ms and may block UI.`);
+          }
+        } catch (err) {
+          console.warn('Mod hook failed', hookName, err);
+          showToast(`Mod error in ${hookName}: ${err.message || err}`, 'error', 5000);
+        }
       }
 
       // --- DATA (CRUD) ---
@@ -2349,7 +2393,8 @@
           createdAt: now,
           updatedAt: now,
           modsData: {},
-          tags: []
+          tags: [],
+          isRichText: false
         };
         if (!parentId) {
           store.rootOrder.push(id);
@@ -5310,6 +5355,67 @@ console.log('✓ All examples completed!');
         });
         return Array.from(allTags).sort();
       }
+
+      /**
+       * Create interactive tag editor with chips
+       */
+      function createTagEditor(initialTags, datalistId) {
+        const normalized = Array.from(new Set(normalizeTagInput(initialTags.join(' '))));
+        const tagSet = new Set(normalized);
+        const wrapper = h('div', { className: 'tag-editor', role: 'list', 'aria-label': 'Tag editor' });
+        const input = h('input', {
+          type: 'text',
+          className: 'tag-editor-input',
+          list: datalistId,
+          placeholder: 'Add tags...',
+          'aria-label': 'Add tag'
+        });
+
+        function renderChips() {
+          wrapper.querySelectorAll('.tag-chip').forEach(c => c.remove());
+          tagSet.forEach(tag => {
+            const chip = h('span', { className: 'tag-chip', role: 'listitem' },
+              h('span', { className: 'tag-chip-text' }, tag),
+              h('button', {
+                type: 'button',
+                className: 'tag-chip-remove',
+                'aria-label': `Remove tag ${tag}`,
+                onclick: (e) => {
+                  e.stopPropagation();
+                  tagSet.delete(tag);
+                  renderChips();
+                }
+              }, '×')
+            );
+            wrapper.insertBefore(chip, input);
+          });
+        }
+
+        function addTagsFromInput(val) {
+          const tags = normalizeTagInput(val);
+          tags.forEach(t => tagSet.add(t));
+          renderChips();
+          input.value = '';
+        }
+
+        input.addEventListener('keydown', (e) => {
+          if (['Enter', 'Tab', ',', ' '].includes(e.key)) {
+            addTagsFromInput(input.value);
+            if (e.key !== 'Tab') e.preventDefault();
+          } else if (e.key === 'Backspace' && !input.value && tagSet.size) {
+            const last = Array.from(tagSet).pop();
+            tagSet.delete(last);
+            renderChips();
+          }
+        });
+        input.addEventListener('blur', () => addTagsFromInput(input.value));
+
+        renderChips();
+        wrapper.appendChild(input);
+        wrapper.getTags = () => Array.from(tagSet);
+        wrapper.focusInput = () => input.focus();
+        return wrapper;
+      }
       /**
        * Get all cards that link to a specific card (backlinks)
        * @param {string} cardId - Card ID to find backlinks for
@@ -5453,12 +5559,30 @@ console.log('✓ All examples completed!');
         } else {
           const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
           const gridClass = gridViewEnabled ? 'card-grid grid-view' : 'card-grid';
-          const grid = h('div', { className: gridClass });
-          kids.forEach(card => {
-            const cardEl = renderCardTile(card);
-            grid.appendChild(cardEl);
-            runModHook('onCardRender', cloneCard(card), cardEl);
-          });
+          const grid = h('div', { className: gridClass, role: 'list' });
+          let renderIndex = 0;
+          const batchSize = 60;
+          const renderBatch = () => {
+            const frag = document.createDocumentFragment();
+            const start = renderIndex;
+            for (let i = start; i < Math.min(start + batchSize, kids.length); i++) {
+              const card = kids[i];
+              const cardEl = renderCardTile(card, { lazyBody: true });
+              frag.appendChild(cardEl);
+              runModHook('onCardRender', cloneCard(card), cardEl);
+            }
+            grid.appendChild(frag);
+            renderIndex += batchSize;
+          };
+          const onScroll = () => {
+            if (renderIndex >= kids.length) return;
+            const threshold = grid.offsetTop + grid.offsetHeight - window.innerHeight * 2;
+            if (window.scrollY + window.innerHeight > threshold) {
+              requestAnimationFrame(renderBatch);
+            }
+          };
+          renderBatch();
+          window.addEventListener('scroll', onScroll, { passive: true });
           main.appendChild(grid);
         }
       }
@@ -5468,10 +5592,10 @@ console.log('✓ All examples completed!');
        * @param {Object} card - Card to render
        * @returns {HTMLElement} Card tile element
        */
-      function renderCardTile(card) {
+      function renderCardTile(card, opts = {}) {
         const isCompact = store.viewMode === 'compact';
         const cardClasses = isCompact ? 'card card-compact' : 'card';
-        const cardEl = h('button', { className: cardClasses + ' card-tile', onclick: () => goTo('read', { cardId: card.id }), 'aria-label': 'Open card: ' + (card.title || 'Untitled') });
+        const cardEl = h('button', { className: cardClasses + ' card-tile', onclick: () => goTo('read', { cardId: card.id }), 'aria-label': 'Open card: ' + (card.title || 'Untitled'), role: 'listitem' });
         cardEl.dataset.cardId = card.id;
         cardEl.dataset.renderType = 'list';
 
@@ -5486,12 +5610,23 @@ console.log('✓ All examples completed!');
             title: 'Bookmarked'
           }, '★'));
         }
-        titleWrapper.appendChild(h('div', { className: 'card-title' }, card.title || '(Untitled)'));
+        const titleContent = opts.highlightQuery ? highlightText(card.title || '(Untitled)', opts.highlightQuery) : document.createTextNode(card.title || '(Untitled)');
+        const titleDiv = h('div', { className: 'card-title' });
+        titleDiv.appendChild(titleContent);
+        titleWrapper.appendChild(titleDiv);
         contentEl.appendChild(titleWrapper);
-        
+
         if (card.body && !isCompact) {
-          const preview = card.body.substring(0, 140) + (card.body.length > 140 ? '...' : '');
-          contentEl.appendChild(h('div', { className: 'card-description' }, preview));
+          const previewText = card.body.substring(0, 140) + (card.body.length > 140 ? '...' : '');
+          const desc = h('div', { className: 'card-description' });
+          if (opts.highlightQuery) {
+            desc.appendChild(highlightText(previewText, opts.highlightQuery));
+          } else if (opts.lazyBody) {
+            desc.dataset.preview = previewText;
+          } else {
+            desc.textContent = previewText;
+          }
+          contentEl.appendChild(desc);
         }
         
         const tags = (card.tags && card.tags.length ? card.tags : extractTags(card.body));
@@ -5509,7 +5644,25 @@ console.log('✓ All examples completed!');
         if (card.children.length > 0) {
           cardEl.appendChild(h('div', { className: 'card-count' }, String(card.children.length)));
         }
-        
+
+        if (opts.lazyBody) {
+          if (!previewObserver) {
+            previewObserver = new IntersectionObserver(entries => {
+              entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                  const previewEl = entry.target.querySelector('.card-description[data-preview]');
+                  if (previewEl && previewEl.dataset.preview) {
+                    previewEl.textContent = previewEl.dataset.preview;
+                    delete previewEl.dataset.preview;
+                  }
+                  previewObserver.unobserve(entry.target);
+                }
+              });
+            }, { rootMargin: '200px' });
+          }
+          previewObserver.observe(cardEl);
+        }
+
         return cardEl;
       }
 
@@ -5521,7 +5674,7 @@ console.log('✓ All examples completed!');
        */
       function renderCardBody(text) {
         const container = h('div', { className: 'card-detail-body' });
-        
+
         if (!text) return container;
         
         const links = parseCardLinks(text);
@@ -5582,6 +5735,39 @@ console.log('✓ All examples completed!');
         return container;
       }
 
+      function renderRichTextBody(text) {
+        const container = h('div', { className: 'card-detail-body rich-body', role: 'article' });
+        if (!text) return container;
+        const lines = text.split(/\n/);
+        let listEl = null;
+        lines.forEach(line => {
+          if (/^#{1,3} /.test(line)) {
+            if (listEl) { container.appendChild(listEl); listEl = null; }
+            const level = line.match(/^#+/)[0].length;
+            const title = line.replace(/^#{1,3} /, '');
+            const header = h(`h${level}`, {}, title);
+            container.appendChild(header);
+            return;
+          }
+          if (/^-\s+/.test(line)) {
+            if (!listEl) listEl = document.createElement('ul');
+            const li = document.createElement('li');
+            li.textContent = line.replace(/^-\s+/, '');
+            listEl.appendChild(li);
+            return;
+          }
+          if (listEl) { container.appendChild(listEl); listEl = null; }
+          const para = document.createElement('p');
+          let html = escapeHtml(line)
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/_(.+?)_/g, '<em>$1</em>');
+          para.innerHTML = html;
+          container.appendChild(para);
+        });
+        if (listEl) container.appendChild(listEl);
+        return container;
+      }
+
       /**
        * Render a card in read-only/detail view
        */
@@ -5595,7 +5781,7 @@ console.log('✓ All examples completed!');
         const detail = h('div', { className: 'card-detail' });
         detail.appendChild(h('div', { className: 'card-detail-title' }, card.title || '(Untitled)'));
         if (card.body) {
-          detail.appendChild(renderCardBody(card.body));
+          detail.appendChild(card.isRichText ? renderRichTextBody(card.body) : renderCardBody(card.body));
         }
         // Tags display
         const _tags = (card.tags && card.tags.length ? card.tags : extractTags(card.body));
@@ -5729,7 +5915,7 @@ console.log('✓ All examples completed!');
             const titleVal = form.querySelector('#cardTitle').value.trim();
             const bodyVal = form.querySelector('#cardBody').value.trim();
             const parentVal = form.querySelector('#cardParent').value || null;
-            const tagsVal = (form.querySelector('#cardTags')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+            const tagsVal = (tagEditor.getTags && tagEditor.getTags()) || [];
             if (editing) {
               const oldParentId = card.parentId;
               if (oldParentId !== parentVal) {
@@ -5747,7 +5933,7 @@ console.log('✓ All examples completed!');
                 }
                 card.parentId = parentVal;
               }
-              updateCard(card.id, { title: titleVal, body: bodyVal, tags: tagsVal }, true, true);
+              updateCard(card.id, { title: titleVal, body: bodyVal, tags: tagsVal, isRichText: richToggle.checked }, true, true);
               card.children.forEach(cid => {
                 const inp = childrenInpMap[cid];
                 if (inp) updateCard(cid, { title: inp.value.trim() }, true, true);
@@ -5762,6 +5948,7 @@ console.log('✓ All examples completed!');
               goTo('read', { cardId: card.id });
             } else {
               const newId = createCard(titleVal, bodyVal, parentVal, true, true);
+              store.cards[newId].isRichText = richToggle.checked;
               const newKidRows = form.querySelectorAll('#addChildList .form-child-row input');
               newKidRows.forEach(inp => {
                 const t = inp.value.trim();
@@ -5814,9 +6001,57 @@ console.log('✓ All examples completed!');
         bodyLabelRow.appendChild(importBodyBtn);
         formGroup2.appendChild(bodyLabelRow);
         
-        const bodyTextarea = h('textarea', { id: 'cardBody', className: 'form-textarea' });
+        const richToggleRow = h('div', { className: 'form-row' });
+        const richToggle = h('input', { type: 'checkbox', id: 'cardRich', checked: card.isRichText });
+        const richLabel = h('label', { for: 'cardRich', style: 'margin-left: 6px;' }, 'Enable formatting (Markdown)');
+        richToggle.addEventListener('change', () => { dirty = true; });
+        richToggleRow.appendChild(richToggle);
+        richToggleRow.appendChild(richLabel);
+        formGroup2.appendChild(richToggleRow);
+
+        const bodyTextarea = h('textarea', { id: 'cardBody', className: 'form-textarea', 'aria-label': 'Card body' });
         bodyTextarea.value = card.body;
         bodyTextarea.addEventListener('input', () => { dirty = true; });
+
+        const toolbar = h('div', { className: 'rich-toolbar', role: 'toolbar', 'aria-label': 'Formatting toolbar' });
+        const applyWrap = (before, after = before) => {
+          const start = bodyTextarea.selectionStart;
+          const end = bodyTextarea.selectionEnd;
+          const selected = bodyTextarea.value.substring(start, end) || 'text';
+          const newValue = bodyTextarea.value.slice(0, start) + before + selected + after + bodyTextarea.value.slice(end);
+          bodyTextarea.value = newValue;
+          bodyTextarea.focus();
+          bodyTextarea.selectionStart = start + before.length;
+          bodyTextarea.selectionEnd = start + before.length + selected.length;
+          dirty = true;
+        };
+        const addBlockPrefix = (prefix) => {
+          const lines = bodyTextarea.value.split(/\n/);
+          lines.push();
+          const cursor = bodyTextarea.selectionStart;
+          const value = bodyTextarea.value;
+          const before = value.slice(0, cursor);
+          const after = value.slice(cursor);
+          const newText = before + `\n${prefix}`;
+          bodyTextarea.value = newText + after;
+          bodyTextarea.focus();
+          dirty = true;
+        };
+        const buttons = [
+          { label: 'B', action: () => applyWrap('**', '**'), aria: 'Bold' },
+          { label: 'I', action: () => applyWrap('_', '_'), aria: 'Italic' },
+          { label: 'H1', action: () => addBlockPrefix('# '), aria: 'Heading 1' },
+          { label: 'H2', action: () => addBlockPrefix('## '), aria: 'Heading 2' },
+          { label: 'H3', action: () => addBlockPrefix('### '), aria: 'Heading 3' },
+          { label: '• List', action: () => addBlockPrefix('- '), aria: 'Bullet list' }
+        ];
+        buttons.forEach(btn => {
+          const el = h('button', { type: 'button', className: 'btn btn-ghost', 'aria-label': btn.aria, onclick: btn.action });
+          el.textContent = btn.label;
+          toolbar.appendChild(el);
+        });
+
+        formGroup2.appendChild(toolbar);
         formGroup2.appendChild(bodyTextarea);
         form.appendChild(formGroup2);
         // Tags input with autocomplete
@@ -5830,18 +6065,11 @@ console.log('✓ All examples completed!');
         existingTags.forEach(tag => {
           tagsDatalist.appendChild(h('option', { value: tag }));
         });
-        
-        const tagsInput = h('input', { 
-          type: 'text', 
-          id: 'cardTags', 
-          className: 'form-input',
-          list: tagsDatalistId,
-          placeholder: 'Start typing to see suggestions...'
-        });
-        tagsInput.value = (card.tags && card.tags.length) ? card.tags.join(', ') : '';
-        tagsInput.addEventListener('input', () => { dirty = true; });
-        
-        formGroupTags.appendChild(tagsInput);
+
+        const tagEditor = createTagEditor(card.tags || [], tagsDatalistId);
+        tagEditor.addEventListener('focusin', () => { dirty = true; });
+
+        formGroupTags.appendChild(tagEditor);
         formGroupTags.appendChild(tagsDatalist);
         form.appendChild(formGroupTags);
         
@@ -5995,40 +6223,66 @@ console.log('✓ All examples completed!');
           } else {
             // Show result count with fuzzy indicator
             const scopeText = scope === 'all' ? ' across all datasets' : '';
-            const resultInfo = h('div', { 
+            const resultInfo = h('div', {
               className: 'search-info',
               style: 'padding: 12px; margin-bottom: 12px; background: var(--bg-secondary); border-radius: 8px; font-size: 14px; color: var(--text-secondary);'
             }, `Found ${fuzzyResults.length} result${fuzzyResults.length === 1 ? '' : 's'}${scopeText} (fuzzy matching enabled)`);
             main.appendChild(resultInfo);
             
             const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
-          const gridClass = gridViewEnabled ? 'card-grid grid-view' : 'card-grid';
-          const grid = h('div', { className: gridClass });
-            fuzzyResults.forEach(result => {
-              const card = result.card;
-              const cardEl = renderCardTile(card);
-              
-              // Add dataset badge for multi-dataset search
-              if (scope === 'all' && result.datasetName) {
-                const datasetBadge = h('span', {
-                  style: 'position: absolute; top: 8px; left: 8px; background: #3b82f6; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;'
-                }, result.datasetName);
-                cardEl.style.position = 'relative';
-                cardEl.appendChild(datasetBadge);
+            const gridClass = gridViewEnabled ? 'card-grid grid-view' : 'card-grid';
+            const grid = h('div', { className: gridClass, role: 'list', id: 'searchResultGrid' });
+            searchResultsState = { items: fuzzyResults, elements: [], selectedIndex: 0 };
+            const batchSize = 50;
+            let renderIndex = 0;
+            const renderBatch = () => {
+              const frag = document.createDocumentFragment();
+              for (let i = renderIndex; i < Math.min(renderIndex + batchSize, fuzzyResults.length); i++) {
+                const result = fuzzyResults[i];
+                const card = result.card;
+                const cardEl = renderCardTile(card, { highlightQuery: query, lazyBody: true });
+                cardEl.classList.add('search-result');
+                cardEl.dataset.resultIndex = i;
+                cardEl.addEventListener('click', () => {
+                  searchResultsState.selectedIndex = i;
+                  updateSearchSelection(0);
+                });
+
+                // Add dataset badge for multi-dataset search
+                if (scope === 'all' && result.datasetName) {
+                  const datasetBadge = h('span', {
+                    style: 'position: absolute; top: 8px; left: 8px; background: #3b82f6; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;'
+                  }, result.datasetName);
+                  cardEl.style.position = 'relative';
+                  cardEl.appendChild(datasetBadge);
+                }
+
+                // Add match quality indicator
+                if (result.score < 60) {
+                  const matchBadge = h('span', {
+                    style: 'position: absolute; top: 8px; right: 8px; background: #fbbf24; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;'
+                  }, '~');
+                  cardEl.style.position = 'relative';
+                  cardEl.appendChild(matchBadge);
+                }
+
+                frag.appendChild(cardEl);
+                searchResultsState.elements.push(cardEl);
+                runModHook('onCardRender', cloneCard(card), cardEl);
               }
-              
-              // Add match quality indicator
-              if (result.score < 60) {
-                const matchBadge = h('span', {
-                  style: 'position: absolute; top: 8px; right: 8px; background: #fbbf24; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;'
-                }, '~');
-                cardEl.style.position = 'relative';
-                cardEl.appendChild(matchBadge);
+              grid.appendChild(frag);
+              renderIndex += batchSize;
+              updateSearchSelection(0);
+            };
+            const onScroll = () => {
+              if (renderIndex >= fuzzyResults.length) return;
+              const threshold = grid.offsetTop + grid.offsetHeight - window.innerHeight * 2;
+              if (window.scrollY + window.innerHeight > threshold) {
+                requestAnimationFrame(renderBatch);
               }
-              
-              grid.appendChild(cardEl);
-              runModHook('onCardRender', cloneCard(card), cardEl);
-            });
+            };
+            renderBatch();
+            window.addEventListener('scroll', onScroll, { passive: true });
             main.appendChild(grid);
           }
         }).catch(err => {
@@ -6342,6 +6596,31 @@ console.log('✓ All examples completed!');
         showKeyboardHelp();
       };
 
+      const debouncedNavigateSearch = debounce((query) => {
+        if (query) {
+          goTo('search', { searchQuery: query });
+        }
+      }, 180);
+
+      function updateSearchSelection(delta = 0) {
+        if (!searchResultsState.items.length) return;
+        const max = searchResultsState.items.length - 1;
+        const next = Math.min(max, Math.max(0, searchResultsState.selectedIndex + delta));
+        searchResultsState.selectedIndex = next;
+        searchResultsState.elements.forEach((el, idx) => {
+          if (idx === next) el.classList.add('search-result-selected');
+          else el.classList.remove('search-result-selected');
+        });
+        const active = searchResultsState.elements[next];
+        if (active) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+
+      function openSelectedSearchResult() {
+        if (!searchResultsState.items.length) return;
+        const target = searchResultsState.items[searchResultsState.selectedIndex];
+        if (target?.card?.id) goTo('read', { cardId: target.card.id });
+      }
+
       header.homeBtn.onclick = () => {
         goTo('list', { cardId: null });
       };
@@ -6356,11 +6635,23 @@ console.log('✓ All examples completed!');
         } else {
           searchClear.style.display = 'none';
         }
+        if (navState.page === 'search') {
+          debouncedNavigateSearch(e.target.value.trim());
+        }
       });
 
       searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && searchInput.value.trim()) {
+          if (navState.page === 'search' && searchResultsState.items.length) {
+            e.preventDefault();
+            openSelectedSearchResult();
+            return;
+          }
           goTo('search', { searchQuery: searchInput.value.trim() });
+        }
+        if (navState.page === 'search' && searchResultsState.items.length) {
+          if (e.key === 'ArrowDown') { e.preventDefault(); updateSearchSelection(1); }
+          if (e.key === 'ArrowUp') { e.preventDefault(); updateSearchSelection(-1); }
         }
       });
 

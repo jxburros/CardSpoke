@@ -216,6 +216,8 @@ Replaces all tags on a card with a new set.
 CardSpoke.utils.setTags('card-123', ['project', 'active', 'priority']);
 ```
 
+> UI note: The editor now auto-splits tags on commas and whitespace, renders them as chips, and normalizes them to lowercase before saving. The API remains unchanged.
+
 ---
 
 ### getAllTags()
