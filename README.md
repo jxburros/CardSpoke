@@ -646,3 +646,8 @@ CardSpoke includes comprehensive keyboard shortcuts for efficient navigation and
 - `Alt+T` - Toggle dark/light theme
 - `Alt+C` - Toggle compact view mode
 
+
+### Help
+- `Ctrl+/` - Show keyboard shortcuts help
+
+**Note:** On Mac, use `Cmd` instead of `Ctrl` for most shortcuts.
