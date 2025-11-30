@@ -34,7 +34,7 @@ const card = api.createCard('My Card Title', 'Card content goes here');
 
 ### Backward Compatibility
 
-For legacy support, `window.CIB.utils` is also available as an alias.
+For legacy support, `window.CardSpoke.utils` is also available as an alias.
 
 ---
 
@@ -393,7 +393,7 @@ function createProjectStructure(projectName) {
 |---------|---------|
 | 0.13.0 | Version sync and documentation refresh |
 | 0.12.1 | API documentation created |
-| 0.11.3 | Renamed from CIB.utils to CardSpoke.utils |
+| 0.11.3 | Renamed from CardSpoke.utils to CardSpoke.utils |
 | 0.11.1 | Initial API release |
 
 ---

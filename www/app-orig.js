@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.11.2.3'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-21'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.11.2.4'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-12-01'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GPT-5.1-Codex-Max'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -36,7 +36,7 @@
       // Version 0.10.5: Implemented Tags API (getTags, addTag, removeTag, setTags, getAllTags) with comprehensive tests
       // Version 0.10.6: Multi-Dataset Search - search across multiple datasets simultaneously
       // Version 0.11.0: Mega Showrunner - Backlinks, Related Cards, Enhanced Exports, and many more features
-      // Version 0.11.1: Exposed CIB.utils API for mod developers with comprehensive utility functions
+      // Version 0.11.1: Exposed CardSpoke.utils API for mod developers with comprehensive utility functions
       // Version 0.11.2: Added Extension Wizard and Playground for mod developers
       
       // --- CORE APP STATE ---
@@ -1122,7 +1122,7 @@
         * =============================================================
         * 
         * Extensions can register hooks to execute custom code at key points
-        * in the application lifecycle. Use CIB_MODS.register() to add hooks.
+        * in the application lifecycle. Use CardSpoke_MODS.register() to add hooks.
         * 
         * IMPLEMENTED HOOKS:
         * ------------------
@@ -1177,7 +1177,7 @@
         *   @param {Object} importData - Imported data structure
         */
 
-      const CIB_MODS = (() => {
+      const CardSpoke_MODS = (() => {
         // Registry of loaded mods
         const registry = {};
         // Map of mod IDs to their <style> tags
@@ -1204,8 +1204,8 @@
             registry[modId] = registry[modId] || { id: modId, hooks: {}, meta: {} };
             const sourceURL = `\n//# sourceURL=${modId}.mod.js`;
             const storeAPI = createStoreAPI(modId);
-            const runner = new Function('window', 'document', 'CIB_MODS', 'storeAPI', 'console', modData.js + sourceURL);
-            runner(window, document, CIB_MODS, storeAPI, console);
+            const runner = new Function('window', 'document', 'CardSpoke_MODS', 'storeAPI', 'console', modData.js + sourceURL);
+            runner(window, document, CardSpoke_MODS, storeAPI, console);
             if (modData.meta) registry[modId].meta = { ...modData.meta };
             registry[modId].__loaded = true;
             console.log(`[Extensions] Loaded: ${modId}`, modData.meta || {});
@@ -1331,7 +1331,7 @@
            * @returns {Object} Registry entry
            */
           register(modId, definition = {}) {
-            if (!modId) throw new Error('CIB_MODS.register requires a mod id');
+            if (!modId) throw new Error('CardSpoke_MODS.register requires a mod id');
             const entry = registry[modId] || { id: modId, hooks: {}, meta: {} };
             entry.hooks = {
               onAppInit: typeof definition.onAppInit === 'function' ? definition.onAppInit : entry.hooks.onAppInit,
@@ -1405,26 +1405,31 @@
         };
       })();
 
-      window.CIB_MODS = CIB_MODS;
+      window.CardSpoke_MODS = CardSpoke_MODS;
+      window.CardSpoke = window.CardSpoke || {};
+      window.CardSpoke.mods = CardSpoke_MODS;
+      // Backwards compatibility for legacy CIB-based extensions and tooling
+      window.CIB = window.CIB || window.CardSpoke;
+      window.CIB_MODS = CardSpoke_MODS;
 
       // =============================================================
-      // --- CIB.utils API ---
+      // --- CardSpoke.utils API ---
       // Public utility API for mod developers
-      // Exposed as window.CIB.utils
+      // Exposed as window.CardSpoke.utils
       // =============================================================
       
       /**
-       * CIB.utils - Public utility API for extension developers
+       * CardSpoke.utils - Public utility API for extension developers
        * 
        * Provides a safe, documented API for mods to interact with CardSpoke data and UI.
        * All functions handle errors gracefully and maintain data integrity.
        * 
-       * @namespace CIB.utils
+       * @namespace CardSpoke.utils
        * @version 0.11.1
        * @since 0.11.1
        */
-      window.CIB = window.CIB || {};
-      window.CIB.utils = {
+      window.CardSpoke = window.CardSpoke || {};
+      window.CardSpoke.utils = {
         /**
          * Create a new card
          * @param {Object} data - Card data
@@ -1434,7 +1439,7 @@
          * @param {string[]} data.tags - Array of tags (optional)
          * @returns {Promise<{id: string, card: Object}>} Created card info
          * @example
-         * const result = await CIB.utils.createCard({
+         * const result = await CardSpoke.utils.createCard({
          *   title: 'My Card',
          *   body: 'Content here',
          *   parentId: null,
@@ -1456,7 +1461,7 @@
             const card = store.cards[cardId];
             return { id: cardId, card: cloneCard(card) };
           } catch (err) {
-            console.error('[CIB.utils] createCard failed:', err);
+            console.error('[CardSpoke.utils] createCard failed:', err);
             throw new Error(`Failed to create card: ${err.message}`);
           }
         },
@@ -1470,7 +1475,7 @@
          * @param {string[]} changes.tags - New tags array (optional)
          * @returns {Promise<boolean>} True if successful
          * @example
-         * await CIB.utils.updateCard('card-123', {
+         * await CardSpoke.utils.updateCard('card-123', {
          *   title: 'Updated Title',
          *   body: 'Updated content'
          * });
@@ -1495,7 +1500,7 @@
             
             return true;
           } catch (err) {
-            console.error('[CIB.utils] updateCard failed:', err);
+            console.error('[CardSpoke.utils] updateCard failed:', err);
             throw new Error(`Failed to update card: ${err.message}`);
           }
         },
@@ -1505,7 +1510,7 @@
          * @param {string} cardId - Card ID
          * @returns {Promise<string[]>} Array of tags (returns empty array on error)
          * @example
-         * const tags = await CIB.utils.getTags('card-123');
+         * const tags = await CardSpoke.utils.getTags('card-123');
          * console.log('Tags:', tags);
          */
         getTags: async function(cardId) {
@@ -1513,7 +1518,7 @@
             if (!cardId) throw new Error('cardId is required');
             return getTags(cardId);
           } catch (err) {
-            console.error('[CIB.utils] getTags failed:', err);
+            console.error('[CardSpoke.utils] getTags failed:', err);
             return [];
           }
         },
@@ -1524,7 +1529,7 @@
          * @param {string} tag - Tag to add
          * @returns {Promise<boolean>} True if tag was added successfully, false on error
          * @example
-         * const success = await CIB.utils.addTag('card-123', 'important');
+         * const success = await CardSpoke.utils.addTag('card-123', 'important');
          */
         addTag: async function(cardId, tag) {
           try {
@@ -1532,7 +1537,7 @@
             if (!tag) throw new Error('tag is required');
             return addTag(cardId, tag, false);
           } catch (err) {
-            console.error('[CIB.utils] addTag failed:', err);
+            console.error('[CardSpoke.utils] addTag failed:', err);
             return false;
           }
         },
@@ -1543,7 +1548,7 @@
          * @param {string} tag - Tag to remove
          * @returns {Promise<boolean>} True if tag was removed successfully, false on error
          * @example
-         * await CIB.utils.removeTag('card-123', 'old-tag');
+         * await CardSpoke.utils.removeTag('card-123', 'old-tag');
          */
         removeTag: async function(cardId, tag) {
           try {
@@ -1551,7 +1556,7 @@
             if (!tag) throw new Error('tag is required');
             return removeTag(cardId, tag, false);
           } catch (err) {
-            console.error('[CIB.utils] removeTag failed:', err);
+            console.error('[CardSpoke.utils] removeTag failed:', err);
             return false;
           }
         },
@@ -1562,7 +1567,7 @@
          * @param {string[]} tags - Array of tags
          * @returns {Promise<boolean>} True if successful, false on error
          * @example
-         * await CIB.utils.setTags('card-123', ['tag1', 'tag2', 'tag3']);
+         * await CardSpoke.utils.setTags('card-123', ['tag1', 'tag2', 'tag3']);
          */
         setTags: async function(cardId, tags) {
           try {
@@ -1570,7 +1575,7 @@
             if (!Array.isArray(tags)) throw new Error('tags must be an array');
             return setTags(cardId, tags, false);
           } catch (err) {
-            console.error('[CIB.utils] setTags failed:', err);
+            console.error('[CardSpoke.utils] setTags failed:', err);
             return false;
           }
         },
@@ -1579,14 +1584,14 @@
          * Get all unique tags across all cards
          * @returns {Promise<string[]>} Sorted array of all tags (returns empty array on error)
          * @example
-         * const allTags = await CIB.utils.getAllTags();
+         * const allTags = await CardSpoke.utils.getAllTags();
          * console.log('All tags:', allTags);
          */
         getAllTags: async function() {
           try {
             return getAllTags();
           } catch (err) {
-            console.error('[CIB.utils] getAllTags failed:', err);
+            console.error('[CardSpoke.utils] getAllTags failed:', err);
             return [];
           }
         },
@@ -1598,14 +1603,14 @@
          * @param {number} duration - Duration in ms (default: 3000)
          * @returns {Promise<void>}
          * @example
-         * await CIB.utils.showToast('Operation successful!', 'success');
-         * await CIB.utils.showToast('Warning!', 'warning', 5000);
+         * await CardSpoke.utils.showToast('Operation successful!', 'success');
+         * await CardSpoke.utils.showToast('Warning!', 'warning', 5000);
          */
         showToast: async function(message, type = 'info', duration = 3000) {
           try {
             showToast(message, type, duration);
           } catch (err) {
-            console.error('[CIB.utils] showToast failed:', err);
+            console.error('[CardSpoke.utils] showToast failed:', err);
           }
         },
 
@@ -1613,7 +1618,7 @@
          * Get dataset metadata
          * @returns {Promise<Object>} Dataset metadata
          * @example
-         * const meta = await CIB.utils.getDatasetMeta();
+         * const meta = await CardSpoke.utils.getDatasetMeta();
          * console.log('Dataset:', meta.name, 'Cards:', meta.cardCount);
          */
         getDatasetMeta: async function() {
@@ -1629,7 +1634,7 @@
               appVersion: APP_VERSION
             };
           } catch (err) {
-            console.error('[CIB.utils] getDatasetMeta failed:', err);
+            console.error('[CardSpoke.utils] getDatasetMeta failed:', err);
             return {};
           }
         },
@@ -1639,7 +1644,7 @@
          * @param {string} cardId - Card ID
          * @returns {Promise<Object|null>} Card object (cloned) or null if not found or on error
          * @example
-         * const card = await CIB.utils.getCard('card-123');
+         * const card = await CardSpoke.utils.getCard('card-123');
          * if (card) console.log('Found:', card.title);
          */
         getCard: async function(cardId) {
@@ -1648,7 +1653,7 @@
             const card = store.cards[cardId];
             return card ? cloneCard(card) : null;
           } catch (err) {
-            console.error('[CIB.utils] getCard failed:', err);
+            console.error('[CardSpoke.utils] getCard failed:', err);
             return null;
           }
         },
@@ -1658,7 +1663,7 @@
          * @param {string} query - Search query
          * @returns {Promise<Array>} Array of matching cards (returns empty array on error)
          * @example
-         * const results = await CIB.utils.searchCards('meeting notes');
+         * const results = await CardSpoke.utils.searchCards('meeting notes');
          * console.log('Found', results.length, 'cards');
          */
         searchCards: async function(query) {
@@ -1678,7 +1683,7 @@
             
             return results;
           } catch (err) {
-            console.error('[CIB.utils] searchCards failed:', err);
+            console.error('[CardSpoke.utils] searchCards failed:', err);
             return [];
           }
         }
@@ -1686,13 +1691,18 @@
 
       // Log API availability in developer mode
       if (isDeveloperMode()) {
-        console.log('[CIB.utils] API initialized and available at window.CIB.utils');
-        console.log('[CIB.utils] Available methods:', Object.keys(window.CIB.utils));
+        console.log('[CardSpoke.utils] API initialized and available at window.CardSpoke.utils');
+        console.log('[CardSpoke.utils] Available methods:', Object.keys(window.CardSpoke.utils));
       }
+
+      // Legacy compatibility for extensions targeting the former CIB namespace
+      window.CIB = window.CIB || {};
+      window.CIB.utils = window.CardSpoke.utils;
+      window.CIB.mods = window.CardSpoke_MODS || CardSpoke_MODS;
 
 
       function runModHook(hookName, ...args) {
-        CIB_MODS.runHook(hookName, ...args);
+        CardSpoke_MODS.runHook(hookName, ...args);
       }
 
       // --- DATA (CRUD) ---
@@ -2096,9 +2106,9 @@
         }
         
         save();
-        if (window.CIB_MODS && !safeMode) {
-          window.CIB_MODS.syncFromStore();
-          window.CIB_MODS.runHook('onAppInit');
+        if (window.CardSpoke_MODS && !safeMode) {
+          window.CardSpoke_MODS.syncFromStore();
+          window.CardSpoke_MODS.runHook('onAppInit');
         }
         
         importedIds.forEach(cardId => {
@@ -2248,8 +2258,8 @@
                   instanceKey = key;
                   load();
                   if (!safeMode) {
-                    CIB_MODS.syncFromStore();
-                    CIB_MODS.runHook('onAppInit');
+                    CardSpoke_MODS.syncFromStore();
+                    CardSpoke_MODS.runHook('onAppInit');
                   }
                   render();
                   overlay.remove();
@@ -2274,8 +2284,8 @@
                     localStorage.setItem('activeInstance', otherKey);
                     instanceKey = otherKey;
                     load();
-                    CIB_MODS.syncFromStore();
-                    CIB_MODS.runHook('onAppInit');
+                    CardSpoke_MODS.syncFromStore();
+                    CardSpoke_MODS.runHook('onAppInit');
                     render();
                   }
                   overlay.remove();
@@ -2577,8 +2587,8 @@
           const toggleBtn = h('button', {
             className: modData.enabled ? 'btn btn-danger' : 'btn btn-primary',
             onclick: () => {
-              if (modData.enabled) CIB_MODS.disable(modId);
-              else CIB_MODS.enable(modId);
+              if (modData.enabled) CardSpoke_MODS.disable(modId);
+              else CardSpoke_MODS.enable(modId);
               overlay.remove();
               showModsManager();
             }
@@ -2605,7 +2615,7 @@
             style: 'font-size: var(--text-sm); margin-top: var(--space-md);',
             onclick: () => {
               if (confirm(`Delete extension "${meta.name || modId}"?`)) {
-                CIB_MODS.disable(modId);
+                CardSpoke_MODS.disable(modId);
                 delete store.mods[modId];
                 save();
                 overlay.remove();
@@ -2857,7 +2867,7 @@
   // Theme extensions primarily use CSS
   // This file can be left minimal or used for dynamic theme switching
   
-  CIB_MODS.register('${id}', {
+  CardSpoke_MODS.register('${id}', {
     meta: {
       name: '${name}',
       type: 'Theme',
@@ -2878,7 +2888,7 @@
 (function() {
   'use strict';
   
-  CIB_MODS.register('${id}', {
+  CardSpoke_MODS.register('${id}', {
     meta: {
       name: '${name}',
       type: 'Patch',
@@ -2905,7 +2915,7 @@
 (function() {
   'use strict';
   
-  CIB_MODS.register('${id}', {
+  CardSpoke_MODS.register('${id}', {
     meta: {
       name: '${name}',
       type: '${type.charAt(0).toUpperCase() + type.slice(1)}',
@@ -2919,8 +2929,8 @@
       console.log('App Version:', ctx.appVersion);
       console.log('Available API:', ctx.api);
       
-      // Example: Use CIB.utils API
-      // const meta = await CIB.utils.getDatasetMeta();
+      // Example: Use CardSpoke.utils API
+      // const meta = await CardSpoke.utils.getDatasetMeta();
       // console.log('Dataset info:', meta);
     },
     onCardSave(ctx, card, changes) {
@@ -3129,7 +3139,7 @@
         toolbar.appendChild(templateBtn);
         toolbar.appendChild(h('div', { style: 'flex: 1;' })); // Spacer
         toolbar.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, 
-          'Tip: Use CIB.utils API for safe data access'));
+          'Tip: Use CardSpoke.utils API for safe data access'));
         
         modalBody.appendChild(toolbar);
         
@@ -3254,14 +3264,14 @@
           
           try {
             // Use Function constructor to avoid eval and restrict scope
-            const fn = new Function('console', 'CIB', `
+            const fn = new Function('console', 'CardSpoke', `
               "use strict";
               return (async () => {
                 ${code}
               })();
             `);
             
-            fn(sandboxConsole, window.CIB).then(() => {
+            fn(sandboxConsole, window.CardSpoke).then(() => {
               logEntry('✓ Code execution completed', 'success');
             }).catch(err => {
               logEntry('Async error: ' + err.message, 'error');
@@ -3275,8 +3285,8 @@
         }
         
         // Store references for button handlers (namespaced to avoid global pollution)
-        window.CIB = window.CIB || {};
-        window.CIB.playground = { editor: playgroundEditor, console: playgroundConsole, runCode: runPlaygroundCode };
+        window.CardSpoke = window.CardSpoke || {};
+        window.CardSpoke.playground = { editor: playgroundEditor, console: playgroundConsole, runCode: runPlaygroundCode };
         
         modal.appendChild(modalBody);
         overlay.appendChild(modal);
@@ -3290,13 +3300,13 @@
         return `// Extension Playground
 // Test your extension code here in a safe environment
 
-// Example 1: Use CIB.utils API to get dataset info
-const meta = await CIB.utils.getDatasetMeta();
+// Example 1: Use CardSpoke.utils API to get dataset info
+const meta = await CardSpoke.utils.getDatasetMeta();
 console.log('Dataset:', meta.name);
 console.log('Total cards:', meta.cardCount);
 
 // Example 2: Create a new card
-const result = await CIB.utils.createCard({
+const result = await CardSpoke.utils.createCard({
   title: 'Test Card from Playground',
   body: 'This card was created in the playground!',
   tags: ['playground', 'test']
@@ -3304,15 +3314,15 @@ const result = await CIB.utils.createCard({
 console.log('Created card:', result.id);
 
 // Example 3: Search for cards
-const searchResults = await CIB.utils.searchCards('test');
+const searchResults = await CardSpoke.utils.searchCards('test');
 console.log('Found', searchResults.length, 'cards matching "test"');
 
 // Example 4: Get all tags
-const allTags = await CIB.utils.getAllTags();
+const allTags = await CardSpoke.utils.getAllTags();
 console.log('All tags:', allTags);
 
 // Example 5: Show a toast notification
-await CIB.utils.showToast('Playground code executed!', 'success');
+await CardSpoke.utils.showToast('Playground code executed!', 'success');
 
 console.log('✓ All examples completed!');
 `;
@@ -5361,8 +5371,8 @@ console.log('✓ All examples completed!');
         showToast('Safe Mode Active - Extensions Disabled', 'warning');
       }
       
-      if (!safeMode) CIB_MODS.syncFromStore();        // Initialize mods from store (skip in safe mode)
-      if (!safeMode) CIB_MODS.runHook('onAppInit');   // Run mod initialization hooks (skip in safe mode)
+      if (!safeMode) CardSpoke_MODS.syncFromStore();        // Initialize mods from store (skip in safe mode)
+      if (!safeMode) CardSpoke_MODS.runHook('onAppInit');   // Run mod initialization hooks (skip in safe mode)
       render();                        // Initial render
 
       // Warn user about unsaved changes before leaving

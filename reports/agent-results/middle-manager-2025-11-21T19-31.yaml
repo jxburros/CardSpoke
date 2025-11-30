@@ -75,6 +75,6 @@ agentResult:
   nextSteps:
     - "Implement QOL-002: Update README.md with v0.11 features"
     - "Implement QOL-003: Create RELEASE_NOTES_v0.11.0.md"
-    - "Implement QOL-001: Expose CIB.utils API"
+    - "Implement QOL-001: Expose CardSpoke.utils API"
     - "Implement QOL-004: Add footer population tests"
     - "Decision point: Continue with v0.11.X or move to v0.12 (Safety & Governance)"

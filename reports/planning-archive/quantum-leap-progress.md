@@ -46,7 +46,7 @@
 #### v0.11 — Developer Ecosystem 📅 PLANNED
 - Extension Wizard
 - Playground
-- CIB.utils API
+- CardSpoke.utils API
 - Persistent Mod Data Registry
 
 #### v0.12+ — Future Features

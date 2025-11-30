@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.13.1'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-30'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.13.1.1'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-12-01'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GPT-5.1-Codex-Max'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -39,12 +39,12 @@
       // Version 0.11.1: Exposed CardSpoke.utils API for mod developers with comprehensive utility functions
       // Version 0.11.2: Added Extension Wizard and Playground for mod developers
       // Version 0.11.2.5: Enhanced footer population with error handling and debugging
-      // Version 0.11.3: Renamed CIB to CardSpoke for brand consistency, completed v0.11.X TODO items
+      // Version 0.11.3: Brand alignment and v0.11.X TODO items
       // Version 0.11.4: Bug fixes - storage type display, parent selection, playground cards, dataset naming, export feedback, UI issues
       // Version 0.12.0: Complete TODO list - Undo/Redo, Tag Management, Advanced Search, Markdown Preview, Extensions Store, Bulk Import/Export, Drag-and-Drop
       // Version 0.12.1: Documentation update, CONTRIBUTING.md, CODE_OF_CONDUCT.md, README sync for 1.0 release prep
       // Version 0.12.2: Pre-1.0 TODO items - Extension Wizard ai_assistants field, official/community badges, nested menu UX
-      // Version 0.12.3: TODO list - Clickable brand logo, accessibility improvements, CIB renamed to CardSpoke, scalable fonts
+      // Version 0.12.3: TODO list - Clickable brand logo, accessibility improvements, CardSpoke naming, scalable fonts
       // Version 0.13.0: Documentation & Open Source Prep - Updated all documentation to reflect current state, version sync across all files
       // Version 0.13.1: Accessibility & Theme Customization for Extensions - Exposed CSS variables and API for theme customization of accessibility features
       
@@ -1152,18 +1152,20 @@
           parentId: opts.parentId ?? null,
           searchQuery: opts.searchQuery ?? ''
         };
-        
+
         // Add to recent cards when viewing a card
         if (page === 'read' && opts.cardId) {
           addToRecentCards(opts.cardId);
         }
-        
+
+        runModHook('onNavigate', { ...navState });
         render();
       }
 
       function goBack() {
         if (navHistory.length) {
           navState = navHistory.pop();
+          runModHook('onNavigate', { ...navState });
           render();
         }
       }
@@ -1323,6 +1325,11 @@
          * @returns {Object} API object with safe methods
          */
         function createStoreAPI(modId) {
+          const modLogger = createModLogger(modId);
+          const createCardInternal = createCard;
+          const updateCardInternal = updateCard;
+          const deleteCardInternal = deleteCard;
+
           return {
             getAppInfo() {
               return { appVersion: APP_VERSION, schemaVersion: SCHEMA_VERSION };
@@ -1342,11 +1349,29 @@
             navigate(page, opts = {}) {
               goTo(page, opts);
             },
+            goBack() {
+              goBack();
+            },
             showToast(message, type = 'success') {
               showToast(message, type);
             },
             markDirty() {
               dirty = true;
+            },
+            // Card mutations
+            createCard(data = {}) {
+              const { title = '', body = '', parentId = null, tags = [] } = data;
+              const id = createCardInternal(title, body, parentId, false, false);
+              if (Array.isArray(tags) && tags.length) setTags(id, tags, false);
+              return id;
+            },
+            updateCard(id, updates = {}) {
+              updateCardInternal(id, updates, false, false);
+              return cloneCard(store.cards[id]);
+            },
+            deleteCard(id) {
+              deleteCardInternal(id);
+              return true;
             },
             // Tags API
             getTags(cardId) {
@@ -1363,7 +1388,26 @@
             },
             getAllTags() {
               return getAllTags();
-            }
+            },
+            // Dataset awareness
+            getDatasetMeta() {
+              return {
+                name: instanceKey,
+                cardCount: Object.keys(store.cards).length,
+                rootCardCount: store.rootOrder.length,
+                bookmarkCount: (store.bookmarks || []).length,
+                recentCount: (store.recentCards || []).length,
+                modCount: Object.keys(store.mods || {}).length,
+                schemaVersion: SCHEMA_VERSION,
+                appVersion: APP_VERSION
+              };
+            },
+            logger: modLogger,
+            utils: () => window.CardSpoke?.utils || window.CIB?.utils || {},
+            log: modLogger.log,
+            warn: modLogger.warn,
+            error: modLogger.error,
+            info: modLogger.info
           };
         }
 
@@ -1373,11 +1417,24 @@
          * @returns {Object} Context with modId, versions, and API
          */
         function buildContext(modId) {
+          const logger = createModLogger(modId);
           return {
             modId,
             appVersion: APP_VERSION,
             schemaVersion: SCHEMA_VERSION,
-            api: createStoreAPI(modId)
+            api: createStoreAPI(modId),
+            utils: window.CardSpoke?.utils || window.CIB?.utils || {},
+            logger
+          };
+        }
+
+        function createModLogger(modId) {
+          const prefix = `[Extension:${modId}]`;
+          return {
+            log: (...args) => console.log(prefix, ...args),
+            info: (...args) => console.info(prefix, ...args),
+            warn: (...args) => console.warn(prefix, ...args),
+            error: (...args) => console.error(prefix, ...args)
           };
         }
 
@@ -1395,7 +1452,14 @@
            * - onCardRender(ctx, cardId, element): Called when card is rendered
            * - onCardSave(ctx, card, changes): Called when card is saved
            * - onCardDelete(ctx, cardId): Called when card is deleted
-           * 
+           * - onNavigate(ctx, navState): Called when navigation changes
+           * - onSearch(ctx, query, results): Called when search completes
+           * - onThemeChange(ctx, theme): Called when the theme toggles
+           * - onTypographyChange(ctx, preset): Called when typography preset changes
+           * - onHighContrastChange(ctx, enabled): Called when high contrast toggles
+           * - onExport(ctx, data): Called before export downloads are triggered
+           * - onImport(ctx, info): Called after import completes
+           *
            * @param {string} modId - Unique mod identifier
            * @param {Object} definition - Mod definition with hooks and meta
            * @returns {Object} Registry entry
@@ -1403,16 +1467,26 @@
           register(modId, definition = {}) {
             if (!modId) throw new Error('CardSpoke.mods.register requires a mod id');
             const entry = registry[modId] || { id: modId, hooks: {}, meta: {} };
-            entry.hooks = {
-              onAppInit: typeof definition.onAppInit === 'function' ? definition.onAppInit : entry.hooks.onAppInit,
-              onCardRender: typeof definition.onCardRender === 'function' ? definition.onCardRender : entry.hooks.onCardRender,
-              onCardSave: typeof definition.onCardSave === 'function' ? definition.onCardSave : entry.hooks.onCardSave,
-              onCardDelete: typeof definition.onCardDelete === 'function' ? definition.onCardDelete : entry.hooks.onCardDelete
-            };
+
+            Object.entries(definition).forEach(([hook, fn]) => {
+              if (hook.startsWith('on') && typeof fn === 'function') {
+                entry.hooks[hook] = fn;
+              }
+            });
+
             if (definition.meta) entry.meta = { ...definition.meta };
             registry[modId] = entry;
             entry.__loaded = true;
             return entry;
+          },
+          unregister(modId) {
+            delete registry[modId];
+            initializedMods.delete(modId);
+            removeStyle(modId);
+            if (store.mods[modId]) {
+              delete store.mods[modId];
+              save();
+            }
           },
           enable(modId) {
             const modData = store.mods[modId];
@@ -1477,10 +1551,10 @@
 
       window.CardSpoke = window.CardSpoke || {};
       window.CardSpoke.mods = CardSpoke_MODS;
-
-      // Backward compatibility aliases for existing mods using old CIB names
-      window.CIB = window.CardSpoke; // Alias CIB -> CardSpoke
-      window.CardSpoke_MODS = window.CardSpoke.mods; // Alias CardSpoke_MODS -> CardSpoke.mods
+      window.CardSpoke_MODS = CardSpoke_MODS;
+      // Backwards compatibility for legacy CIB-based extensions and tooling
+      window.CIB = window.CIB || window.CardSpoke;
+      window.CIB_MODS = CardSpoke_MODS;
 
       // =============================================================
       // --- CardSpoke.utils API ---
@@ -1988,6 +2062,11 @@
         console.log('[CardSpoke.utils] Available methods:', Object.keys(window.CardSpoke.utils));
       }
 
+      // Legacy compatibility for extensions targeting the former CIB namespace
+      window.CIB = window.CIB || {};
+      window.CIB.utils = window.CardSpoke.utils;
+      window.CIB.mods = window.CardSpoke.mods;
+
 
       function runModHook(hookName, ...args) {
         CardSpoke_MODS.runHook(hookName, ...args);
@@ -2247,6 +2326,7 @@
             mods: store.mods
           };
         }
+        runModHook('onExport', { type, payload: data });
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -2333,6 +2413,7 @@
           (card.children || []).forEach(cid => writeCard(cid, depth + 1));
         }
         store.rootOrder.forEach(id => writeCard(id));
+        runModHook('onExport', { type: 'txt', payloadLength: text.length });
         const blob = new Blob([text], { type: 'text/plain' });
         const filename = `cardspoke-${new Date().toISOString().slice(0,10)}.txt`;
         downloadWithFeedback(blob, filename, 'TXT');
@@ -2366,7 +2447,8 @@
         }
         
         store.rootOrder.forEach(id => writeCardMD(id));
-        
+
+        runModHook('onExport', { type: 'markdown', payloadLength: markdown.length });
         const blob = new Blob([markdown], { type: 'text/markdown' });
         const filename = `cardspoke-${new Date().toISOString().slice(0,10)}.md`;
         downloadWithFeedback(blob, filename, 'Markdown');
@@ -2387,10 +2469,11 @@
           const childrenCount = (card.children || []).length;
           const created = card.createdAt || '';
           const updated = card.updatedAt || '';
-          
+
           csv += `"${id}","${title}","${body}","${parentId}","${tags}",${childrenCount},"${created}","${updated}"\n`;
         });
-        
+
+        runModHook('onExport', { type: 'csv', payloadLength: csv.length });
         const blob = new Blob([csv], { type: 'text/csv' });
         const filename = `cardspoke-${new Date().toISOString().slice(0,10)}.csv`;
         downloadWithFeedback(blob, filename, 'CSV');
@@ -2468,7 +2551,8 @@
           window.CardSpoke.mods.syncFromStore();
           window.CardSpoke.mods.runHook('onAppInit');
         }
-        
+
+        runModHook('onImport', { type: pkg.exportType || 'unknown', cards: importedIds.slice(), mods: Object.keys(pkg.mods || {}) });
         importedIds.forEach(cardId => {
           const storedCard = store.cards[cardId];
           if (storedCard) {
@@ -2481,6 +2565,7 @@
       }
 
       function importTXT(text, mode = 'outline', location = 'root') {
+        const createdIds = [];
         if (mode === 'outline') {
           const lines = text.split('\n').filter(l => l.trim());
           const stack = [];
@@ -2488,11 +2573,12 @@
             const indent = line.search(/\S/);
             const title = line.trim();
             const depth = Math.floor(indent / 2);
-            const parentId = depth > 0 && stack[depth - 1] ? stack[depth - 1] : 
+            const parentId = depth > 0 && stack[depth - 1] ? stack[depth - 1] :
                            (location === 'root' ? null : location);
             const id = createCard(title, '', parentId);
             stack[depth] = id;
             stack.length = depth + 1;
+            createdIds.push(id);
           });
           showToast('Imported outline successfully');
           render();
@@ -2508,6 +2594,8 @@
             }
           }
         }
+
+        runModHook('onImport', { type: 'text', mode, location, cards: createdIds });
       }
 
       function importDOCX(text, mode = 'append', targetCardId) {
@@ -2525,6 +2613,7 @@
         save();
         showToast('DOCX imported successfully');
         render();
+        runModHook('onImport', { type: 'docx', mode, targetCardId });
       }
 
       // --- INSTANCE & MODALS ---
@@ -4268,13 +4357,13 @@
           
           try {
             // Use Function constructor to avoid eval and restrict scope
-            const fn = new Function('console', 'CIB', `
+            const fn = new Function('console', 'CardSpoke', `
               "use strict";
               return (async () => {
                 ${code}
               })();
             `);
-            
+
             fn(sandboxConsole, window.CardSpoke).then(() => {
               logEntry('✓ Code execution completed', 'success');
             }).catch(err => {
@@ -5640,7 +5729,13 @@ console.log('✓ All examples completed!');
         fuzzySearchMultiDataset(query, scope).then(fuzzyResults => {
           // Remove loading indicator
           loadingDiv.remove();
-          
+
+          const hookResults = fuzzyResults.map(result => ({
+            ...result,
+            card: cloneCard(result.card)
+          }));
+          runModHook('onSearch', query, hookResults);
+
           if (fuzzyResults.length === 0) {
             main.appendChild(h('div', { className: 'empty' }, 'No results found. Try different keywords.'));
           } else {
