@@ -1,6 +1,6 @@
 # Extension Development Cookbook
 
-**Version:** 0.14.0
+**Version:** 1.0.0
 **Last Updated:** 2025-11-30
 
 This cookbook provides practical recipes and patterns for common extension development tasks in CardSpoke.

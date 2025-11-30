@@ -1,15 +1,36 @@
-# CardSpoke Schema Reference - Version 0.14.0
+# CardSpoke Schema Reference
 
-**Version:** 0.14.0
+**Version:** 1.0.0
 **Schema Version:** 4
-**Date:** 2025-11-28
+**Last Updated:** 2025-11-30
 **Status:** Current Reference Documentation
+
+This document provides the definitive reference for the data schemas used in CardSpoke version 1.0.0. It covers both the Card schema and the Mod (Extension) schema as implemented in the codebase.
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Card Schema](#card-schema)
+3. [Mod (Extension) Schema](#mod-extension-schema)
+4. [Store Structure](#store-structure)
+5. [Navigation State](#navigation-state)
+6. [Undo/Redo System](#undoredo-system)
+7. [Schema Migrations](#schema-migrations)
+8. [Validation Rules](#validation-rules)
 
 ---
 
 ## Overview
 
-This document provides the definitive reference for the data schemas used in CardSpoke version 0.9.3. It covers both the Card schema and the Mod (Extension) schema as implemented in the codebase.
+CardSpoke uses a hierarchical data structure where cards can have parent-child relationships, forming a tree structure. All data is stored locally using IndexedDB (primary) or LocalStorage (fallback).
+
+**Current Schema Version:** 4
+
+**Schema Evolution:**
+- Schema v1-3: Legacy versions
+- Schema v4: Current stable schema (introduced in v0.7, stable in v1.0.0)
 
 ---
 
@@ -26,110 +47,302 @@ Cards are the fundamental data structure in CardSpoke, representing individual n
   body: string,            // Card content/body text
   parentId: string | null, // Parent card ID (null for root cards)
   children: string[],      // Array of child card IDs
+  tags: string[],          // Array of tag strings (lowercase, normalized)
   createdAt: number,       // Creation timestamp (Unix epoch in milliseconds)
   updatedAt: number,       // Last update timestamp (Unix epoch in milliseconds)
-  modsData: object,        // Storage for mod-specific data (empty by default)
-  tags: string[]           // Array of tag strings (empty by default)
+  modsData: object        // Storage for extension-specific data
 }
 ```
 
 ### Field Descriptions
 
 #### `id` (string, required)
-- Unique identifier for the card
-- Generated using the `uid()` function
-- Used as the key in the `store.cards` object
-- Referenced by `parentId` and `children` fields in related cards
 
-**Example:** `"c8a7b2f1-4e5d-6789-0abc-def123456789"`
+**Purpose:** Unique identifier for the card
+
+**Generation:** Created using the `uid()` function (UUID-like format)
+
+**Usage:**
+- Key in the `store.cards` object
+- Referenced by `parentId` in child cards
+- Referenced in `children` arrays of parent cards
+- Referenced in `store.bookmarks` and `store.recentCards`
+
+**Format:** `"c8a7b2f1-4e5d-6789-0abc-def123456789"` (example)
+
+**Constraints:**
+- Must be unique across all cards
+- Cannot be changed after creation
+- Cannot be null or empty
+
+---
 
 #### `title` (string, required)
-- The card's title or heading
-- Can be an empty string
-- Displayed in the card list and detail views
-- Used in search and navigation
 
-**Example:** `"Project Ideas"`, `"Meeting Notes 2025-11-13"`
+**Purpose:** The card's title or heading
+
+**Default:** Empty string `""`
+
+**Usage:**
+- Displayed in card list views
+- Displayed in card detail views
+- Used in search functionality
+- Shown in breadcrumb navigation
+
+**Constraints:**
+- Can be empty string
+- No maximum length (but UI may truncate long titles)
+- Supports any Unicode characters
+
+**Example:** `"Project Ideas"`, `"Meeting Notes 2025-11-30"`, `""`
+
+---
 
 #### `body` (string, required)
-- The main content of the card
-- Can be an empty string
-- Supports plain text content
-- Used in search functionality
 
-**Example:** `"This is the main content of the card..."`
+**Purpose:** The main content of the card
+
+**Default:** Empty string `""`
+
+**Usage:**
+- Main content area for the card
+- Used in search functionality
+- Can contain plain text
+
+**Constraints:**
+- Can be empty string
+- No maximum length (limited only by storage capacity)
+- Supports any Unicode characters
+- Supports markdown-style text (rendered in preview mode)
+
+**Example:** `"This is the main content of the card with detailed information..."`
+
+---
 
 #### `parentId` (string | null, required)
-- ID of the parent card in the hierarchy
+
+**Purpose:** ID of the parent card in the hierarchy
+
+**Values:**
 - `null` for root-level cards
-- Must reference a valid card ID if not null
-- Used to build the hierarchical tree structure
+- Valid card ID string for child cards
+
+**Usage:**
+- Establishes hierarchical relationships
+- Used to build the tree structure
+- Determines where card appears in navigation
+
+**Constraints:**
+- Must be `null` or reference an existing card ID
+- Cannot create circular references (enforced by UI)
+- Changing `parentId` moves the card in the hierarchy
 
 **Example:** `"parent-card-id-123"` or `null`
 
+---
+
 #### `children` (array of strings, required)
-- Array of child card IDs
-- Empty array `[]` if card has no children
-- Order reflects the display order of children
-- Maintained automatically when cards are created or deleted
+
+**Purpose:** Array of child card IDs
+
+**Default:** Empty array `[]`
+
+**Usage:**
+- Maintains list of direct children
+- Order determines display order in UI
+- Used for recursive operations (delete, duplicate)
+
+**Constraints:**
+- Can be empty array
+- Each element must be a valid card ID
+- Order is significant (maintained by UI)
+- Automatically updated when cards are created/deleted
 
 **Example:** `["child-id-1", "child-id-2", "child-id-3"]` or `[]`
 
+---
+
+#### `tags` (array of strings, required)
+
+**Purpose:** Array of tag strings for categorization
+
+**Default:** Empty array `[]`
+
+**Tag Normalization:**
+- Converted to lowercase
+- `#` prefix removed if present
+- Trimmed of whitespace
+- Duplicates prevented (case-insensitive)
+
+**Usage:**
+- Categorization and organization
+- Filtering in advanced search
+- Tag-based suggestions
+- Related card discovery
+
+**Constraints:**
+- Can be empty array
+- Tags are stored lowercase
+- No maximum number of tags
+- Each tag should be non-empty after normalization
+
+**Example:** `["project", "urgent", "review"]` or `[]`
+
+**Normalization Example:**
+```javascript
+Input: ["#Urgent", "Project", "project", "  Review  "]
+Stored: ["urgent", "project", "review"]  // Lowercase, deduplicated, trimmed
+```
+
+---
+
 #### `createdAt` (number, required)
-- Unix timestamp (milliseconds) when the card was created
-- Generated using `Date.now()` at creation time
+
+**Purpose:** Unix timestamp (milliseconds) when the card was created
+
+**Generation:** `Date.now()` at creation time
+
+**Usage:**
+- Sorting cards by creation date
+- Displaying creation metadata
+- Chronological organization
+
+**Constraints:**
 - Immutable after creation
-- Used for sorting and metadata display
+- Must be positive integer
+- Represents milliseconds since Unix epoch
 
 **Example:** `1699800000000` (represents 2023-11-12 16:53:20 UTC)
 
-#### `updatedAt` (number, required)
-- Unix timestamp (milliseconds) of last modification
-- Updated automatically on any card change
-- Generated using `Date.now()` when updated
-- Used for sorting and tracking changes
+**Format:** JavaScript timestamp (ms since January 1, 1970 UTC)
 
-**Example:** `1699801234567`
+---
+
+#### `updatedAt` (number, required)
+
+**Purpose:** Unix timestamp (milliseconds) of last modification
+
+**Generation:** `Date.now()` when card is updated
+
+**Usage:**
+- Tracking recent changes
+- Sorting by last modified
+- Displaying update metadata
+
+**Constraints:**
+- Updated automatically on any card change
+- Must be positive integer
+- Should be >= `createdAt`
+
+**Example:** `1701443567890`
+
+**Update Triggers:**
+- Title change
+- Body change
+- Tag addition/removal
+- Parent change
+
+---
 
 #### `modsData` (object, required)
-- Storage container for mod-specific data
-- Empty object `{}` by default
-- Structure determined by individual mods
-- Persisted with the card data
+
+**Purpose:** Storage container for extension-specific data
+
+**Default:** Empty object `{}`
+
+**Structure:** Determined by individual extensions
+
+**Usage:**
+- Extensions can store arbitrary data
+- Keyed by extension ID
+- Persisted with card data
+- Not used by core application
+
+**Constraints:**
+- Must be a plain object
+- Keys should be extension IDs to avoid conflicts
+- Data must be JSON-serializable
+- No enforced structure (extension-dependent)
 
 **Example:**
 ```javascript
 {
-  "word-count-mod": { count: 150, lastCounted: 1699800000000 },
-  "priority-mod": { priority: "high", dueDate: "2025-12-01" }
+  "word-count-extension": {
+    count: 150,
+    lastCounted: 1699800000000
+  },
+  "priority-extension": {
+    priority: "high",
+    dueDate: "2025-12-01",
+    assigned: "John Doe"
+  }
 }
 ```
 
-#### `tags` (array of strings, required)
-- Array of tag strings for categorization
-- Empty array `[]` by default
-- Case-sensitive
-- Used for filtering and organization
-
-**Example:** `["project", "urgent", "review"]` or `[]`
+---
 
 ### Card Creation
 
-Cards are created using the `createCard()` function defined in `www/app.js`:
+Cards are created using the `createCard()` function in `www/app.js`.
 
+**Function Signature:**
 ```javascript
 function createCard(title, body, parentId = null, skipSave = false, skipHooks = false)
 ```
 
-**Creation behavior:**
-- Generates unique ID via `uid()`
-- Sets both `createdAt` and `updatedAt` to current timestamp
-- Initializes `modsData` as empty object `{}`
-- Initializes `tags` as empty array `[]`
-- Adds card to parent's `children` array if `parentId` is provided
-- Adds card to `store.rootOrder` if `parentId` is null
-- Saves to storage unless `skipSave` is true
-- Triggers mod hooks unless `skipHooks` is true
+**Creation Behavior:**
+1. Generates unique ID via `uid()`
+2. Sets both `createdAt` and `updatedAt` to current timestamp
+3. Initializes `modsData` as empty object `{}`
+4. Initializes `tags` as empty array `[]`
+5. Initializes `children` as empty array `[]`
+6. Adds card to `store.cards` object
+7. If `parentId` provided: adds ID to parent's `children` array
+8. If `parentId` is `null`: adds ID to `store.rootOrder` array
+9. Marks store as dirty (unless `skipSave` is true)
+10. Saves to storage (unless `skipSave` is true)
+11. Triggers `onCardSave` hook (unless `skipHooks` is true)
+
+---
+
+### Card Update
+
+Cards are updated using the `updateCard()` function.
+
+**Function Signature:**
+```javascript
+function updateCard(cardId, updates)
+```
+
+**Update Behavior:**
+1. Validates card exists
+2. Applies updates to card object
+3. Sets `updatedAt` to current timestamp
+4. Marks store as dirty
+5. Saves to storage
+6. Triggers `onCardSave` hook with `saveInfo.isNew = false`
+
+---
+
+### Card Deletion
+
+Cards are deleted using the `deleteCard()` function.
+
+**Function Signature:**
+```javascript
+function deleteCard(cardId)
+```
+
+**Deletion Behavior:**
+1. Recursively deletes all child cards (depth-first)
+2. Removes from parent's `children` array (if has parent)
+3. Removes from `store.rootOrder` (if is root card)
+4. Removes from `store.bookmarks` (if bookmarked)
+5. Removes from `store.recentCards` (if in recent)
+6. Deletes card from `store.cards`
+7. Marks store as dirty
+8. Saves to storage
+9. Triggers `onCardDelete` hook for each deleted card
 
 ---
 
@@ -146,13 +359,13 @@ Mods (also called Extensions) are JavaScript/CSS plugins that extend CardSpoke's
   css: string,             // CSS styles for the mod
   meta: {                  // Metadata about the mod
     name: string,          // Display name (required)
-    type?: string,         // 'theme' | 'patch' | 'plugin' | 'mod' | 'kit' | 'expansion'
-    creator?: string,      // Creator/author name (optional)
-    version?: string,      // Version string (optional)
-    releaseDate?: string,  // Release date (optional)
-    description?: string,  // Mod description (optional)
-    source?: string,       // 'official' | 'community' (v0.12.2+)
-    ai_assistants?: string // AI tools used in creation (v0.12.2+)
+    type: string,          // Extension type (optional)
+    creator: string,       // Creator/author name (optional)
+    version: string,       // Version string (optional)
+    releaseDate: string,   // Release date (optional)
+    description: string,   // What the mod does (optional)
+    source: string,        // 'official' or 'community' (optional)
+    ai_assistants: string  // AI tools used in creation (optional)
   }
 }
 ```
@@ -160,260 +373,346 @@ Mods (also called Extensions) are JavaScript/CSS plugins that extend CardSpoke's
 ### Field Descriptions
 
 #### `enabled` (boolean, required)
-- Indicates whether the mod is currently active
-- Defaults to `false` for newly installed mods
-- Controls whether the mod's hooks are executed
-- Controls whether the mod's CSS is injected
 
-**Example:** `true` or `false`
+**Purpose:** Whether the mod is currently active
+
+**Values:** `true` (enabled) or `false` (disabled)
+
+**Behavior:**
+- Enabled mods: JavaScript executed, CSS applied, hooks registered
+- Disabled mods: JavaScript not executed, CSS removed, hooks not called
+
+**Default:** Typically `false` for newly imported mods
+
+---
 
 #### `js` (string, required)
-- JavaScript code that implements the mod
-- Can be an empty string
-- Executed when mod is enabled
-- Should return an object with hook functions
 
-**Example:**
-```javascript
-"(function() {\n  return {\n    onAppInit() { console.log('Mod loaded'); }\n  };\n})();"
-```
+**Purpose:** JavaScript code for the mod
+
+**Content:** String containing JavaScript code
+
+**Execution:**
+- Executed via `Function()` constructor when mod is enabled
+- Has access to `CardSpoke_MODS` API
+- Can register hooks and event listeners
+
+**Constraints:**
+- Must be valid JavaScript
+- Should be wrapped in IIFE for safety
+- Can be empty string (for CSS-only themes)
+
+---
 
 #### `css` (string, required)
-- CSS styles for the mod
-- Can be an empty string
-- Injected into the page when mod is enabled
+
+**Purpose:** CSS styles for the mod
+
+**Content:** String containing CSS code
+
+**Application:**
+- Injected as `<style>` element when mod is enabled
 - Removed when mod is disabled
+- Can override core styles
 
-**Example:**
-```css
-".card { border: 2px solid blue; }"
-```
+**Constraints:**
+- Must be valid CSS
+- Can be empty string (for JS-only plugins)
 
-#### `meta` (object, required)
-- Container for mod metadata
-- At minimum must contain `name` field
-- Additional fields are optional but recommended
+---
 
 #### `meta.name` (string, required)
-- Display name of the mod
-- Shown in the extensions list
-- Used in UI messages and notifications
-- Should be human-readable
 
-**Example:** `"Word Counter"`, `"Dark Theme"`
+**Purpose:** Display name of the extension
 
-#### `meta.creator` (string, optional)
-- Name of the mod's creator or author
-- Displayed in the extensions management UI
-- Used for attribution
+**Usage:**
+- Shown in Extensions Hub
+- Used in notifications
+- Displayed in mod listings
 
-**Example:** `"John Smith"`, `"jxburros"`
+**Constraints:** Must be non-empty string
 
-#### `meta.version` (string, optional)
-- Version identifier for the mod
-- Displayed in the extensions management UI
-- Can use any versioning scheme (semantic versioning recommended)
+---
 
-**Example:** `"1.0.0"`, `"2.3.1-beta"`
+#### `meta.type` (string, optional)
 
-#### `meta.releaseDate` (string, optional)
-- Release date of the mod version
-- Displayed in the extensions management UI
-- Can use any date format (ISO 8601 recommended)
+**Purpose:** Classification of extension type
 
-**Example:** `"2025-11-13"`, `"Nov 13, 2025"`
+**Valid Values:**
+- `'theme'` - Visual styling modifications
+- `'patch'` - Small enhancements/bug fixes
+- `'plugin'` - Feature additions using hooks
+- `'mod'` - Comprehensive modifications (CSS + JS)
+- `'kit'` - Bundle of related extensions
+- `'expansion'` - Major feature additions
 
-#### `meta.description` (string, optional)
-- Brief description of the mod's functionality
-- Displayed in the extensions management UI
-- Should explain what the mod does
+**Default:** `'mod'` if not specified
 
-**Example:** `"Counts words in card bodies and displays the count"`
+---
 
-### Mod Installation
+#### `meta.source` (string, optional)
 
-Mods are stored in the `store.mods` object with their ID as the key. Mods can be installed:
+**Purpose:** Indicates origin of extension
 
-1. **From File Upload** (Upload Modal → Mods Tab):
-   - Accepts `.json` files containing mod packages
-   - Defaults `enabled` to `false`
-   - Extracts metadata from package
+**Valid Values:**
+- `'official'` - Created by CardSpoke team
+- `'community'` - Created by community
 
-2. **From Extension Wizard** (Menu → Extension Wizard):
-   - Interactive wizard for creating new extensions
-   - User provides name, creator, version, type, and description
-   - JavaScript and CSS templates auto-generated
-   - Defaults `enabled` to `false`
+**Usage:**
+- Displays badge in Extensions Hub
+- Helps users identify trusted extensions
 
-3. **From Inline Creation** (Upload Modal → Create New):
-   - Manual entry of name, creator, version, and releaseDate
-   - JavaScript and CSS entered in text areas
-   - Defaults `enabled` to `false`
+---
 
-4. **From Package Import** (Data Hub → Import):
-   - Imported as part of a full data package
-   - Preserves original `enabled` state
-   - Includes all metadata from export
+#### `meta.ai_assistants` (string, optional)
 
-### Mod Lifecycle
+**Purpose:** Declares AI tools used in creation
 
-**Enable:**
-- Sets `enabled` to `true`
-- Injects CSS into page
-- Registers mod in runtime registry
-- Executes `onAppInit` hook
-- Saves to storage
+**Format:** Free-form string
 
-**Disable:**
-- Sets `enabled` to `false`
-- Removes CSS from page
-- Unregisters mod from runtime
-- Saves to storage
+**Example:** `"Claude Code (Sonnet 4.5)"`, `"GitHub Copilot, ChatGPT"`
 
-**Delete:**
-- Disables mod if enabled
-- Removes mod from `store.mods`
-- Saves to storage
+**Usage:** Transparency about AI-assisted development
 
 ---
 
 ## Store Structure
 
-The complete store structure that contains all app data:
+The complete application state is stored in the `store` object.
+
+### Store Object
 
 ```javascript
 {
-  rootOrder: string[],           // Array of root card IDs (display order)
-  cards: {                       // Map of card ID to card object
-    [cardId: string]: Card       // Card objects keyed by ID
-  },
-  mods: {                        // Map of mod ID to mod object
-    [modId: string]: Mod         // Mod objects keyed by ID
-  },
-  bookmarks: string[],           // Array of bookmarked card IDs
-  recentCards: string[],         // Array of recently viewed card IDs
-  viewMode: string               // Current view mode ('normal', etc.)
+  rootOrder: string[],     // Array of root card IDs in display order
+  cards: Object,           // Map of cardId → Card object
+  mods: Object,            // Map of modId → Mod object
+  bookmarks: string[],     // Array of bookmarked card IDs
+  recentCards: string[],   // Array of recently viewed card IDs (max 10)
+  viewMode: string,        // 'normal' or 'compact'
+  activeTheme: string      // 'light' or 'dark'
 }
 ```
 
-### Store Location
+### Field Descriptions
 
-- **localStorage key:** `nested_cards_store` (default) or custom instance key
-- **Format:** JSON serialized string
-- **Schema version:** Stored separately as `SCHEMA_VERSION = 4`
+#### `rootOrder` (array of strings)
+
+**Purpose:** Ordered list of root-level card IDs
+
+**Default:** `[]`
+
+**Usage:**
+- Determines display order of root cards
+- Maintained when cards are created/deleted
+- User can reorder via drag-and-drop
+
+#### `cards` (object)
+
+**Purpose:** Map of all cards indexed by ID
+
+**Structure:** `{ [cardId: string]: Card }`
+
+**Usage:** Fast lookup of any card by ID
+
+#### `mods` (object)
+
+**Purpose:** Map of all installed extensions indexed by ID
+
+**Structure:** `{ [modId: string]: Mod }`
+
+**Usage:** Persistent storage of extension data
+
+#### `bookmarks` (array of strings)
+
+**Purpose:** List of bookmarked card IDs
+
+**Default:** `[]`
+
+**Max Length:** No limit
+
+**Usage:** Quick access to important cards
+
+#### `recentCards` (array of strings)
+
+**Purpose:** Recently viewed/edited card IDs
+
+**Default:** `[]`
+
+**Max Length:** 10 (oldest removed when exceeded)
+
+**Ordering:** Most recent first
+
+#### `viewMode` (string)
+
+**Purpose:** Current view mode preference
+
+**Valid Values:** `'normal'` or `'compact'`
+
+**Default:** `'normal'`
+
+**Persistence:** Saved with store data
+
+#### `activeTheme` (string)
+
+**Purpose:** Current theme preference
+
+**Valid Values:** `'light'` or `'dark'`
+
+**Default:** `'light'`
+
+**Persistence:** Saved with store data
 
 ---
 
-## Schema Version History
+## Navigation State
 
-### Schema Version 4 (Current - v0.7+)
-- Added `modsData` field to cards
-- Added `tags` field to cards
-- Introduced mod system with `store.mods`
+The current navigation state is maintained in the `navState` object (not persisted).
 
-### Previous Versions
-- Schema versions 1-3: Legacy versions (pre-v0.7)
-- Migration paths maintained for backward compatibility
+### Navigation State Object
+
+```javascript
+{
+  page: string,            // Current page/view
+  cardId: string | null,   // Currently viewed card ID
+  parentId: string | null, // Parent context for operations
+  searchQuery: string      // Active search term
+}
+```
+
+### Page Values
+
+- `'list'` - Card list view
+- `'card'` - Card detail view
+- `'search'` - Search results view
+- `'extensions'` - Extensions hub
+- Other custom pages defined by extensions
 
 ---
 
-## Data Validation
+## Undo/Redo System
+
+CardSpoke includes a comprehensive undo/redo system (introduced in v0.12.0).
+
+### Undo Stack Entry
+
+```javascript
+{
+  type: string,            // 'create', 'update', 'delete', 'move', 'tag'
+  cardId: string,          // Affected card ID
+  before: Object,          // Card state before change
+  after: Object,           // Card state after change
+  timestamp: number        // When action occurred
+}
+```
+
+### Constraints
+
+- **Max Undo Stack:** 50 entries
+- **Max Trash Bin:** 100 deleted cards
+- **Supported Operations:** Create, update, delete, move, tag changes
+
+---
+
+## Schema Migrations
+
+### Migration from Schema v3 to v4
+
+Changes in Schema v4:
+1. Added `modsData` field to cards
+2. Added `tags` field to cards
+3. Added `createdAt` and `updatedAt` timestamps
+4. Added `bookmarks` and `recentCards` to store
+5. Added `viewMode` and `activeTheme` to store
+
+**Migration Process:** Automatic on first load with v0.7+
+
+---
+
+## Validation Rules
 
 ### Card Validation
 
-Required fields when creating/updating cards:
-- `id` must be a non-empty string
-- `title` must be a string (can be empty)
-- `body` must be a string (can be empty)
-- `parentId` must be a string or null
-- `children` must be an array
-- `createdAt` must be a number
-- `updatedAt` must be a number
-- `modsData` must be an object
-- `tags` must be an array
+**Required Fields:**
+- `id` (string, non-empty)
+- `title` (string, can be empty)
+- `body` (string, can be empty)
+- `parentId` (string or null)
+- `children` (array)
+- `tags` (array)
+- `createdAt` (number)
+- `updatedAt` (number)
+- `modsData` (object)
 
-### Mod Validation
+**Constraints:**
+- `id` must be unique
+- `parentId` must be null or valid card ID
+- `children` elements must be valid card IDs
+- `createdAt` <= `updatedAt`
+- No circular parent-child relationships
 
-Required fields when installing mods:
-- `enabled` must be a boolean
-- `js` must be a string
-- `css` must be a string
-- `meta` must be an object
-- `meta.name` must be a non-empty string
+### Tag Validation
 
----
+**Normalization Rules:**
+1. Convert to lowercase
+2. Remove `#` prefix if present
+3. Trim whitespace
+4. Reject empty strings
+5. Prevent duplicates (case-insensitive)
 
-## Code References
+**Valid Tags:**
+- `"project"`, `"urgent"`, `"work"`
 
-### Card Operations
-- **Create:** `www/app.js` - `createCard()`
-- **Update:** `www/app.js` - `updateCard()`
-- **Delete:** `www/app.js` - `deleteCard()`
-
-### Mod Operations
-- **Enable:** `www/app.js` - `CardSpoke_MODS.enable()`
-- **Disable:** `www/app.js` - `CardSpoke_MODS.disable()`
-- **List:** `www/app.js` - `CardSpoke_MODS.listMods()`
-- **Register:** `www/app.js` - `CardSpoke_MODS.register()`
-
-### Store Definition
-- **Store initialization:** `www/app.js` - See `store` variable definition
-- **Schema version constant:** `www/app.js` - `SCHEMA_VERSION = 4`
+**Invalid Tags (after normalization):**
+- `""` (empty)
+- `"   "` (whitespace only)
 
 ---
 
-## Migration Considerations
+## Storage Format
 
-### Upgrading from Earlier Versions
+### IndexedDB Storage
 
-When migrating data from earlier schema versions:
-1. Ensure `modsData` field exists on all cards
-2. Ensure `tags` field exists on all cards
-3. Migrate any legacy mod data to new format
-4. Update schema version marker
+**Database Name:** `CardSpokeDB`
 
-### Future Schema Changes
+**Object Stores:**
+- `data` - Stores card data
+- `mods` - Stores extension data
 
-If schema changes are needed in future versions:
-1. Increment `SCHEMA_VERSION` constant
-2. Document changes in this reference
-3. Implement migration logic for existing data
-4. Test migration paths thoroughly
+**Keys:**
+- `data_${instanceKey}` - Card data for instance
+- `mods_${instanceKey}` - Mod data for instance
+
+### LocalStorage Fallback
+
+**Keys:**
+- `data_${instanceKey}` - Card data (JSON string)
+- `mods_${instanceKey}` - Mod data (JSON string)
+- `activeInstance` - Currently active dataset name
 
 ---
 
 ## Best Practices
 
-### For Card Management
-- Always use `createCard()` function rather than direct object manipulation
-- Update `updatedAt` timestamp on any card modification
-- Maintain parent-child relationships bidirectionally
-- Validate parent-child references to prevent orphaned cards
+### For Extension Developers
 
-### For Mod Development
-- Always provide a `meta.name` field
-- Include `meta.version` and `meta.description` for better UX
-- Initialize `modsData[modId]` before using it in cards
-- Clean up `modsData` when mod is uninstalled
-- Test mods with both enabled and disabled states
+1. **Always clone** card data when reading (it's read-only)
+2. **Use `modsData`** field for extension-specific data
+3. **Validate** data before storing in `modsData`
+4. **Clean up** `modsData` when extension is uninstalled
+5. **Respect** tag normalization rules
 
-### For Data Integrity
-- Never modify IDs after creation
-- Maintain referential integrity in parent-child relationships
-- Validate data before saving to storage
-- Use atomic operations for related updates
-- Regular backups recommended
+### For Application Developers
+
+1. **Always set `updatedAt`** when modifying cards
+2. **Maintain referential integrity** in parent-child relationships
+3. **Update `rootOrder` and `children` arrays** when creating/deleting cards
+4. **Validate** card IDs before operations
+5. **Mark dirty** and save after modifications
 
 ---
 
-## Related Documentation
-
-- [v0.9 Dataset Architecture](v0.9-dataset-architecture.md) - Multi-dataset support (planned)
-- [Mod Capability Taxonomy](mod-capability-taxonomy.md) - Mod system overview
-- [Storage Driver Interface](storage-driver-interface.md) - Storage abstraction layer
-
----
-
-**Document Status:** Current Reference
-**Last Updated:** 2025-11-28
-**Verified Against:** CardSpoke v0.14.0 codebase
+**Document Version:** 2.0
+**For:** CardSpoke 1.0.0+
+**Schema:** v4
+**Last Updated:** 2025-11-30

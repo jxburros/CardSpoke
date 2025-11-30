@@ -1,6 +1,7 @@
 # CardSpoke API Reference
 
-**Version:** 0.14.0
+**Version:** 1.0.0
+**Schema Version:** 4
 **Last Updated:** 2025-11-30
 
 This document provides comprehensive documentation for the `CardSpoke.utils` API and the `CardSpoke_MODS` extension system, which allow extension developers to interact with CardSpoke programmatically.
@@ -12,15 +13,16 @@ This document provides comprehensive documentation for the `CardSpoke.utils` API
 1. [Getting Started](#getting-started)
 2. [Card Management](#card-management)
 3. [Tag Management](#tag-management)
-4. [Search & Query](#search--query)
+4. [Accessibility & Theme API](#accessibility--theme-api)
 5. [UI & Notifications](#ui--notifications)
 6. [Dataset Information](#dataset-information)
 7. [Extension System](#extension-system)
 8. [Extension Hooks](#extension-hooks)
-9. [Event Bus](#event-bus)
-10. [Developer Tools](#developer-tools)
-11. [Error Handling](#error-handling)
-12. [Examples](#examples)
+9. [Store API](#store-api)
+10. [Event Bus](#event-bus)
+11. [Developer Tools](#developer-tools)
+12. [Error Handling](#error-handling)
+13. [Examples](#examples)
 
 ---
 
@@ -33,62 +35,81 @@ The CardSpoke API is available globally via `window.CardSpoke.utils`. All functi
 const api = window.CardSpoke.utils;
 
 // Create a new card
-const card = api.createCard('My Card Title', 'Card content goes here');
+const result = await api.createCard({
+  title: 'My Card Title',
+  body: 'Card content goes here'
+});
 ```
 
 ### Backward Compatibility
 
-For legacy support, `window.CardSpoke.utils` is also available as an alias.
+For legacy support, the following aliases are available:
+- `window.CIB.utils` → `window.CardSpoke.utils`
+- `window.CIB_MODS` → `window.CardSpoke_MODS`
 
 ---
 
 ## Card Management
 
-### createCard(title, body, parentId)
+### createCard(data)
 
 Creates a new card in the current dataset.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `title` | string | Yes | The card title |
-| `body` | string | No | The card body content (default: empty string) |
-| `parentId` | string\|null | No | Parent card ID, or null for root card |
+| `data` | object | Yes | Card creation data |
+| `data.title` | string | No | The card title (default: '') |
+| `data.body` | string | No | The card body content (default: '') |
+| `data.parentId` | string\|null | No | Parent card ID, or null for root card (default: null) |
+| `data.tags` | string[] | No | Array of tags (default: []) |
 
-**Returns:** `Object` - The created card object
+**Returns:** `Promise<{id: string, card: Object}>`
 
 **Example:**
 ```javascript
 // Create a root card
-const rootCard = CardSpoke.utils.createCard('Project Ideas', 'List of project ideas');
+const result = await CardSpoke.utils.createCard({
+  title: 'Project Ideas',
+  body: 'List of project ideas',
+  tags: ['planning', 'ideas']
+});
+
+console.log('Created card:', result.id);
 
 // Create a child card
-const childCard = CardSpoke.utils.createCard('Idea 1', 'Build a todo app', rootCard.id);
+const child = await CardSpoke.utils.createCard({
+  title: 'Idea 1',
+  body: 'Build a todo app',
+  parentId: result.id
+});
 ```
 
 ---
 
-### updateCard(cardId, updates)
+### updateCard(cardId, changes)
 
 Updates an existing card's properties.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `cardId` | string | Yes | The ID of the card to update |
-| `updates` | object | Yes | Object containing properties to update |
+| `changes` | object | Yes | Object containing properties to update |
 
 **Valid Update Properties:**
 - `title` (string) - Card title
 - `body` (string) - Card body content
-- `tags` (array) - Array of tag strings
+- `tags` (string[]) - Array of tag strings
 - `parentId` (string\|null) - New parent card ID
 
-**Returns:** `Object` - The updated card object, or `null` if card not found
+**Returns:** `Promise<boolean>` - `true` if successful
 
 **Example:**
 ```javascript
-const updated = CardSpoke.utils.updateCard('card-123', {
+const success = await CardSpoke.utils.updateCard('card-123', {
   title: 'Updated Title',
   body: 'New content',
   tags: ['important', 'review']
@@ -102,17 +123,20 @@ const updated = CardSpoke.utils.updateCard('card-123', {
 Retrieves a card by its ID.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `cardId` | string | Yes | The ID of the card to retrieve |
 
-**Returns:** `Object|null` - The card object, or `null` if not found
+**Returns:** `Promise<Object|null>` - The card object (cloned), or `null` if not found
 
 **Example:**
 ```javascript
-const card = CardSpoke.utils.getCard('card-123');
+const card = await CardSpoke.utils.getCard('card-123');
 if (card) {
   console.log('Card title:', card.title);
+  console.log('Card body:', card.body);
+  console.log('Tags:', card.tags);
 }
 ```
 
@@ -123,17 +147,24 @@ if (card) {
 Searches cards by title, body content, or tags.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `query` | string | Yes | Search query string |
+| `query` | string | Yes | Search query string (case-insensitive) |
 
-**Returns:** `Array` - Array of matching card objects
+**Search Behavior:**
+- Searches card titles
+- Searches card bodies
+- Searches card tags
+- Case-insensitive matching
+
+**Returns:** `Promise<Array>` - Array of matching card objects (cloned)
 
 **Example:**
 ```javascript
-const results = CardSpoke.utils.searchCards('project');
+const results = await CardSpoke.utils.searchCards('project');
 results.forEach(card => {
-  console.log(card.title);
+  console.log(card.title, '-', card.tags.join(', '));
 });
 ```
 
@@ -146,36 +177,44 @@ results.forEach(card => {
 Gets all tags for a specific card.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `cardId` | string | Yes | The card ID |
 
-**Returns:** `Array` - Array of tag strings
+**Returns:** `Promise<string[]>` - Array of tags, empty array if not found
 
 **Example:**
 ```javascript
-const tags = CardSpoke.utils.getTags('card-123');
-console.log('Tags:', tags.join(', '));
+const tags = await CardSpoke.utils.getTags('card-123');
+console.log('Tags:', tags);
 ```
 
 ---
 
 ### addTag(cardId, tag)
 
-Adds a tag to a card. Tags are automatically normalized (lowercase, trimmed).
+Adds a tag to a card.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `cardId` | string | Yes | The card ID |
-| `tag` | string | Yes | Tag to add (# prefix optional) |
+| `tag` | string | Yes | Tag to add |
 
-**Returns:** `boolean` - `true` if added, `false` if already exists or invalid
+**Tag Normalization:**
+- Removes `#` prefix if present
+- Converts to lowercase
+- Trims whitespace
+- Prevents duplicates (case-insensitive)
+
+**Returns:** `Promise<boolean>` - `true` if tag added, `false` if already exists
 
 **Example:**
 ```javascript
-CardSpoke.utils.addTag('card-123', 'important');
-CardSpoke.utils.addTag('card-123', '#urgent'); // # is stripped
+await CardSpoke.utils.addTag('card-123', 'important');
+await CardSpoke.utils.addTag('card-123', '#urgent'); // # is removed
 ```
 
 ---
@@ -185,119 +224,103 @@ CardSpoke.utils.addTag('card-123', '#urgent'); // # is stripped
 Removes a tag from a card.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `cardId` | string | Yes | The card ID |
-| `tag` | string | Yes | Tag to remove |
+| `tag` | string | Yes | Tag to remove (case-insensitive) |
 
-**Returns:** `boolean` - `true` if removed, `false` if not found
+**Returns:** `Promise<boolean>` - `true` if removed, `false` if not found
 
 **Example:**
 ```javascript
-CardSpoke.utils.removeTag('card-123', 'important');
+await CardSpoke.utils.removeTag('card-123', 'urgent');
 ```
 
 ---
 
 ### setTags(cardId, tags)
 
-Replaces all tags on a card with a new set.
+Replaces all tags for a card.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `cardId` | string | Yes | The card ID |
-| `tags` | array | Yes | Array of tag strings |
+| `tags` | string[] | Yes | Array of tags (replaces existing) |
 
-**Returns:** `boolean` - `true` if successful
+**Behavior:**
+- Replaces all existing tags
+- Normalizes all tags (lowercase, trimmed)
+- Removes duplicates automatically
+- Filters out empty tags
+
+**Returns:** `Promise<boolean>` - `true` if successful
 
 **Example:**
 ```javascript
-CardSpoke.utils.setTags('card-123', ['project', 'active', 'priority']);
+await CardSpoke.utils.setTags('card-123', ['work', 'urgent', 'review']);
 ```
-
-> UI note: The editor now auto-splits tags on commas and whitespace, renders them as chips, and normalizes them to lowercase before saving. The API remains unchanged.
 
 ---
 
 ### getAllTags()
 
-Gets all unique tags used across all cards in the current dataset.
+Gets all unique tags across all cards.
 
-**Returns:** `Array` - Array of unique tag strings, sorted alphabetically
+**Parameters:** None
+
+**Returns:** `Promise<string[]>` - Sorted array of all unique tags
 
 **Example:**
 ```javascript
-const allTags = CardSpoke.utils.getAllTags();
-console.log('Available tags:', allTags);
+const allTags = await CardSpoke.utils.getAllTags();
+console.log('Available tags:', allTags.join(', '));
 ```
 
 ---
 
-## Search & Query
-
-### searchCards(query)
-
-Performs fuzzy search across card titles, bodies, and tags.
-
-**Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `query` | string | Yes | Search query |
-
-**Returns:** `Array` - Matching cards sorted by relevance
-
-**Example:**
-```javascript
-const results = CardSpoke.utils.searchCards('project plan');
-```
-
----
-
-## UI & Notifications
-
-### showToast(message, type)
-
-Displays a toast notification to the user.
-
-**Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `message` | string | Yes | Message to display |
-| `type` | string | No | Type: 'info' (default), 'success', 'warning', 'error' |
-
-**Example:**
-```javascript
-CardSpoke.utils.showToast('Card created successfully!', 'success');
-CardSpoke.utils.showToast('Something went wrong', 'error');
-```
-
----
-
-## Accessibility API (v0.13.1+)
+## Accessibility & Theme API
 
 ### getAccessibilitySettings()
 
 Gets current accessibility settings.
 
-**Returns:** `Object` - Settings object with theme, typography, highContrast, reducedMotion
+**Parameters:** None
+
+**Returns:**
+```javascript
+Promise<{
+  theme: 'light'|'dark',
+  typography: string,      // 'default', 'comfortable', 'compact', 'dyslexia'
+  highContrast: boolean,
+  reducedMotion: boolean   // System preference
+}>
+```
 
 **Example:**
 ```javascript
 const settings = await CardSpoke.utils.getAccessibilitySettings();
 console.log('Current theme:', settings.theme);
+console.log('Typography:', settings.typography);
 ```
 
 ---
 
 ### setTheme(theme)
 
-Changes the color theme.
+Sets the application theme.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `theme` | string | Yes | 'light' or 'dark' |
+| `theme` | string | Yes | Theme to apply: 'light' or 'dark' |
+
+**Returns:** `Promise<boolean>` - `true` if successful
+
+**Triggers:** `onThemeChange` hook
 
 **Example:**
 ```javascript
@@ -306,14 +329,41 @@ await CardSpoke.utils.setTheme('dark');
 
 ---
 
+### getTheme()
+
+Gets the current theme.
+
+**Parameters:** None
+
+**Returns:** `Promise<'light'|'dark'>` - Current theme (defaults to 'light')
+
+**Example:**
+```javascript
+const theme = await CardSpoke.utils.getTheme();
+console.log('Current theme:', theme);
+```
+
+---
+
 ### setTypography(preset)
 
-Changes the typography preset.
+Sets the typography preset.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `preset` | string | Yes | 'default', 'comfortable', 'compact', or 'dyslexia' |
+| `preset` | string | Yes | Typography preset to apply |
+
+**Valid Presets:**
+- `'default'` - Standard typography
+- `'comfortable'` - Increased spacing and font size
+- `'compact'` - Reduced spacing and font size
+- `'dyslexia'` - Dyslexia-friendly font with increased letter/word spacing
+
+**Returns:** `Promise<boolean>` - `true` if successful
+
+**Triggers:** `onTypographyChange` hook
 
 **Example:**
 ```javascript
@@ -322,18 +372,171 @@ await CardSpoke.utils.setTypography('comfortable');
 
 ---
 
+### getTypography()
+
+Gets the current typography preset.
+
+**Parameters:** None
+
+**Returns:** `Promise<string>` - Current typography preset (defaults to 'default')
+
+---
+
 ### setHighContrast(enabled)
 
-Toggles high contrast mode.
+Enables or disables high contrast mode.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `enabled` | boolean | Yes | true to enable, false to disable |
+| `enabled` | boolean | Yes | Enable or disable high contrast |
+
+**Returns:** `Promise<boolean>` - `true` if successful
+
+**Triggers:** `onHighContrastChange` hook
 
 **Example:**
 ```javascript
 await CardSpoke.utils.setHighContrast(true);
+```
+
+---
+
+### isHighContrast()
+
+Checks if high contrast mode is enabled.
+
+**Parameters:** None
+
+**Returns:** `Promise<boolean>` - `true` if enabled
+
+---
+
+### prefersReducedMotion()
+
+Checks system reduced motion preference.
+
+**Parameters:** None
+
+**Returns:** `Promise<boolean>` - `true` if system prefers reduced motion
+
+**Example:**
+```javascript
+const reducedMotion = await CardSpoke.utils.prefersReducedMotion();
+if (reducedMotion) {
+  // Disable animations
+}
+```
+
+---
+
+### onThemeChange(callback)
+
+Listens for theme changes.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `callback` | function | Yes | Called when theme changes: `(theme) => void` |
+
+**Returns:** `Function` - Unsubscribe function
+
+**Example:**
+```javascript
+const unsub = CardSpoke.utils.onThemeChange((theme) => {
+  console.log('Theme changed to:', theme);
+  // Update extension UI
+});
+
+// Later: stop listening
+unsub();
+```
+
+---
+
+### getThemeVariables()
+
+Gets available CSS custom properties for theming.
+
+**Parameters:** None
+
+**Returns:**
+```javascript
+Promise<{
+  colors: string[],       // CSS variable names for colors
+  typography: string[],   // CSS variable names for typography
+  spacing: string[],      // CSS variable names for spacing
+  accessibility: {
+    typography: string[],
+    highContrast: string[],
+    focus: string[]
+  }
+}>
+```
+
+**Available CSS Variables:**
+
+**Colors:**
+- `--bg`, `--surface`, `--border`
+- `--text`, `--text-medium`, `--text-muted`, `--text-ghost`
+
+**Typography:**
+- `--font`, `--font-brand`
+- `--text-xs`, `--text-sm`, `--text-base`, `--text-lg`, `--text-xl`, `--text-2xl`, `--text-3xl`
+- `--line-height`
+
+**Spacing:**
+- `--space-xs`, `--space-sm`, `--space-md`, `--space-lg`, `--space-xl`, `--space-2xl`, `--space-3xl`, `--space-4xl`
+- `--radius`
+
+**Accessibility - Typography:**
+- `--typography-font-size-{preset}`
+- `--typography-line-height-{preset}`
+- `--typography-letter-spacing-dyslexia`
+- `--typography-word-spacing-dyslexia`
+- `--typography-font-dyslexia`
+
+**Accessibility - High Contrast:**
+- `--hc-bg`, `--hc-bg-secondary`, `--hc-bg-tertiary`
+- `--hc-text`, `--hc-text-secondary`
+- `--hc-border`, `--hc-accent`, `--hc-accent-hover`
+- `--hc-border-width`, `--hc-button-border-width`, `--hc-card-border-width`
+
+**Accessibility - Focus:**
+- `--focus-outline-color`, `--focus-outline-width`, `--focus-outline-offset`, `--focus-outline-style`
+
+**Example:**
+```javascript
+const vars = await CardSpoke.utils.getThemeVariables();
+console.log('Color variables:', vars.colors);
+console.log('Typography variables:', vars.typography);
+```
+
+---
+
+## UI & Notifications
+
+### showToast(message, type, duration)
+
+Displays a toast notification.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `message` | string | Yes | Message to display |
+| `type` | string | No | Toast type: 'success', 'info', 'warning', 'error' (default: 'info') |
+| `duration` | number | No | Duration in milliseconds (default: 3000) |
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```javascript
+await CardSpoke.utils.showToast('Operation successful!', 'success');
+await CardSpoke.utils.showToast('Warning!', 'warning', 5000);
+await CardSpoke.utils.showToast('Error occurred', 'error');
 ```
 
 ---
@@ -344,240 +547,524 @@ await CardSpoke.utils.setHighContrast(true);
 
 Gets metadata about the current dataset.
 
-**Returns:** `Object` - Dataset metadata including name, card count, storage type
+**Parameters:** None
+
+**Returns:**
+```javascript
+Promise<{
+  name: string,           // Dataset/instance name
+  cardCount: number,      // Total number of cards
+  rootCardCount: number,  // Number of root-level cards
+  bookmarkCount: number,  // Number of bookmarked cards
+  recentCount: number,    // Number of recent cards
+  modCount: number,       // Number of installed extensions
+  schemaVersion: string,  // Data schema version
+  appVersion: string      // Application version
+}>
+```
 
 **Example:**
 ```javascript
-const meta = CardSpoke.utils.getDatasetMeta();
-console.log('Dataset:', meta.name);
-console.log('Cards:', meta.cardCount);
+const meta = await CardSpoke.utils.getDatasetMeta();
+console.log(`Dataset: ${meta.name}`);
+console.log(`Cards: ${meta.cardCount}, Mods: ${meta.modCount}`);
 ```
 
 ---
 
 ## Extension System
 
-The `CardSpoke_MODS` object provides the core extension system API.
+### CardSpoke_MODS.register(modId, definition)
 
-### register(modId, definition)
-
-Registers an extension with hooks and metadata.
+Registers a new extension.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `modId` | string | Yes | Unique extension identifier |
-| `definition` | object | Yes | Extension definition with hooks and meta |
+| `definition` | object | Yes | Extension definition with hooks and metadata |
+
+**Definition Structure:**
+```javascript
+{
+  // Hook functions (all optional)
+  onAppInit: (ctx) => {},
+  onCardSave: (ctx, card, saveInfo) => {},
+  onCardDelete: (ctx, card) => {},
+  onCardRender: (ctx, card, element) => {},
+  onNavigate: (ctx, navState) => {},
+  onSearch: (ctx, query, results) => {},
+  onThemeChange: (ctx, theme) => {},
+  onTypographyChange: (ctx, preset) => {},
+  onHighContrastChange: (ctx, enabled) => {},
+  onExport: (ctx, exportData) => {},
+  onImport: (ctx, importData) => {},
+  onEnable: (ctx) => {},
+  onDisable: (ctx) => {},
+  onUninstall: (ctx) => {},
+
+  // Metadata (optional)
+  meta: {
+    name: string,
+    version: string,
+    description: string,
+    type: string,  // 'theme', 'patch', 'plugin', 'mod', 'kit', 'expansion'
+    creator: string,
+    source: string,  // 'official' or 'community'
+    ai_assistants: string
+  }
+}
+```
+
+**Returns:** Object - Registered extension entry
 
 **Example:**
 ```javascript
 CardSpoke_MODS.register('my-extension', {
   meta: {
     name: 'My Extension',
-    type: 'Plugin',
-    version: '1.0.0'
+    version: '1.0.0',
+    type: 'plugin',
+    creator: 'Your Name'
   },
+
   onAppInit(ctx) {
-    console.log('Extension loaded!');
+    ctx.logger.log('Extension initialized!');
   },
+
   onCardSave(ctx, card, saveInfo) {
-    console.log('Card saved:', card.id);
+    if (saveInfo.isNew) {
+      ctx.logger.log('New card created:', card.title);
+    }
   }
 });
 ```
 
-**Hook Validation (v0.14.0):** Unknown hook names will trigger a console warning listing valid hooks.
-
 ---
 
-### enable(modId)
+### CardSpoke_MODS.unregister(modId)
 
-Enables a previously disabled extension.
-
-**Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `modId` | string | Yes | Extension identifier |
-
-**Returns:** `boolean` - true if successful
-
-**Hooks Called:** `onEnable`, `onAppInit`
-
----
-
-### disable(modId)
-
-Disables an extension without uninstalling it.
+Unregisters and removes an extension.
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `modId` | string | Yes | Extension identifier |
+| `modId` | string | Yes | Extension ID to unregister |
 
-**Returns:** `boolean` - true if successful
-
-**Hooks Called:** `onDisable`
-
----
-
-### unregister(modId)
-
-Completely removes an extension.
-
-**Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `modId` | string | Yes | Extension identifier |
-
-**Hooks Called:** `onUninstall`
-
----
-
-### reload(modId)
-
-**NEW in v0.14.0** - Hot reloads an extension without page refresh.
-
-**Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `modId` | string | Yes | Extension identifier |
-
-**Returns:** `boolean` - true if successful
+**Lifecycle:**
+1. Runs `onUninstall` hook
+2. Removes from registry
+3. Removes CSS styles
+4. Removes from persistent storage
+5. Saves data
 
 **Example:**
 ```javascript
-// Reload extension after code changes
-CardSpoke_MODS.reload('my-extension');
+CardSpoke_MODS.unregister('my-extension');
 ```
 
 ---
 
-### listMods()
+### CardSpoke_MODS.enable(modId)
 
-Returns list of all installed extensions.
+Enables a registered extension.
 
-**Returns:** `Array<Object>` - Array of extension info objects
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `modId` | string | Yes | Extension ID to enable |
+
+**Returns:** `boolean` - `true` if successful
+
+**Lifecycle:**
+1. Sets enabled flag
+2. Applies CSS styles
+3. Ensures registration
+4. Runs `onEnable` hook
+5. Runs `onAppInit` hook
 
 **Example:**
 ```javascript
-const mods = CardSpoke_MODS.listMods();
-mods.forEach(mod => {
-  console.log(`${mod.id}: ${mod.enabled ? 'enabled' : 'disabled'}`);
-});
+CardSpoke_MODS.enable('my-extension');
 ```
+
+---
+
+### CardSpoke_MODS.disable(modId)
+
+Disables a registered extension.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `modId` | string | Yes | Extension ID to disable |
+
+**Returns:** `boolean` - `true` if successful
+
+**Lifecycle:**
+1. Runs `onDisable` hook
+2. Sets disabled flag
+3. Removes CSS styles
+4. Clears initialized flag
+
+**Example:**
+```javascript
+CardSpoke_MODS.disable('my-extension');
+```
+
+---
+
+### CardSpoke_MODS.reload(modId)
+
+Reloads an extension (disable then re-enable).
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `modId` | string | Yes | Extension ID to reload |
+
+**Returns:** `boolean` - `true` if successful
+
+---
+
+### CardSpoke_MODS.runHook(hookName, ...args)
+
+Runs a hook on all enabled extensions.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hookName` | string | Yes | Hook name to run |
+| `...args` | any[] | No | Arguments to pass to hook handlers |
+
+**Returns:** `Promise<void>`
+
+**Behavior:**
+- Runs on all enabled extensions that have registered the hook
+- Waits for all async hooks to complete
+- Records execution statistics
+- Handles errors gracefully
 
 ---
 
 ## Extension Hooks
 
-All hooks receive a context object as the first parameter and support both sync and async implementations.
+### Available Hooks (14 Total)
 
-### Context Object
+All hooks receive a `context` object as the first parameter.
 
+---
+
+#### onAppInit(context)
+
+Called when app initializes or extension is first loaded/enabled.
+
+**Parameters:**
+- `context` - Extension context object
+
+**Use Cases:**
+- One-time setup
+- Register global handlers
+- Initialize extension state
+
+**Example:**
 ```javascript
-{
-  modId: string,           // Extension ID
-  appVersion: string,      // App version
-  schemaVersion: number,   // Schema version
-  api: Object,            // Store API
-  utils: Object,          // CardSpoke.utils
-  logger: Object          // Extension logger
+onAppInit(ctx) {
+  ctx.logger.log('Extension initialized');
+  // Setup code here
 }
 ```
 
-### Available Hooks
+---
 
-| Hook | Parameters | When Called | Async Support |
-|------|------------|-------------|---------------|
-| `onAppInit` | `(ctx)` | Extension initialization | ✓ |
-| `onEnable` | `(ctx)` | Extension enabled | ✓ |
-| `onDisable` | `(ctx)` | Extension disabled (cleanup) | ✓ |
-| `onUninstall` | `(ctx)` | Before uninstall (final cleanup) | ✓ |
-| `onCardSave` | `(ctx, card, saveInfo)` | Card created/updated | ✓ |
-| `onCardDelete` | `(ctx, card)` | Card deleted | ✓ |
-| `onCardRender` | `(ctx, card, element)` | Card rendered to DOM | ✓ |
-| `onThemeChange` | `(ctx, theme)` | Theme toggled | ✓ |
-| `onTypographyChange` | `(ctx, preset)` | Typography changed | ✓ |
-| `onHighContrastChange` | `(ctx, enabled)` | High contrast toggled | ✓ |
-| `onExport` | `(ctx, data)` | Before export | ✓ |
-| `onImport` | `(ctx, info)` | After import | ✓ |
+#### onCardSave(context, card, saveInfo)
 
-### Lifecycle Hooks (NEW in v0.14.0)
+Called when a card is created or updated.
 
+**Parameters:**
+- `context` - Extension context
+- `card` - Card data (cloned, read-only)
+- `saveInfo` - Object with:
+  - `isNew` (boolean) - true if newly created
+  - `source` (string) - Source of save ('create', 'update', 'addTag', etc.)
+
+**Example:**
 ```javascript
-CardSpoke_MODS.register('timer-plugin', {
-  interval: null,
-
-  onEnable(ctx) {
-    // Called when extension is enabled
-    this.interval = setInterval(() => {
-      console.log('tick');
-    }, 1000);
-  },
-
-  onDisable(ctx) {
-    // Called when extension is disabled - cleanup resources
-    if (this.interval) {
-      clearInterval(this.interval);
-      this.interval = null;
-    }
-  },
-
-  onUninstall(ctx) {
-    // Called before uninstall - final cleanup
-    localStorage.removeItem('my-extension-data');
+onCardSave(ctx, card, saveInfo) {
+  if (saveInfo.isNew) {
+    ctx.logger.log('New card:', card.title);
+  } else {
+    ctx.logger.log('Updated card:', card.title);
   }
-});
+}
 ```
 
-### Async Hook Example
+---
 
+#### onCardDelete(context, card)
+
+Called when a card is deleted.
+
+**Parameters:**
+- `context` - Extension context
+- `card` - Card data before deletion (cloned)
+
+**Example:**
 ```javascript
-CardSpoke_MODS.register('api-sync', {
-  async onCardSave(ctx, card, saveInfo) {
-    // Async operations are fully supported
-    const response = await fetch('https://api.example.com/sync', {
-      method: 'POST',
-      body: JSON.stringify(card)
-    });
-    const data = await response.json();
-    console.log('Synced:', data);
-  }
-});
+onCardDelete(ctx, card) {
+  ctx.logger.log('Deleted card:', card.title);
+}
 ```
+
+---
+
+#### onCardRender(context, card, element)
+
+Called after a card is rendered to the DOM.
+
+**Parameters:**
+- `context` - Extension context
+- `card` - Card data (cloned)
+- `element` - Card DOM element (can be modified)
+
+**Use Cases:**
+- Inject custom HTML
+- Modify card appearance
+- Add event listeners
+
+**Example:**
+```javascript
+onCardRender(ctx, card, element) {
+  if (card.tags.includes('urgent')) {
+    const badge = document.createElement('span');
+    badge.textContent = '🔥';
+    element.querySelector('.card-title').appendChild(badge);
+  }
+}
+```
+
+---
+
+#### onNavigate(context, navState)
+
+Called when navigation state changes.
+
+**Parameters:**
+- `context` - Extension context
+- `navState` - Object with:
+  - `page` (string) - Current page/view
+  - `cardId` (string|null) - Current card ID
+  - `parentId` (string|null) - Parent card ID
+  - `searchQuery` (string|null) - Search query if applicable
+
+---
+
+#### onSearch(context, query, results)
+
+Called when search is performed.
+
+**Parameters:**
+- `context` - Extension context
+- `query` (string) - Search query
+- `results` (Array) - Array of matching cards
+
+---
+
+#### onThemeChange(context, theme)
+
+Called when theme changes.
+
+**Parameters:**
+- `context` - Extension context
+- `theme` (string) - New theme: 'light' or 'dark'
+
+**Example:**
+```javascript
+onThemeChange(ctx, theme) {
+  ctx.logger.log('Theme changed to:', theme);
+  // Update extension UI for new theme
+}
+```
+
+---
+
+#### onTypographyChange(context, preset)
+
+Called when typography preset changes.
+
+**Parameters:**
+- `context` - Extension context
+- `preset` (string) - New preset: 'default', 'comfortable', 'compact', or 'dyslexia'
+
+---
+
+#### onHighContrastChange(context, enabled)
+
+Called when high contrast mode is toggled.
+
+**Parameters:**
+- `context` - Extension context
+- `enabled` (boolean) - Whether high contrast is now enabled
+
+---
+
+#### onExport(context, exportData)
+
+Called before data export.
+
+**Parameters:**
+- `context` - Extension context
+- `exportData` - Object with:
+  - `type` (string) - Export type ('json', 'txt', 'markdown', 'csv', 'mods')
+  - `payload` (any) - Data being exported
+  - `payloadLength` (number) - Size of payload
+
+---
+
+#### onImport(context, importData)
+
+Called after data import.
+
+**Parameters:**
+- `context` - Extension context
+- `importData` - Object with:
+  - `type` (string) - Import type
+  - `cards` (string[]) - Array of imported card IDs
+  - `mods` (string[]) - Array of imported mod IDs
+  - `mode` (string) - Import mode
+  - `location` (string) - Where imported
+
+---
+
+#### onEnable(context)
+
+Called when extension is enabled.
+
+**Parameters:**
+- `context` - Extension context
+
+---
+
+#### onDisable(context)
+
+Called when extension is disabled.
+
+**Parameters:**
+- `context` - Extension context
+
+**Use Cases:**
+- Cleanup
+- Remove event listeners
+- Save state
+
+---
+
+#### onUninstall(context)
+
+Called before extension is uninstalled.
+
+**Parameters:**
+- `context` - Extension context
+
+---
+
+## Store API
+
+The Store API is available via `context.api` in extension hooks.
+
+### Methods
+
+#### getAppInfo()
+Returns app version and schema version.
+
+#### getCard(id)
+Returns cloned card object or undefined.
+
+#### listCards()
+Returns array of all cards (cloned).
+
+#### listRootIds()
+Returns array of root card IDs.
+
+#### getNavState()
+Returns current navigation state.
+
+#### navigate(page, opts)
+Navigate to a page.
+
+#### goBack()
+Navigate back in history.
+
+#### showToast(message, type)
+Show toast notification.
+
+#### markDirty()
+Mark data as needing save.
+
+#### createCard(data)
+Create new card, returns card ID.
+
+#### updateCard(id, updates)
+Update card, returns cloned card.
+
+#### deleteCard(id)
+Delete card, returns true.
+
+#### Tag methods:
+- `getTags(cardId)` - Get card's tags
+- `addTag(cardId, tag)` - Add tag
+- `removeTag(cardId, tag)` - Remove tag
+- `setTags(cardId, tags)` - Set all tags
+- `getAllTags()` - Get all unique tags
+
+#### getDatasetMeta()
+Returns dataset metadata.
 
 ---
 
 ## Event Bus
 
-**NEW in v0.14.0** - Extensions can communicate with each other via the event bus.
+The event bus allows inter-extension communication.
 
 ### CardSpoke_MODS.events.on(eventName, callback)
 
-Subscribe to an event.
+Listen for custom events.
+
+**Parameters:**
+- `eventName` (string) - Event name
+- `callback` (function) - Handler function
 
 **Example:**
 ```javascript
-CardSpoke_MODS.events.on('theme:changed', (data) => {
-  console.log('Theme changed to:', data.theme);
+CardSpoke_MODS.events.on('custom-event', (data) => {
+  console.log('Event received:', data);
 });
 ```
 
-### CardSpoke_MODS.events.emit(eventName, data)
-
-Emit an event to all subscribers.
-
-**Example:**
-```javascript
-CardSpoke_MODS.events.emit('export:complete', {
-  format: 'json',
-  itemCount: 42
-});
-```
+---
 
 ### CardSpoke_MODS.events.off(eventName, callback)
 
-Unsubscribe from an event.
+Stop listening for events.
+
+---
+
+### CardSpoke_MODS.events.emit(eventName, data)
+
+Emit a custom event.
+
+**Example:**
+```javascript
+CardSpoke_MODS.events.emit('custom-event', { foo: 'bar' });
+```
+
+---
 
 ### CardSpoke_MODS.events.clear(eventName)
 
@@ -587,156 +1074,78 @@ Clear all listeners for an event (or all events if no name provided).
 
 ## Developer Tools
 
-**NEW in v0.14.0** - Debugging and inspection tools for extension development.
-
 ### CardSpoke_MODS.devTools.inspectMod(modId)
 
 Get detailed information about an extension.
 
-**Returns:**
-```javascript
-{
-  id: string,
-  hooks: string[],        // List of registered hooks
-  meta: Object,           // Extension metadata
-  loaded: boolean,        // Successfully loaded
-  initialized: boolean,   // onAppInit has run
-  error: any,            // Load error if any
-  errorCount: number,     // Consecutive error count
-  enabled: boolean        // Currently enabled
-}
-```
+**Returns:** Object with extension details, hooks, and status
 
-**Example:**
-```javascript
-const info = CardSpoke_MODS.devTools.inspectMod('my-extension');
-console.log('Registered hooks:', info.hooks);
-console.log('Error count:', info.errorCount);
-```
+---
+
+### CardSpoke_MODS.devTools.listAllMods()
+
+Get information about all extensions.
+
+**Returns:** Array of extension info objects
 
 ---
 
 ### CardSpoke_MODS.devTools.getHookStats(modId)
 
-Get performance statistics for hooks.
+Get hook execution statistics.
 
-**Returns:**
-```javascript
-{
-  "extension-id.hookName": {
-    modId: string,
-    hookName: string,
-    executions: number,    // Total executions
-    failures: number,      // Failed executions
-    totalDuration: number, // Total time (ms)
-    avgDuration: number,   // Average time (ms)
-    maxDuration: number,   // Slowest execution (ms)
-    minDuration: number    // Fastest execution (ms)
-  }
-}
-```
+**Parameters:**
+- `modId` (string, optional) - Specific mod or all mods
 
-**Example:**
-```javascript
-// Get stats for specific extension
-const stats = CardSpoke_MODS.devTools.getHookStats('my-extension');
-
-// Get stats for all extensions
-const allStats = CardSpoke_MODS.devTools.getHookStats();
-console.log('Slowest hook:', Object.entries(allStats)
-  .sort((a, b) => b[1].maxDuration - a[1].maxDuration)[0]);
-```
+**Returns:** Object with execution stats (executions, failures, duration, etc.)
 
 ---
 
 ### CardSpoke_MODS.devTools.getErrorLog()
 
-Get log of all extension errors.
+Get error log entries.
 
-**Returns:** `Array<Object>` - Error log entries
+**Returns:** Array of error objects
 
-```javascript
-const errors = CardSpoke_MODS.devTools.getErrorLog();
-errors.forEach(err => {
-  console.log(`${err.modId}.${err.hookName}: ${err.error}`);
-  console.log('Stack:', err.stack);
-});
-```
+---
+
+### CardSpoke_MODS.devTools.clearErrorLog()
+
+Clear the error log.
 
 ---
 
 ### CardSpoke_MODS.devTools.testHook(modId, hookName, ...args)
 
-Manually trigger a hook for testing.
+Test a specific hook.
 
-**Example:**
-```javascript
-// Test the onCardSave hook
-CardSpoke_MODS.devTools.testHook('my-extension', 'onCardSave',
-  mockCard, { isNew: true });
-```
+---
+
+### CardSpoke_MODS.devTools.getEventListeners()
+
+Get count of event listeners per event.
 
 ---
 
 ## Error Handling
 
-All API functions include input validation and error handling. Invalid inputs will:
-- Return appropriate default values (`null`, `false`, empty arrays)
-- Log errors to the console
-- Never throw exceptions that could crash extensions
+### Auto-Disable on Errors
 
-### Automatic Error Handling (v0.14.0)
+Extensions are automatically disabled after 3 consecutive errors:
 
-Extensions that encounter errors are handled automatically:
+1. Error occurs in hook execution
+2. Error count incremented for extension
+3. User shown error toast notification
+4. Error logged to error log
+5. If error count reaches 3, extension is disabled
+6. User notified of auto-disable
 
-1. **Error Logging**: Full stack traces logged to console
-2. **Error Tracking**: `window._extErrors` array maintains error history
-3. **Auto-Disable**: After 3 consecutive errors, extension is automatically disabled
-4. **User Notification**: Toast notifications show error details
+### Error Recovery
 
-**Example:**
-```javascript
-CardSpoke_MODS.register('buggy-extension', {
-  onCardSave(ctx, card) {
-    // This will trigger error handling
-    throw new Error('Oops!');
-    // After 3 errors, extension will be auto-disabled
-  }
-});
-
-// View error log
-console.log(CardSpoke_MODS.devTools.getErrorLog());
-```
-
-**Best Practices:**
-```javascript
-// Always check return values
-const card = CardSpoke.utils.getCard(cardId);
-if (!card) {
-  CardSpoke.utils.showToast('Card not found', 'error');
-  return;
-}
-
-// Validate before operations
-if (cardId && typeof cardId === 'string') {
-  CardSpoke.utils.updateCard(cardId, updates);
-}
-
-// Cleanup in onDisable hook
-CardSpoke_MODS.register('my-extension', {
-  timers: [],
-
-  onEnable(ctx) {
-    this.timers.push(setInterval(() => {}, 1000));
-  },
-
-  onDisable(ctx) {
-    // Clean up resources
-    this.timers.forEach(t => clearInterval(t));
-    this.timers = [];
-  }
-});
-```
+Error counts are reset when:
+- Hook executes successfully
+- Extension is manually reloaded
+- Extension is re-enabled after fixing
 
 ---
 
@@ -745,90 +1154,71 @@ CardSpoke_MODS.register('my-extension', {
 ### Complete Extension Example
 
 ```javascript
-// Simple extension that adds a word count to card titles
 (function() {
   'use strict';
+
   const api = window.CardSpoke.utils;
-  
-  // Register extension with CardSpoke
-  CardSpoke_MODS.register('word-count-example', {
+
+  CardSpoke_MODS.register('word-counter', {
     meta: {
-      name: 'Word Count Example',
-      type: 'Plugin',
+      name: 'Word Counter',
       version: '1.0.0',
-      description: 'Shows word count in console when cards render'
+      type: 'plugin',
+      creator: 'Your Name',
+      description: 'Adds word count to cards'
     },
-    onAppInit(ctx) {
-      console.log('Word Count Extension loaded!');
-      api.showToast('Word Count Extension loaded!', 'success');
+
+    async onAppInit(ctx) {
+      ctx.logger.log('Word Counter initialized');
     },
-    onCardRender(ctx, card, element) {
-      // Count words when a card is rendered
-      if (card && card.body) {
-        const wordCount = card.body.split(/\s+/).filter(w => w).length;
-        console.log(`Card "${card.title}" has ${wordCount} words`);
+
+    async onCardRender(ctx, card, element) {
+      const wordCount = card.body.split(/\s+/).filter(w => w).length;
+
+      const badge = document.createElement('span');
+      badge.className = 'word-count-badge';
+      badge.textContent = `${wordCount} words`;
+      badge.style.cssText = 'color: var(--text-muted); font-size: 12px;';
+
+      const title = element.querySelector('.card-title');
+      if (title) {
+        title.appendChild(badge);
       }
+    },
+
+    async onThemeChange(ctx, theme) {
+      ctx.logger.log('Theme changed to:', theme);
+      // Update extension styles if needed
     }
   });
 })();
 ```
 
-### Batch Tag Operations
+---
+
+## Context Object Structure
+
+Every hook receives a `context` object with:
 
 ```javascript
-// Add a tag to all cards matching a search
-function tagSearchResults(query, tag) {
-  const api = window.CardSpoke.utils;
-  const results = api.searchCards(query);
-  
-  let count = 0;
-  results.forEach(card => {
-    if (api.addTag(card.id, tag)) {
-      count++;
-    }
-  });
-  
-  api.showToast(`Tagged ${count} cards with #${tag}`, 'success');
-}
-
-// Usage
-tagSearchResults('project', 'reviewed');
-```
-
-### Creating a Card Hierarchy
-
-```javascript
-// Create a project structure
-function createProjectStructure(projectName) {
-  const api = window.CardSpoke.utils;
-  
-  // Create root project card
-  const project = api.createCard(projectName, 'Project overview');
-  
-  // Create standard sections
-  const sections = ['Goals', 'Tasks', 'Notes', 'Resources'];
-  sections.forEach(section => {
-    api.createCard(section, '', project.id);
-  });
-  
-  api.showToast(`Project "${projectName}" created!`, 'success');
-  return project;
+{
+  modId: string,          // Extension ID
+  appVersion: string,     // App version
+  schemaVersion: string,  // Schema version
+  api: Object,            // Store API (direct data access)
+  utils: Object,          // CardSpoke.utils reference
+  logger: {               // Logging utilities
+    log: Function,
+    info: Function,
+    warn: Function,
+    error: Function
+  }
 }
 ```
 
 ---
 
-## Version History
-
-| Version | Changes |
-|---------|---------|
-| 0.14.0 | Added lifecycle hooks (onEnable, onDisable, onUninstall), async hook support, event bus, developer tools, hot reload, enhanced error handling, hook validation, TypeScript definitions |
-| 0.14.0 | Accessibility API, lifecycle hooks, async hooks, event bus, developer tools, hot reload, enhanced error handling |, theme hooks, CSS variables for extensions |
-| 0.13.0 | Version sync and documentation refresh |
-| 0.12.1 | API documentation created |
-| 0.11.3 | Renamed from CardSpoke.utils to CardSpoke.utils |
-| 0.11.1 | Initial API release |
-
----
-
-*For more information, see the [AI Developer Guide](../AI_DEVELOPER_GUIDE.md) or [GitHub repository](https://github.com/jxburros/CardSpoke).*
+**Document Version:** 2.0
+**For:** CardSpoke 1.0.0+
+**Schema:** v4
+**Last Updated:** 2025-11-30
