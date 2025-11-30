@@ -1,7 +1,7 @@
 # Changelog - v0.14.0
 
-**Status:** Draft - Planned Features
-**Targeted Release:** v0.14.0
+**Release Date:** 2025-11-30
+**Type:** Major Feature Update
 **Type:** Major Feature Update
 
 ## Overview

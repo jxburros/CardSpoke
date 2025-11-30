@@ -1,6 +1,6 @@
 # CardSpoke
 
-**Version:** 0.13.1  
+**Version:** 0.14.0  
 **Creator:** [jxburros](https://github.com/jxburros)
 
 > A lightweight, extensible, multi-platform knowledge base framework
@@ -8,11 +8,11 @@
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
 
-## 🌟 Current Version: 0.13.1
+## 🌟 Current Version: 0.14.0
 
 The v0.13 release series represents the **Documentation & Open Source Prep** phase, ensuring all documentation is current and synchronized with the codebase, preparing CardSpoke for the 1.0 stable release.
 
-### What's New in 0.13.1
+### What's New in 0.14.0
 
 **Accessibility & Theme Customization for Extensions**
 - **Accessibility API**: New API for extensions to interact with theme and accessibility settings
@@ -23,7 +23,7 @@ The v0.13 release series represents the **Documentation & Open Source Prep** pha
   - `onTypographyChange(ctx, preset)` - Called when typography preset changes
   - `onHighContrastChange(ctx, enabled)` - Called when high contrast mode is toggled
 - **CSS Variables**: Customizable CSS variables for typography and high contrast modes
-- **Version Synchronization**: All version references updated to 0.13.1 across the entire codebase
+- **Version Synchronization**: All version references updated to 0.14.0 across the entire codebase
 - **188 Passing Tests**: Full test suite validates all functionality
 
 ### What's New in 0.13.0
@@ -88,7 +88,7 @@ The v0.12 release series completed the **Safety & Governance** phase with compre
 - **Enhanced Keyboard Shortcuts**: Extended shortcut system
 
 **Testing**
-- 188 comprehensive tests (up from 177 in v0.13.0)
+- 188 comprehensive tests (up from 177 in v0.13.1)
 - New test suites for undo/redo, tag management, and menu handlers
 - 100% test pass rate
 

@@ -50,7 +50,7 @@ This directory contains project reports, progress tracking, and historical docum
 
 ## Current Version Status
 
-**CardSpoke 0.13.1** (Current)
+**CardSpoke 0.14.0** (Current)
 - Features: Tags API, Enhanced Testing (177 tests)
 - See main README.md for current feature list
 

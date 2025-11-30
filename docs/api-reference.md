@@ -1,6 +1,6 @@
 # CardSpoke API Reference
 
-**Version:** 0.13.1
+**Version:** 0.14.0
 **Last Updated:** 2025-11-30
 
 This document provides comprehensive documentation for the `CardSpoke.utils` API and the `CardSpoke_MODS` extension system, which allow extension developers to interact with CardSpoke programmatically.
@@ -822,8 +822,8 @@ function createProjectStructure(projectName) {
 
 | Version | Changes |
 |---------|---------|
-| 0.14.0 (Planned) | Added lifecycle hooks (onEnable, onDisable, onUninstall), async hook support, event bus, developer tools, hot reload, enhanced error handling, hook validation, TypeScript definitions |
-| 0.13.1 | Accessibility API, theme hooks, CSS variables for extensions |
+| 0.14.0 | Added lifecycle hooks (onEnable, onDisable, onUninstall), async hook support, event bus, developer tools, hot reload, enhanced error handling, hook validation, TypeScript definitions |
+| 0.14.0 | Accessibility API, lifecycle hooks, async hooks, event bus, developer tools, hot reload, enhanced error handling |, theme hooks, CSS variables for extensions |
 | 0.13.0 | Version sync and documentation refresh |
 | 0.12.1 | API documentation created |
 | 0.11.3 | Renamed from CardSpoke.utils to CardSpoke.utils |
