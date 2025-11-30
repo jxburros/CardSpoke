@@ -1,9 +1,9 @@
 # CardSpoke API Reference
 
-**Version:** 0.13.0  
-**Last Updated:** 2025-11-28
+**Version:** 0.14.0
+**Last Updated:** 2025-11-30
 
-This document provides comprehensive documentation for the `CardSpoke.utils` API, which allows extension developers to interact with CardSpoke programmatically.
+This document provides comprehensive documentation for the `CardSpoke.utils` API and the `CardSpoke_MODS` extension system, which allow extension developers to interact with CardSpoke programmatically.
 
 ---
 
@@ -15,8 +15,12 @@ This document provides comprehensive documentation for the `CardSpoke.utils` API
 4. [Search & Query](#search--query)
 5. [UI & Notifications](#ui--notifications)
 6. [Dataset Information](#dataset-information)
-7. [Error Handling](#error-handling)
-8. [Examples](#examples)
+7. [Extension System](#extension-system)
+8. [Extension Hooks](#extension-hooks)
+9. [Event Bus](#event-bus)
+10. [Developer Tools](#developer-tools)
+11. [Error Handling](#error-handling)
+12. [Examples](#examples)
 
 ---
 
@@ -268,6 +272,70 @@ CardSpoke.utils.showToast('Something went wrong', 'error');
 
 ---
 
+## Accessibility API (v0.13.1+)
+
+### getAccessibilitySettings()
+
+Gets current accessibility settings.
+
+**Returns:** `Object` - Settings object with theme, typography, highContrast, reducedMotion
+
+**Example:**
+```javascript
+const settings = await CardSpoke.utils.getAccessibilitySettings();
+console.log('Current theme:', settings.theme);
+```
+
+---
+
+### setTheme(theme)
+
+Changes the color theme.
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `theme` | string | Yes | 'light' or 'dark' |
+
+**Example:**
+```javascript
+await CardSpoke.utils.setTheme('dark');
+```
+
+---
+
+### setTypography(preset)
+
+Changes the typography preset.
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `preset` | string | Yes | 'default', 'comfortable', 'compact', or 'dyslexia' |
+
+**Example:**
+```javascript
+await CardSpoke.utils.setTypography('comfortable');
+```
+
+---
+
+### setHighContrast(enabled)
+
+Toggles high contrast mode.
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `enabled` | boolean | Yes | true to enable, false to disable |
+
+**Example:**
+```javascript
+await CardSpoke.utils.setHighContrast(true);
+```
+
+---
+
 ## Dataset Information
 
 ### getDatasetMeta()
@@ -285,12 +353,358 @@ console.log('Cards:', meta.cardCount);
 
 ---
 
+## Extension System
+
+The `CardSpoke_MODS` object provides the core extension system API.
+
+### register(modId, definition)
+
+Registers an extension with hooks and metadata.
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `modId` | string | Yes | Unique extension identifier |
+| `definition` | object | Yes | Extension definition with hooks and meta |
+
+**Example:**
+```javascript
+CardSpoke_MODS.register('my-extension', {
+  meta: {
+    name: 'My Extension',
+    type: 'Plugin',
+    version: '1.0.0'
+  },
+  onAppInit(ctx) {
+    console.log('Extension loaded!');
+  },
+  onCardSave(ctx, card, saveInfo) {
+    console.log('Card saved:', card.id);
+  }
+});
+```
+
+**Hook Validation (v0.14.0):** Unknown hook names will trigger a console warning listing valid hooks.
+
+---
+
+### enable(modId)
+
+Enables a previously disabled extension.
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `modId` | string | Yes | Extension identifier |
+
+**Returns:** `boolean` - true if successful
+
+**Hooks Called:** `onEnable`, `onAppInit`
+
+---
+
+### disable(modId)
+
+Disables an extension without uninstalling it.
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `modId` | string | Yes | Extension identifier |
+
+**Returns:** `boolean` - true if successful
+
+**Hooks Called:** `onDisable`
+
+---
+
+### unregister(modId)
+
+Completely removes an extension.
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `modId` | string | Yes | Extension identifier |
+
+**Hooks Called:** `onUninstall`
+
+---
+
+### reload(modId)
+
+**NEW in v0.14.0** - Hot reloads an extension without page refresh.
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `modId` | string | Yes | Extension identifier |
+
+**Returns:** `boolean` - true if successful
+
+**Example:**
+```javascript
+// Reload extension after code changes
+CardSpoke_MODS.reload('my-extension');
+```
+
+---
+
+### listMods()
+
+Returns list of all installed extensions.
+
+**Returns:** `Array<Object>` - Array of extension info objects
+
+**Example:**
+```javascript
+const mods = CardSpoke_MODS.listMods();
+mods.forEach(mod => {
+  console.log(`${mod.id}: ${mod.enabled ? 'enabled' : 'disabled'}`);
+});
+```
+
+---
+
+## Extension Hooks
+
+All hooks receive a context object as the first parameter and support both sync and async implementations.
+
+### Context Object
+
+```javascript
+{
+  modId: string,           // Extension ID
+  appVersion: string,      // App version
+  schemaVersion: number,   // Schema version
+  api: Object,            // Store API
+  utils: Object,          // CardSpoke.utils
+  logger: Object          // Extension logger
+}
+```
+
+### Available Hooks
+
+| Hook | Parameters | When Called | Async Support |
+|------|------------|-------------|---------------|
+| `onAppInit` | `(ctx)` | Extension initialization | ✓ |
+| `onEnable` | `(ctx)` | Extension enabled | ✓ |
+| `onDisable` | `(ctx)` | Extension disabled (cleanup) | ✓ |
+| `onUninstall` | `(ctx)` | Before uninstall (final cleanup) | ✓ |
+| `onCardSave` | `(ctx, card, saveInfo)` | Card created/updated | ✓ |
+| `onCardDelete` | `(ctx, card)` | Card deleted | ✓ |
+| `onCardRender` | `(ctx, card, element)` | Card rendered to DOM | ✓ |
+| `onThemeChange` | `(ctx, theme)` | Theme toggled | ✓ |
+| `onTypographyChange` | `(ctx, preset)` | Typography changed | ✓ |
+| `onHighContrastChange` | `(ctx, enabled)` | High contrast toggled | ✓ |
+| `onExport` | `(ctx, data)` | Before export | ✓ |
+| `onImport` | `(ctx, info)` | After import | ✓ |
+
+### Lifecycle Hooks (NEW in v0.14.0)
+
+```javascript
+CardSpoke_MODS.register('timer-plugin', {
+  interval: null,
+
+  onEnable(ctx) {
+    // Called when extension is enabled
+    this.interval = setInterval(() => {
+      console.log('tick');
+    }, 1000);
+  },
+
+  onDisable(ctx) {
+    // Called when extension is disabled - cleanup resources
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
+  },
+
+  onUninstall(ctx) {
+    // Called before uninstall - final cleanup
+    localStorage.removeItem('my-extension-data');
+  }
+});
+```
+
+### Async Hook Example
+
+```javascript
+CardSpoke_MODS.register('api-sync', {
+  async onCardSave(ctx, card, saveInfo) {
+    // Async operations are fully supported
+    const response = await fetch('https://api.example.com/sync', {
+      method: 'POST',
+      body: JSON.stringify(card)
+    });
+    const data = await response.json();
+    console.log('Synced:', data);
+  }
+});
+```
+
+---
+
+## Event Bus
+
+**NEW in v0.14.0** - Extensions can communicate with each other via the event bus.
+
+### CardSpoke_MODS.events.on(eventName, callback)
+
+Subscribe to an event.
+
+**Example:**
+```javascript
+CardSpoke_MODS.events.on('theme:changed', (data) => {
+  console.log('Theme changed to:', data.theme);
+});
+```
+
+### CardSpoke_MODS.events.emit(eventName, data)
+
+Emit an event to all subscribers.
+
+**Example:**
+```javascript
+CardSpoke_MODS.events.emit('export:complete', {
+  format: 'json',
+  itemCount: 42
+});
+```
+
+### CardSpoke_MODS.events.off(eventName, callback)
+
+Unsubscribe from an event.
+
+### CardSpoke_MODS.events.clear(eventName)
+
+Clear all listeners for an event (or all events if no name provided).
+
+---
+
+## Developer Tools
+
+**NEW in v0.14.0** - Debugging and inspection tools for extension development.
+
+### CardSpoke_MODS.devTools.inspectMod(modId)
+
+Get detailed information about an extension.
+
+**Returns:**
+```javascript
+{
+  id: string,
+  hooks: string[],        // List of registered hooks
+  meta: Object,           // Extension metadata
+  loaded: boolean,        // Successfully loaded
+  initialized: boolean,   // onAppInit has run
+  error: any,            // Load error if any
+  errorCount: number,     // Consecutive error count
+  enabled: boolean        // Currently enabled
+}
+```
+
+**Example:**
+```javascript
+const info = CardSpoke_MODS.devTools.inspectMod('my-extension');
+console.log('Registered hooks:', info.hooks);
+console.log('Error count:', info.errorCount);
+```
+
+---
+
+### CardSpoke_MODS.devTools.getHookStats(modId)
+
+Get performance statistics for hooks.
+
+**Returns:**
+```javascript
+{
+  "extension-id.hookName": {
+    modId: string,
+    hookName: string,
+    executions: number,    // Total executions
+    failures: number,      // Failed executions
+    totalDuration: number, // Total time (ms)
+    avgDuration: number,   // Average time (ms)
+    maxDuration: number,   // Slowest execution (ms)
+    minDuration: number    // Fastest execution (ms)
+  }
+}
+```
+
+**Example:**
+```javascript
+// Get stats for specific extension
+const stats = CardSpoke_MODS.devTools.getHookStats('my-extension');
+
+// Get stats for all extensions
+const allStats = CardSpoke_MODS.devTools.getHookStats();
+console.log('Slowest hook:', Object.entries(allStats)
+  .sort((a, b) => b[1].maxDuration - a[1].maxDuration)[0]);
+```
+
+---
+
+### CardSpoke_MODS.devTools.getErrorLog()
+
+Get log of all extension errors.
+
+**Returns:** `Array<Object>` - Error log entries
+
+```javascript
+const errors = CardSpoke_MODS.devTools.getErrorLog();
+errors.forEach(err => {
+  console.log(`${err.modId}.${err.hookName}: ${err.error}`);
+  console.log('Stack:', err.stack);
+});
+```
+
+---
+
+### CardSpoke_MODS.devTools.testHook(modId, hookName, ...args)
+
+Manually trigger a hook for testing.
+
+**Example:**
+```javascript
+// Test the onCardSave hook
+CardSpoke_MODS.devTools.testHook('my-extension', 'onCardSave',
+  mockCard, { isNew: true });
+```
+
+---
+
 ## Error Handling
 
 All API functions include input validation and error handling. Invalid inputs will:
 - Return appropriate default values (`null`, `false`, empty arrays)
-- Log errors to the console in Developer Mode
+- Log errors to the console
 - Never throw exceptions that could crash extensions
+
+### Automatic Error Handling (v0.14.0)
+
+Extensions that encounter errors are handled automatically:
+
+1. **Error Logging**: Full stack traces logged to console
+2. **Error Tracking**: `window._extErrors` array maintains error history
+3. **Auto-Disable**: After 3 consecutive errors, extension is automatically disabled
+4. **User Notification**: Toast notifications show error details
+
+**Example:**
+```javascript
+CardSpoke_MODS.register('buggy-extension', {
+  onCardSave(ctx, card) {
+    // This will trigger error handling
+    throw new Error('Oops!');
+    // After 3 errors, extension will be auto-disabled
+  }
+});
+
+// View error log
+console.log(CardSpoke_MODS.devTools.getErrorLog());
+```
 
 **Best Practices:**
 ```javascript
@@ -305,6 +719,21 @@ if (!card) {
 if (cardId && typeof cardId === 'string') {
   CardSpoke.utils.updateCard(cardId, updates);
 }
+
+// Cleanup in onDisable hook
+CardSpoke_MODS.register('my-extension', {
+  timers: [],
+
+  onEnable(ctx) {
+    this.timers.push(setInterval(() => {}, 1000));
+  },
+
+  onDisable(ctx) {
+    // Clean up resources
+    this.timers.forEach(t => clearInterval(t));
+    this.timers = [];
+  }
+});
 ```
 
 ---
@@ -391,6 +820,7 @@ function createProjectStructure(projectName) {
 
 | Version | Changes |
 |---------|---------|
+| 0.14.0 | Added lifecycle hooks (onEnable, onDisable, onUninstall), async hook support, event bus, developer tools, hot reload, enhanced error handling, hook validation, TypeScript definitions |
 | 0.13.0 | Version sync and documentation refresh |
 | 0.12.1 | API documentation created |
 | 0.11.3 | Renamed from CardSpoke.utils to CardSpoke.utils |

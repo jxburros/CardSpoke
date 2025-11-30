@@ -1256,6 +1256,19 @@
         const styleTags = {};
         // Set of mods that have run onAppInit
         const initializedMods = new Set();
+        // Valid hook names for validation
+        const VALID_HOOKS = new Set([
+          'onAppInit', 'onCardSave', 'onCardDelete', 'onCardRender',
+          'onNavigate', 'onSearch', 'onThemeChange', 'onTypographyChange',
+          'onHighContrastChange', 'onExport', 'onImport', 'onEnable',
+          'onDisable', 'onUninstall'
+        ]);
+        // Extension error tracking
+        const errorCounts = {};
+        // Hook execution statistics
+        const hookStats = {};
+        // Event bus for extension communication
+        const eventListeners = {};
 
         /**
          * Ensure a mod is registered and executed
@@ -1470,6 +1483,10 @@
 
             Object.entries(definition).forEach(([hook, fn]) => {
               if (hook.startsWith('on') && typeof fn === 'function') {
+                // Validate hook name
+                if (!VALID_HOOKS.has(hook)) {
+                  console.warn(`[Extensions] Unknown hook "${hook}" in ${modId}. Valid hooks:`, [...VALID_HOOKS].sort());
+                }
                 entry.hooks[hook] = fn;
               }
             });
@@ -1477,11 +1494,19 @@
             if (definition.meta) entry.meta = { ...definition.meta };
             registry[modId] = entry;
             entry.__loaded = true;
+
+            // Reset error count on successful registration
+            errorCounts[modId] = 0;
+
             return entry;
           },
           unregister(modId) {
+            // Run onUninstall hook before removing
+            this.runHookForMod(modId, 'onUninstall');
+
             delete registry[modId];
             initializedMods.delete(modId);
+            delete errorCounts[modId];
             removeStyle(modId);
             if (store.mods[modId]) {
               delete store.mods[modId];
@@ -1497,12 +1522,19 @@
             if (!entry) return false;
             initializedMods.delete(modId);
             save();
-            this.runHook('onAppInit');
+
+            // Run lifecycle hooks
+            this.runHookForMod(modId, 'onEnable');
+            this.runHookForMod(modId, 'onAppInit');
             return true;
           },
           disable(modId) {
             const modData = store.mods[modId];
             if (!modData) return false;
+
+            // Run onDisable hook BEFORE disabling
+            this.runHookForMod(modId, 'onDisable');
+
             modData.enabled = false;
             removeStyle(modId);
             initializedMods.delete(modId);
@@ -1523,21 +1555,139 @@
               ensureRegistered(modId, modData);
             });
           },
-          runHook(hookName, ...args) {
+          async runHook(hookName, ...args) {
+            const promises = [];
+
             Object.keys(store.mods).forEach(modId => {
               const modData = store.mods[modId];
               if (!modData.enabled) return;
               const entry = registry[modId];
               if (!entry || !entry.__loaded || !entry.hooks[hookName]) return;
               if (hookName === 'onAppInit' && initializedMods.has(modId)) return;
+
               try {
-                entry.hooks[hookName](buildContext(modId), ...args);
-                if (hookName === 'onAppInit') initializedMods.add(modId);
+                // Track hook execution start time
+                const startTime = performance.now();
+
+                const result = entry.hooks[hookName](buildContext(modId), ...args);
+
+                if (result instanceof Promise) {
+                  // Handle async hooks
+                  promises.push(
+                    result
+                      .then(() => {
+                        const duration = performance.now() - startTime;
+                        this._recordHookExecution(modId, hookName, duration, true);
+                        if (hookName === 'onAppInit') initializedMods.add(modId);
+                        // Clear error count on success
+                        errorCounts[modId] = 0;
+                      })
+                      .catch(err => {
+                        const duration = performance.now() - startTime;
+                        this._recordHookExecution(modId, hookName, duration, false);
+                        this._handleHookError(modId, hookName, err);
+                      })
+                  );
+                } else {
+                  // Sync hook completed successfully
+                  const duration = performance.now() - startTime;
+                  this._recordHookExecution(modId, hookName, duration, true);
+                  if (hookName === 'onAppInit') initializedMods.add(modId);
+                  // Clear error count on success
+                  errorCounts[modId] = 0;
+                }
               } catch (err) {
-                console.error(`[Mods] Error in ${modId}.${hookName}:`, err);
-                showToast(`Extension error: ${modId} (${hookName})`, 'error');
+                this._handleHookError(modId, hookName, err);
               }
             });
+
+            // Wait for all async hooks to complete
+            if (promises.length > 0) {
+              await Promise.allSettled(promises);
+            }
+          },
+          runHookForMod(modId, hookName, ...args) {
+            const modData = store.mods[modId];
+            if (!modData) return;
+            const entry = registry[modId];
+            if (!entry || !entry.__loaded || !entry.hooks[hookName]) return;
+
+            try {
+              const startTime = performance.now();
+              const result = entry.hooks[hookName](buildContext(modId), ...args);
+
+              if (result instanceof Promise) {
+                result
+                  .then(() => {
+                    const duration = performance.now() - startTime;
+                    this._recordHookExecution(modId, hookName, duration, true);
+                    errorCounts[modId] = 0;
+                  })
+                  .catch(err => {
+                    const duration = performance.now() - startTime;
+                    this._recordHookExecution(modId, hookName, duration, false);
+                    this._handleHookError(modId, hookName, err);
+                  });
+              } else {
+                const duration = performance.now() - startTime;
+                this._recordHookExecution(modId, hookName, duration, true);
+                errorCounts[modId] = 0;
+              }
+            } catch (err) {
+              this._handleHookError(modId, hookName, err);
+            }
+          },
+          _handleHookError(modId, hookName, err) {
+            console.error(`[Extensions] Error in ${modId}.${hookName}:`, err);
+            console.error('Stack trace:', err.stack);
+
+            // Track error count
+            errorCounts[modId] = (errorCounts[modId] || 0) + 1;
+
+            // Auto-disable after 3 consecutive errors
+            if (errorCounts[modId] >= 3) {
+              console.error(`[Extensions] Auto-disabling ${modId} due to repeated errors`);
+              showToast(`Extension "${modId}" disabled due to repeated errors`, 'error', 5000);
+              this.disable(modId);
+              return;
+            }
+
+            // Show error notification
+            const message = `Extension error: ${modId} (${hookName})\n${err.message}`;
+            showToast(message, 'error', 4000);
+
+            // Log to global error log
+            if (!window._extErrors) window._extErrors = [];
+            window._extErrors.push({
+              modId,
+              hookName,
+              error: err.message,
+              stack: err.stack,
+              timestamp: Date.now(),
+              errorCount: errorCounts[modId]
+            });
+          },
+          _recordHookExecution(modId, hookName, duration, success) {
+            const key = `${modId}.${hookName}`;
+            if (!hookStats[key]) {
+              hookStats[key] = {
+                modId,
+                hookName,
+                executions: 0,
+                failures: 0,
+                totalDuration: 0,
+                avgDuration: 0,
+                maxDuration: 0,
+                minDuration: Infinity
+              };
+            }
+            const stats = hookStats[key];
+            stats.executions++;
+            if (!success) stats.failures++;
+            stats.totalDuration += duration;
+            stats.avgDuration = stats.totalDuration / stats.executions;
+            stats.maxDuration = Math.max(stats.maxDuration, duration);
+            stats.minDuration = Math.min(stats.minDuration, duration);
           },
           listMods() {
             return Object.keys(store.mods).map(id => ({
@@ -1545,6 +1695,110 @@
               enabled: !!store.mods[id]?.enabled,
               meta: store.mods[id]?.meta || {}
             }));
+          },
+          reload(modId) {
+            const modData = store.mods[modId];
+            if (!modData) {
+              console.warn(`[Extensions] Cannot reload ${modId}: not found`);
+              return false;
+            }
+
+            console.log(`[Extensions] Reloading ${modId}...`);
+
+            // Clean up old version
+            this.runHookForMod(modId, 'onDisable');
+            removeStyle(modId);
+            delete registry[modId];
+            initializedMods.delete(modId);
+            delete errorCounts[modId];
+
+            // Load new version
+            ensureStyle(modId, modData.css);
+            const entry = ensureRegistered(modId, modData);
+            if (entry) {
+              this.runHookForMod(modId, 'onEnable');
+              this.runHookForMod(modId, 'onAppInit');
+              showToast(`Reloaded: ${modId}`, 'success');
+              return true;
+            }
+            return false;
+          },
+          // Event bus for extension communication
+          events: {
+            on(eventName, callback) {
+              if (!eventListeners[eventName]) {
+                eventListeners[eventName] = [];
+              }
+              eventListeners[eventName].push(callback);
+            },
+            off(eventName, callback) {
+              if (!eventListeners[eventName]) return;
+              eventListeners[eventName] = eventListeners[eventName].filter(cb => cb !== callback);
+            },
+            emit(eventName, data) {
+              if (!eventListeners[eventName]) return;
+              eventListeners[eventName].forEach(callback => {
+                try {
+                  callback(data);
+                } catch (err) {
+                  console.error(`[Extensions] Event listener error for "${eventName}":`, err);
+                }
+              });
+            },
+            clear(eventName) {
+              if (eventName) {
+                delete eventListeners[eventName];
+              } else {
+                Object.keys(eventListeners).forEach(key => delete eventListeners[key]);
+              }
+            }
+          },
+          // Developer tools
+          devTools: {
+            inspectMod(modId) {
+              const entry = registry[modId];
+              if (!entry) return null;
+              return {
+                id: modId,
+                hooks: Object.keys(entry.hooks),
+                meta: entry.meta,
+                loaded: entry.__loaded,
+                initialized: initializedMods.has(modId),
+                error: entry.__error,
+                errorCount: errorCounts[modId] || 0,
+                enabled: store.mods[modId]?.enabled || false
+              };
+            },
+            listAllMods() {
+              return Object.keys(registry).map(modId => this.inspectMod(modId));
+            },
+            getHookStats(modId) {
+              if (modId) {
+                return Object.entries(hookStats)
+                  .filter(([key]) => key.startsWith(`${modId}.`))
+                  .reduce((acc, [key, value]) => {
+                    acc[key] = value;
+                    return acc;
+                  }, {});
+              }
+              return { ...hookStats };
+            },
+            getErrorLog() {
+              return window._extErrors || [];
+            },
+            clearErrorLog() {
+              window._extErrors = [];
+            },
+            testHook(modId, hookName, ...args) {
+              console.log(`[Extensions DevTools] Testing ${modId}.${hookName}`, args);
+              return CardSpoke_MODS.runHookForMod(modId, hookName, ...args);
+            },
+            getEventListeners() {
+              return Object.keys(eventListeners).reduce((acc, eventName) => {
+                acc[eventName] = eventListeners[eventName].length;
+                return acc;
+              }, {});
+            }
           }
         };
       })();
