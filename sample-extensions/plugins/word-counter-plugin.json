@@ -1,0 +1,14 @@
+{
+  "enabled": false,
+  "js": "(function() {\n  'use strict';\n\n  const api = window.CardSpoke.utils;\n\n  CardSpoke_MODS.register('word-counter-plugin', {\n    meta: {\n      name: 'Word Counter Plugin',\n      type: 'Plugin',\n      version: '1.0.0',\n      creator: 'CardSpoke',\n      description: 'Display word count for each card'\n    },\n\n    countWords(text) {\n      if (!text || text.trim() === '') return 0;\n      return text.trim().split(/\\s+/).length;\n    },\n\n    onCardRender(ctx, card, element) {\n      const wordCount = this.countWords(card.body);\n      \n      // Create word count badge\n      const badge = document.createElement('span');\n      badge.className = 'word-count-badge';\n      badge.textContent = `${wordCount} word${wordCount !== 1 ? 's' : ''}`;\n      badge.title = 'Word count';\n      \n      // Add to card title area\n      const titleElement = element.querySelector('.card-title');\n      if (titleElement && !titleElement.querySelector('.word-count-badge')) {\n        titleElement.appendChild(badge);\n      }\n    },\n\n    async onCardSave(ctx, card, saveInfo) {\n      // Store word count in modsData\n      const wordCount = this.countWords(card.body);\n      \n      if (!card.modsData) card.modsData = {};\n      if (!card.modsData[ctx.modId]) card.modsData[ctx.modId] = {};\n      \n      card.modsData[ctx.modId].wordCount = wordCount;\n      card.modsData[ctx.modId].lastCounted = Date.now();\n      \n      await ctx.utils.updateCard(card.id, { modsData: card.modsData });\n    }\n  });\n})();",
+  "css": ".word-count-badge {\n  display: inline-block;\n  margin-left: 8px;\n  padding: 2px 8px;\n  background: var(--bg-hover);\n  border: 1px solid var(--border);\n  border-radius: 12px;\n  font-size: 0.75em;\n  color: var(--text-secondary);\n  font-weight: normal;\n}\n\n.word-count-badge:hover {\n  background: var(--accent);\n  color: white;\n}",
+  "meta": {
+    "name": "Word Counter Plugin",
+    "type": "Plugin",
+    "creator": "CardSpoke",
+    "version": "1.0.0",
+    "releaseDate": "2025-11-30",
+    "description": "Displays the word count for each card in a small badge next to the title",
+    "source": "official"
+  }
+}
