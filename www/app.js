@@ -1,6 +1,6 @@
 // =============================================================
 // CardSpoke JavaScript Application
-// Version: 1.0.0
+// Version: 0.15.0
 // Creator: jxburros
 // Schema: v4
 // Refactored: ES Modules for better maintainability

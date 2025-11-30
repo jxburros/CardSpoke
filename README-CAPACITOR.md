@@ -1,12 +1,25 @@
-# CardSpoke 0.14.0 - Capacitor Edition
+# CardSpoke 0.15.0 - Capacitor Edition
 
-CardSpoke is a lightweight, extensible, multi-platform knowledge base framework. Version 0.14.0 includes the Tags API, comprehensive testing (188 tests), and builds on the Dataset Architecture introduced in v0.9.
+CardSpoke is a lightweight, extensible, multi-platform knowledge base framework. Version 0.15.0 introduces ES modules architecture for better maintainability, featuring comprehensive testing (188 tests), and builds on the Dataset Architecture introduced in v0.9.
 
 ## Branch Information
 
-This documentation covers CardSpoke with Capacitor support for cross-platform deployment. The application has evolved from the original single-file version through multiple iterations to the current v0.13.0 with comprehensive features.
+This documentation covers CardSpoke with Capacitor support for cross-platform deployment. The application has evolved from the original single-file version through multiple iterations to the current v0.15.0 with comprehensive features and modular architecture.
 
-## What's New in 0.11.0
+## What's New in 0.15.0
+
+**ES Modules Refactoring** (v0.15.0)
+- Modular codebase with core/utils, core/state, core/storage, ui/toast, ui/appearance modules
+- Better code organization and maintainability
+- Full backward compatibility maintained
+- Preparation for future 1.0.0 stable release
+
+**Accessibility & Extensions** (v0.14.0)
+- Accessibility API enhancements
+- Theme customization for extensions
+- Lifecycle hooks (onEnable, onDisable, onUninstall)
+- Async hook support
+- Event bus for inter-extension communication
 
 **Backlinks & Related Cards** (v0.11.0)
 - Automatic backlink detection shows which cards link to the current card
@@ -14,8 +27,6 @@ This documentation covers CardSpoke with Capacitor support for cross-platform de
 - Bidirectional navigation between connected cards
 - Enhanced content discovery through relationship mapping
 - 25 dedicated tests for Backlinks and Related Cards
-
-## What's New in 0.10.5
 
 **Tags API** (v0.10.5)
 - Comprehensive tag management with `getTags`, `addTag`, `removeTag`, `setTags`, and `getAllTags`
@@ -28,9 +39,9 @@ This documentation covers CardSpoke with Capacitor support for cross-platform de
 - Infrastructure for PIN-protected datasets
 - Dataset info panel with storage statistics
 
-**Enhanced Testing** (v0.9.3+)
-- 117 comprehensive tests covering all core functionality
-- Fast execution (<11ms) with uvu test framework
+**Testing** (v0.15.0)
+- 188 comprehensive tests across 18 test files
+- Fast execution (<25ms) with uvu test framework
 - 100% test pass rate
 
 **Core Features**
@@ -49,8 +60,17 @@ CardSpoke/
 ├── www/                    # Web assets
 │   ├── index.html         # Main HTML file
 │   ├── styles.css         # Application styles
-│   ├── app.js             # Application JavaScript
-│   └── capacitor.js       # Capacitor initialization
+│   ├── app.js             # Application JavaScript (main entry)
+│   ├── capacitor.js       # Capacitor initialization
+│   └── modules/           # ES Modules (v0.15.0+)
+│       ├── core/          # Core functionality
+│       │   ├── utils.js   # Utility functions
+│       │   ├── state.js   # Application state
+│       │   └── storage.js # Storage drivers
+│       ├── ui/            # UI components
+│       │   ├── toast.js   # Toast notifications
+│       │   └── appearance.js # Theme/appearance
+│       └── index.js       # Module exports
 ├── android/               # Android native project (generated)
 ├── ios/                   # iOS native project (generated)
 ├── capacitor.config.json  # Capacitor configuration
@@ -111,10 +131,17 @@ The files in the `www/` directory are ready to deploy to any web server.
 - **@capacitor/filesystem**: File system access
 - **@capacitor/preferences**: Key-value storage (replaces localStorage)
 
-## Migration from 0.8
+## Migration from Earlier Versions
 
-Version 0.8 was a single HTML file application. Version 0.8.1 restructures the application into:
+### From 0.14.x to 0.15.0
+- No breaking changes - direct upgrade supported
+- New ES modules structure is optional (backward compatible)
+- All existing data and extensions remain compatible
+
+### From 0.8.x to 0.15.0
+Version 0.8 was a single HTML file application. The current version restructures the application into:
 - Separate HTML, CSS, and JavaScript files
+- ES modules for core functionality
 - Capacitor configuration for multi-platform support
 - Native project structures for Android and iOS
 

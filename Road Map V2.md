@@ -46,6 +46,8 @@ Its long-term goal is to be:
 | **0.11.x** | Developer Ecosystem | Wizard, Playground, Utilities, Developer Mode | ✅ Complete |
 | **0.12.x** | Safety & Governance + UX Polish | Undo/Redo, Tag Management, Trash Bin, Advanced Search | ✅ Complete |
 | **0.13.x** | Documentation & Open Source Prep | Docs, templates, onboarding | ✅ Complete |
+| **0.14.x** | Accessibility & Extension Enhancements | Accessibility API, lifecycle hooks, async hooks | ✅ Complete |
+| **0.15.x** | ES Modules Refactoring | Modular architecture, code organization | ✅ Complete |
 | **1.0.0** | Stable Platform | Complete, portable, and extensible release | ⏳ Pending |
 
 ---

@@ -38,7 +38,7 @@ CardSpoke is a **lightweight, local-first knowledge management application** tha
 - **Styling**: Single file (`www/styles.css`) ~54 KB
 - **Lines of Code**: ~8,698 lines in app.js
 - **Tests**: 188+ tests across 18 test files
-- **Version**: 1.0.0 (app.js) / Schema v4
+- **Version**: 0.15.0 (app.js) / Schema v4
 - **Build Process**: None required for web version
 
 ---
@@ -100,16 +100,16 @@ Build: npm scripts (only for native builds)
 ```javascript
 // Location: www/app.js, lines 27-30
 const APP_CREATOR = 'jxburros';
-const APP_VERSION = '1.0.0';           // <-- UPDATE THIS
+const APP_VERSION = '0.15.0';           // <-- UPDATE THIS
 const APP_RELEASE_DATE = '2025-11-30'; // <-- UPDATE THIS (YYYY-MM-DD)
 const APP_UPDATER = 'Claude Code (Sonnet 4.5)'; // <-- UPDATE THIS
 ```
 
 **Version Increment Rules:**
-- If user doesn't specify, append ".1" (e.g., "1.0.0" → "1.0.0.1")
-- Minor changes: Increment patch (1.0.0 → 1.0.1)
-- New features: Increment minor (1.0.0 → 1.1.0)
-- Breaking changes: Increment major (1.0.0 → 2.0.0)
+- If user doesn't specify, append ".1" (e.g., "0.15.0" → "0.15.0.1")
+- Minor changes: Increment patch (0.15.0 → 0.15.1)
+- New features: Increment minor (0.15.0 → 0.16.0)
+- Breaking changes: Increment major (0.15.0 → 1.0.0)
 
 ### Schema Version
 
@@ -137,11 +137,20 @@ const SCHEMA_VERSION = 4;
 ```
 www/
 ├── index.html          # HTML shell (12 KB)
-├── app.js              # Entire application (356 KB)
+├── app.js              # Main application entry point
 ├── styles.css          # All styling (54 KB)
 ├── capacitor.js        # Capacitor bridge
 ├── test.html           # Test runner UI
-└── diagnostic.html     # Debug utilities
+├── diagnostic.html     # Debug utilities
+└── modules/            # ES Modules (v0.15.0+)
+    ├── core/           # Core functionality modules
+    │   ├── utils.js    # Utility functions (h, uid, debounce, etc.)
+    │   ├── state.js    # Application state management
+    │   └── storage.js  # Storage driver implementations
+    ├── ui/             # UI component modules
+    │   ├── toast.js    # Toast notifications
+    │   └── appearance.js # Theme and appearance settings
+    └── index.js        # Central module exports
 
 tests/
 ├── helpers.js          # Test utilities
@@ -155,6 +164,39 @@ docs/
 ├── extension-cookbook.md
 └── [other docs]
 ```
+
+### Modular Architecture (v0.15.0+)
+
+As of v0.15.0, CardSpoke uses ES modules for better maintainability. The module structure:
+
+**Core Modules (`www/modules/core/`):**
+- `utils.js` - Utility functions like `h()`, `uid()`, `debounce()`, `normalizeTagInput()`, `escapeHtml()`, `highlightText()`, `cloneCard()`, `trapFocus()`, `formatBytes()`
+- `state.js` - Application state management including version constants (`APP_VERSION`, `APP_RELEASE_DATE`), store getters/setters, navigation state
+- `storage.js` - Storage driver implementations (IndexedDB, LocalStorage, DatasetManager)
+
+**UI Modules (`www/modules/ui/`):**
+- `toast.js` - Toast notification system with `showToast()` and `initToast()`
+- `appearance.js` - Theme management and appearance settings
+
+**Importing in app.js:**
+```javascript
+import { 
+  h, uid, debounce, normalizeTagInput, escapeHtml, highlightText, 
+  cloneCard, trapFocus, formatBytes 
+} from './modules/core/utils.js';
+
+import { 
+  APP_CREATOR, APP_VERSION, APP_RELEASE_DATE, APP_UPDATER, SCHEMA_VERSION,
+  state as moduleState, getStore, setStore, getNavState, setNavState, 
+  createDefaultStore, isRichTextEnabled, setRichTextEnabled,
+  getActiveThemeExtension, setActiveThemeExtension
+} from './modules/core/state.js';
+
+import { showToast, initToast } from './modules/ui/toast.js';
+```
+
+**Backward Compatibility:**
+The modules are designed for backward compatibility. Many functions are still defined locally in app.js, with the modules serving as the canonical source. This allows gradual migration.
 
 ### app.js Structure (Line Ranges)
 
@@ -597,7 +639,7 @@ onImport(ctx, info)                 // After import
     name: 'My Extension',
     type: 'Theme' | 'Patch' | 'Plugin' | 'Mod' | 'Kit' | 'Expansion',
     creator: 'Author Name',
-    version: '1.0.0',
+    version: '0.15.0',
     releaseDate: 'YYYY-MM-DD',
     description: 'What it does',
     source: 'official' | 'community',
@@ -815,7 +857,7 @@ console.log(CardSpoke_MODS.inspectMod('mod-id'));
 ## Version History (Recent)
 
 ```
-1.0.0 (2025-11-30)
+0.15.0 (2025-11-30)
 - Production release
 - Schema v4 stable
 
@@ -867,4 +909,4 @@ CardSpoke prioritizes **simplicity**, **clarity**, and **user control**. All cha
 **Guide Version**: 2.0
 **Last Updated**: 2025-11-30
 **For**: AI Programming Assistants
-**Compatibility**: CardSpoke 1.0.0+
+**Compatibility**: CardSpoke 0.15.0+

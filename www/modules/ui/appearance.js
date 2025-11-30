@@ -1,6 +1,6 @@
 /**
  * CardSpoke Appearance Settings
- * Version: 1.0.0
+ * Version: 0.15.0
  * 
  * Handles appearance settings including themes, typography, and view options
  */

@@ -1,8 +1,8 @@
 # CardSpoke Schema Reference - Version 0.14.0
 
-**Version:** 0.14.0
+**Version:** 0.15.0
 **Schema Version:** 4
-**Date:** 2025-11-28
+**Date:** 2025-11-30
 **Status:** Current Reference Documentation
 
 ---
@@ -214,7 +214,7 @@ Mods (also called Extensions) are JavaScript/CSS plugins that extend CardSpoke's
 - Displayed in the extensions management UI
 - Can use any versioning scheme (semantic versioning recommended)
 
-**Example:** `"1.0.0"`, `"2.3.1-beta"`
+**Example:** `"0.15.0"`, `"2.3.1-beta"`
 
 #### `meta.releaseDate` (string, optional)
 - Release date of the mod version
@@ -416,4 +416,4 @@ If schema changes are needed in future versions:
 
 **Document Status:** Current Reference
 **Last Updated:** 2025-11-28
-**Verified Against:** CardSpoke v0.14.0 codebase
+**Verified Against:** CardSpoke v0.15.0 codebase

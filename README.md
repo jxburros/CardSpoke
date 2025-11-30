@@ -185,11 +185,20 @@ npm run open:ios
 CardSpoke/
 ├── www/                           # Web application files
 │   ├── index.html                 # App entry point
-│   ├── app.js                     # Core application logic (356 KB)
+│   ├── app.js                     # Core application logic
 │   ├── styles.css                 # All styling (54 KB)
 │   ├── capacitor.js               # Capacitor bridge
 │   ├── test.html                  # Test runner
-│   └── diagnostic.html            # Debug utilities
+│   ├── diagnostic.html            # Debug utilities
+│   └── modules/                   # ES Modules (v0.15.0+)
+│       ├── core/                  # Core functionality
+│       │   ├── utils.js           # Utility functions (h, uid, debounce, etc.)
+│       │   ├── state.js           # Application state management
+│       │   └── storage.js         # Storage driver implementations
+│       ├── ui/                    # UI components
+│       │   ├── toast.js           # Toast notifications
+│       │   └── appearance.js      # Theme and appearance settings
+│       └── index.js               # Module exports
 │
 ├── tests/                         # Test suite (18 files, 188+ tests)
 │   ├── helpers.js                 # Shared test utilities
@@ -501,7 +510,7 @@ CardSpoke is built on these core principles:
 
 ## Version Information
 
-- **Version**: 1.0.0 (from app.js)
+- **Version**: 0.15.0 (from app.js)
 - **Schema**: v4
 - **Release Date**: 2025-11-30
 - **Creator**: jxburros

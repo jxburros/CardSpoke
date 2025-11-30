@@ -178,8 +178,8 @@ Tests run automatically on every commit via GitHub Actions (when configured).
 
 ---
 
-**Last Updated:** 2025-11-14  
-**Test Count:** 152 tests
+**Last Updated:** 2025-11-30  
+**Test Count:** 188 tests
 
 ## Required Files for Testing
 
