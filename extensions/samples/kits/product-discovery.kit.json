@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "id": "kit-product-discovery",
+    "name": "Product Discovery Kit",
+    "type": "Kit",
+    "version": "1.1.0",
+    "description": "Aurora theme plus discovery-specific fields, filters, and curated dashboard layout (no plugins or mods)."
+  },
+  "includes": {
+    "themes": ["theme-aurora-workspace"],
+    "patches": [
+      {
+        "id": "patch-discovery-fields",
+        "description": "Adds discovery fields and card templates.",
+        "changes": {
+          "cardFields": [
+            { "key": "problem", "label": "Problem Statement", "type": "text" },
+            { "key": "signal", "label": "Signal Source", "type": "enum", "options": ["analytics", "research", "support"] },
+            { "key": "confidence", "label": "Confidence", "type": "scale", "min": 1, "max": 5 }
+          ]
+        }
+      },
+      {
+        "id": "patch-discovery-views",
+        "description": "Curated filters and dashboard widgets for discovery flow.",
+        "changes": {
+          "filters": [
+            { "id": "experiments", "query": "tag:experiment" },
+            { "id": "risks", "query": "tag:risk" },
+            { "id": "customer-voice", "query": "tag:feedback" }
+          ],
+          "dashboards": [
+            {
+              "id": "learning-dashboard",
+              "widgets": [
+                { "type": "count", "query": "tag:experiment", "label": "Active Experiments" },
+                { "type": "chart", "query": "tag:risk", "label": "Top Risks" }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

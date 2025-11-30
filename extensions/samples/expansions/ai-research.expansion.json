@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "id": "expansion-ai-research",
+    "name": "AI Research Expansion",
+    "type": "Expansion",
+    "version": "1.2.0",
+    "description": "Insight overlay with AI summaries, experimental workflow mod, domain themes, and vector store integrations."
+  },
+  "includes": {
+    "plugins": [
+      {
+        "id": "plugin-insight-overlay-ai",
+        "extends": "plugin-insight-overlay",
+        "overrides": {
+          "meta": { "version": "1.2.0" },
+          "features": {
+            "summarization": true,
+            "vectorSearch": true
+          }
+        }
+      }
+    ],
+    "mods": [
+      "mod-adaptive-flow-orchestrator"
+    ],
+    "themes": [
+      "theme-aurora-workspace"
+    ],
+    "integrations": [
+      {
+        "id": "vectorstore-hub",
+        "provider": "hypothetical-vector-hub",
+        "capabilities": ["embed", "search"],
+        "env": ["VECTOR_API_KEY"]
+      }
+    ]
+  }
+}
