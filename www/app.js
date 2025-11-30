@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.13.1.1'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-12-01'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GPT-5.1-Codex-Max'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.13.1.2'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-11-30'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'Claude Sonnet 4.5'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -144,6 +144,7 @@
           else if (k === 'onsubmit') el.onsubmit = v;
           else if (k === 'style') el.style.cssText = v;
           else if (k === 'oninput') el.oninput = v;
+          else if (k === 'onchange') el.onchange = v;
           else if (k === 'selected' || k === 'disabled' || k === 'checked' || k === 'readonly') {
             // Boolean attributes: only set if truthy
             if (v) el.setAttribute(k, '');
