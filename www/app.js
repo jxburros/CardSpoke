@@ -146,6 +146,7 @@
           else if (k === 'onsubmit') el.onsubmit = v;
           else if (k === 'style') el.style.cssText = v;
           else if (k === 'oninput') el.oninput = v;
+          else if (k === 'onchange') el.onchange = v;
           else if (k === 'selected' || k === 'disabled' || k === 'checked' || k === 'readonly') {
             // Boolean attributes: only set if truthy
             if (v) el.setAttribute(k, '');
