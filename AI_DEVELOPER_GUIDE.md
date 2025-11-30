@@ -1,9 +1,9 @@
 # CardSpoke AI Developer Guide
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Created for:** AI Programming Assistants  
-**Last Updated:** 2025-11-28  
-**Application Version:** 0.13.0
+**Last Updated:** 2025-11-30  
+**Application Version:** 0.13.1
 
 ---
 
@@ -759,6 +759,18 @@ await CardSpoke.utils.removeTag(cardId, tag)
 await CardSpoke.utils.setTags(cardId, tags)
 await CardSpoke.utils.getAllTags()
 
+// Accessibility & Theme API (v0.13.1)
+await CardSpoke.utils.getAccessibilitySettings()  // Get all accessibility settings
+await CardSpoke.utils.setTheme('light' | 'dark')  // Set theme
+await CardSpoke.utils.getTheme()                  // Get current theme
+await CardSpoke.utils.setTypography(preset)       // Set typography preset
+await CardSpoke.utils.getTypography()             // Get current typography
+await CardSpoke.utils.setHighContrast(boolean)    // Toggle high contrast mode
+await CardSpoke.utils.isHighContrast()            // Check high contrast status
+await CardSpoke.utils.prefersReducedMotion()      // Check reduced motion preference
+await CardSpoke.utils.getThemeVariables()         // Get list of customizable CSS variables
+const unsub = CardSpoke.utils.onThemeChange(callback) // Listen for theme changes
+
 // Utilities
 await CardSpoke.utils.showToast(message, type, duration)
 await CardSpoke.utils.getDatasetMeta()
@@ -783,6 +795,18 @@ for (const card of cards) {
 
 // Show notification
 await CardSpoke.utils.showToast('Operation complete!', 'success');
+
+// Accessibility example (v0.13.1)
+const settings = await CardSpoke.utils.getAccessibilitySettings();
+console.log('Current theme:', settings.theme);
+console.log('Typography preset:', settings.typography);
+
+// Listen for theme changes
+const unsub = CardSpoke.utils.onThemeChange((theme) => {
+  console.log('Theme changed to:', theme);
+  // Update your extension's appearance
+});
+// Later: unsub() to stop listening
 ```
 
 ### Extension Wizard
@@ -879,6 +903,16 @@ CardSpoke_MODS.register('my-extension', {
   },
   onCardSave(ctx, card, saveInfo) {
     console.log('Card saved:', card.id, saveInfo);
+  },
+  // Accessibility hooks (v0.13.1)
+  onThemeChange(ctx, theme) {
+    console.log('Theme changed to:', theme);
+  },
+  onTypographyChange(ctx, preset) {
+    console.log('Typography preset:', preset);
+  },
+  onHighContrastChange(ctx, enabled) {
+    console.log('High contrast:', enabled);
   }
 });
 ```
@@ -889,13 +923,40 @@ CardSpoke_MODS.register('my-extension', {
   - `saveInfo`: `{ isNew: boolean, source: string }`
 - `onCardDelete(context, card)` - Called when a card is deleted
 - `onCardRender(context, card, element)` - Called after a card is rendered to the DOM
+- `onThemeChange(context, theme)` - Called when light/dark theme changes (v0.13.1)
+  - `theme`: `'light'` or `'dark'`
+- `onTypographyChange(context, preset)` - Called when typography preset changes (v0.13.1)
+  - `preset`: `'default'`, `'comfortable'`, `'compact'`, or `'dyslexia'`
+- `onHighContrastChange(context, enabled)` - Called when high contrast mode is toggled (v0.13.1)
+  - `enabled`: `boolean`
 
 **Planned Hooks:**
 - `onNavigate(context, navState)` - Called when navigation changes
 - `onSearch(context, query, results)` - Called when search is performed
-- `onThemeChange(context, themeName)` - Called when theme changes
 - `onExport(context, exportData)` - Called before data export
 - `onImport(context, importData)` - Called after data import
+
+### Customizable Accessibility CSS Variables (v0.13.1)
+
+Themes can customize accessibility features by overriding these CSS custom properties:
+
+**Typography Presets:**
+- `--typography-font-size-default`, `--typography-line-height-default`
+- `--typography-font-size-comfortable`, `--typography-line-height-comfortable`
+- `--typography-font-size-compact`, `--typography-line-height-compact`
+- `--typography-font-size-dyslexia`, `--typography-line-height-dyslexia`
+- `--typography-letter-spacing-dyslexia`, `--typography-word-spacing-dyslexia`
+- `--typography-font-dyslexia`
+
+**High Contrast Mode:**
+- `--hc-bg`, `--hc-bg-secondary`, `--hc-bg-tertiary`
+- `--hc-text`, `--hc-text-secondary`
+- `--hc-border`, `--hc-accent`, `--hc-accent-hover`
+- `--hc-border-width`, `--hc-button-border-width`, `--hc-card-border-width`
+
+**Focus States:**
+- `--focus-outline-color`, `--focus-outline-width`
+- `--focus-outline-offset`, `--focus-outline-style`
 
 ### Mod Structure
 
@@ -1019,7 +1080,7 @@ For questions or clarifications, refer to the inline comments in `www/app.js` or
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** 2025-11-28  
+**Document Version:** 1.1  
+**Last Updated:** 2025-11-30  
 **Maintained By:** jxburros  
-**Contributors:** Github Copilot
+**Contributors:** GitHub Copilot

@@ -37,6 +37,43 @@
       
       --radius: 0px; 
       --line-height: 1.6;
+      
+      /* =============================================================
+         THEME-CUSTOMIZABLE ACCESSIBILITY VARIABLES (v0.13.1)
+         Extensions can override these to customize accessibility features
+         ============================================================= */
+      
+      /* Typography preset customization */
+      --typography-font-size-default: 16px;
+      --typography-line-height-default: 1.5;
+      --typography-font-size-comfortable: 18px;
+      --typography-line-height-comfortable: 1.7;
+      --typography-font-size-compact: 14px;
+      --typography-line-height-compact: 1.4;
+      --typography-font-size-dyslexia: 18px;
+      --typography-line-height-dyslexia: 1.8;
+      --typography-letter-spacing-dyslexia: 0.05em;
+      --typography-word-spacing-dyslexia: 0.1em;
+      --typography-font-dyslexia: 'Comic Sans MS', 'OpenDyslexic', sans-serif;
+      
+      /* High contrast mode customization */
+      --hc-bg: #000000;
+      --hc-bg-secondary: #000000;
+      --hc-bg-tertiary: #1a1a1a;
+      --hc-text: #ffffff;
+      --hc-text-secondary: #ffffff;
+      --hc-border: #ffffff;
+      --hc-accent: #ffff00;
+      --hc-accent-hover: #ffff33;
+      --hc-border-width: 2px;
+      --hc-button-border-width: 2px;
+      --hc-card-border-width: 3px;
+      
+      /* Focus and keyboard navigation */
+      --focus-outline-color: var(--text);
+      --focus-outline-width: 2px;
+      --focus-outline-offset: 2px;
+      --focus-outline-style: solid;
     }
     
     :root.dark {
@@ -47,33 +84,43 @@
       --text-medium: #cccccc;
       --text-muted: #999999;
       --text-ghost: #333333;
+      
+      /* Dark mode accessibility customization (v0.13.1) */
+      --focus-outline-color: var(--text);
+      
+      /* High contrast in dark mode */
+      --hc-bg: #000000;
+      --hc-bg-secondary: #050505;
+      --hc-text: #ffffff;
+      --hc-border: #ffffff;
+      --hc-accent: #ffff00;
     }
     
-    /* Typography Presets */
+    /* Typography Presets - Now using customizable variables (v0.13.1) */
     html[data-typography="default"] {
-      font-size: 16px;
-      line-height: 1.5;
+      font-size: var(--typography-font-size-default, 16px);
+      line-height: var(--typography-line-height-default, 1.5);
     }
     
     html[data-typography="comfortable"] {
-      font-size: 18px;
-      line-height: 1.7;
+      font-size: var(--typography-font-size-comfortable, 18px);
+      line-height: var(--typography-line-height-comfortable, 1.7);
     }
     
     html[data-typography="compact"] {
-      font-size: 14px;
-      line-height: 1.4;
+      font-size: var(--typography-font-size-compact, 14px);
+      line-height: var(--typography-line-height-compact, 1.4);
     }
     
     html[data-typography="dyslexia"] {
-      font-size: 18px;
-      line-height: 1.8;
-      letter-spacing: 0.05em;
-      word-spacing: 0.1em;
+      font-size: var(--typography-font-size-dyslexia, 18px);
+      line-height: var(--typography-line-height-dyslexia, 1.8);
+      letter-spacing: var(--typography-letter-spacing-dyslexia, 0.05em);
+      word-spacing: var(--typography-word-spacing-dyslexia, 0.1em);
     }
     
     html[data-typography="dyslexia"] * {
-      font-family: 'Comic Sans MS', 'OpenDyslexic', sans-serif;
+      font-family: var(--typography-font-dyslexia, 'Comic Sans MS', 'OpenDyslexic', sans-serif);
     }
 
     * {
@@ -1436,44 +1483,58 @@ body.dark-mode .shortcut-item:hover {
   background-color: rgba(255, 255, 255, 0.03);
 }
 
-/* High Contrast Mode */
+/* High Contrast Mode - Now using customizable variables (v0.13.1) */
 .high-contrast {
-  --bg-primary: #000000;
-  --bg-secondary: #000000;
-  --bg-tertiary: #1a1a1a;
-  --text-primary: #ffffff;
-  --text-secondary: #ffffff;
-  --border-color: #ffffff;
-  --accent-color: #ffff00;
-  --accent-hover: #ffff33;
+  --bg-primary: var(--hc-bg, #000000);
+  --bg-secondary: var(--hc-bg-secondary, #000000);
+  --bg-tertiary: var(--hc-bg-tertiary, #1a1a1a);
+  --text-primary: var(--hc-text, #ffffff);
+  --text-secondary: var(--hc-text-secondary, #ffffff);
+  --border-color: var(--hc-border, #ffffff);
+  --accent-color: var(--hc-accent, #ffff00);
+  --accent-hover: var(--hc-accent-hover, #ffff33);
+  
+  /* Override core variables for high contrast */
+  --bg: var(--hc-bg, #000000);
+  --surface: var(--hc-bg-secondary, #000000);
+  --border: var(--hc-border, #ffffff);
+  --text: var(--hc-text, #ffffff);
+  --text-medium: var(--hc-text, #ffffff);
+  --text-muted: var(--hc-text-secondary, #ffffff);
 }
 
 .high-contrast .card-tile {
-  border: 3px solid #ffffff;
-  background: #000000;
+  border: var(--hc-card-border-width, 3px) solid var(--hc-border, #ffffff);
+  background: var(--hc-bg, #000000);
 }
 
 .high-contrast button {
-  border: 2px solid #ffffff;
-  background: #000000;
-  color: #ffffff;
+  border: var(--hc-button-border-width, 2px) solid var(--hc-border, #ffffff);
+  background: var(--hc-bg, #000000);
+  color: var(--hc-text, #ffffff);
 }
 
 .high-contrast button:hover {
-  background: #333333;
-  border-color: #ffff00;
+  background: var(--hc-bg-tertiary, #333333);
+  border-color: var(--hc-accent, #ffff00);
 }
 
 .high-contrast input,
 .high-contrast textarea {
-  border: 2px solid #ffffff;
-  background: #000000;
-  color: #ffffff;
+  border: var(--hc-border-width, 2px) solid var(--hc-border, #ffffff);
+  background: var(--hc-bg, #000000);
+  color: var(--hc-text, #ffffff);
 }
 
 .high-contrast .menu-overlay {
-  background: #000000;
-  border: 3px solid #ffffff;
+  background: var(--hc-bg, #000000);
+  border: var(--hc-card-border-width, 3px) solid var(--hc-border, #ffffff);
+}
+
+/* High contrast focus states */
+.high-contrast *:focus {
+  outline: var(--hc-button-border-width, 2px) solid var(--hc-accent, #ffff00) !important;
+  outline-offset: var(--focus-outline-offset, 2px);
 }
 
 /* =============================================================
@@ -1984,7 +2045,7 @@ button.brand:hover {
 }
 
 button.brand:focus {
-  outline: 2px solid var(--text);
+  outline: var(--focus-outline-width, 2px) var(--focus-outline-style, solid) var(--focus-outline-color, var(--text));
   outline-offset: 4px;
 }
 
@@ -2027,8 +2088,8 @@ button.card-tile {
 }
 
 button.card-tile:focus {
-  outline: 2px solid var(--text);
-  outline-offset: 2px;
+  outline: var(--focus-outline-width, 2px) var(--focus-outline-style, solid) var(--focus-outline-color, var(--text));
+  outline-offset: var(--focus-outline-offset, 2px);
 }
 
 /* Breadcrumb button styles */
@@ -2039,6 +2100,6 @@ button.breadcrumb {
 }
 
 button.breadcrumb:focus {
-  outline: 2px solid var(--text);
-  outline-offset: 2px;
+  outline: var(--focus-outline-width, 2px) var(--focus-outline-style, solid) var(--focus-outline-color, var(--text));
+  outline-offset: var(--focus-outline-offset, 2px);
 }

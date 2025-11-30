@@ -66,6 +66,9 @@ A mixed CSS/JS mod that adds a focus toggle (Shift+Z), floating ribbon, and live
 ### 11. example-plugin-progress.json
 A checklist-aware plugin that shows progress chips based on markdown checkboxes on cards to validate plugin installs.
 
+### 12. theme-accessibility-demo.json (v0.13.1)
+A comprehensive theme demonstrating how to customize accessibility features including typography presets, high contrast mode, and focus states. **Use this as a reference for creating accessible themes.**
+
 ## Creating Your Own Extension
 
 ### Basic Structure
@@ -117,6 +120,13 @@ await api.showToast('Hello!', 'success');
 
 // Search cards
 const results = await api.searchCards('query');
+
+// Accessibility API (v0.13.1)
+const settings = await api.getAccessibilitySettings();
+await api.setTheme('dark');
+await api.setTypography('comfortable');
+await api.setHighContrast(true);
+const themeVars = await api.getThemeVariables();
 ```
 
 ### Registering Hooks
@@ -138,8 +148,100 @@ CardSpoke_MODS.register('my-extension', {
   },
   onCardRender(ctx, card, element) {
     // Modify card appearance
+  },
+  // Accessibility hooks (v0.13.1)
+  onThemeChange(ctx, theme) {
+    console.log('Theme changed to:', theme);
+  },
+  onTypographyChange(ctx, preset) {
+    console.log('Typography changed to:', preset);
+  },
+  onHighContrastChange(ctx, enabled) {
+    console.log('High contrast:', enabled);
   }
 });
+```
+
+## Customizing Accessibility Features (v0.13.1)
+
+Themes can customize accessibility features by overriding CSS custom properties.
+
+### Typography Presets
+Override typography settings for each preset:
+```css
+:root {
+  /* Default preset */
+  --typography-font-size-default: 17px;
+  --typography-line-height-default: 1.6;
+  
+  /* Comfortable preset */
+  --typography-font-size-comfortable: 19px;
+  --typography-line-height-comfortable: 1.8;
+  
+  /* Compact preset */
+  --typography-font-size-compact: 15px;
+  --typography-line-height-compact: 1.45;
+  
+  /* Dyslexia-friendly preset */
+  --typography-font-size-dyslexia: 19px;
+  --typography-line-height-dyslexia: 2;
+  --typography-letter-spacing-dyslexia: 0.06em;
+  --typography-word-spacing-dyslexia: 0.15em;
+  --typography-font-dyslexia: 'OpenDyslexic', 'Comic Sans MS', sans-serif;
+}
+```
+
+### High Contrast Mode
+Customize the high contrast mode appearance:
+```css
+:root {
+  --hc-bg: #000000;
+  --hc-bg-secondary: #0a0a0a;
+  --hc-bg-tertiary: #1f1f1f;
+  --hc-text: #ffffff;
+  --hc-text-secondary: #f0f0f0;
+  --hc-border: #ffffff;
+  --hc-accent: #00ff00;
+  --hc-accent-hover: #33ff33;
+  --hc-border-width: 3px;
+  --hc-button-border-width: 3px;
+  --hc-card-border-width: 4px;
+}
+```
+
+### Focus States
+Customize keyboard navigation focus indicators:
+```css
+:root {
+  --focus-outline-color: #0066cc;
+  --focus-outline-width: 3px;
+  --focus-outline-offset: 3px;
+  --focus-outline-style: solid;
+}
+
+:root.dark {
+  --focus-outline-color: #66b3ff;
+}
+```
+
+### Light/Dark Mode Support
+Your theme should work with both light and dark mode:
+```css
+:root {
+  /* Light mode colors */
+  --bg: #ffffff;
+  --text: #000000;
+}
+
+:root.dark {
+  /* Dark mode colors */
+  --bg: #000000;
+  --text: #ffffff;
+  
+  /* Override accessibility vars for dark mode if needed */
+  --focus-outline-color: #66b3ff;
+  --hc-accent: #00ffff;
+}
 ```
 
 ## Best Practices
