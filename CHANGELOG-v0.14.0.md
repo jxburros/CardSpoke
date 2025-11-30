@@ -2,6 +2,7 @@
 
 **Release Date:** 2025-11-30
 **Type:** Major Feature Update
+**Type:** Major Feature Update
 
 ## Overview
 
