@@ -864,8 +864,16 @@
       list-style: disc;
     }
 
+    .search-hint {
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+      margin-top: -8px;
+      margin-bottom: 12px;
+    }
+
     .search-result-selected {
       outline: 2px solid var(--primary);
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
     }
     
     .form-children {
@@ -878,6 +886,65 @@
       display: flex;
       gap: var(--space-sm);
       align-items: center;
+    }
+
+    .tree-export {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--space-md);
+    }
+
+    .tree-list {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .tree-list ul {
+      list-style: none;
+      padding-left: 18px;
+      margin: 4px 0;
+    }
+
+    .tree-node {
+      display: inline-block;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+    }
+
+    .tree-tags {
+      color: var(--text-muted);
+      font-size: var(--text-sm);
+    }
+
+    @media (max-width: 640px) {
+      .header .header-btn, .header .brand {
+        padding: 8px 10px;
+      }
+      .menu-panel {
+        width: 96%;
+      }
+      .card-detail-actions {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      }
+      .card-tile {
+        min-height: 84px;
+      }
+    }
+
+    @media print {
+      .header, .menu-overlay, .toast-container, .search-container, .breadcrumbs, .app-footer {
+        display: none !important;
+      }
+      body {
+        background: #fff;
+      }
+      .card-detail {
+        box-shadow: none;
+        border: none;
+      }
     }
     
     .form-child-input {

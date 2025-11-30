@@ -1,5 +1,11 @@
 # Changelog - v0.14.0
 
+### 2026-05-07 (1.0.0 milestone)
+- Added first-run "Getting Started" helper with menu entry and language/localization placeholder.
+- Normalized tag storage to keep Tag Manager and chips in sync and added search keyboard hints with stronger highlighting.
+- Introduced manual backup downloads with local history, plus new share, visual export, print, and PDF flows for cards and their descendants.
+- Improved Markdown rendering for lists, expanded accessibility labels, and tuned layouts for mobile/print.
+
 **Release Date:** 2025-11-30
 **Type:** Major Feature Update
 

@@ -25,8 +25,8 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.13.1.2'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-30'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '1.0.0'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2026-05-07'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'GPT-5.1-Codex-Max'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
@@ -90,7 +90,9 @@
         dataHub: document.getElementById('menuDataHub'),
         clearAll: document.getElementById('menuClearAll'),
         help: document.getElementById('menuHelp'),
-        keyboardShortcuts: document.getElementById('menuKeyboardShortcuts')
+        keyboardShortcuts: document.getElementById('menuKeyboardShortcuts'),
+        gettingStarted: document.getElementById('menuGettingStarted'),
+        language: document.getElementById('menuLanguage')
       };
       
       const searchContainer = document.getElementById('searchContainer');
@@ -201,6 +203,21 @@
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;');
+      }
+
+      /** Simple clipboard helper */
+      function copyText(text, message = 'Copied to clipboard') {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => showToast(message, 'success')).catch(() => showToast('Copy failed', 'error'));
+          return;
+        }
+        const area = document.createElement('textarea');
+        area.value = text;
+        document.body.appendChild(area);
+        area.select();
+        try { document.execCommand('copy'); showToast(message, 'success'); }
+        catch (e) { showToast('Copy failed', 'error'); }
+        document.body.removeChild(area);
       }
 
       /** Highlight matched query terms within text */
@@ -1131,6 +1148,20 @@
             viewMode: parsed.viewMode || 'normal',
             activeTheme: parsed.activeTheme || 'light'
           };
+
+          // Normalize legacy tag data to arrays of lowercase strings (v1.0.0)
+          Object.values(store.cards).forEach(card => {
+            if (Array.isArray(card.tags)) {
+              card.tags = Array.from(new Set(card.tags
+                .map(tag => (typeof tag === 'string' ? tag : '')
+                  .replace(/^#/, '')
+                  .toLowerCase()
+                  .trim())
+                .filter(Boolean)));
+            } else if (card.tags && typeof card.tags === 'string') {
+              card.tags = normalizeTagInput(card.tags);
+            }
+          });
 
           // Data migration: rebuild rootOrder if needed
           let needsMigration = false;
@@ -2427,8 +2458,18 @@
         // Always track undo regardless of skipHooks - skipHooks only controls mod hooks
         const previousState = cloneCard(card);
         const updateTimestamp = Date.now();
-        pushUndo('updateCard', { 
-          cardId: id, 
+
+        // Normalize tag updates to stay consistent with tag manager (v1.0.0)
+        if (Array.isArray(updates.tags)) {
+          updates.tags = Array.from(new Set(updates.tags
+            .map(tag => (typeof tag === 'string' ? tag : '')
+              .replace(/^#/, '')
+              .toLowerCase()
+              .trim())
+            .filter(Boolean)));
+        }
+        pushUndo('updateCard', {
+          cardId: id,
           previousState: previousState,
           newState: { ...updates, updatedAt: updateTimestamp }
         });
@@ -3801,9 +3842,31 @@
           storageInfo.textContent = 'Storage: Unable to calculate';
         }
         infoSection.appendChild(storageInfo);
-        
+
         modalBody.appendChild(infoSection);
-        
+
+        // Backup section (manual local download)
+        const backupSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
+        backupSection.appendChild(h('div', {
+          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
+        }, 'Backups'));
+        const backupDesc = h('p', { style: 'color: var(--text-muted); margin-bottom: var(--space-md);' }, 'Create an on-demand JSON backup you can store anywhere. No servers involved.');
+        backupSection.appendChild(backupDesc);
+        const backupButton = h('button', {
+          className: 'btn btn-primary',
+          onclick: () => {
+            const history = createBackupNow();
+            renderBackupHistory(historyList, history);
+          },
+          'aria-label': 'Create backup now'
+        }, 'Create Backup Now');
+        backupSection.appendChild(backupButton);
+        const historyList = h('div', { className: 'backup-history', style: 'margin-top: var(--space-md); display: grid; gap: 6px;' });
+        const existingHistory = JSON.parse(localStorage.getItem('cardspoke_backup_history') || '[]');
+        renderBackupHistory(historyList, existingHistory);
+        backupSection.appendChild(historyList);
+        modalBody.appendChild(backupSection);
+
         // Export Section
         const exportSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
         exportSection.appendChild(h('div', { 
@@ -5490,6 +5553,49 @@ console.log('✓ All examples completed!');
       }
 
 
+      // Build a deep copy of a card and its children
+      function buildCardSubtree(cardId, includeChildren = true) {
+        const card = store.cards[cardId];
+        if (!card) return null;
+        const clone = cloneCard(card);
+        clone.children = includeChildren && card.children?.length
+          ? card.children.map(cid => buildCardSubtree(cid, includeChildren)).filter(Boolean)
+          : [];
+        return clone;
+      }
+
+      function cardTreeToMarkdown(node, depth = 0) {
+        if (!node) return '';
+        const indent = '  '.repeat(depth);
+        let line = `${indent}- ${node.title || '(Untitled)'}`;
+        if (node.tags && node.tags.length) line += ` [${node.tags.join(', ')}]`;
+        let body = '';
+        if (node.body) {
+          body = `\n${indent}  ${node.body.replace(/\n/g, '\n' + indent + '  ')}`;
+        }
+        const children = (node.children || []).map(child => cardTreeToMarkdown(child, depth + 1)).filter(Boolean);
+        return [line + body, ...children].join('\n');
+      }
+
+      function renderTreeNode(node) {
+        const li = h('li', {},
+          h('div', { className: 'tree-node' },
+            h('strong', {}, node.title || '(Untitled)'),
+            node.tags?.length ? h('span', { className: 'tree-tags' }, ' — ' + node.tags.map(t => '#' + t).join(' ')) : null
+          )
+        );
+        if (node.children && node.children.length) {
+          const ul = h('ul');
+          node.children.forEach(child => {
+            const childNode = renderTreeNode(child);
+            if (childNode) ul.appendChild(childNode);
+          });
+          li.appendChild(ul);
+        }
+        return li;
+      }
+
+
 
       // =============================================================
       // --- RENDERING ---
@@ -5554,9 +5660,12 @@ console.log('✓ All examples completed!');
         main.appendChild(h('div', { className: 'page-title' }, title));
         
         kids.sort((a, b) => (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase()));
-        
+
         if (kids.length === 0) {
           main.appendChild(h('div', { className: 'empty' }, 'No cards yet. Create one to get started!'));
+          if (!parentId && Object.keys(store.cards).length === 0) {
+            showGettingStartedGuide();
+          }
         } else {
           const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
           const gridClass = gridViewEnabled ? 'card-grid grid-view' : 'card-grid';
@@ -5750,10 +5859,17 @@ console.log('✓ All examples completed!');
             container.appendChild(header);
             return;
           }
-          if (/^-\s+/.test(line)) {
+          if (/^[-*]\s+/.test(line)) {
             if (!listEl) listEl = document.createElement('ul');
             const li = document.createElement('li');
-            li.textContent = line.replace(/^-\s+/, '');
+            li.textContent = line.replace(/^[-*]\s+/, '');
+            listEl.appendChild(li);
+            return;
+          }
+          if (/^\d+\.\s+/.test(line)) {
+            if (!listEl) listEl = document.createElement('ol');
+            const li = document.createElement('li');
+            li.textContent = line.replace(/^\d+\.\s+/, '');
             listEl.appendChild(li);
             return;
           }
@@ -5767,6 +5883,88 @@ console.log('✓ All examples completed!');
         });
         if (listEl) container.appendChild(listEl);
         return container;
+      }
+
+      function showShareDialog(card) {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 520px;' });
+        const headerEl = h('div', { className: 'modal-header' });
+        headerEl.appendChild(h('div', { className: 'modal-title' }, 'Share this card'));
+        headerEl.appendChild(h('button', { className: 'modal-close', onclick: () => overlay.remove(), 'aria-label': 'Close share dialog' }, '✕'));
+        modal.appendChild(headerEl);
+        const modalBody = h('div', { className: 'modal-body' });
+        const includeChildren = h('input', { type: 'checkbox', id: 'shareIncludeChildren', checked: true });
+        const includeLabel = h('label', { for: 'shareIncludeChildren', style: 'display: flex; gap: 8px; align-items: center; margin-bottom: var(--space-md);' }, includeChildren, 'Include child cards');
+        modalBody.appendChild(includeLabel);
+
+        const jsonBtn = h('button', {
+          className: 'btn btn-primary',
+          style: 'width: 100%; margin-bottom: var(--space-sm);',
+          onclick: () => {
+            const tree = buildCardSubtree(card.id, includeChildren.checked);
+            copyText(JSON.stringify(tree, null, 2), 'Structured card data copied');
+          }
+        }, 'Copy structured card data');
+        modalBody.appendChild(jsonBtn);
+
+        const mdBtn = h('button', {
+          className: 'btn',
+          style: 'width: 100%;',
+          onclick: () => {
+            const tree = buildCardSubtree(card.id, includeChildren.checked);
+            copyText(cardTreeToMarkdown(tree), 'Markdown copied');
+          }
+        }, 'Copy as Markdown');
+        modalBody.appendChild(mdBtn);
+
+        modalBody.appendChild(h('p', { style: 'color: var(--text-muted); font-size: var(--text-sm); margin-top: var(--space-md);' }, 'Paste this into email, chat, or documents. No server required.'));
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        document.body.appendChild(overlay);
+      }
+
+      function showVisualExport(cardId) {
+        const tree = buildCardSubtree(cardId, true);
+        if (!tree) return;
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 720px; max-height: 90vh; overflow: auto;' });
+        const headerEl = h('div', { className: 'modal-header' });
+        headerEl.appendChild(h('div', { className: 'modal-title' }, 'Visual Export'));
+        headerEl.appendChild(h('button', { className: 'modal-close', onclick: () => overlay.remove(), 'aria-label': 'Close visual export' }, '✕'));
+        modal.appendChild(headerEl);
+        const body = h('div', { className: 'modal-body' });
+        const treeContainer = h('div', { className: 'tree-export' });
+        const list = h('ul', { className: 'tree-list' });
+        list.appendChild(renderTreeNode(tree));
+        treeContainer.appendChild(list);
+        body.appendChild(treeContainer);
+        body.appendChild(h('div', { style: 'display: flex; gap: var(--space-sm); margin-top: var(--space-md);' },
+          h('button', { className: 'btn', onclick: () => openPrintPreview(cardId, true), 'aria-label': 'Print or save visual export' }, 'Print / Save as PDF'),
+          h('button', { className: 'btn', onclick: () => copyText(cardTreeToMarkdown(tree), 'Markdown copied'), 'aria-label': 'Copy tree markdown' }, 'Copy tree as Markdown')
+        ));
+        modal.appendChild(body);
+        overlay.appendChild(modal);
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        document.body.appendChild(overlay);
+      }
+
+      function openPrintPreview(cardId, includeChildren = false) {
+        const tree = buildCardSubtree(cardId, includeChildren);
+        if (!tree) return;
+        const win = window.open('', '_blank');
+        if (!win) { showToast('Allow popups to print or export.', 'error'); return; }
+        const css = `body{font-family:Inter,system-ui,sans-serif;padding:24px;color:#111;}h1{margin:0 0 8px;}h2{margin:16px 0 8px;}ul{padding-left:18px;} .meta{color:#555;font-size:12px;}`;
+        const treeHtml = `<ul>${renderTreeNode(tree).outerHTML}</ul>`;
+        win.document.write(`<!doctype html><html><head><title>${tree.title || 'Card'}</title><style>${css}</style></head><body>` +
+          `<h1>${tree.title || '(Untitled)'}</h1>` +
+          `<div class=\"meta\">${new Date(tree.updatedAt || Date.now()).toLocaleString()}</div>` +
+          (tree.body ? `<p>${escapeHtml(tree.body).replace(/\n/g, '<br>')}</p>` : '') +
+          (includeChildren ? `<h2>Children</h2>${treeHtml}` : '') +
+          `<p class=\"meta\">Use your browser's Print → Save as PDF to export.</p>` +
+          `</body></html>`);
+        win.document.close();
+        setTimeout(() => win.print(), 300);
       }
 
       /**
@@ -5821,7 +6019,12 @@ console.log('✓ All examples completed!');
           const newId = createCard('', '', card.id);
           goTo('edit', { cardId: newId });
         } }, 'Add Child'));
-        
+
+        actions.appendChild(h('button', { className: 'btn', onclick: () => showShareDialog(card), 'aria-label': 'Share card' }, 'Share'));
+        actions.appendChild(h('button', { className: 'btn', onclick: () => showVisualExport(card.id), 'aria-label': 'Visual export' }, 'Visual Export'));
+        actions.appendChild(h('button', { className: 'btn', onclick: () => openPrintPreview(card.id, false), 'aria-label': 'Print card' }, 'Print'));
+        actions.appendChild(h('button', { className: 'btn', onclick: () => openPrintPreview(card.id, true), 'aria-label': 'Export to PDF' }, 'Export to PDF'));
+
         actions.appendChild(h('button', { className: 'btn', onclick: () => openUploadModalForCard(card.id, 'txt') }, 'Import TXT'));
         actions.appendChild(h('button', { className: 'btn', onclick: () => openUploadModalForCard(card.id, 'docx') }, 'Import DOCX'));
         
@@ -6199,10 +6402,11 @@ console.log('✓ All examples completed!');
         
         // Get selected dataset scope
         const scope = datasetSelector ? datasetSelector.value : 'current';
-        
+
         // Show loading indicator
         main.appendChild(h('div', { className: 'page-title' }, `Search: "${navState.searchQuery}"`));
-        const loadingDiv = h('div', { 
+        main.appendChild(h('div', { className: 'search-hint', role: 'note' }, 'Use ↑/↓ to move, Enter to open results.'));
+        const loadingDiv = h('div', {
           className: 'search-info',
           style: 'padding: 12px; margin-bottom: 12px; background: var(--bg-secondary); border-radius: 8px; font-size: 14px; color: var(--text-secondary);'
         }, 'Searching...');
@@ -6592,6 +6796,20 @@ console.log('✓ All examples completed!');
         showHelp();
       };
 
+      if (menu.gettingStarted) {
+        menu.gettingStarted.onclick = () => {
+          menu.overlay.classList.remove('show');
+          showGettingStartedGuide(true);
+        };
+      }
+
+      if (menu.language) {
+        menu.language.onclick = () => {
+          menu.overlay.classList.remove('show');
+          showLanguagePacks();
+        };
+      }
+
       menu.keyboardShortcuts.onclick = () => {
         menu.overlay.classList.remove('show');
         showKeyboardHelp();
@@ -6609,8 +6827,13 @@ console.log('✓ All examples completed!');
         const next = Math.min(max, Math.max(0, searchResultsState.selectedIndex + delta));
         searchResultsState.selectedIndex = next;
         searchResultsState.elements.forEach((el, idx) => {
-          if (idx === next) el.classList.add('search-result-selected');
-          else el.classList.remove('search-result-selected');
+          if (idx === next) {
+            el.classList.add('search-result-selected');
+            el.setAttribute('aria-selected', 'true');
+          } else {
+            el.classList.remove('search-result-selected');
+            el.setAttribute('aria-selected', 'false');
+          }
         });
         const active = searchResultsState.elements[next];
         if (active) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -7524,6 +7747,36 @@ console.log('✓ All examples completed!');
         };
       }
 
+      function renderBackupHistory(container, history = []) {
+        container.innerHTML = '';
+        if (!history.length) {
+          container.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, 'No backups yet.'));
+          return;
+        }
+        history.slice(0, 5).forEach(item => {
+          const date = new Date(item);
+          container.appendChild(h('div', {
+            style: 'display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary); padding: var(--space-sm) var(--space-md); border-radius: var(--radius); border: 1px solid var(--border);'
+          },
+            h('span', {}, date.toLocaleString()),
+            h('span', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, 'Saved locally')
+          ));
+        });
+      }
+
+      function createBackupNow() {
+        const timestamp = new Date();
+        const safeStamp = timestamp.toISOString().replace(/[:.]/g, '-');
+        const filename = `cardspoke-backup-${safeStamp}.json`;
+        const payload = JSON.stringify(store, null, 2);
+        downloadWithFeedback(payload, filename, 'application/json');
+        const history = JSON.parse(localStorage.getItem('cardspoke_backup_history') || '[]');
+        history.unshift(timestamp.toISOString());
+        localStorage.setItem('cardspoke_backup_history', JSON.stringify(history.slice(0, 5)));
+        showToast('Backup created');
+        return history.slice(0, 5);
+      }
+
       // =============================================================
       // --- BULK IMPORT/EXPORT (v0.12.0) ---
       // =============================================================
@@ -8129,8 +8382,87 @@ console.log('✓ All examples completed!');
           );
           document.body.appendChild(helpModal);
         }
-        
+
         helpModal.classList.add('show');
+      }
+
+      // =========================================================
+      // Getting Started Guide (v1.0.0)
+      // =========================================================
+      function showGettingStartedGuide(force = false) {
+        if (!force && localStorage.getItem('cardspoke_seenGettingStarted') === 'true') return;
+        let modal = document.getElementById('gettingStartedModal');
+        if (!modal) {
+          modal = h('div', { id: 'gettingStartedModal', className: 'menu-overlay', role: 'dialog', 'aria-modal': 'true' },
+            h('div', { className: 'menu-panel', style: 'max-width: 620px; max-height: 80vh; overflow-y: auto;' },
+              h('div', { className: 'menu-header' },
+                h('div', { className: 'menu-title' }, 'Welcome to CardSpoke'),
+                h('button', {
+                  className: 'menu-close',
+                  'aria-label': 'Close getting started guide',
+                  onclick: () => modal.classList.remove('show')
+                }, '✕')
+              ),
+              h('div', { style: 'padding: var(--space-md); display: grid; gap: var(--space-md);' },
+                h('p', { style: 'margin: 0; color: var(--text-secondary);' }, 'CardSpoke keeps your notes offline, organized as simple cards you can nest.'),
+                h('div', { className: 'card', style: 'text-align: left;' },
+                  h('h3', {}, 'What are cards?'),
+                  h('p', {}, 'Cards are small notes with a title, body, and optional tags. You can nest cards to outline ideas or projects.')
+                ),
+                h('div', { className: 'card', style: 'text-align: left;' },
+                  h('h3', {}, 'Create cards and children'),
+                  h('p', {}, 'Use “New Card” or the “Add Child” button while viewing a card. Drag cards into parents or choose a parent from the edit form.')
+                ),
+                h('div', { className: 'card', style: 'text-align: left;' },
+                  h('h3', {}, 'Tags & search'),
+                  h('p', {}, 'Add tags like #ideas or #todo. Tags stay in a clean list and power fuzzy search and the Tag Manager to see related cards.')
+                ),
+                h('div', { className: 'card', style: 'text-align: left;' },
+                  h('h3', {}, 'Need this later?'),
+                  h('p', {}, 'Open Help → Getting Started any time to revisit this quick guide.')
+                ),
+                h('button', {
+                  className: 'btn btn-primary',
+                  'aria-label': 'Close getting started and create your first card',
+                  onclick: () => {
+                    modal.classList.remove('show');
+                    localStorage.setItem('cardspoke_seenGettingStarted', 'true');
+                    createCard('My first card', 'Write something memorable here.');
+                    render();
+                  }
+                }, 'Create your first card')
+              )
+            )
+          );
+          modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('show'); });
+          document.body.appendChild(modal);
+        }
+        modal.classList.add('show');
+        localStorage.setItem('cardspoke_seenGettingStarted', 'true');
+      }
+
+      // =========================================================
+      // Language packs placeholder (v1.0.0)
+      // =========================================================
+      function showLanguagePacks() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 520px;' });
+        const headerEl = h('div', { className: 'modal-header' });
+        headerEl.appendChild(h('div', { className: 'modal-title' }, 'Language & Localization'));
+        headerEl.appendChild(h('button', { className: 'modal-close', onclick: () => overlay.remove(), 'aria-label': 'Close language info' }, '✕'));
+        modal.appendChild(headerEl);
+        const body = h('div', { className: 'modal-body' });
+        body.appendChild(h('p', {}, 'Language packs are coming soon. You can download community and official packs from our site and drop them into CardSpoke when they arrive.'));
+        body.appendChild(h('a', {
+          href: 'https://cardspoke.example/language-packs',
+          target: '_blank',
+          rel: 'noreferrer noopener',
+          className: 'link'
+        }, 'Browse language packs (placeholder)'));
+        modal.appendChild(body);
+        overlay.appendChild(modal);
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        document.body.appendChild(overlay);
       }
 
       function showKeyboardHelp() {
