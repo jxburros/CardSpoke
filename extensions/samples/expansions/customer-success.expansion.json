@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "id": "expansion-customer-success",
+    "name": "Customer Success Expansion",
+    "type": "Expansion",
+    "version": "1.0.0",
+    "description": "Success desk plugin plus WIP guard tuned for account managers."
+  },
+  "includes": {
+    "plugins": ["plugin-quick-capture-dock"],
+    "mods": [
+      {
+        "id": "mod-wip-accounts",
+        "extends": "mod-strict-wip-guard",
+        "overrides": {
+          "limits": {
+            "todo": 6,
+            "doing": 4,
+            "review": 5
+          }
+        }
+      }
+    ],
+    "themes": ["theme-minimalist-monochrome"]
+  }
+}
