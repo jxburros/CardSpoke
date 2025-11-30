@@ -25,9 +25,9 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.13.1'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-30'; // <-- AI: UPDATE THIS
-      const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.13.1.1'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-12-01'; // <-- AI: UPDATE THIS
+      const APP_UPDATER = 'GPT-5.1-Codex-Max'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
@@ -1403,7 +1403,7 @@
               };
             },
             logger: modLogger,
-            utils: () => window.CardSpoke?.utils || {},
+            utils: () => window.CardSpoke?.utils || window.CIB?.utils || {},
             log: modLogger.log,
             warn: modLogger.warn,
             error: modLogger.error,
@@ -1423,7 +1423,7 @@
             appVersion: APP_VERSION,
             schemaVersion: SCHEMA_VERSION,
             api: createStoreAPI(modId),
-            utils: window.CardSpoke?.utils || {},
+            utils: window.CardSpoke?.utils || window.CIB?.utils || {},
             logger
           };
         }
@@ -1551,6 +1551,10 @@
 
       window.CardSpoke = window.CardSpoke || {};
       window.CardSpoke.mods = CardSpoke_MODS;
+      window.CardSpoke_MODS = CardSpoke_MODS;
+      // Backwards compatibility for legacy CIB-based extensions and tooling
+      window.CIB = window.CIB || window.CardSpoke;
+      window.CIB_MODS = CardSpoke_MODS;
 
       // =============================================================
       // --- CardSpoke.utils API ---
@@ -2057,6 +2061,11 @@
         console.log('[CardSpoke.utils] API initialized and available at window.CardSpoke.utils');
         console.log('[CardSpoke.utils] Available methods:', Object.keys(window.CardSpoke.utils));
       }
+
+      // Legacy compatibility for extensions targeting the former CIB namespace
+      window.CIB = window.CIB || {};
+      window.CIB.utils = window.CardSpoke.utils;
+      window.CIB.mods = window.CardSpoke.mods;
 
 
       function runModHook(hookName, ...args) {
