@@ -1,27 +1,30 @@
 # CardSpoke
 
-**Version:** 0.13.0  
+**Version:** 0.13.1  
 **Creator:** [jxburros](https://github.com/jxburros)
 
 > A lightweight, extensible, multi-platform knowledge base framework
 
 CardSpoke is an open-source knowledge management system that combines hierarchical notes ("cards"), modular extensions ("mods"), and local-first data design. Built with simplicity and extensibility at its core, CardSpoke helps you organize your thoughts, projects, and ideas in a way that makes sense to you.
 
-## 🌟 Current Version: 0.13.0
+
+## 🌟 Current Version: 0.13.1
 
 The v0.13 release series represents the **Documentation & Open Source Prep** phase, ensuring all documentation is current and synchronized with the codebase, preparing CardSpoke for the 1.0 stable release.
 
-### What's New in 0.13.0
+### What's New in 0.13.1
 
-**Documentation & Open Source Prep**
-- **Version Synchronization**: All version references updated to 0.13.0 across the entire codebase
-- **Documentation Refresh**: Comprehensive documentation update reflecting current app state
-- **Open Source Readiness**: Final preparation for 1.0 stable release
-- **177 Passing Tests**: Full test suite validates all functionality
-
-### Previous Releases Summary
-
-The v0.12 release series completed the **Safety & Governance** phase with comprehensive undo/redo, tag management, and advanced search features.
+**Accessibility & Theme Customization for Extensions**
+- **Accessibility API**: New API for extensions to interact with theme and accessibility settings
+  - `getAccessibilitySettings()`, `setTheme()`, `setTypography()`, `setHighContrast()` methods
+  - Theme change listener: `onThemeChange(callback)` for reactive extensions
+- **Extension Hooks**: New hooks for accessibility events
+  - `onThemeChange(ctx, theme)` - Called when light/dark theme changes
+  - `onTypographyChange(ctx, preset)` - Called when typography preset changes
+  - `onHighContrastChange(ctx, enabled)` - Called when high contrast mode is toggled
+- **CSS Variables**: Customizable CSS variables for typography and high contrast modes
+- **Version Synchronization**: All version references updated to 0.13.1 across the entire codebase
+- **188 Passing Tests**: Full test suite validates all functionality
 
 ### What's New in 0.13.0
 
@@ -35,7 +38,13 @@ The v0.12 release series completed the **Safety & Governance** phase with compre
   - Cards, Extensions, Data, View, and Help sections
   - Nested submenus for Developer Tools and Export options
   - Consistent icons and improved discoverability
-- **Documentation**: Updated all version references to 0.13.0
+- **Documentation Refresh**: Comprehensive documentation update reflecting current app state
+- **Open Source Readiness**: Final preparation for 1.0 stable release
+
+### Previous Releases Summary
+
+The v0.12 release series completed the **Safety & Governance** phase with comprehensive undo/redo, tag management, and advanced search features.
+
 
 ### What's New in 0.12.1
 
@@ -79,7 +88,7 @@ The v0.12 release series completed the **Safety & Governance** phase with compre
 - **Enhanced Keyboard Shortcuts**: Extended shortcut system
 
 **Testing**
-- 177 comprehensive tests (up from 160 in v0.11.3)
+- 188 comprehensive tests (up from 177 in v0.13.0)
 - New test suites for undo/redo, tag management, and menu handlers
 - 100% test pass rate
 
@@ -636,9 +645,4 @@ CardSpoke includes comprehensive keyboard shortcuts for efficient navigation and
 ### View
 - `Alt+T` - Toggle dark/light theme
 - `Alt+C` - Toggle compact view mode
-
-### Help
-- `Ctrl+/` - Show keyboard shortcuts help
-
-**Note:** On Mac, use `Cmd` instead of `Ctrl` for most shortcuts.
 

@@ -25,7 +25,7 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.13.1.2'; // <-- AI: UPDATE THIS when making changes
+      const APP_VERSION = '0.13.1'; // <-- AI: UPDATE THIS when making changes
       const APP_RELEASE_DATE = '2025-11-30'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'GPT-5.1-Codex-Max'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated

@@ -1,6 +1,6 @@
 # Mod Capability Taxonomy
 
-**Version:** 0.13.0  
+**Version:** 0.13.1  
 **Author:** Showrunner Agent / jxburros  
 **Date:** 2025-11-28  
 **Status:** Design Document (Planned for v1.0+)  
