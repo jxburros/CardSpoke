@@ -3,7 +3,7 @@
       
       // =============================================================
       // CardSpoke JavaScript Application
-      // Version: 0.13.0
+      // Version: 0.13.1
       // Creator: jxburros
       // Schema: v4
       // =============================================================
@@ -25,8 +25,8 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '0.13.0'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2025-11-28'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.13.1'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-11-30'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'GitHub Copilot'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
@@ -46,6 +46,7 @@
       // Version 0.12.2: Pre-1.0 TODO items - Extension Wizard ai_assistants field, official/community badges, nested menu UX
       // Version 0.12.3: TODO list - Clickable brand logo, accessibility improvements, CIB renamed to CardSpoke, scalable fonts
       // Version 0.13.0: Documentation & Open Source Prep - Updated all documentation to reflect current state, version sync across all files
+      // Version 0.13.1: Accessibility & Theme Customization for Extensions - Exposed CSS variables and API for theme customization of accessibility features
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
@@ -1207,31 +1208,41 @@
         *   @param {Object} card - Card data (cloned)
         *   @param {HTMLElement} element - Card DOM element
         * 
-        * PLANNED HOOKS (v0.10+):
+        * @hook onThemeChange(context, theme)
+        *   Called when the theme (light/dark) is changed. (v0.13.1)
+        *   @param {Object} context - Mod execution context
+        *   @param {'light'|'dark'} theme - The new theme
+        * 
+        * @hook onTypographyChange(context, preset)
+        *   Called when typography preset is changed. (v0.13.1)
+        *   @param {Object} context - Mod execution context
+        *   @param {string} preset - The new typography preset ('default', 'comfortable', 'compact', 'dyslexia')
+        * 
+        * @hook onHighContrastChange(context, enabled)
+        *   Called when high contrast mode is toggled. (v0.13.1)
+        *   @param {Object} context - Mod execution context
+        *   @param {boolean} enabled - Whether high contrast is now enabled
+        * 
+        * PLANNED HOOKS:
         * -----------------------
         * @hook onNavigate(context, navState)
-        *   Called when navigation state changes (planned for v0.10.1)
+        *   Called when navigation state changes
         *   @param {Object} context - Mod execution context
         *   @param {Object} navState - { page, cardId, parentId, searchQuery }
         * 
         * @hook onSearch(context, query, results)
-        *   Called when search is performed (planned for v0.10.2)
+        *   Called when search is performed
         *   @param {Object} context - Mod execution context
         *   @param {string} query - Search query
         *   @param {Array} results - Array of matching cards
         * 
-        * @hook onThemeChange(context, themeName)
-        *   Called when theme is changed (planned for v0.10.2)
-        *   @param {Object} context - Mod execution context
-        *   @param {string} themeName - Name of activated theme
-        * 
         * @hook onExport(context, exportData)
-        *   Called before data export (planned for v0.10.3)
+        *   Called before data export
         *   @param {Object} context - Mod execution context
         *   @param {Object} exportData - Data being exported
         * 
         * @hook onImport(context, importData)
-        *   Called after data import (planned for v0.10.3)
+        *   Called after data import
         *   @param {Object} context - Mod execution context
         *   @param {Object} importData - Imported data structure
         */
@@ -1748,6 +1759,226 @@
             console.error('[CardSpoke.utils] searchCards failed:', err);
             return [];
           }
+        },
+
+        // =============================================================
+        // ACCESSIBILITY & THEME API (v0.13.1)
+        // Methods for extensions to access and customize accessibility features
+        // =============================================================
+
+        /**
+         * Get current accessibility settings
+         * @returns {Promise<Object>} Current accessibility settings
+         * @example
+         * const settings = await CardSpoke.utils.getAccessibilitySettings();
+         * console.log(settings.theme, settings.typography, settings.highContrast);
+         */
+        getAccessibilitySettings: async function() {
+          try {
+            return {
+              theme: store.activeTheme || 'light',
+              typography: localStorage.getItem('cardspoke_typography') || 'default',
+              highContrast: document.documentElement.classList.contains('high-contrast'),
+              reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            };
+          } catch (err) {
+            console.error('[CardSpoke.utils] getAccessibilitySettings failed:', err);
+            return { theme: 'light', typography: 'default', highContrast: false, reducedMotion: false };
+          }
+        },
+
+        /**
+         * Set the theme (light or dark mode)
+         * @param {'light'|'dark'} theme - Theme to apply
+         * @returns {Promise<boolean>} Success status
+         * @example
+         * await CardSpoke.utils.setTheme('dark');
+         */
+        setTheme: async function(theme) {
+          try {
+            if (theme !== 'light' && theme !== 'dark') {
+              throw new Error('Theme must be "light" or "dark"');
+            }
+            applyTheme(theme);
+            return true;
+          } catch (err) {
+            console.error('[CardSpoke.utils] setTheme failed:', err);
+            return false;
+          }
+        },
+
+        /**
+         * Get current theme
+         * @returns {Promise<'light'|'dark'>} Current theme
+         * @example
+         * const theme = await CardSpoke.utils.getTheme();
+         */
+        getTheme: async function() {
+          try {
+            return store.activeTheme || 'light';
+          } catch (err) {
+            console.error('[CardSpoke.utils] getTheme failed:', err);
+            return 'light';
+          }
+        },
+
+        /**
+         * Set typography preset
+         * @param {'default'|'comfortable'|'compact'|'dyslexia'} preset - Typography preset
+         * @returns {Promise<boolean>} Success status
+         * @example
+         * await CardSpoke.utils.setTypography('comfortable');
+         */
+        setTypography: async function(preset) {
+          try {
+            const validPresets = ['default', 'comfortable', 'compact', 'dyslexia'];
+            if (!validPresets.includes(preset)) {
+              throw new Error('Preset must be one of: ' + validPresets.join(', '));
+            }
+            localStorage.setItem('cardspoke_typography', preset);
+            document.documentElement.setAttribute('data-typography', preset);
+            runModHook('onTypographyChange', preset);
+            return true;
+          } catch (err) {
+            console.error('[CardSpoke.utils] setTypography failed:', err);
+            return false;
+          }
+        },
+
+        /**
+         * Get current typography preset
+         * @returns {Promise<string>} Current typography preset
+         * @example
+         * const typography = await CardSpoke.utils.getTypography();
+         */
+        getTypography: async function() {
+          try {
+            return localStorage.getItem('cardspoke_typography') || 'default';
+          } catch (err) {
+            console.error('[CardSpoke.utils] getTypography failed:', err);
+            return 'default';
+          }
+        },
+
+        /**
+         * Set high contrast mode
+         * @param {boolean} enabled - Enable or disable high contrast
+         * @returns {Promise<boolean>} Success status
+         * @example
+         * await CardSpoke.utils.setHighContrast(true);
+         */
+        setHighContrast: async function(enabled) {
+          try {
+            if (enabled) {
+              document.documentElement.classList.add('high-contrast');
+            } else {
+              document.documentElement.classList.remove('high-contrast');
+            }
+            localStorage.setItem('cardspoke_highcontrast', enabled.toString());
+            runModHook('onHighContrastChange', enabled);
+            return true;
+          } catch (err) {
+            console.error('[CardSpoke.utils] setHighContrast failed:', err);
+            return false;
+          }
+        },
+
+        /**
+         * Check if high contrast mode is enabled
+         * @returns {Promise<boolean>} High contrast status
+         * @example
+         * const isHighContrast = await CardSpoke.utils.isHighContrast();
+         */
+        isHighContrast: async function() {
+          try {
+            return document.documentElement.classList.contains('high-contrast');
+          } catch (err) {
+            console.error('[CardSpoke.utils] isHighContrast failed:', err);
+            return false;
+          }
+        },
+
+        /**
+         * Check if reduced motion is preferred
+         * @returns {Promise<boolean>} Reduced motion preference
+         * @example
+         * const prefersReducedMotion = await CardSpoke.utils.prefersReducedMotion();
+         */
+        prefersReducedMotion: async function() {
+          try {
+            return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          } catch (err) {
+            console.error('[CardSpoke.utils] prefersReducedMotion failed:', err);
+            return false;
+          }
+        },
+
+        /**
+         * Listen for theme changes
+         * @param {Function} callback - Callback function called with new theme
+         * @returns {Function} Unsubscribe function
+         * @example
+         * const unsub = CardSpoke.utils.onThemeChange((theme) => {
+         *   console.log('Theme changed to:', theme);
+         * });
+         * // Later: unsub() to stop listening
+         */
+        onThemeChange: function(callback) {
+          const id = 'theme-listener-' + Date.now();
+          CardSpoke_MODS.register(id, {
+            meta: { name: 'Theme Listener', type: 'internal' },
+            onThemeChange: function(ctx, theme) {
+              callback(theme);
+            }
+          });
+          return function() {
+            CardSpoke_MODS.unregister(id);
+          };
+        },
+
+        /**
+         * Get list of available CSS variables that can be customized by themes
+         * @returns {Promise<Object>} Object with variable categories
+         * @example
+         * const vars = await CardSpoke.utils.getThemeVariables();
+         * console.log(vars.colors, vars.accessibility);
+         */
+        getThemeVariables: async function() {
+          return {
+            colors: [
+              '--bg', '--surface', '--border', '--text', '--text-medium', 
+              '--text-muted', '--text-ghost'
+            ],
+            typography: [
+              '--font', '--font-brand', '--text-xs', '--text-sm', '--text-base',
+              '--text-lg', '--text-xl', '--text-2xl', '--text-3xl', '--text-brand',
+              '--text-number', '--line-height'
+            ],
+            spacing: [
+              '--space-xs', '--space-sm', '--space-md', '--space-lg',
+              '--space-xl', '--space-2xl', '--space-3xl', '--space-4xl', '--radius'
+            ],
+            accessibility: {
+              typography: [
+                '--typography-font-size-default', '--typography-line-height-default',
+                '--typography-font-size-comfortable', '--typography-line-height-comfortable',
+                '--typography-font-size-compact', '--typography-line-height-compact',
+                '--typography-font-size-dyslexia', '--typography-line-height-dyslexia',
+                '--typography-letter-spacing-dyslexia', '--typography-word-spacing-dyslexia',
+                '--typography-font-dyslexia'
+              ],
+              highContrast: [
+                '--hc-bg', '--hc-bg-secondary', '--hc-bg-tertiary',
+                '--hc-text', '--hc-text-secondary', '--hc-border',
+                '--hc-accent', '--hc-accent-hover',
+                '--hc-border-width', '--hc-button-border-width', '--hc-card-border-width'
+              ],
+              focus: [
+                '--focus-outline-color', '--focus-outline-width',
+                '--focus-outline-offset', '--focus-outline-style'
+              ]
+            }
+          };
         }
       };
 
