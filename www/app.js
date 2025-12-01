@@ -2712,7 +2712,7 @@ const header = {
       function downloadWithFeedback(content, filename, mimeType) {
         // Create blob from content if it's a string
         const blob = typeof content === 'string' 
-          ? new Blob([content], { type: mimeType || 'application/octet-stream' })
+          ? new Blob([content], { type: mimeType || 'text/plain' })
           : content;
         const url = URL.createObjectURL(blob);
         const format = mimeType || 'file';
@@ -4018,8 +4018,8 @@ const header = {
           onclick: function() {
             const newName = prompt('Enter name for new dataset:', 'New Dataset');
             if (newName && newName.trim()) {
-              // Create a new instance key for the dataset
-              const newKey = 'cardspoke_' + Date.now();
+              // Create a new instance key for the dataset using uid() for better uniqueness
+              const newKey = 'cardspoke_' + uid();
               // Save current store before switching
               save(true);
               // Store the dataset name mapping
