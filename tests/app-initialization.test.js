@@ -245,17 +245,17 @@ test('app.js exists and contains critical functions', () => {
   
   const content = readFileSync(appJsPath, 'utf-8');
   
-  // Check for critical functions
+  // Check for critical functions - using consistent pattern with function keyword and name
   const criticalFunctions = [
-    'function render()',
-    'function load()',
-    'function save(',
-    'function goTo(',
-    'function createDefaultStore()'
+    { pattern: 'function render()', name: 'render' },
+    { pattern: 'function load()', name: 'load' },
+    { pattern: 'function save(', name: 'save' },
+    { pattern: 'function goTo(', name: 'goTo' },
+    { pattern: 'function createDefaultStore()', name: 'createDefaultStore' }
   ];
   
   for (const fn of criticalFunctions) {
-    assert.ok(content.includes(fn), `app.js should contain ${fn}`);
+    assert.ok(content.includes(fn.pattern), `app.js should contain function ${fn.name}`);
   }
 });
 
