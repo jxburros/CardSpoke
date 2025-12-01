@@ -1,0 +1,14 @@
+{
+  "enabled": false,
+  "js": "",
+  "css": ":root {\n  /* Nordic Calm Theme - icy minimalism and misty fjords */\n  --bg-primary: #f5f8fb;\n  --bg-alt: #e6edf3;\n  --bg-hover: #d7e4ee;\n  --text-primary: #12202c;\n  --text-primary-rgb: 18, 32, 44;\n  --text-secondary: #4a6274;\n  --border: #b8c9d8;\n  --accent: #4fb0c6;\n  --accent-rgb: 79, 176, 198;\n  --accent-hover: #3c8fa3;\n  --frost: rgba(255, 255, 255, 0.8);\n}\n\n[data-theme=\"dark\"] {\n  --bg-primary: #0b1118;\n  --bg-alt: #0f1a25;\n  --bg-hover: #132231;\n  --text-primary: #e8f3fb;\n  --text-primary-rgb: 232, 243, 251;\n  --text-secondary: #b8c9d8;\n  --border: #3c5062;\n  --accent: #7fd1e6;\n  --accent-rgb: 127, 209, 230;\n  --accent-hover: #9fe4f3;\n  --frost: rgba(255, 255, 255, 0.06);\n}\n\nbody {\n  background: linear-gradient(160deg, #f5f8fb 0%, #e6edf3 60%, #d7e4ee 100%);\n}\n\n.card {\n  background: var(--frost);\n  border: 1px solid var(--border);\n  box-shadow: 0 14px 30px rgba(var(--text-primary-rgb), 0.12);\n  backdrop-filter: blur(6px);\n}\n\n.tag {\n  background: rgba(var(--accent-rgb), 0.12);\n  color: var(--text-primary);\n  border: 1px solid var(--accent);\n  text-transform: uppercase;\n  letter-spacing: 0.6px;\n}",
+  "meta": {
+    "name": "Nordic Calm Theme",
+    "type": "Theme",
+    "creator": "CardSpoke",
+    "version": "1.0.0",
+    "releaseDate": "2025-11-30",
+    "description": "Glacial gradients, frosted glass cards, and airy typography inspired by Scandinavian calm.",
+    "source": "official"
+  }
+}

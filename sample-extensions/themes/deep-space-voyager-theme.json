@@ -1,0 +1,14 @@
+{
+  "enabled": false,
+  "js": "",
+  "css": ":root {\n  /* Deep Space Voyager Theme - starlit vacuum with cockpit accents */\n  --bg-primary: #050608;\n  --bg-alt: #0b0f18;\n  --bg-alt-rgb: 11, 15, 24;\n  --bg-hover: #101725;\n  --text-primary: #e3ecff;\n  --text-secondary: #9eb6ff;\n  --border: #3750a6;\n  --border-rgb: 55, 80, 166;\n  --accent: #7cf7ff;\n  --accent-rgb: 124, 247, 255;\n  --accent-hover: #a4fbff;\n  --star: rgba(255, 255, 255, 0.9);\n}\n\n[data-theme=\"light\"] {\n  --bg-primary: #f4f8ff;\n  --bg-alt: #e8efff;\n  --bg-alt-rgb: 232, 239, 255;\n  --bg-hover: #d7e4ff;\n  --text-primary: #101725;\n  --text-secondary: #3750a6;\n  --border: #9eb6ff;\n  --border-rgb: 158, 182, 255;\n  --accent: #2f9abf;\n  --accent-rgb: 47, 154, 191;\n  --accent-hover: #3fb5dd;\n  --star: rgba(55, 80, 166, 0.8);\n}\n\nbody {\n  background: radial-gradient(circle at 20% 20%, rgba(var(--accent-rgb), 0.1), transparent 25%),\n              radial-gradient(circle at 70% 60%, rgba(var(--border-rgb), 0.2), transparent 30%),\n              var(--bg-primary);\n  color: var(--text-primary);\n}\n\n.card {\n  background: linear-gradient(145deg, rgba(var(--bg-alt-rgb), 0.9), rgba(5, 6, 8, 0.9));\n  border: 1px solid var(--border);\n  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(var(--accent-rgb), 0.15);\n  position: relative;\n  overflow: hidden;\n}\n\n.card::after {\n  content: '';\n  position: absolute;\n  inset: 0;\n  background-image: radial-gradient(var(--star) 1px, transparent 1px);\n  background-size: 80px 80px;\n  opacity: 0.35;\n  pointer-events: none;\n}\n\n.card-title {\n  color: var(--accent);\n  letter-spacing: 1.1px;\n  text-transform: uppercase;\n}",
+  "meta": {
+    "name": "Deep Space Voyager Theme",
+    "type": "Theme",
+    "creator": "CardSpoke",
+    "version": "1.0.0",
+    "releaseDate": "2025-11-30",
+    "description": "Starfield overlays, cockpit neon trims, and cosmic gradients for mission control vibes.",
+    "source": "official"
+  }
+}
