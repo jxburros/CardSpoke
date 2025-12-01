@@ -412,7 +412,7 @@ Comprehensive test suite created: `test-extension-improvements.js`
 - `types/extensions.d.ts` (TypeScript definitions)
 - `docs/extension-cookbook.md` (Developer cookbook)
 - `test-extension-improvements.js` (Test suite)
-- `CHANGELOG-v0.14.0.md` (This file)
+- `CHANGELOG-v0.15.1.md` (This file)
 
 ---
 
