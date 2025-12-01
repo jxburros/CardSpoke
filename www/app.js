@@ -4655,6 +4655,116 @@ const header = {
 
         modalBody.appendChild(backupsSection);
 
+        // Cloud Storage Section
+        const cloudSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
+        cloudSection.appendChild(h('div', {
+          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
+        }, '☁️ Cloud Storage Sync'));
+
+        cloudSection.appendChild(h('p', {
+          style: 'margin-bottom: var(--space-lg); color: var(--text-secondary); font-size: var(--text-sm);'
+        }, 'Sync your data across devices using your own cloud storage accounts. Click to connect and create a synced dataset.'));
+
+        // Google Drive button
+        const googleDriveBtn = h('button', {
+          className: 'btn',
+          style: 'width: 100%; padding: var(--space-lg); margin-bottom: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); display: flex; align-items: center; gap: var(--space-md); background: #fff; color: #333;',
+          onclick: async function() {
+            const name = prompt('Enter a name for this dataset:', 'Google Drive Dataset');
+            if (!name) return;
+
+            try {
+              showToast('Connecting to Google Drive...', 'info');
+              const driver = new GoogleDriveDriver();
+              await driver.init({});
+              await driver.ensureAuthenticated();
+              showToast('✓ Connected to Google Drive!', 'success');
+
+              // Store as the active dataset with Google Drive storage type
+              const newKey = 'cardspoke_googledrive_' + Date.now();
+              localStorage.setItem('activeInstance', newKey);
+              instanceKey = newKey;
+              store = {
+                rootOrder: [],
+                cards: {},
+                mods: {},
+                bookmarks: [],
+                recentCards: [],
+                viewMode: 'normal',
+                activeTheme: 'light',
+                metadata: {
+                  name: name,
+                  storageType: 'googledrive',
+                  createdAt: Date.now()
+                }
+              };
+              save();
+              render();
+              overlay.remove();
+              showToast('Dataset created with Google Drive sync!');
+            } catch (error) {
+              showToast('Failed to connect: ' + error.message, 'error');
+            }
+          }
+        });
+        googleDriveBtn.appendChild(h('span', { style: 'font-size: 24px;' }, '🔵'));
+        const googleText = h('div', { style: 'flex: 1; text-align: left;' });
+        googleText.appendChild(h('div', { style: 'font-weight: 600;' }, 'Google Drive'));
+        googleText.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, 'Sign in with your Google account'));
+        googleDriveBtn.appendChild(googleText);
+        cloudSection.appendChild(googleDriveBtn);
+
+        // OneDrive button
+        const oneDriveBtn = h('button', {
+          className: 'btn',
+          style: 'width: 100%; padding: var(--space-lg); margin-bottom: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); display: flex; align-items: center; gap: var(--space-md); background: #0078d4; color: #fff;',
+          onclick: async function() {
+            const name = prompt('Enter a name for this dataset:', 'OneDrive Dataset');
+            if (!name) return;
+
+            try {
+              showToast('Connecting to OneDrive...', 'info');
+              const driver = new OneDriveDriver();
+              await driver.init({});
+              await driver.ensureAuthenticated();
+              showToast('✓ Connected to OneDrive!', 'success');
+
+              // Store as the active dataset with OneDrive storage type
+              const newKey = 'cardspoke_onedrive_' + Date.now();
+              localStorage.setItem('activeInstance', newKey);
+              instanceKey = newKey;
+              store = {
+                rootOrder: [],
+                cards: {},
+                mods: {},
+                bookmarks: [],
+                recentCards: [],
+                viewMode: 'normal',
+                activeTheme: 'light',
+                metadata: {
+                  name: name,
+                  storageType: 'onedrive',
+                  createdAt: Date.now()
+                }
+              };
+              save();
+              render();
+              overlay.remove();
+              showToast('Dataset created with OneDrive sync!');
+            } catch (error) {
+              showToast('Failed to connect: ' + error.message, 'error');
+            }
+          }
+        });
+        oneDriveBtn.appendChild(h('span', { style: 'font-size: 24px;' }, '📘'));
+        const onedriveText = h('div', { style: 'flex: 1; text-align: left;' });
+        onedriveText.appendChild(h('div', { style: 'font-weight: 600;' }, 'OneDrive'));
+        onedriveText.appendChild(h('div', { style: 'font-size: var(--text-sm); opacity: 0.9;' }, 'Sign in with your Microsoft account'));
+        oneDriveBtn.appendChild(onedriveText);
+        cloudSection.appendChild(oneDriveBtn);
+
+        modalBody.appendChild(cloudSection);
+
         // WebDAV Helper Section
         const webdavSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
         webdavSection.appendChild(h('div', {
