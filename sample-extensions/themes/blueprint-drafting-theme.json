@@ -1,0 +1,14 @@
+{
+  "enabled": false,
+  "js": "",
+  "css": ":root {\n  /* Blueprint Drafting Theme - grid paper and technical ink */\n  --bg-primary: #0f2339;\n  --bg-alt: #132c46;\n  --bg-hover: #193756;\n  --text-primary: #e9f2ff;\n  --text-secondary: #bcd3f5;\n  --border: #4db3ff;\n  --accent: #ffcc66;\n  --accent-hover: #ffd98f;\n  --grid: rgba(77, 179, 255, 0.5);\n}\n\n[data-theme=\"light\"] {\n  --bg-primary: #f4f8ff;\n  --bg-alt: #e6f0ff;\n  --bg-hover: #d8e7ff;\n  --text-primary: #0f2339;\n  --text-secondary: #33537a;\n  --border: #7cbfff;\n  --accent: #d0921e;\n  --accent-hover: #f3b54c;\n  --grid: rgba(124, 191, 255, 0.5);\n}\n\nbody {\n  background: radial-gradient(circle at 20% 10%, rgba(77, 179, 255, 0.18), transparent 28%), var(--bg-primary);\n}\n\n.card {\n  background: var(--bg-alt);\n  border: 2px solid var(--border);\n  box-shadow: 0 10px 30px rgba(15, 35, 57, 0.32);\n  position: relative;\n}\n\n.card::after {\n  content: '';\n  position: absolute;\n  inset: 8px;\n  background-image: linear-gradient(var(--grid), var(--grid)), linear-gradient(90deg, var(--grid), var(--grid));\n  background-size: 32px 1px, 1px 32px;\n  opacity: 0.4;\n  pointer-events: none;\n}\n\n.card-title {\n  font-family: 'IBM Plex Sans', 'Inter', sans-serif;\n  letter-spacing: 0.8px;\n  color: var(--accent);\n  text-transform: uppercase;\n}",
+  "meta": {
+    "name": "Blueprint Drafting Theme",
+    "type": "Theme",
+    "creator": "CardSpoke",
+    "version": "1.0.0",
+    "releaseDate": "2025-11-30",
+    "description": "Deep navy blueprint paper with precise grid lines, amber highlights, and technical lettering.",
+    "source": "official"
+  }
+}

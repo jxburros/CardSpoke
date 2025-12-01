@@ -1,0 +1,14 @@
+{
+  "enabled": false,
+  "js": "",
+  "css": ":root {\n  /* Florist Bouquet Theme - soft petals and ink outlines */\n  --bg-primary: #fffaf8;\n  --bg-alt: #fff1ec;\n  --bg-hover: #ffe2d8;\n  --text-primary: #2f1c1b;\n  --text-secondary: #7c4a4a;\n  --border: #f3b3b3;\n  --accent: #e86a92;\n  --accent-hover: #d44f7b;\n  --ink: #4f2a2a;\n}\n\n[data-theme=\"dark\"] {\n  --bg-primary: #1c1414;\n  --bg-alt: #241a1a;\n  --bg-hover: #2f2222;\n  --text-primary: #ffeef0;\n  --text-secondary: #f3b3b3;\n  --border: #8d4c63;\n  --accent: #ff7ba5;\n  --accent-hover: #ff96b8;\n  --ink: #f3d7d9;\n}\n\nbody {\n  background: repeating-linear-gradient(45deg, rgba(232, 106, 146, 0.04) 0, rgba(232, 106, 146, 0.04) 12px, transparent 12px, transparent 24px), var(--bg-primary);\n}\n\n.card {\n  border: 1px solid var(--border);\n  background: linear-gradient(150deg, rgba(255, 255, 255, 0.9), rgba(255, 226, 216, 0.8));\n  box-shadow: 0 12px 24px rgba(232, 106, 146, 0.15);\n  position: relative;\n}\n\n.card::before {\n  content: '✿';\n  position: absolute;\n  top: 8px;\n  right: 12px;\n  font-size: 18px;\n  color: var(--accent);\n  opacity: 0.6;\n}\n\n.tag {\n  background: rgba(232, 106, 146, 0.12);\n  border: 1px dashed var(--accent);\n  color: var(--text-primary);\n  font-weight: 600;\n}",
+  "meta": {
+    "name": "Florist Bouquet Theme",
+    "type": "Theme",
+    "creator": "CardSpoke",
+    "version": "1.0.0",
+    "releaseDate": "2025-11-30",
+    "description": "Soft pastel florals with inked accents, dotted paper, and petal gradients for a botanical workspace.",
+    "source": "official"
+  }
+}
