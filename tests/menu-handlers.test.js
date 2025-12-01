@@ -37,7 +37,7 @@ test('menu handlers are correctly scoped (not nested)', () => {
   }
 });
 
-test('File format is valid (ES Module or IIFE)', () => {
+test('File format is valid (ES Module, IIFE, or standalone script)', () => {
   const appCode = readFileSync(appPath, 'utf8');
   const lines = appCode.trim().split('\n');
   const lastLine = lines[lines.length - 1].trim();
@@ -46,8 +46,13 @@ test('File format is valid (ES Module or IIFE)', () => {
   // Check if it's an ES Module (has import statements) or IIFE (wrapped in function)
   const isESModule = appCode.includes('import {') || appCode.includes("import '");
   const isIIFE = firstNonEmptyLine.startsWith('(function()') || firstNonEmptyLine === '(function() {';
+  // Standalone script: starts with comments or 'use strict' and has function definitions
+  const isStandaloneScript = (firstNonEmptyLine.startsWith('//') || firstNonEmptyLine === "'use strict';") 
+    && appCode.includes('function ') 
+    && !isESModule 
+    && !isIIFE;
   
-  assert.ok(isESModule || isIIFE, 'File should be either an ES Module (with imports) or an IIFE');
+  assert.ok(isESModule || isIIFE || isStandaloneScript, 'File should be either an ES Module, IIFE, or standalone script');
   
   // If it's an IIFE, check that it closes correctly
   if (isIIFE && !isESModule) {
@@ -55,6 +60,7 @@ test('File format is valid (ES Module or IIFE)', () => {
   }
   
   // ES Module format is valid - no additional checks needed
+  // Standalone script format is valid - self-contained for file:// compatibility
 });
 
 test.run();
