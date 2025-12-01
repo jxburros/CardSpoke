@@ -874,12 +874,11 @@ const header = {
           if (typeof google === 'undefined' || !google.accounts) {
             throw new Error('Google Identity Services not loaded. Please refresh the page.');
           }
-          const clientId = localStorage.getItem('cardspoke_google_client_id') || GOOGLE_CLIENT_ID;
-          if (!clientId || clientId === 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com') {
-            throw new Error('Google Client ID not configured. Please configure it in Data & Export > Cloud Storage Configuration.');
+          if (GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com') {
+            throw new Error('Google Drive not configured. Developer needs to set up OAuth client ID.');
           }
           this.tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: clientId,
+            client_id: GOOGLE_CLIENT_ID,
             scope: 'https://www.googleapis.com/auth/drive.file',
             callback: (response) => {
               if (response.error) {
@@ -1064,13 +1063,12 @@ const header = {
           if (typeof msal === 'undefined') {
             throw new Error('MSAL library not loaded. Please refresh the page.');
           }
-          const clientId = localStorage.getItem('cardspoke_ms_client_id') || MS_CLIENT_ID;
-          if (!clientId || clientId === 'YOUR_MICROSOFT_CLIENT_ID') {
-            throw new Error('Microsoft Client ID not configured. Please configure it in Data & Export > Cloud Storage Configuration.');
+          if (MS_CLIENT_ID === 'YOUR_MICROSOFT_CLIENT_ID') {
+            throw new Error('OneDrive not configured. Developer needs to set up OAuth client ID.');
           }
           const msalConfig = {
             auth: {
-              clientId: clientId,
+              clientId: MS_CLIENT_ID,
               authority: 'https://login.microsoftonline.com/common',
               redirectUri: window.location.origin,
             },
@@ -4636,123 +4634,66 @@ const header = {
 
         modalBody.appendChild(backupsSection);
 
-        // Cloud Storage Configuration Section
-        const cloudConfigSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
-        cloudConfigSection.appendChild(h('div', {
+        // WebDAV Helper Section
+        const webdavSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
+        webdavSection.appendChild(h('div', {
           style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
-        }, '☁️ Cloud Storage Configuration'));
+        }, '☁️ Self-Hosted Storage (WebDAV)'));
 
-        cloudConfigSection.appendChild(h('p', {
+        webdavSection.appendChild(h('p', {
           style: 'margin-bottom: var(--space-lg); color: var(--text-secondary); font-size: var(--text-sm);'
-        }, 'Configure your OAuth client IDs to enable Google Drive and OneDrive sync. These IDs are stored locally in your browser.'));
+        }, 'Connect to your own WebDAV server (Nextcloud, ownCloud, or any WebDAV-compatible storage) to keep your data on infrastructure you control.'));
 
-        // Get current values from localStorage
-        const currentGoogleId = localStorage.getItem('cardspoke_google_client_id') || '';
-        const currentMsId = localStorage.getItem('cardspoke_ms_client_id') || '';
-
-        // Google Client ID
-        const googleLabel = h('label', {
-          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600; color: var(--text-primary);'
-        }, 'Google Client ID');
-        cloudConfigSection.appendChild(googleLabel);
-
-        const googleInput = h('input', {
-          type: 'text',
-          id: 'googleClientIdInput',
-          placeholder: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
-          value: currentGoogleId,
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            margin-bottom: var(--space-md);
-            font-size: var(--text-sm);
-            font-family: monospace;
-          `
+        // Info box
+        const webdavInfo = h('div', {
+          style: 'background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: var(--space-lg);'
         });
-        cloudConfigSection.appendChild(googleInput);
 
-        cloudConfigSection.appendChild(h('div', {
-          style: 'font-size: 12px; color: var(--text-muted); margin-bottom: var(--space-lg);'
-        }, 'Get your Google Client ID from Google Cloud Console → APIs & Services → Credentials'));
+        webdavInfo.appendChild(h('div', {
+          style: 'font-weight: 600; margin-bottom: var(--space-sm);'
+        }, 'What you\'ll need:'));
 
-        // Microsoft Client ID
-        const msLabel = h('label', {
-          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600; color: var(--text-primary);'
-        }, 'Microsoft Client ID');
-        cloudConfigSection.appendChild(msLabel);
+        const requirements = [
+          'WebDAV server URL (e.g., https://cloud.example.com/remote.php/webdav/)',
+          'Username for your WebDAV account',
+          'Password or app-specific token',
+          'CORS configured on your server (if using from browser)'
+        ];
 
-        const msInput = h('input', {
-          type: 'text',
-          id: 'msClientIdInput',
-          placeholder: 'YOUR_MICROSOFT_CLIENT_ID',
-          value: currentMsId,
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            margin-bottom: var(--space-md);
-            font-size: var(--text-sm);
-            font-family: monospace;
-          `
+        requirements.forEach(function(req) {
+          const item = h('div', {
+            style: 'padding: var(--space-xs) 0; color: var(--text-secondary); font-size: var(--text-sm);'
+          }, '• ' + req);
+          webdavInfo.appendChild(item);
         });
-        cloudConfigSection.appendChild(msInput);
 
-        cloudConfigSection.appendChild(h('div', {
-          style: 'font-size: 12px; color: var(--text-muted); margin-bottom: var(--space-lg);'
-        }, 'Get your Microsoft Client ID from Azure Portal → App registrations → New registration'));
+        webdavSection.appendChild(webdavInfo);
 
-        // Save button
-        const saveCloudConfigBtn = h('button', {
+        // CORS warning
+        const corsWarning = h('div', {
+          style: 'background: #fff3cd; border: 1px solid #ffc107; padding: var(--space-md); border-radius: var(--radius); margin-bottom: var(--space-lg); font-size: var(--text-sm);'
+        });
+        corsWarning.appendChild(h('div', {
+          style: 'font-weight: 600; margin-bottom: var(--space-xs);'
+        }, '⚠️ CORS Configuration Required'));
+        corsWarning.appendChild(h('div', {}, 'For browser access, your WebDAV server must allow CORS requests. Add these headers to your server:'));
+        corsWarning.appendChild(h('pre', {
+          style: 'background: rgba(0,0,0,0.1); padding: var(--space-sm); margin-top: var(--space-sm); border-radius: var(--radius); overflow-x: auto; font-size: 12px;'
+        }, 'Access-Control-Allow-Origin: *\nAccess-Control-Allow-Methods: GET, PUT, DELETE\nAccess-Control-Allow-Headers: Authorization, Content-Type'));
+        webdavSection.appendChild(corsWarning);
+
+        // Create WebDAV dataset button
+        const createWebDAVBtn = h('button', {
           className: 'btn btn-primary',
           style: 'width: 100%; padding: var(--space-lg);',
           onclick: function() {
-            const googleId = document.getElementById('googleClientIdInput').value.trim();
-            const msId = document.getElementById('msClientIdInput').value.trim();
-
-            if (googleId) {
-              localStorage.setItem('cardspoke_google_client_id', googleId);
-              showToast('Google Client ID saved');
-            }
-            if (msId) {
-              localStorage.setItem('cardspoke_ms_client_id', msId);
-              showToast('Microsoft Client ID saved');
-            }
-
-            if (!googleId && !msId) {
-              showToast('Enter at least one client ID', 'error');
-              return;
-            }
-
-            showToast('Cloud storage configuration saved! Refresh the page for changes to take effect.', 'success');
+            overlay.remove();
+            setTimeout(() => showDatasetManager(), 100);
           }
-        }, '💾 Save Configuration');
-        cloudConfigSection.appendChild(saveCloudConfigBtn);
+        }, '+ Create WebDAV Dataset');
+        webdavSection.appendChild(createWebDAVBtn);
 
-        // Status indicator
-        const statusDiv = h('div', {
-          style: 'margin-top: var(--space-md); padding: var(--space-md); background: var(--bg-secondary); border-radius: var(--radius); border: 1px solid var(--border); font-size: var(--text-sm);'
-        });
-        let statusText = 'Status: ';
-        if (currentGoogleId && currentMsId) {
-          statusText += '✓ Google Drive and OneDrive configured';
-        } else if (currentGoogleId) {
-          statusText += '✓ Google Drive configured • OneDrive not configured';
-        } else if (currentMsId) {
-          statusText += '✓ OneDrive configured • Google Drive not configured';
-        } else {
-          statusText += '⚠️ No cloud storage configured';
-        }
-        statusDiv.textContent = statusText;
-        cloudConfigSection.appendChild(statusDiv);
-
-        modalBody.appendChild(cloudConfigSection);
+        modalBody.appendChild(webdavSection);
 
         // Dataset Management Section
         const manageSection = h('div', {});
