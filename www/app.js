@@ -3855,9 +3855,31 @@ const header = {
               config = { url, username, password };
             }
 
-            // For cloud storage (Google Drive, OneDrive), trigger auth on first use
-            if (storageType === 'googledrive' || storageType === 'onedrive') {
-              showToast('Dataset created. You\'ll be prompted to sign in when you first save data.', 'info');
+            // For cloud storage (Google Drive, OneDrive), initialize and trigger auth
+            if (storageType === 'googledrive') {
+              try {
+                const driver = new GoogleDriveDriver();
+                await driver.init({});
+                showToast('Connecting to Google Drive...', 'info');
+                // The OAuth popup will appear automatically via ensureAuthenticated
+                await driver.ensureAuthenticated();
+                showToast('Connected to Google Drive!', 'success');
+              } catch (error) {
+                showToast('Failed to connect to Google Drive: ' + error.message, 'error');
+                return;
+              }
+            } else if (storageType === 'onedrive') {
+              try {
+                const driver = new OneDriveDriver();
+                await driver.init({});
+                showToast('Connecting to OneDrive...', 'info');
+                // The OAuth popup will appear automatically via ensureAuthenticated
+                await driver.ensureAuthenticated();
+                showToast('Connected to OneDrive!', 'success');
+              } catch (error) {
+                showToast('Failed to connect to OneDrive: ' + error.message, 'error');
+                return;
+              }
             }
 
             // Generate a clean, short key using the name and a short timestamp
@@ -3882,8 +3904,7 @@ const header = {
               }
             };
 
-            // Note: For now, we still use localStorage backend for compatibility
-            // Cloud storage drivers will be used when proper migration is implemented
+            // Save to localStorage (for now - cloud sync will happen on subsequent saves)
             localStorage.setItem('activeInstance', newKey);
             instanceKey = newKey;
             store = newStore;
