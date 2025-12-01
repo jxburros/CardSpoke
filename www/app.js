@@ -25,8 +25,8 @@
       
       // --- APP METADATA & SIGNATURES ---
       const APP_CREATOR = 'jxburros';
-      const APP_VERSION = '1.0.0'; // <-- AI: UPDATE THIS when making changes
-      const APP_RELEASE_DATE = '2026-05-07'; // <-- AI: UPDATE THIS
+      const APP_VERSION = '0.15.1'; // <-- AI: UPDATE THIS when making changes
+      const APP_RELEASE_DATE = '2025-12-01'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'GPT-5.1-Codex-Max'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
       // Version 0.9.1: Added user-facing error notifications for mod execution failures
@@ -188,6 +188,9 @@
         };
       }
 
+      /** Maximum number of backup history entries to keep */
+      const MAX_BACKUP_HISTORY = 5;
+
       /** Normalize and split tag input */
       function normalizeTagInput(raw) {
         if (!raw) return [];
@@ -195,6 +198,17 @@
           .split(/[\s,]+/)
           .map(tag => tag.replace(/^#/, '').toLowerCase().trim())
           .filter(Boolean);
+      }
+
+      /** Normalize an array of tags to lowercase, deduplicated strings */
+      function normalizeTagsArray(tags) {
+        if (!Array.isArray(tags)) return [];
+        return Array.from(new Set(tags
+          .map(tag => (typeof tag === 'string' ? tag : '')
+            .replace(/^#/, '')
+            .toLowerCase()
+            .trim())
+          .filter(Boolean)));
       }
 
       /** Escape HTML */
@@ -1149,15 +1163,10 @@
             activeTheme: parsed.activeTheme || 'light'
           };
 
-          // Normalize legacy tag data to arrays of lowercase strings (v1.0.0)
+          // Normalize legacy tag data to arrays of lowercase strings (v0.15.1)
           Object.values(store.cards).forEach(card => {
             if (Array.isArray(card.tags)) {
-              card.tags = Array.from(new Set(card.tags
-                .map(tag => (typeof tag === 'string' ? tag : '')
-                  .replace(/^#/, '')
-                  .toLowerCase()
-                  .trim())
-                .filter(Boolean)));
+              card.tags = normalizeTagsArray(card.tags);
             } else if (card.tags && typeof card.tags === 'string') {
               card.tags = normalizeTagInput(card.tags);
             }
@@ -2459,14 +2468,9 @@
         const previousState = cloneCard(card);
         const updateTimestamp = Date.now();
 
-        // Normalize tag updates to stay consistent with tag manager (v1.0.0)
+        // Normalize tag updates to stay consistent with tag manager (v0.15.1)
         if (Array.isArray(updates.tags)) {
-          updates.tags = Array.from(new Set(updates.tags
-            .map(tag => (typeof tag === 'string' ? tag : '')
-              .replace(/^#/, '')
-              .toLowerCase()
-              .trim())
-            .filter(Boolean)));
+          updates.tags = normalizeTagsArray(updates.tags);
         }
         pushUndo('updateCard', {
           cardId: id,
@@ -5860,6 +5864,10 @@ console.log('✓ All examples completed!');
             return;
           }
           if (/^[-*]\s+/.test(line)) {
+            if (listEl && listEl.tagName !== 'UL') {
+              container.appendChild(listEl);
+              listEl = null;
+            }
             if (!listEl) listEl = document.createElement('ul');
             const li = document.createElement('li');
             li.textContent = line.replace(/^[-*]\s+/, '');
@@ -5867,6 +5875,10 @@ console.log('✓ All examples completed!');
             return;
           }
           if (/^\d+\.\s+/.test(line)) {
+            if (listEl && listEl.tagName !== 'OL') {
+              container.appendChild(listEl);
+              listEl = null;
+            }
             if (!listEl) listEl = document.createElement('ol');
             const li = document.createElement('li');
             li.textContent = line.replace(/^\d+\.\s+/, '');
@@ -5954,12 +5966,13 @@ console.log('✓ All examples completed!');
         if (!tree) return;
         const win = window.open('', '_blank');
         if (!win) { showToast('Allow popups to print or export.', 'error'); return; }
-        const css = `body{font-family:Inter,system-ui,sans-serif;padding:24px;color:#111;}h1{margin:0 0 8px;}h2{margin:16px 0 8px;}ul{padding-left:18px;} .meta{color:#555;font-size:12px;}`;
+        const css = `body{font-family:Inter,system-ui,sans-serif;padding:24px;color:#111;}h1{margin:0 0 8px;}h2{margin:16px 0 8px;}ul{padding-left:18px;} .meta{color:#555;font-size:12px;} .rich-body h1,.rich-body h2,.rich-body h3{margin:16px 0 8px;} .rich-body p{margin:8px 0;}`;
         const treeHtml = `<ul>${renderTreeNode(tree).outerHTML}</ul>`;
+        const bodyHtml = tree.body ? (tree.isRichText ? renderRichTextBody(tree.body).outerHTML : `<p>${escapeHtml(tree.body).replace(/\n/g, '<br>')}</p>`) : '';
         win.document.write(`<!doctype html><html><head><title>${tree.title || 'Card'}</title><style>${css}</style></head><body>` +
           `<h1>${tree.title || '(Untitled)'}</h1>` +
           `<div class=\"meta\">${new Date(tree.updatedAt || Date.now()).toLocaleString()}</div>` +
-          (tree.body ? `<p>${escapeHtml(tree.body).replace(/\n/g, '<br>')}</p>` : '') +
+          bodyHtml +
           (includeChildren ? `<h2>Children</h2>${treeHtml}` : '') +
           `<p class=\"meta\">Use your browser's Print → Save as PDF to export.</p>` +
           `</body></html>`);
@@ -6023,7 +6036,7 @@ console.log('✓ All examples completed!');
         actions.appendChild(h('button', { className: 'btn', onclick: () => showShareDialog(card), 'aria-label': 'Share card' }, 'Share'));
         actions.appendChild(h('button', { className: 'btn', onclick: () => showVisualExport(card.id), 'aria-label': 'Visual export' }, 'Visual Export'));
         actions.appendChild(h('button', { className: 'btn', onclick: () => openPrintPreview(card.id, false), 'aria-label': 'Print card' }, 'Print'));
-        actions.appendChild(h('button', { className: 'btn', onclick: () => openPrintPreview(card.id, true), 'aria-label': 'Export to PDF' }, 'Export to PDF'));
+        actions.appendChild(h('button', { className: 'btn', onclick: () => openPrintPreview(card.id, true), 'aria-label': 'Print card with children' }, 'Print with Children'));
 
         actions.appendChild(h('button', { className: 'btn', onclick: () => openUploadModalForCard(card.id, 'txt') }, 'Import TXT'));
         actions.appendChild(h('button', { className: 'btn', onclick: () => openUploadModalForCard(card.id, 'docx') }, 'Import DOCX'));
@@ -7753,7 +7766,7 @@ console.log('✓ All examples completed!');
           container.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, 'No backups yet.'));
           return;
         }
-        history.slice(0, 5).forEach(item => {
+        history.slice(0, MAX_BACKUP_HISTORY).forEach(item => {
           const date = new Date(item);
           container.appendChild(h('div', {
             style: 'display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary); padding: var(--space-sm) var(--space-md); border-radius: var(--radius); border: 1px solid var(--border);'
@@ -7772,9 +7785,9 @@ console.log('✓ All examples completed!');
         downloadWithFeedback(payload, filename, 'application/json');
         const history = JSON.parse(localStorage.getItem('cardspoke_backup_history') || '[]');
         history.unshift(timestamp.toISOString());
-        localStorage.setItem('cardspoke_backup_history', JSON.stringify(history.slice(0, 5)));
+        localStorage.setItem('cardspoke_backup_history', JSON.stringify(history.slice(0, MAX_BACKUP_HISTORY)));
         showToast('Backup created');
-        return history.slice(0, 5);
+        return history.slice(0, MAX_BACKUP_HISTORY);
       }
 
       // =============================================================
@@ -8387,7 +8400,7 @@ console.log('✓ All examples completed!');
       }
 
       // =========================================================
-      // Getting Started Guide (v1.0.0)
+      // Getting Started Guide (v0.15.1)
       // =========================================================
       function showGettingStartedGuide(force = false) {
         if (!force && localStorage.getItem('cardspoke_seenGettingStarted') === 'true') return;
@@ -8442,7 +8455,7 @@ console.log('✓ All examples completed!');
       }
 
       // =========================================================
-      // Language packs placeholder (v1.0.0)
+      // Language packs placeholder (v0.15.1)
       // =========================================================
       function showLanguagePacks() {
         const overlay = h('div', { className: 'modal-overlay show' });
