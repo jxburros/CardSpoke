@@ -16,7 +16,7 @@
 // =============================================================
 
 // --- APP METADATA & SIGNATURES ---
-const APP_CREATOR = 'jxburros';
+const APP_CREATOR = 'Jeffrey from GX Generations Software';
 const APP_VERSION = '0.15.0';
 const APP_RELEASE_DATE = '2025-11-30';
 const APP_UPDATER = 'Claude Code (Sonnet 4.5)';
@@ -2709,8 +2709,13 @@ const header = {
        * @param {string} filename - Suggested filename
        * @param {string} format - File format for display (e.g., 'TXT', 'Markdown')
        */
-      function downloadWithFeedback(blob, filename, format) {
+      function downloadWithFeedback(content, filename, mimeType) {
+        // Create blob from content if it's a string
+        const blob = typeof content === 'string' 
+          ? new Blob([content], { type: mimeType || 'text/plain' })
+          : content;
         const url = URL.createObjectURL(blob);
+        const format = mimeType || 'file';
         
         try {
           const a = document.createElement('a');
@@ -3887,7 +3892,7 @@ const header = {
         exportOptions.forEach(function(opt) {
           const exportBtn = h('button', {
             className: 'btn',
-            style: 'width: 100%; text-align: left; padding: var(--space-lg); margin-bottom: var(--space-sm); border: 1px solid var(--border); border-radius: var(--radius); display: flex; align-items: center; gap: var(--space-md);',
+            style: 'width: 100%; text-align: center; padding: var(--space-lg); margin-bottom: var(--space-sm); border: 1px solid var(--border); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; gap: var(--space-md);',
             onclick: function() {
               switch (opt.id) {
                 case 'json':
@@ -4001,6 +4006,114 @@ const header = {
           style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
         }, 'Dataset Management'));
         
+        // Description
+        manageSection.appendChild(h('p', {
+          style: 'margin-bottom: var(--space-lg); color: var(--text-muted); font-size: var(--text-sm);'
+        }, 'Create new datasets to organize different types of content separately, or switch between existing datasets.'));
+        
+        // Create new dataset button
+        const createDatasetBtn = h('button', {
+          className: 'btn btn-primary',
+          style: 'width: 100%; padding: var(--space-lg); margin-bottom: var(--space-lg);',
+          onclick: function() {
+            const newName = prompt('Enter name for new dataset:', 'New Dataset');
+            if (newName && newName.trim()) {
+              // Create a new instance key for the dataset using uid() for better uniqueness
+              const newKey = 'cardspoke_' + uid();
+              // Save current store before switching
+              save(true);
+              // Store the dataset name mapping
+              const datasets = JSON.parse(localStorage.getItem('cardspoke_datasets') || '{}');
+              datasets[newKey] = {
+                name: newName.trim(),
+                createdAt: Date.now()
+              };
+              // Add current dataset if not already tracked
+              if (!datasets[instanceKey]) {
+                datasets[instanceKey] = {
+                  name: (store.metadata && store.metadata.name) || 'Default',
+                  createdAt: Date.now()
+                };
+              }
+              localStorage.setItem('cardspoke_datasets', JSON.stringify(datasets));
+              // Switch to the new dataset
+              instanceKey = newKey;
+              localStorage.setItem('activeInstance', newKey);
+              // Create fresh store for new dataset
+              store = createDefaultStore();
+              store.metadata = { name: newName.trim(), createdAt: Date.now() };
+              save(true);
+              showToast('Created and switched to dataset: ' + newName.trim());
+              overlay.remove();
+              render();
+            }
+          }
+        }, '➕ Create New Dataset');
+        manageSection.appendChild(createDatasetBtn);
+        
+        // List existing datasets
+        const datasets = JSON.parse(localStorage.getItem('cardspoke_datasets') || '{}');
+        // Ensure current dataset is in the list
+        if (!datasets[instanceKey]) {
+          datasets[instanceKey] = {
+            name: (store.metadata && store.metadata.name) || 'Default',
+            createdAt: Date.now()
+          };
+          localStorage.setItem('cardspoke_datasets', JSON.stringify(datasets));
+        }
+        
+        const datasetKeys = Object.keys(datasets);
+        if (datasetKeys.length > 0) {
+          manageSection.appendChild(h('div', {
+            style: 'font-weight: 600; margin-bottom: var(--space-sm); font-size: var(--text-sm);'
+          }, 'Available Datasets:'));
+          
+          const datasetList = h('div', { 
+            style: 'background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: var(--space-lg);' 
+          });
+          
+          datasetKeys.forEach(function(key) {
+            const dataset = datasets[key];
+            const isActive = key === instanceKey;
+            const datasetItem = h('div', {
+              style: 'padding: var(--space-sm); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;' + (isActive ? ' background: var(--bg-tertiary, rgba(0,0,0,0.05));' : '')
+            });
+            
+            const datasetInfo = h('div', {});
+            datasetInfo.appendChild(h('div', { style: 'font-weight: 600;' }, (isActive ? '✓ ' : '') + (dataset.name || key)));
+            if (dataset.createdAt) {
+              datasetInfo.appendChild(h('div', { style: 'font-size: 12px; color: var(--text-muted);' }, 
+                'Created: ' + new Date(dataset.createdAt).toLocaleDateString()));
+            }
+            datasetItem.appendChild(datasetInfo);
+            
+            if (!isActive) {
+              const switchBtn = h('button', {
+                className: 'btn btn-primary',
+                style: 'font-size: var(--text-sm); padding: var(--space-xs) var(--space-md);',
+                onclick: function() {
+                  // Save current store before switching
+                  save(true);
+                  // Switch to the selected dataset
+                  instanceKey = key;
+                  localStorage.setItem('activeInstance', key);
+                  // Load the new store
+                  load();
+                  showToast('Switched to dataset: ' + (dataset.name || key));
+                  overlay.remove();
+                  render();
+                }
+              }, 'Switch');
+              datasetItem.appendChild(switchBtn);
+            }
+            
+            datasetList.appendChild(datasetItem);
+          });
+          
+          manageSection.appendChild(datasetList);
+        }
+        
+        // Rename current dataset button
         const renameBtn = h('button', {
           className: 'btn',
           style: 'margin-right: var(--space-md);',
@@ -4008,7 +4121,7 @@ const header = {
             editDatasetName();
             overlay.remove();
           }
-        }, 'Rename Dataset');
+        }, 'Rename Current Dataset');
         manageSection.appendChild(renameBtn);
         
         modalBody.appendChild(manageSection);
@@ -5077,21 +5190,21 @@ console.log('✓ All examples completed!');
             const themeOption = h('div', {
               style: 'padding: var(--space-md); border: 2px solid ' + (isActive ? 'var(--primary)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer; display: flex; justify-content: space-between; align-items: center;',
               onclick: function() {
-                if (theme.enabled) {
-                  // Apply the theme extension
-                  localStorage.setItem('cardspoke_activeThemeExtension', theme.id);
-                  // Add a class to document for the theme
-                  document.documentElement.className = document.documentElement.className
-                    .split(' ')
-                    .filter(c => !c.startsWith('theme-ext-'))
-                    .join(' ');
-                  document.documentElement.classList.add('theme-ext-' + theme.id);
-                  showToast('Theme applied: ' + (theme.meta.name || theme.id));
-                  overlay.remove();
-                  showAppearanceSettings();
-                } else {
-                  showToast('Enable this extension first in Extensions Hub', 'info');
+                if (!theme.enabled) {
+                  // Enable the theme extension first
+                  CardSpoke_MODS.enable(theme.id);
                 }
+                // Apply the theme extension
+                localStorage.setItem('cardspoke_activeThemeExtension', theme.id);
+                // Remove all other theme extension classes and add this one
+                document.documentElement.className = document.documentElement.className
+                  .split(' ')
+                  .filter(c => !c.startsWith('theme-ext-'))
+                  .join(' ');
+                document.documentElement.classList.add('theme-ext-' + theme.id);
+                showToast('Theme applied: ' + (theme.meta.name || theme.id));
+                overlay.remove();
+                showAppearanceSettings();
               }
             });
             
@@ -7591,7 +7704,7 @@ console.log('✓ All examples completed!');
         const tagGroup = h('div', { style: 'margin-bottom: var(--space-lg);' });
         tagGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Filter by Tag'));
         const tagSelect = h('select', {
-          style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-primary); color: var(--text-primary); font-size: 1rem;'
+          style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: 1rem;'
         });
         tagSelect.appendChild(h('option', { value: '' }, 'Any tag'));
         getAllTags().forEach(function(tag) {
@@ -7613,7 +7726,7 @@ console.log('✓ All examples completed!');
         const dateGroup = h('div', { style: 'margin-bottom: var(--space-lg);' });
         dateGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Created/Modified'));
         const dateSelect = h('select', {
-          style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-primary); color: var(--text-primary); font-size: 1rem;'
+          style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: 1rem;'
         });
         dateSelect.appendChild(h('option', { value: '' }, 'Any time'));
         dateSelect.appendChild(h('option', { value: 'today' }, 'Today'));
@@ -8017,6 +8130,12 @@ console.log('✓ All examples completed!');
           if (!store.metadata) store.metadata = {};
           store.metadata.name = newName.trim();
           store.metadata.updatedAt = Date.now();
+          // Update the datasets registry
+          const datasets = JSON.parse(localStorage.getItem('cardspoke_datasets') || '{}');
+          if (datasets[instanceKey]) {
+            datasets[instanceKey].name = newName.trim();
+            localStorage.setItem('cardspoke_datasets', JSON.stringify(datasets));
+          }
           save();
           showToast('Dataset renamed to: ' + newName.trim());
           render();
