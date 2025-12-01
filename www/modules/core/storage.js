@@ -8,6 +8,11 @@
 import { state, getStore, setStore, createDefaultStore } from './state.js';
 import { showToast } from '../ui/toast.js';
 
+// Cloud Storage Configuration
+// Replace these with your own OAuth client IDs
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+const MS_CLIENT_ID = 'YOUR_MICROSOFT_CLIENT_ID';
+
 /**
  * StorageDriver Interface
  * Provides abstraction for different storage backends
@@ -215,6 +220,742 @@ export class LocalStorageDriver extends StorageDriver {
 }
 
 /**
+ * Google Drive Storage Driver
+ * Uses Google Identity Services for authentication
+ */
+export class GoogleDriveDriver extends StorageDriver {
+  constructor() {
+    super();
+    this.accessToken = null;
+    this.tokenClient = null;
+    this.fileName = 'cardspoke.json';
+    this.fileId = null;
+  }
+
+  async init(config = {}) {
+    this.fileName = config.fileName || 'cardspoke.json';
+
+    // Check if Google Identity Services is available
+    if (typeof google === 'undefined' || !google.accounts) {
+      throw new Error('Google Identity Services not loaded. Please refresh the page.');
+    }
+
+    // Initialize the token client
+    this.tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      callback: (response) => {
+        if (response.error) {
+          showToast('Google Drive authentication failed: ' + response.error, 'error');
+          return;
+        }
+        this.accessToken = response.access_token;
+      },
+    });
+
+    return Promise.resolve();
+  }
+
+  async ensureAuthenticated() {
+    if (!this.accessToken) {
+      return new Promise((resolve, reject) => {
+        this.tokenClient.callback = (response) => {
+          if (response.error) {
+            reject(new Error('Authentication failed: ' + response.error));
+            return;
+          }
+          this.accessToken = response.access_token;
+          resolve();
+        };
+        this.tokenClient.requestAccessToken();
+      });
+    }
+  }
+
+  async findFile() {
+    await this.ensureAuthenticated();
+
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=name='${this.fileName}' and trashed=false`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to search for file: ' + response.statusText);
+    }
+
+    const data = await response.json();
+    return data.files && data.files.length > 0 ? data.files[0].id : null;
+  }
+
+  async get(key) {
+    try {
+      const fileId = await this.findFile();
+      if (!fileId) {
+        return null;
+      }
+
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to download file: ' + response.statusText);
+      }
+
+      const data = await response.json();
+      return data[key] || null;
+    } catch (error) {
+      console.error('Google Drive get error:', error);
+      showToast('Failed to read from Google Drive: ' + error.message, 'error');
+      return null;
+    }
+  }
+
+  async set(key, value) {
+    try {
+      await this.ensureAuthenticated();
+
+      let fileId = await this.findFile();
+      let allData = {};
+
+      if (fileId) {
+        // Read existing data
+        const response = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+          {
+            headers: {
+              Authorization: `Bearer ${this.accessToken}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          allData = await response.json();
+        }
+      }
+
+      // Update data
+      allData[key] = value;
+      const content = JSON.stringify(allData, null, 2);
+
+      if (fileId) {
+        // Update existing file
+        const response = await fetch(
+          `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${this.accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: content,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to update file: ' + response.statusText);
+        }
+      } else {
+        // Create new file
+        const metadata = {
+          name: this.fileName,
+          mimeType: 'application/json',
+        };
+
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', new Blob([content], { type: 'application/json' }));
+
+        const response = await fetch(
+          'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${this.accessToken}`,
+            },
+            body: form,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to create file: ' + response.statusText);
+        }
+      }
+    } catch (error) {
+      console.error('Google Drive set error:', error);
+      showToast('Failed to save to Google Drive: ' + error.message, 'error');
+      throw error;
+    }
+  }
+
+  async remove(key) {
+    try {
+      const fileId = await this.findFile();
+      if (!fileId) {
+        return;
+      }
+
+      // Read existing data
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const allData = await response.json();
+        delete allData[key];
+
+        // Update file with key removed
+        const content = JSON.stringify(allData, null, 2);
+        await fetch(
+          `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${this.accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: content,
+          }
+        );
+      }
+    } catch (error) {
+      console.error('Google Drive remove error:', error);
+      showToast('Failed to remove from Google Drive: ' + error.message, 'error');
+      throw error;
+    }
+  }
+
+  async list(prefix = '') {
+    try {
+      const fileId = await this.findFile();
+      if (!fileId) {
+        return [];
+      }
+
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const allData = await response.json();
+      const keys = Object.keys(allData);
+      return prefix ? keys.filter(k => k.startsWith(prefix)) : keys;
+    } catch (error) {
+      console.error('Google Drive list error:', error);
+      return [];
+    }
+  }
+
+  async getSize() {
+    try {
+      const fileId = await this.findFile();
+      if (!fileId) {
+        return 0;
+      }
+
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        return 0;
+      }
+
+      const content = await response.text();
+      return content.length;
+    } catch (error) {
+      console.error('Google Drive getSize error:', error);
+      return 0;
+    }
+  }
+
+  getKind() {
+    return 'googledrive';
+  }
+}
+
+/**
+ * OneDrive Storage Driver
+ * Uses MSAL.js for Microsoft authentication
+ */
+export class OneDriveDriver extends StorageDriver {
+  constructor() {
+    super();
+    this.msalInstance = null;
+    this.accessToken = null;
+    this.fileName = 'cardspoke.json';
+  }
+
+  async init(config = {}) {
+    this.fileName = config.fileName || 'cardspoke.json';
+
+    // Check if MSAL is available
+    if (typeof msal === 'undefined') {
+      throw new Error('MSAL library not loaded. Please refresh the page.');
+    }
+
+    // Initialize MSAL
+    const msalConfig = {
+      auth: {
+        clientId: MS_CLIENT_ID,
+        authority: 'https://login.microsoftonline.com/common',
+        redirectUri: window.location.origin,
+      },
+      cache: {
+        cacheLocation: 'sessionStorage',
+        storeAuthStateInCookie: false,
+      },
+    };
+
+    this.msalInstance = new msal.PublicClientApplication(msalConfig);
+    await this.msalInstance.initialize();
+
+    return Promise.resolve();
+  }
+
+  async ensureAuthenticated() {
+    if (this.accessToken) {
+      return;
+    }
+
+    const accounts = this.msalInstance.getAllAccounts();
+    const request = {
+      scopes: ['Files.ReadWrite', 'User.Read'],
+      account: accounts[0],
+    };
+
+    try {
+      // Try silent token acquisition first
+      const response = await this.msalInstance.acquireTokenSilent(request);
+      this.accessToken = response.accessToken;
+    } catch (error) {
+      // Fall back to interactive login
+      const response = await this.msalInstance.loginPopup(request);
+      this.accessToken = response.accessToken;
+    }
+  }
+
+  async findFile() {
+    await this.ensureAuthenticated();
+
+    const response = await fetch(
+      `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${this.fileName}')`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to search for file: ' + response.statusText);
+    }
+
+    const data = await response.json();
+    return data.value && data.value.length > 0 ? data.value[0].id : null;
+  }
+
+  async get(key) {
+    try {
+      const fileId = await this.findFile();
+      if (!fileId) {
+        return null;
+      }
+
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to download file: ' + response.statusText);
+      }
+
+      const data = await response.json();
+      return data[key] || null;
+    } catch (error) {
+      console.error('OneDrive get error:', error);
+      showToast('Failed to read from OneDrive: ' + error.message, 'error');
+      return null;
+    }
+  }
+
+  async set(key, value) {
+    try {
+      await this.ensureAuthenticated();
+
+      let fileId = await this.findFile();
+      let allData = {};
+
+      if (fileId) {
+        // Read existing data
+        const response = await fetch(
+          `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
+          {
+            headers: {
+              Authorization: `Bearer ${this.accessToken}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          allData = await response.json();
+        }
+      }
+
+      // Update data
+      allData[key] = value;
+      const content = JSON.stringify(allData, null, 2);
+
+      // Upload/update file
+      const uploadUrl = fileId
+        ? `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`
+        : `https://graph.microsoft.com/v1.0/me/drive/root:/${this.fileName}:/content`;
+
+      const response = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: content,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save file: ' + response.statusText);
+      }
+    } catch (error) {
+      console.error('OneDrive set error:', error);
+      showToast('Failed to save to OneDrive: ' + error.message, 'error');
+      throw error;
+    }
+  }
+
+  async remove(key) {
+    try {
+      const fileId = await this.findFile();
+      if (!fileId) {
+        return;
+      }
+
+      // Read existing data
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const allData = await response.json();
+        delete allData[key];
+
+        // Update file with key removed
+        const content = JSON.stringify(allData, null, 2);
+        await fetch(
+          `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${this.accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: content,
+          }
+        );
+      }
+    } catch (error) {
+      console.error('OneDrive remove error:', error);
+      showToast('Failed to remove from OneDrive: ' + error.message, 'error');
+      throw error;
+    }
+  }
+
+  async list(prefix = '') {
+    try {
+      const fileId = await this.findFile();
+      if (!fileId) {
+        return [];
+      }
+
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const allData = await response.json();
+      const keys = Object.keys(allData);
+      return prefix ? keys.filter(k => k.startsWith(prefix)) : keys;
+    } catch (error) {
+      console.error('OneDrive list error:', error);
+      return [];
+    }
+  }
+
+  async getSize() {
+    try {
+      const fileId = await this.findFile();
+      if (!fileId) {
+        return 0;
+      }
+
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        return 0;
+      }
+
+      const content = await response.text();
+      return content.length;
+    } catch (error) {
+      console.error('OneDrive getSize error:', error);
+      return 0;
+    }
+  }
+
+  getKind() {
+    return 'onedrive';
+  }
+}
+
+/**
+ * WebDAV Storage Driver
+ * For self-hosted cloud storage
+ */
+export class WebDAVDriver extends StorageDriver {
+  constructor() {
+    super();
+    this.url = null;
+    this.username = null;
+    this.password = null;
+    this.fileName = 'cardspoke.json';
+  }
+
+  async init(config = {}) {
+    if (!config.url || !config.username || !config.password) {
+      throw new Error('WebDAV requires url, username, and password in config');
+    }
+
+    this.url = config.url.endsWith('/') ? config.url : config.url + '/';
+    this.username = config.username;
+    this.password = config.password;
+    this.fileName = config.fileName || 'cardspoke.json';
+
+    return Promise.resolve();
+  }
+
+  getAuthHeader() {
+    const credentials = btoa(`${this.username}:${this.password}`);
+    return `Basic ${credentials}`;
+  }
+
+  async get(key) {
+    try {
+      const response = await fetch(this.url + this.fileName, {
+        method: 'GET',
+        headers: {
+          Authorization: this.getAuthHeader(),
+        },
+      });
+
+      if (response.status === 404) {
+        return null;
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to read file: ' + response.statusText);
+      }
+
+      const allData = await response.json();
+      return allData[key] || null;
+    } catch (error) {
+      if (error.message.includes('CORS')) {
+        showToast('CORS error: Configure your WebDAV server to allow requests from this origin', 'error');
+      } else {
+        showToast('Failed to read from WebDAV: ' + error.message, 'error');
+      }
+      console.error('WebDAV get error:', error);
+      return null;
+    }
+  }
+
+  async set(key, value) {
+    try {
+      let allData = {};
+
+      // Try to read existing data
+      try {
+        const response = await fetch(this.url + this.fileName, {
+          method: 'GET',
+          headers: {
+            Authorization: this.getAuthHeader(),
+          },
+        });
+
+        if (response.ok) {
+          allData = await response.json();
+        }
+      } catch (error) {
+        // File doesn't exist yet, that's okay
+      }
+
+      // Update data
+      allData[key] = value;
+      const content = JSON.stringify(allData, null, 2);
+
+      // Write file
+      const response = await fetch(this.url + this.fileName, {
+        method: 'PUT',
+        headers: {
+          Authorization: this.getAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+        body: content,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to write file: ' + response.statusText);
+      }
+    } catch (error) {
+      if (error.message.includes('CORS')) {
+        showToast('CORS error: Configure your WebDAV server to allow requests from this origin', 'error');
+      } else {
+        showToast('Failed to save to WebDAV: ' + error.message, 'error');
+      }
+      console.error('WebDAV set error:', error);
+      throw error;
+    }
+  }
+
+  async remove(key) {
+    try {
+      const response = await fetch(this.url + this.fileName, {
+        method: 'GET',
+        headers: {
+          Authorization: this.getAuthHeader(),
+        },
+      });
+
+      if (response.ok) {
+        const allData = await response.json();
+        delete allData[key];
+
+        // Update file with key removed
+        const content = JSON.stringify(allData, null, 2);
+        await fetch(this.url + this.fileName, {
+          method: 'PUT',
+          headers: {
+            Authorization: this.getAuthHeader(),
+            'Content-Type': 'application/json',
+          },
+          body: content,
+        });
+      }
+    } catch (error) {
+      console.error('WebDAV remove error:', error);
+      showToast('Failed to remove from WebDAV: ' + error.message, 'error');
+      throw error;
+    }
+  }
+
+  async list(prefix = '') {
+    try {
+      const response = await fetch(this.url + this.fileName, {
+        method: 'GET',
+        headers: {
+          Authorization: this.getAuthHeader(),
+        },
+      });
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const allData = await response.json();
+      const keys = Object.keys(allData);
+      return prefix ? keys.filter(k => k.startsWith(prefix)) : keys;
+    } catch (error) {
+      console.error('WebDAV list error:', error);
+      return [];
+    }
+  }
+
+  async getSize() {
+    try {
+      const response = await fetch(this.url + this.fileName, {
+        method: 'GET',
+        headers: {
+          Authorization: this.getAuthHeader(),
+        },
+      });
+
+      if (!response.ok) {
+        return 0;
+      }
+
+      const content = await response.text();
+      return content.length;
+    } catch (error) {
+      console.error('WebDAV getSize error:', error);
+      return 0;
+    }
+  }
+
+  getKind() {
+    return 'webdav';
+  }
+}
+
+/**
  * Dataset Manager
  * Manages multiple datasets with different storage drivers
  */
@@ -238,6 +979,7 @@ export class DatasetManager {
           name: meta.name,
           driver,
           pin: meta.pin || null,
+          config: meta.storage.config,
           createdAt: meta.createdAt,
           updatedAt: meta.updatedAt
         });
@@ -252,28 +994,66 @@ export class DatasetManager {
   async createDriver(kind, config = {}) {
     let driver;
 
-    if (kind === 'indexeddb') {
-      driver = new IndexedDBDriver();
-    } else {
-      driver = new LocalStorageDriver();
+    switch (kind) {
+      case 'indexeddb':
+        driver = new IndexedDBDriver();
+        break;
+      case 'googledrive':
+        driver = new GoogleDriveDriver();
+        break;
+      case 'onedrive':
+        driver = new OneDriveDriver();
+        break;
+      case 'webdav':
+        driver = new WebDAVDriver();
+        break;
+      case 'localstorage':
+      default:
+        driver = new LocalStorageDriver();
+        break;
     }
 
     await driver.init(config);
     return driver;
   }
 
-  async createDataset(name, storageKind = 'localstorage', pin = null) {
+  async createDataset(name, storageKind = 'localstorage', pin = null, config = {}) {
     const id = 'dataset_' + Date.now();
-    const driver = await this.createDriver(storageKind, {
-      dbName: `CardSpokeDB_${id}`,
-      prefix: `cardspoke_${id}_`
-    });
+
+    // Build config based on storage kind
+    let driverConfig = {};
+    if (storageKind === 'indexeddb') {
+      driverConfig = {
+        dbName: `CardSpokeDB_${id}`,
+        ...config
+      };
+    } else if (storageKind === 'localstorage') {
+      driverConfig = {
+        prefix: `cardspoke_${id}_`,
+        ...config
+      };
+    } else if (storageKind === 'webdav') {
+      // WebDAV requires url, username, password
+      driverConfig = {
+        fileName: `cardspoke_${id}.json`,
+        ...config
+      };
+    } else {
+      // Google Drive, OneDrive
+      driverConfig = {
+        fileName: `cardspoke_${id}.json`,
+        ...config
+      };
+    }
+
+    const driver = await this.createDriver(storageKind, driverConfig);
 
     const dataset = {
       id,
       name,
       driver,
       pin,
+      config: driverConfig,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
@@ -295,11 +1075,18 @@ export class DatasetManager {
     };
 
     for (const [id, dataset] of this.datasets) {
+      // Don't save sensitive WebDAV credentials in metadata
+      // They should be re-entered each session for security
+      let configToSave = { ...dataset.config };
+      if (dataset.driver.getKind() === 'webdav') {
+        delete configToSave.password;
+      }
+
       metadata.datasets[id] = {
         name: dataset.name,
         storage: {
           driver: dataset.driver.getKind(),
-          config: {}
+          config: configToSave
         },
         pin: dataset.pin,
         createdAt: dataset.createdAt,
