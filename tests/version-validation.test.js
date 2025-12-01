@@ -1,6 +1,6 @@
 /**
  * Version Validation Tests
- * Tests to ensure version consistency across the application
+ * Comprehensive tests to ensure version consistency across ALL application files
  */
 
 import { test } from 'uvu';
@@ -12,63 +12,195 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-test('APP_VERSION constant matches package.json version', () => {
-  // Read package.json
+/**
+ * Helper to get the canonical version from package.json
+ * This is the single source of truth for the app version
+ */
+function getCanonicalVersion() {
   const packageJsonPath = join(__dirname, '..', 'package.json');
   const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-  const packageVersion = packageJson.version;
-  
-  // Check for APP_VERSION in either app.js or the state module
+  return packageJson.version;
+}
+
+/**
+ * Helper to extract version from a file using a regex pattern
+ */
+function extractVersion(filePath, pattern) {
+  if (!existsSync(filePath)) {
+    return { found: false, version: null, error: 'File not found' };
+  }
+  const content = readFileSync(filePath, 'utf-8');
+  const match = content.match(pattern);
+  if (match) {
+    return { found: true, version: match[1].trim() };
+  }
+  return { found: false, version: null, error: 'Pattern not matched' };
+}
+
+// =====================================================================
+// Individual version location tests
+// =====================================================================
+
+test('package.json version exists and is valid semver', () => {
+  const version = getCanonicalVersion();
+  assert.ok(version, 'package.json should have a version');
+  assert.ok(/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(version), 
+    `Version "${version}" should be valid semver format`);
+});
+
+test('APP_VERSION constant in app.js matches package.json', () => {
+  const canonicalVersion = getCanonicalVersion();
   const appJsPath = join(__dirname, '..', 'www', 'app.js');
+  
+  const result = extractVersion(appJsPath, /const APP_VERSION = '([^']+)';/);
+  assert.ok(result.found, 'APP_VERSION constant should be found in app.js');
+  assert.is(result.version, canonicalVersion, 
+    `app.js APP_VERSION (${result.version}) should match package.json (${canonicalVersion})`);
+});
+
+test('Version comment in app.js header matches package.json', () => {
+  const canonicalVersion = getCanonicalVersion();
+  const appJsPath = join(__dirname, '..', 'www', 'app.js');
+  
+  const result = extractVersion(appJsPath, /\/\/ Version: ([^\n]+)/);
+  assert.ok(result.found, 'Version comment should be found in app.js header');
+  assert.is(result.version, canonicalVersion, 
+    `app.js version comment (${result.version}) should match package.json (${canonicalVersion})`);
+});
+
+test('index.html meta tag version matches package.json', () => {
+  const canonicalVersion = getCanonicalVersion();
+  const indexPath = join(__dirname, '..', 'www', 'index.html');
+  
+  const result = extractVersion(indexPath, /<meta name="app:version" content="([^"]+)">/);
+  assert.ok(result.found, 'app:version meta tag should be found in index.html');
+  assert.is(result.version, canonicalVersion, 
+    `index.html meta version (${result.version}) should match package.json (${canonicalVersion})`);
+});
+
+test('state.js module APP_VERSION matches package.json', () => {
+  const canonicalVersion = getCanonicalVersion();
   const stateModulePath = join(__dirname, '..', 'www', 'modules', 'core', 'state.js');
   
-  let appVersion = null;
+  if (!existsSync(stateModulePath)) {
+    // Skip if state module doesn't exist (app might be using self-contained version)
+    return;
+  }
   
-  // First try the state module (ES modules refactored version)
-  if (existsSync(stateModulePath)) {
-    const stateModuleContent = readFileSync(stateModulePath, 'utf-8');
-    const stateVersionMatch = stateModuleContent.match(/export const APP_VERSION = '([^']+)';/);
-    if (stateVersionMatch) {
-      appVersion = stateVersionMatch[1];
+  const result = extractVersion(stateModulePath, /export const APP_VERSION = '([^']+)';/);
+  assert.ok(result.found, 'APP_VERSION should be found in state.js module');
+  assert.is(result.version, canonicalVersion, 
+    `state.js APP_VERSION (${result.version}) should match package.json (${canonicalVersion})`);
+});
+
+test('state.js module version comment matches package.json', () => {
+  const canonicalVersion = getCanonicalVersion();
+  const stateModulePath = join(__dirname, '..', 'www', 'modules', 'core', 'state.js');
+  
+  if (!existsSync(stateModulePath)) {
+    // Skip if state module doesn't exist
+    return;
+  }
+  
+  const result = extractVersion(stateModulePath, /\* Version: ([^\n*]+)/);
+  assert.ok(result.found, 'Version comment should be found in state.js');
+  assert.is(result.version, canonicalVersion, 
+    `state.js version comment (${result.version}) should match package.json (${canonicalVersion})`);
+});
+
+// =====================================================================
+// Comprehensive all-versions-match test
+// =====================================================================
+
+test('ALL version instances across codebase are consistent', () => {
+  const canonicalVersion = getCanonicalVersion();
+  const versionLocations = [];
+  const mismatches = [];
+  
+  // Define all version locations to check
+  const checks = [
+    {
+      name: 'package.json version',
+      path: join(__dirname, '..', 'package.json'),
+      pattern: /"version":\s*"([^"]+)"/,
+      required: true
+    },
+    {
+      name: 'app.js APP_VERSION constant',
+      path: join(__dirname, '..', 'www', 'app.js'),
+      pattern: /const APP_VERSION = '([^']+)';/,
+      required: true
+    },
+    {
+      name: 'app.js version comment',
+      path: join(__dirname, '..', 'www', 'app.js'),
+      pattern: /\/\/ Version: ([^\n]+)/,
+      required: true
+    },
+    {
+      name: 'index.html meta tag',
+      path: join(__dirname, '..', 'www', 'index.html'),
+      pattern: /<meta name="app:version" content="([^"]+)">/,
+      required: true
+    },
+    {
+      name: 'state.js APP_VERSION export',
+      path: join(__dirname, '..', 'www', 'modules', 'core', 'state.js'),
+      pattern: /export const APP_VERSION = '([^']+)';/,
+      required: false
+    },
+    {
+      name: 'state.js version comment',
+      path: join(__dirname, '..', 'www', 'modules', 'core', 'state.js'),
+      pattern: /\* Version: ([^\n*]+)/,
+      required: false
+    }
+  ];
+  
+  // Check each location
+  for (const check of checks) {
+    const result = extractVersion(check.path, check.pattern);
+    
+    if (result.found) {
+      versionLocations.push({
+        name: check.name,
+        version: result.version
+      });
+      
+      if (result.version !== canonicalVersion) {
+        mismatches.push({
+          name: check.name,
+          found: result.version,
+          expected: canonicalVersion
+        });
+      }
+    } else if (check.required) {
+      mismatches.push({
+        name: check.name,
+        found: 'NOT FOUND',
+        expected: canonicalVersion
+      });
     }
   }
   
-  // Fall back to app.js if not found in module
-  if (!appVersion) {
-    const appJsContent = readFileSync(appJsPath, 'utf-8');
-    const versionMatch = appJsContent.match(/const APP_VERSION = '([^']+)';/);
-    assert.ok(versionMatch, 'APP_VERSION constant should be found in app.js or modules/core/state.js');
-    appVersion = versionMatch[1];
+  // Generate detailed error message if there are mismatches
+  if (mismatches.length > 0) {
+    const errorDetails = mismatches.map(m => 
+      `  - ${m.name}: found "${m.found}", expected "${m.expected}"`
+    ).join('\n');
+    
+    assert.unreachable(
+      `Version inconsistencies detected!\n` +
+      `Canonical version (from package.json): ${canonicalVersion}\n` +
+      `Mismatches:\n${errorDetails}\n\n` +
+      `All versions found:\n` +
+      versionLocations.map(v => `  - ${v.name}: "${v.version}"`).join('\n')
+    );
   }
   
-  assert.ok(appVersion, 'APP_VERSION should be found');
-  
-  // Compare versions
-  assert.is(appVersion, packageVersion, 
-    `APP_VERSION (${appVersion}) should match package.json version (${packageVersion})`
-  );
-});
-
-test('Version comment in app.js matches package.json version', () => {
-  // Read package.json
-  const packageJsonPath = join(__dirname, '..', 'package.json');
-  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-  const packageVersion = packageJson.version;
-  
-  // Read app.js and extract version comment
-  const appJsPath = join(__dirname, '..', 'www', 'app.js');
-  const appJsContent = readFileSync(appJsPath, 'utf-8');
-  
-  // Extract version comment using regex
-  const versionCommentMatch = appJsContent.match(/\/\/ Version: ([^\n]+)/);
-  assert.ok(versionCommentMatch, 'Version comment should be found in app.js');
-  
-  const commentVersion = versionCommentMatch[1].trim();
-  
-  // Compare versions
-  assert.is(commentVersion, packageVersion, 
-    `Version comment (${commentVersion}) should match package.json version (${packageVersion})`
-  );
+  // Verify we checked at least the required locations
+  assert.ok(versionLocations.length >= 4, 
+    `Should have found at least 4 version locations, found ${versionLocations.length}`);
 });
 
 test.run();
