@@ -174,15 +174,14 @@ CardSpoke does *not*:
 
 ## 8. Content Classification (Official Terminology)
 
-- **Official** — Created by JX Holdings  
-- **Angled** — Community-created  
-- **Extension** — Any modular addition  
-- **Theme / Patch / Plugin / Mod / Kit / Expansion** — Extension subtypes  
-- **Deviation** — Fork  
-- **Schema Version** — Data model version  
-- **Bake Mode** — Output mode that merges Extensions  
-- **Legacy** — Older maintained versions  
-- **Canon** — Core app + this spec  
+- **Official** — Created by JX Holdings
+- **Angled** — Community-created
+- **Extension** — Any modular addition
+- **Theme / Patch / Plugin / Mod / Kit / Expansion** — Extension subtypes
+- **Deviation** — Fork
+- **Schema Version** — Data model version
+- **Legacy** — Older maintained versions
+- **Canon** — Core app + this spec
 - **Ultra-Light** — Performance-focused configuration/theme  
 
 ---
