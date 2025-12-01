@@ -1,0 +1,60 @@
+{
+  "enabled": false,
+  "js": "(function() {\n  'use strict';\n  // Drift starfield subtly with pointer for parallax depth\n  const root = document.documentElement;\n  document.addEventListener('pointermove', function(e) {\n    const x = (e.clientX / window.innerWidth - 0.5) * 8;\n    const y = (e.clientY / window.innerHeight - 0.5) * 8;\n    root.style.setProperty('--parallax-x', x.toFixed(2) + 'px');\n    root.style.setProperty('--parallax-y', y.toFixed(2) + 'px');\n  });\n})();",
+  "css": ":root {\n  /* Celestial Observatory Theme - starfield gradients and glassy instruments */\n  --bg-primary: #05070d;\n  --bg-alt: #0d1324;\n  --text-primary: #f5f8ff;\n  --text-secondary: #b8c7ff;\n  --accent: #7ad0ff;\n  --accent-2: #ffd480;\n  --border: rgba(122, 208, 255, 0.38);\n  --parallax-x: 0px;\n  --parallax-y: 0px;\n}
+\nbody {\n  background: radial-gradient(circle at 20% 25%, rgba(122, 208, 255, 0.18), transparent 30%),\n              radial-gradient(circle at 78% 65%, rgba(255, 212, 128, 0.16), transparent 34%),\n              linear-gradient(160deg, #05070d 0%, #0d1324 65%, #05070d 100%);
+  color: var(--text-primary);
+}
+\nbody::before {\n  content: '';\n  position: fixed;\n  inset: 0;\n  background-image: radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.8), transparent),
+                    radial-gradient(1px 1px at 40% 70%, rgba(122, 208, 255, 0.9), transparent),
+                    radial-gradient(1px 1px at 70% 40%, rgba(255, 212, 128, 0.8), transparent),
+                    radial-gradient(1px 1px at 85% 20%, rgba(255, 255, 255, 0.7), transparent);
+  background-size: 240px 240px, 260px 260px, 300px 300px, 340px 340px;
+  opacity: 0.7;
+  pointer-events: none;
+  transform: translate(var(--parallax-x), var(--parallax-y));
+  transition: transform 0.2s ease;
+}
+\n.card {\n  background: linear-gradient(130deg, rgba(122, 208, 255, 0.14), rgba(13, 19, 36, 0.9)), rgba(10, 15, 28, 0.9);
+  border: 1px solid var(--border);\n  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45), 0 0 1px rgba(122, 208, 255, 0.35);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(10px) saturate(130%);
+}
+\n.card::before {\n  content: '';\n  position: absolute;\n  inset: 10%;\n  border: 1px solid rgba(122, 208, 255, 0.14);
+  border-radius: 12px;
+  pointer-events: none;
+}
+\n.card::after {\n  content: '';\n  position: absolute;\n  inset: -20%;\n  background: radial-gradient(circle at 30% 30%, rgba(122, 208, 255, 0.22), transparent 45%),
+              radial-gradient(circle at 72% 60%, rgba(255, 212, 128, 0.18), transparent 42%);
+  mix-blend-mode: screen;
+  opacity: 0.7;
+  filter: blur(30px);
+  pointer-events: none;
+}
+\n.card-title {\n  text-transform: uppercase;\n  letter-spacing: 1.2px;\n  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  color: transparent;
+}
+\n.badge {\n  background: rgba(255, 212, 128, 0.12);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 212, 128, 0.35);
+}
+\n.button {\n  background: linear-gradient(120deg, rgba(122, 208, 255, 0.2), rgba(255, 212, 128, 0.16));
+  border: 1px solid rgba(122, 208, 255, 0.5);
+  color: var(--text-primary);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+\n.button:hover {\n  transform: translateY(-2px);
+  box-shadow: 0 18px 28px rgba(122, 208, 255, 0.28);
+}",
+  "meta": {
+    "name": "Celestial Observatory Theme",
+    "type": "Theme",
+    "creator": "CardSpoke",
+    "version": "1.0.0",
+    "releaseDate": "2025-12-01",
+    "description": "A parallax starfield with glassy instrument panels inspired by deep-sky observatories.",
+    "source": "official"
+  }
+}

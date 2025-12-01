@@ -1,0 +1,14 @@
+{
+  "enabled": false,
+  "js": "",
+  "css": ":root {\n  /* Desert Sunset Theme - warm dunes and mirage light */\n  --bg-primary: #fff7ed;\n  --bg-alt: #ffe8cf;\n  --bg-hover: #ffd7ad;\n  --text-primary: #2c1b14;\n  --text-secondary: #6b3f2c;\n  --border: #e6a35c;\n  --accent: #ff7f4d;\n  --accent-hover: #ff996d;\n  --sun: #ffb347;\n}\n\n[data-theme=\"dark\"] {\n  --bg-primary: #1b0f0a;\n  --bg-alt: #21130d;\n  --bg-hover: #2b180f;\n  --text-primary: #ffe8cf;\n  --text-secondary: #f6c08f;\n  --border: #c87037;\n  --accent: #ff7f4d;\n  --accent-hover: #ffb347;\n  --sun: #ff996d;\n}\n\nbody {\n  background: linear-gradient(180deg, #ffdfb5 0%, #ffb347 45%, #fe8c61 100%);\n}\n\n.card {\n  background: linear-gradient(160deg, var(--bg-primary) 0%, var(--bg-alt) 100%);\n  border: 1px solid var(--border);\n  box-shadow: 0 14px 28px rgba(255, 127, 77, 0.2);\n  position: relative;\n  overflow: hidden;\n}\n\n.card::before {\n  content: '';\n  position: absolute;\n  inset: -10%;\n  background: radial-gradient(circle at 20% 20%, rgba(255, 153, 109, 0.16), transparent 45%),\n              radial-gradient(circle at 80% 60%, rgba(255, 255, 255, 0.12), transparent 40%);\n  pointer-events: none;\n}\n\n.tag {\n  background: rgba(255, 127, 77, 0.14);\n  border: 1px solid var(--accent);\n  color: var(--text-primary);\n  border-radius: 999px;\n}",
+  "meta": {
+    "name": "Desert Sunset Theme",
+    "type": "Theme",
+    "creator": "CardSpoke",
+    "version": "1.0.0",
+    "releaseDate": "2025-11-30",
+    "description": "Layered desert gradients with mirage glows, terracotta borders, and sun-warmed tags.",
+    "source": "official"
+  }
+}
