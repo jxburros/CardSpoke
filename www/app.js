@@ -874,8 +874,12 @@ const header = {
           if (typeof google === 'undefined' || !google.accounts) {
             throw new Error('Google Identity Services not loaded. Please refresh the page.');
           }
+          const clientId = localStorage.getItem('cardspoke_google_client_id') || GOOGLE_CLIENT_ID;
+          if (!clientId || clientId === 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com') {
+            throw new Error('Google Client ID not configured. Please configure it in Data & Export > Cloud Storage Configuration.');
+          }
           this.tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: GOOGLE_CLIENT_ID,
+            client_id: clientId,
             scope: 'https://www.googleapis.com/auth/drive.file',
             callback: (response) => {
               if (response.error) {
@@ -1060,9 +1064,13 @@ const header = {
           if (typeof msal === 'undefined') {
             throw new Error('MSAL library not loaded. Please refresh the page.');
           }
+          const clientId = localStorage.getItem('cardspoke_ms_client_id') || MS_CLIENT_ID;
+          if (!clientId || clientId === 'YOUR_MICROSOFT_CLIENT_ID') {
+            throw new Error('Microsoft Client ID not configured. Please configure it in Data & Export > Cloud Storage Configuration.');
+          }
           const msalConfig = {
             auth: {
-              clientId: MS_CLIENT_ID,
+              clientId: clientId,
               authority: 'https://login.microsoftonline.com/common',
               redirectUri: window.location.origin,
             },
@@ -4627,6 +4635,124 @@ const header = {
         }
 
         modalBody.appendChild(backupsSection);
+
+        // Cloud Storage Configuration Section
+        const cloudConfigSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
+        cloudConfigSection.appendChild(h('div', {
+          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
+        }, '☁️ Cloud Storage Configuration'));
+
+        cloudConfigSection.appendChild(h('p', {
+          style: 'margin-bottom: var(--space-lg); color: var(--text-secondary); font-size: var(--text-sm);'
+        }, 'Configure your OAuth client IDs to enable Google Drive and OneDrive sync. These IDs are stored locally in your browser.'));
+
+        // Get current values from localStorage
+        const currentGoogleId = localStorage.getItem('cardspoke_google_client_id') || '';
+        const currentMsId = localStorage.getItem('cardspoke_ms_client_id') || '';
+
+        // Google Client ID
+        const googleLabel = h('label', {
+          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600; color: var(--text-primary);'
+        }, 'Google Client ID');
+        cloudConfigSection.appendChild(googleLabel);
+
+        const googleInput = h('input', {
+          type: 'text',
+          id: 'googleClientIdInput',
+          placeholder: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
+          value: currentGoogleId,
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin-bottom: var(--space-md);
+            font-size: var(--text-sm);
+            font-family: monospace;
+          `
+        });
+        cloudConfigSection.appendChild(googleInput);
+
+        cloudConfigSection.appendChild(h('div', {
+          style: 'font-size: 12px; color: var(--text-muted); margin-bottom: var(--space-lg);'
+        }, 'Get your Google Client ID from Google Cloud Console → APIs & Services → Credentials'));
+
+        // Microsoft Client ID
+        const msLabel = h('label', {
+          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600; color: var(--text-primary);'
+        }, 'Microsoft Client ID');
+        cloudConfigSection.appendChild(msLabel);
+
+        const msInput = h('input', {
+          type: 'text',
+          id: 'msClientIdInput',
+          placeholder: 'YOUR_MICROSOFT_CLIENT_ID',
+          value: currentMsId,
+          style: `
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            margin-bottom: var(--space-md);
+            font-size: var(--text-sm);
+            font-family: monospace;
+          `
+        });
+        cloudConfigSection.appendChild(msInput);
+
+        cloudConfigSection.appendChild(h('div', {
+          style: 'font-size: 12px; color: var(--text-muted); margin-bottom: var(--space-lg);'
+        }, 'Get your Microsoft Client ID from Azure Portal → App registrations → New registration'));
+
+        // Save button
+        const saveCloudConfigBtn = h('button', {
+          className: 'btn btn-primary',
+          style: 'width: 100%; padding: var(--space-lg);',
+          onclick: function() {
+            const googleId = document.getElementById('googleClientIdInput').value.trim();
+            const msId = document.getElementById('msClientIdInput').value.trim();
+
+            if (googleId) {
+              localStorage.setItem('cardspoke_google_client_id', googleId);
+              showToast('Google Client ID saved');
+            }
+            if (msId) {
+              localStorage.setItem('cardspoke_ms_client_id', msId);
+              showToast('Microsoft Client ID saved');
+            }
+
+            if (!googleId && !msId) {
+              showToast('Enter at least one client ID', 'error');
+              return;
+            }
+
+            showToast('Cloud storage configuration saved! Refresh the page for changes to take effect.', 'success');
+          }
+        }, '💾 Save Configuration');
+        cloudConfigSection.appendChild(saveCloudConfigBtn);
+
+        // Status indicator
+        const statusDiv = h('div', {
+          style: 'margin-top: var(--space-md); padding: var(--space-md); background: var(--bg-secondary); border-radius: var(--radius); border: 1px solid var(--border); font-size: var(--text-sm);'
+        });
+        let statusText = 'Status: ';
+        if (currentGoogleId && currentMsId) {
+          statusText += '✓ Google Drive and OneDrive configured';
+        } else if (currentGoogleId) {
+          statusText += '✓ Google Drive configured • OneDrive not configured';
+        } else if (currentMsId) {
+          statusText += '✓ OneDrive configured • Google Drive not configured';
+        } else {
+          statusText += '⚠️ No cloud storage configured';
+        }
+        statusDiv.textContent = statusText;
+        cloudConfigSection.appendChild(statusDiv);
+
+        modalBody.appendChild(cloudConfigSection);
 
         // Dataset Management Section
         const manageSection = h('div', {});

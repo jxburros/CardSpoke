@@ -240,9 +240,16 @@ export class GoogleDriveDriver extends StorageDriver {
       throw new Error('Google Identity Services not loaded. Please refresh the page.');
     }
 
+    // Get client ID from localStorage or use placeholder
+    const clientId = localStorage.getItem('cardspoke_google_client_id') || GOOGLE_CLIENT_ID;
+
+    if (!clientId || clientId === 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com') {
+      throw new Error('Google Client ID not configured. Please configure it in Data & Export > Cloud Storage Configuration.');
+    }
+
     // Initialize the token client
     this.tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
+      client_id: clientId,
       scope: 'https://www.googleapis.com/auth/drive.file',
       callback: (response) => {
         if (response.error) {
@@ -522,10 +529,17 @@ export class OneDriveDriver extends StorageDriver {
       throw new Error('MSAL library not loaded. Please refresh the page.');
     }
 
+    // Get client ID from localStorage or use placeholder
+    const clientId = localStorage.getItem('cardspoke_ms_client_id') || MS_CLIENT_ID;
+
+    if (!clientId || clientId === 'YOUR_MICROSOFT_CLIENT_ID') {
+      throw new Error('Microsoft Client ID not configured. Please configure it in Data & Export > Cloud Storage Configuration.');
+    }
+
     // Initialize MSAL
     const msalConfig = {
       auth: {
-        clientId: MS_CLIENT_ID,
+        clientId: clientId,
         authority: 'https://login.microsoftonline.com/common',
         redirectUri: window.location.origin,
       },
