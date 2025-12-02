@@ -19,8 +19,9 @@ CardSpoke uses `uvu` for automated tests. This guide covers how to run and write
 ## Writing Tests
 - Prefer small, deterministic tests with clear assertions.
 - Include fixture data for schema migrations and Extension compatibility.
-- When testing Extensions, validate metadata correctness, toggle behavior, and fallback paths.
+- When testing Extensions, validate metadata correctness, toggle behavior, and fallback paths. Exercise hook registration via `CardSpoke_MODS`, event emissions, and dev tools (hook stats/error log) to ensure compatibility surfaces stay stable.
 - For UI-affecting Extensions, capture DOM/state expectations and accessibility behaviors where possible.
+- Cover dataset import/export formats (JSON/CSV/Markdown/TXT) and backup restoration to ensure regression-safe portability.
 
 ## Coverage Expectations
 - Core logic: happy path + error handling.

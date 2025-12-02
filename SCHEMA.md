@@ -3,12 +3,13 @@
 CardSpoke uses a schema version (`schemaVersion`) to track data model changes across the local-first storage stack (LocalStorage/IndexedDB). Use this document to plan migrations and communicate compatibility.
 
 ## Current Schema Overview
-- **Schema version:** [PLACEHOLDER] (set current integer once defined)
+- **Schema version:** 4 (sourced from runtime constant `SCHEMA_VERSION`)
 - **Data domains:**
   - Cards and hierarchical relationships
   - User preferences (theme, layout, toggles)
   - Extension registry/manifest cache
   - Local file references (if enabled via Filesystem)
+- **Default store shape:** `rootOrder` (top-level card ordering), `cards` (id → card), `mods` (extension state), `bookmarks`, `recentCards`, `viewMode`, `activeTheme`, `richTextEnabled`.
 - **Storage layers:**
   - LocalStorage for lightweight config
   - IndexedDB for structured card data and histories
@@ -43,7 +44,7 @@ Example:
 ## Fallback & Compatibility
 - On incompatible schema, block Extensions and prompt users with remediation steps.
 - Provide read-only access if feasible when migrations cannot complete.
-- Extensions must declare `schema_compatibility` and refuse to run on older schemas.
+- Extensions must declare `schema_compatibility` and refuse to run on older schemas. Include the expected `cardspoke_*` preference keys any Extension consumes so mismatched schemas do not wipe toggles.
 
 ## Testing Migrations
 - Add uvu tests for each migration path (happy path + failure cases).

@@ -25,7 +25,7 @@ Include the required metadata block for Deviations (see [Extensions Developer Gu
 
 ## Safety & Data
 - Respect the local-first model; do not collect or transmit data without opt-in.
-- Provide migration and rollback instructions if you diverge from core schemas.
+- Provide migration and rollback instructions if you diverge from core schemas. Note how you handle backups created by the core (`cardspoke-backup-*.json`/CSV/Markdown/TXT) and whether your build can import/export them without loss.
 
 ## Open Items
 - [PLACEHOLDER] Required notice template for about pages and splash screens.
