@@ -1236,6 +1236,20 @@ const header = {
           if (!config.url || !config.username || !config.password) {
             throw new Error('WebDAV requires url, username, and password in config');
           }
+          // Security: Validate HTTPS usage
+          const url = config.url.toLowerCase();
+          if (url.startsWith('http://') && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+            const useInsecure = confirm(
+              '⚠️ SECURITY WARNING: You are connecting to WebDAV over HTTP (not HTTPS).\n\n' +
+              'Your credentials and data will be transmitted unencrypted and could be intercepted.\n\n' +
+              'We strongly recommend using HTTPS for WebDAV connections.\n\n' +
+              'Do you want to continue with insecure HTTP anyway?'
+            );
+            if (!useInsecure) {
+              throw new Error('WebDAV connection rejected: HTTPS required for security');
+            }
+            showToast('⚠️ Warning: Using insecure HTTP connection to WebDAV', 'error');
+          }
           this.url = config.url.endsWith('/') ? config.url : config.url + '/';
           this.username = config.username;
           this.password = config.password;
@@ -1870,6 +1884,96 @@ const header = {
         *   @param {Object} context - Mod execution context
         *   @param {Object} importData - Imported data structure
         */
+
+      /**
+       * Extension Security Risk Assessment
+       * Analyzes extension metadata to determine risk level
+       */
+      function assessExtensionRisk(modData) {
+        const meta = modData.meta || {};
+        const type = meta.type || 'Mod';
+        const hasJS = modData.js && modData.js.trim().length > 0;
+        const hasCSS = modData.css && modData.css.trim().length > 0;
+        const capabilities = meta.capabilities || [];
+
+        // Risk factors
+        let riskScore = 0;
+        const risks = [];
+        const permissions = [];
+
+        // Type-based risk (lower risk for themes, higher for mods)
+        const typeRisk = {
+          'Theme': 0,
+          'Patch': 1,
+          'Plugin': 2,
+          'Kit': 1,
+          'Expansion': 2,
+          'Mod': 3
+        };
+        riskScore += typeRisk[type] || 3;
+
+        // JavaScript presence (major risk factor)
+        if (hasJS) {
+          riskScore += 3;
+          permissions.push('Execute JavaScript code');
+
+          // Check for high-risk capabilities
+          if (capabilities.includes('cards')) {
+            riskScore += 2;
+            permissions.push('Create, modify, or delete your cards');
+          }
+          if (capabilities.includes('export') || capabilities.includes('import')) {
+            riskScore += 2;
+            permissions.push('Access data during export/import');
+          }
+          if (capabilities.includes('storage')) {
+            riskScore += 1;
+            permissions.push('Store additional data');
+          }
+          if (capabilities.includes('navigation')) {
+            permissions.push('Monitor navigation and search');
+          }
+          if (capabilities.includes('ui')) {
+            permissions.push('Modify the user interface');
+          }
+        } else if (hasCSS && !hasJS) {
+          // CSS-only is very low risk
+          permissions.push('Apply custom styles (CSS only)');
+        }
+
+        // Determine risk level
+        let riskLevel, color, icon;
+        if (!hasJS && hasCSS) {
+          riskLevel = 'LOW';
+          color = '#22c55e';
+          icon = '✓';
+        } else if (riskScore <= 3) {
+          riskLevel = 'LOW';
+          color = '#22c55e';
+          icon = '✓';
+        } else if (riskScore <= 5) {
+          riskLevel = 'MEDIUM';
+          color = '#f59e0b';
+          icon = '⚠';
+        } else {
+          riskLevel = 'HIGH';
+          color = '#ef4444';
+          icon = '⚠';
+        }
+
+        return {
+          riskLevel,
+          riskScore,
+          color,
+          icon,
+          type,
+          hasJS,
+          hasCSS,
+          capabilities,
+          permissions,
+          risks
+        };
+      }
 
       const CardSpoke_MODS = (() => {
         // Registry of loaded mods
@@ -3377,11 +3481,69 @@ const header = {
       }
 
       function importJSON(data, mode = 'root') {
-        const pkg = typeof data === 'string' ? JSON.parse(data) : data;
+        let pkg;
+        try {
+          pkg = typeof data === 'string' ? JSON.parse(data) : data;
+        } catch (err) {
+          showToast('Invalid JSON: ' + err.message, 'error');
+          throw new Error('Failed to parse JSON: ' + err.message);
+        }
+
+        // Security: Validate import data structure
+        if (!pkg || typeof pkg !== 'object') {
+          showToast('Invalid import: data must be an object', 'error');
+          throw new Error('Invalid import data structure');
+        }
+
+        // Validate cards object
+        if (pkg.cards && typeof pkg.cards !== 'object') {
+          showToast('Invalid import: cards must be an object', 'error');
+          throw new Error('Invalid cards structure');
+        }
+
+        // Validate each card has required fields
+        if (pkg.cards) {
+          for (const [cardId, card] of Object.entries(pkg.cards)) {
+            if (!card || typeof card !== 'object') {
+              showToast(`Invalid card structure for ID: ${cardId}`, 'error');
+              throw new Error('Invalid card structure');
+            }
+            // Validate required card fields
+            if (card.children && !Array.isArray(card.children)) {
+              showToast(`Invalid children array for card: ${cardId}`, 'error');
+              throw new Error('Invalid card children structure');
+            }
+          }
+        }
+
+        // Validate rootIds if present
+        if (pkg.rootIds && !Array.isArray(pkg.rootIds)) {
+          showToast('Invalid import: rootIds must be an array', 'error');
+          throw new Error('Invalid rootIds structure');
+        }
+
+        // Validate mods if present (and warn about security)
+        if (pkg.mods && pkg.exportType === 'instance') {
+          const modCount = Object.keys(pkg.mods).length;
+          if (modCount > 0) {
+            const confirmImportMods = confirm(
+              `⚠️ SECURITY WARNING\n\n` +
+              `This import includes ${modCount} extension(s).\n\n` +
+              `Extensions can execute code and access your data. ` +
+              `Only import extensions from sources you trust.\n\n` +
+              `Do you want to import the extensions?\n` +
+              `(Click Cancel to import only the cards without extensions)`
+            );
+            if (!confirmImportMods) {
+              delete pkg.mods;
+            }
+          }
+        }
+
         const importedIds = [];
         const idMap = {};
         const remappedCards = {};
-        
+
         Object.entries(pkg.cards || {}).forEach(([oldId, card]) => {
           const newId = uid();
           idMap[oldId] = newId;
@@ -4130,8 +4292,19 @@ const header = {
             
             const modHeader = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
             const modInfo = h('div', {});
-            modInfo.appendChild(h('div', { style: 'font-weight: 700; font-size: var(--text-lg);' }, modData.meta?.name || modId));
-            modInfo.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, 
+            const titleRow = h('div', { style: 'display: flex; align-items: center; gap: var(--space-sm);' });
+            titleRow.appendChild(h('span', { style: 'font-weight: 700; font-size: var(--text-lg);' }, modData.meta?.name || modId));
+
+            // Security: Add risk badge
+            const risk = assessExtensionRisk(modData);
+            const riskBadge = h('span', {
+              style: `font-size: var(--text-xs); padding: 2px 8px; border-radius: 12px; background: ${risk.color}22; color: ${risk.color}; font-weight: 700; border: 1px solid ${risk.color};`,
+              title: risk.permissions.join(', ') || 'No special permissions'
+            }, risk.icon + ' ' + risk.riskLevel);
+            titleRow.appendChild(riskBadge);
+
+            modInfo.appendChild(titleRow);
+            modInfo.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' },
               'v' + (modData.meta?.version || '1.0.0') + ' by ' + (modData.meta?.creator || 'Unknown')));
             modHeader.appendChild(modInfo);
             
@@ -4208,14 +4381,42 @@ const header = {
                     try {
                       const modData = JSON.parse(ev.target.result);
                       const modId = modData.id || file.name.replace('.json', '');
-                      store.mods[modId] = modData;
-                      save();
-                      CardSpoke_MODS.syncFromStore();
-                      showToast('Extension installed: ' + (modData.meta?.name || modId));
-                      overlay.remove();
-                      showExtensionsHub('installed');
+
+                      // Security: Assess extension risk and show warning
+                      const risk = assessExtensionRisk(modData);
+                      const extName = modData.meta?.name || modId;
+
+                      let warningMessage = `Install extension "${extName}"?\n\n`;
+                      warningMessage += `Type: ${risk.type}\n`;
+                      warningMessage += `Security Risk: ${risk.riskLevel}\n\n`;
+
+                      if (risk.permissions.length > 0) {
+                        warningMessage += 'This extension will be able to:\n';
+                        risk.permissions.forEach(p => warningMessage += `• ${p}\n`);
+                      }
+
+                      if (risk.riskLevel === 'HIGH') {
+                        warningMessage += '\n⚠️ HIGH RISK: This extension can access and modify all your data, ';
+                        warningMessage += 'and could send it to external servers. Only install if you trust the source.';
+                      } else if (risk.riskLevel === 'MEDIUM') {
+                        warningMessage += '\n⚠️ MEDIUM RISK: This extension can modify your data. ';
+                        warningMessage += 'Only install from trusted sources.';
+                      } else if (risk.hasJS) {
+                        warningMessage += '\n✓ LOW RISK: This extension has limited capabilities.';
+                      } else {
+                        warningMessage += '\n✓ LOW RISK: This is a CSS-only theme with no code execution.';
+                      }
+
+                      if (confirm(warningMessage)) {
+                        store.mods[modId] = modData;
+                        save();
+                        CardSpoke_MODS.syncFromStore();
+                        showToast('Extension installed: ' + extName);
+                        overlay.remove();
+                        showExtensionsHub('installed');
+                      }
                     } catch (err) {
-                      showToast('Invalid extension file', 'error');
+                      showToast('Invalid extension file: ' + err.message, 'error');
                     }
                   };
                   reader.readAsText(file);
