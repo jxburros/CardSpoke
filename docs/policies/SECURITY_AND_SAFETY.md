@@ -20,12 +20,19 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 - Provide schema compatibility info and block execution on incompatible schemas.
 
 ## Data Handling
-- Avoid storing secrets in LocalStorage; prefer secure platform stores ([PLACEHOLDER] platform-specific secret guidance).
+- Avoid storing secrets in LocalStorage; prefer secure platform stores.
+  - **Mobile (Capacitor)**: Use `@capacitor/preferences` with encryption enabled for sensitive data
+  - **Web**: OAuth tokens are session-only (not persisted). WebDAV credentials are in-memory only
+  - **Desktop**: Consider using OS-level credential managers when available
 - Encrypt sensitive exports when feasible; document algorithms and key handling.
+  - Current exports are unencrypted JSON. For sensitive data, users should encrypt exports manually
+  - Future consideration: Add password-protected export option using Web Crypto API (AES-GCM)
 - Minimize retention of logs; avoid logging user content unless necessary for explicit debug flows.
 
 ## Reporting & Response
-- Offer a channel for security disclosures ([PLACEHOLDER] security contact email or form).
+- Security disclosures should be reported via GitHub Issues: https://github.com/jxburros/CardSpoke/issues
+  - Mark issues as "Security" and they will be prioritized
+  - For critical vulnerabilities, contact the repository owner directly via GitHub
 - Version advisories and clearly mark impacted versions/Extensions.
 - Provide remediation steps, including how to disable Extensions causing risk.
 
@@ -34,7 +41,37 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 - For Extensions introducing network access, include mockable clients and offline fallbacks.
 - Audit dependencies for known CVEs before releases.
 
-## Open Items
-- [PLACEHOLDER] Security hardening checklist for Capacitor builds (Android/iOS).
-- [PLACEHOLDER] Static analysis/linting tools if adopted.
+## Security Improvements Implemented (v0.15.1)
+- **Extension Risk Assessment**: Extensions are analyzed and categorized by risk level (LOW/MEDIUM/HIGH)
+  - Theme extensions with CSS-only are marked as LOW RISK
+  - Extensions with JavaScript and data capabilities are marked MEDIUM or HIGH RISK
+  - Security warnings shown during installation based on risk level
+  - Visual risk badges displayed in Extensions Hub
+- **HTTPS Enforcement**: WebDAV connections require HTTPS (warnings for HTTP)
+- **JSON Import Validation**: Schema validation for imported data to prevent corruption
+- **Content Security Policy**: CSP headers added to limit attack surface
+- **Dependency Updates**: Regular `npm audit` to fix known vulnerabilities
+
+## Security Hardening Checklist for Capacitor Builds
+### Android
+- [ ] Enable ProGuard/R8 code obfuscation in release builds
+- [ ] Use Android Keystore for sensitive credential storage
+- [ ] Enable certificate pinning for API endpoints
+- [ ] Set `android:allowBackup="false"` to prevent data backup leakage
+- [ ] Implement biometric authentication for sensitive operations
+- [ ] Review AndroidManifest.xml for minimal permissions
+
+### iOS
+- [ ] Enable App Transport Security (ATS) with minimal exceptions
+- [ ] Use iOS Keychain for credential storage
+- [ ] Implement Face ID/Touch ID for sensitive operations
+- [ ] Review Info.plist for privacy declarations
+- [ ] Enable app sandboxing
+- [ ] Use certificate pinning for API endpoints
+
+## Static Analysis & Code Quality
+- Testing: `npm test` runs 220+ tests using uvu framework
+- Linting: Consider adding ESLint for code quality
+- Security scanning: Run `npm audit` before each release
+- Code review: All extensions should be reviewed before publication
 

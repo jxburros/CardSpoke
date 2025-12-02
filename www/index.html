@@ -7,6 +7,20 @@
   <meta name="app:version" content="0.15.0">
   <meta name="app:author" content="jxburros">
 
+  <!-- Content Security Policy -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-eval' https://accounts.google.com https://alcdn.msauth.net;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src 'self' https://fonts.gstatic.com;
+    connect-src 'self' https://www.googleapis.com https://graph.microsoft.com https://login.microsoftonline.com *;
+    img-src 'self' data: blob: https:;
+    frame-src https://accounts.google.com https://login.microsoftonline.com;
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+  ">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
