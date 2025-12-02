@@ -2,8 +2,6 @@
 
 This guide covers platform prerequisites and workflows for building and running CardSpoke with Capacitor. The web assets are already in `www/`, so the focus is on syncing and opening native shells.
 
-The Capacitor config (`capacitor.config.json`) points `webDir` to `www` and keeps `bundledWebRuntime` disabled because the bundle is already self-contained. The HTML entrypoint (`www/index.html`) works offline via the `file://` protocol, so a simple `npx cap run` or platform-specific open command is sufficient for device validation.
-
 ## Prerequisites
 - Node 18+
 - Capacitor CLI (`npx cap` via project devDependencies)

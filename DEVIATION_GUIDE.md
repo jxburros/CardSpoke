@@ -16,7 +16,7 @@ Include the required metadata block for Deviations (see [Extensions Developer Gu
 
 ## Compatibility & Updates
 - Declare which schemaVersion you support.
-- Document differences from the canonical CardSpoke behavior, especially around datasets (multiple vault support, backups, export formats) and preference keys (`cardspoke_*`) so users do not lose settings when switching.
+- Document differences from the canonical CardSpoke behavior.
 - Clearly label angled (community) features vs. any official components you include.
 
 ## Distribution
