@@ -647,8 +647,8 @@ const header = {
 
       // Cloud Storage Configuration
       // Replace these with your own OAuth client IDs
-      const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-      const MS_CLIENT_ID = 'YOUR_MICROSOFT_CLIENT_ID';
+      const GOOGLE_CLIENT_ID = '905559232060-5utnmrdvr3n7k2rvamkt7rcflhj2afs8.apps.googleusercontent.com';
+      const MS_CLIENT_ID = '222a2760-c041-43ee-b83b-57957fd632bf';
 
       /**
        * StorageDriver Interface
