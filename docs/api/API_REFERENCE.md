@@ -2,6 +2,8 @@
 
 This reference documents the surfaces extension developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke_MODS` extension runtime (also exposed as `window.CardSpoke.mods`). It consolidates the runtime contracts that ship in `www/app.js` and the type hints in `types/extensions.d.ts`.
 
+**Current Version:** 0.15.0 | **Schema Version:** 4
+
 ## Global objects
 - **`window.CardSpoke.utils`**: async helpers for card CRUD, tagging, search, accessibility, dataset metadata, and toast UI helpers.
 - **`window.CardSpoke_MODS` / `window.CardSpoke.mods`**: the extension system that registers hooks, dispatches lifecycle events, offers an event bus, and exposes developer tooling.
@@ -20,7 +22,7 @@ Implemented hooks are enforced by runtime validation. Unknown hook names log war
 | `onUninstall(ctx)` | Before removal from registry | Purge storage, remove injected styles. |
 | `onCardSave(ctx, card, saveInfo)` | After create/update/duplicate | Derive fields, enforce validation, emit events. |
 | `onCardDelete(ctx, card)` | Before a card is fully removed | Guard deletes, cascade clean-up. |
-| `onCardRender(ctx, card, element)` | After a card’s DOM renders | Inject UI, annotate content, attach buttons. |
+| `onCardRender(ctx, card, element)` | After a card's DOM renders | Inject UI, annotate content, attach buttons. |
 | `onThemeChange(ctx, theme)` | When the app theme toggles | Sync theme variables, re-compute contrast. |
 | `onTypographyChange(ctx, preset)` | When typography preset changes | Recalculate sizes/spacing your mod introduced. |
 | `onHighContrastChange(ctx, enabled)` | When high-contrast mode flips | Adjust palette for accessibility. |
@@ -40,8 +42,8 @@ Implemented hooks are enforced by runtime validation. Unknown hook names log war
 ### Context passed to hooks
 The runtime builds a context object per invocation:
 - `modId`: current extension id.
-- `appVersion` / `schemaVersion`: release + schema numbers.
-- `api`: see “Store API” below.
+- `appVersion` / `schemaVersion`: release + schema numbers (currently 0.15.0 / 4).
+- `api`: see "Store API" below.
 - `utils`: reference to `CardSpoke.utils` (or `CIB.utils`).
 - `logger`: mod-scoped logger with `log/info/warn/error` prefixes.
 
