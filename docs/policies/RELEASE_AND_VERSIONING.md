@@ -4,7 +4,7 @@ CardSpoke differentiates between core updates and Extension-driven changes. Use 
 
 ## Versioning Model
 - Core uses semantic versioning (`MAJOR.MINOR.PATCH`).
-- Schema changes increment `schemaVersion` (see [Schema & Migration Docs](./SCHEMA.md)).
+- Schema changes increment `schemaVersion` (see [Schema & Migration Docs](../api/SCHEMA.md)).
 - Extensions should also use semantic versioning and declare `schema_compatibility`. The current bundle reports `APP_VERSION = 0.15.0` and `SCHEMA_VERSION = 4` in `www/app.js`—mirror those values in docs and Extension metadata for alignment.
 
 ## Update Types
