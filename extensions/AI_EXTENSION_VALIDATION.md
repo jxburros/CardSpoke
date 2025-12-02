@@ -18,13 +18,13 @@ A strict checklist for AI-generated Extensions. Run through every section before
 ## 3) Storage & Safety
 - If using localStorage: declare `const STORAGE_KEY = '<id>-v1';`, read safely, and remove in `onUninstall`.
 - No network calls unless explicitly requested by the user; default to local-first behavior.
-- Avoid obfuscation; log errors with `ctx.logger.error` and fail gracefully.
-- Respect accessibility: use CSS variables, avoid forced animations, and allow for high-contrast overrides.
+- Avoid obfuscation; log errors with `ctx.logger.error` and fail gracefully. Do not override built-in preference keys (`cardspoke_*`) unless you are intentionally integrating with those toggles.
+- Respect accessibility: use CSS variables, avoid forced animations, and allow for high-contrast overrides. Handle typography/high-contrast hooks if you restyle UI.
 
 ## 4) Data Shape Assumptions
 - Cards: `{ id, title, body, parentId|null, tags[], createdAt, updatedAt, modsData? }`.
 - Tag helpers: `addTag(id, tag)`, `removeTag(id, tag)`, `getTags(id)`, `getAllTags()`.
-- App info: `ctx.getAppInfo()` yields `{ appVersion, schemaVersion }` (schemaVersion currently 4).
+- App info: `ctx.getAppInfo()` yields `{ appVersion, schemaVersion }` (schemaVersion currently 4). Dataset exports are expected to remain compatible with JSON/CSV/Markdown/TXT flows, so avoid adding incompatible shapes to `modsData`.
 
 ## 5) Self-Tests an AI can perform
 - **Parse test:** Run JSON.parse on the final artifact string.

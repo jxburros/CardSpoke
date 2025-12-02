@@ -4,17 +4,18 @@ CardSpoke is local-first. Users own their data, and the app does not silently sy
 
 ## Storage Model
 - **LocalStorage:** Lightweight configuration, session data, and feature toggles.
-- **IndexedDB:** Structured card content, relationships, histories, and Extension registries.
+- **IndexedDB:** Structured card content, relationships, histories, and Extension registries. Datasets are namespaced and tracked with metadata (name, card counts, recent/bookmark counts, schema/app version) so multiple vaults can coexist.
 - **Filesystem (via Capacitor Filesystem):** Optional for attachments or exports; only used when explicitly enabled.
 
 ## Default Behavior
 - No automatic cloud sync or telemetry.
 - No analytics or tracking beacons are built into the core.
 - Extensions must not transmit data off-device without explicit, informed consent.
+- Preferences stored under `cardspoke_*` keys (rich text, grid view, typography, high contrast, dev mode, active theme) stay on-device and are restored at startup.
 
 ## User Controls
 - Provide clear settings to opt into any off-device storage/integration.
-- Offer data export/import paths (JSON or other agreed formats) to preserve portability.
+- Offer data export/import paths (JSON or other agreed formats) to preserve portability. The UI exports datasets as JSON, CSV, Markdown, or TXT (named `cardspoke-export-*`), and maintains timestamped backups for rollback.
 - Surface active Extensions and their data-touching permissions.
 
 ## Security Considerations

@@ -3,9 +3,9 @@
 CardSpoke is a lightweight, card-based knowledge system built for extensibility. The core intentionally stays minimal while an extension framework enables themes, plugins, patches, and full-scale mods. Users keep control of their data with a local-first storage model and optional off-device integrations.
 
 ## Why CardSpoke
-- **Ultra-lightweight core:** Intentional minimalism keeps performance high and cognitive load low.
-- **Extension-first architecture:** Themes, Patches, Plugins, Mods, Kits, and Expansions let the community expand the product without bloating the core.
-- **User ownership:** Data stays local by default; no hosted data or silent syncs.
+- **Ultra-lightweight core:** The shipped bundle (`www/app.js`) is self-contained for `file://` usage and keeps helpers inlined to minimize dependencies.
+- **Extension-first architecture:** Themes, Patches, Plugins, Mods, Kits, and Expansions let the community expand the product without bloating the core. The runtime exposes `window.CardSpoke_MODS` for hook dispatch and dev tooling.
+- **User ownership:** Data stays local by default; no hosted data or silent syncs. LocalStorage is used for preferences and datasets, while IndexedDB stores the graph of cards.
 - **Transparent ecosystem:** Clear metadata, authorship, and changelog expectations for all angled (community) content.
 
 ## Getting Started
@@ -27,8 +27,8 @@ CardSpoke is a lightweight, card-based knowledge system built for extensibility.
    ```
 
 ## Project Layout
-- `www/` – Prebuilt web assets for the Capacitor shell.
-- `types/` – Type declarations and shared interfaces.
+- `www/` – Prebuilt web assets for the Capacitor shell. `app.js` embeds utilities, renderer logic, and the Extension runtime; `styles.css` holds the default light/dark styling and typography presets.
+- `types/` – Type declarations and shared interfaces (extension system types, card shapes, and dev tools contracts).
 - `tests/` – Automated tests (uvu).
 - `cardspoke_spec_v1.md` – Canonical specification for philosophy, licensing boundaries, and ecosystem rules.
 - `test-extension-improvements.js` – Scripted checks for extension-related scenarios.
@@ -47,7 +47,7 @@ Each Extension must ship mandatory metadata (type, name, version, author, AI ass
 Deviations are forks/derivatives that must not use the "CardSpoke" name or branding. They must include mandatory metadata, clear credit to CardSpoke and JX Holdings, and avoid implying official endorsement.
 
 ## Storage Model
-CardSpoke is local-first (LocalStorage/IndexedDB). Optional off-device storage may be wired through integrations chosen by the user; no automatic sync or hosted data.
+CardSpoke is local-first (LocalStorage/IndexedDB). Preferences (rich text, grid view, typography, high-contrast, dev mode) live under `cardspoke_*` keys in LocalStorage. Datasets are namespaced to allow multiple vaults with their own metadata, and backups are exported as JSON/CSV/Markdown/TXT directly from the UI. Optional off-device storage may be wired through integrations chosen by the user; no automatic sync or hosted data.
 
 ## Contributing
 - Follow community and extension guidelines in [Extension Ecosystem Guidelines](./extensions/ECOSYSTEM_GUIDELINES.md).

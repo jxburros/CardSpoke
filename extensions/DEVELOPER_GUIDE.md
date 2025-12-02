@@ -34,16 +34,17 @@ Every Extension or Deviation must include a machine-readable metadata block (JSO
 ## Packaging & Structure
 - Provide a clear entrypoint (e.g., `main.js` or `index.json`) and README summarizing behavior and toggles.
 - Avoid obfuscated code. Keep logic auditable and failure modes explicit.
-- Include uninstall instructions and state-cleanup steps.
+- Include uninstall instructions and state-cleanup steps. If you persist data under `cardspoke_*` keys or inject per-card `modsData`, document how to clear it when users disable the Extension.
 
 ## Compatibility & Toggling
 - Design for toggleability. Extensions—especially Patches and Mods—should fail safely when disabled.
 - Prefer feature flags and guards when modifying core behaviors.
 - For Kits/Expansions, list included Extensions and their versions.
+- Use the runtime hook dispatcher exposed at `window.CardSpoke_MODS` for lifecycle integrations instead of patching global state directly. Dev tools expose hook stats and error logs to help validate compatibility.
 
 ## Data & Storage
 - Respect user ownership. Do not transmit data off-device without explicit opt-in.
-- Use local storage APIs (LocalStorage/IndexedDB) by default; document any filesystem use.
+- Use local storage APIs (LocalStorage/IndexedDB) by default; document any filesystem use. When writing to LocalStorage, namespace under your Extension ID to avoid colliding with built-in keys (rich text, grid view, typography, high contrast, active theme, dev mode).
 - Provide migrations for any data you create; version your schemas separately if needed.
 
 ## UI & UX Expectations

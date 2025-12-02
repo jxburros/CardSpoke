@@ -16,7 +16,7 @@ Include the required metadata block for Deviations (see [Extensions Developer Gu
 
 ## Compatibility & Updates
 - Declare which schemaVersion you support.
-- Document differences from the canonical CardSpoke behavior.
+- Document differences from the canonical CardSpoke behavior, especially around datasets (multiple vault support, backups, export formats) and preference keys (`cardspoke_*`) so users do not lose settings when switching.
 - Clearly label angled (community) features vs. any official components you include.
 
 ## Distribution
@@ -25,7 +25,7 @@ Include the required metadata block for Deviations (see [Extensions Developer Gu
 
 ## Safety & Data
 - Respect the local-first model; do not collect or transmit data without opt-in.
-- Provide migration and rollback instructions if you diverge from core schemas.
+- Provide migration and rollback instructions if you diverge from core schemas. Note how you handle backups created by the core (`cardspoke-backup-*.json`/CSV/Markdown/TXT) and whether your build can import/export them without loss.
 
 ## Open Items
 - [PLACEHOLDER] Required notice template for about pages and splash screens.

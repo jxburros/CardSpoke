@@ -74,3 +74,5 @@ Use these recipes when an AI must emit a complete Extension JSON artifact withou
 - Keep hook names inside the allowed list and include `onDisable` when you create DOM or listeners.
 - Ensure `schema_compatibility` matches the current version (4 at time of writing).
 - For bundles (Kit/Expansion), nest multiple recipes, ensuring each sub-extension keeps unique ids and cleanups.
+- Guard for accessibility toggles: respond to `onHighContrastChange` and `onTypographyChange` when you alter UI, and avoid overriding built-in preference keys (`cardspoke_highcontrast`, `cardspoke_typography`).
+- Keep export/import behavior compatible with the core formats (JSON/CSV/Markdown/TXT) if you override `onExport`/`onImport`.
