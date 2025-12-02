@@ -2,12 +2,14 @@
 
 A strict checklist for AI-generated Extensions. Run through every section before returning an artifact.
 
+**Current App Version:** 0.15.0 | **Schema Version:** 4
+
 ## 1) Structure & Metadata
 - File is valid JSON: parse once after inserting JS/CSS strings.
 - Top-level keys: `enabled` (boolean), `meta` (object), `js` (string), `css` (string).
 - `meta` includes: `name`, `type`, `version`, `creator`, `description`, `releaseDate` (ISO date), `source` (`official`|`community`), `ai_assistants`, `dependencies` (array), `schema_compatibility`, and `angled` (boolean for community builds).
 - `meta.type` matches the folder/category name where the file will be stored.
-- `schema_compatibility` references the current schemaVersion (4 at time of writing).
+- `schema_compatibility` references the current schemaVersion (currently 4).
 
 ## 2) Hook Hygiene
 - JS contains exactly one `CardSpoke_MODS.register('<id>', { ... })` call inside an IIFE.

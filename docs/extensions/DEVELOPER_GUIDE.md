@@ -1,14 +1,16 @@
 # Extensions Developer Guide
 
-Build Extensions that fit CardSpoke’s extension-first philosophy. Every Extension must be transparent, metadata-rich, and respectful of user ownership.
+Build Extensions that fit CardSpoke's extension-first philosophy. Every Extension must be transparent, metadata-rich, and respectful of user ownership.
+
+**Current App Version:** 0.15.0 | **Schema Version:** 4
 
 ## Extension Types
-- **Theme** – Visual changes only; no logic or data modifications.
-- **Patch** – Packaged update; may alter behavior. Official or angled.
-- **Plugin** – Adds features without rewriting the core.
-- **Mod** – Reworks fundamental logic; may break compatibility.
-- **Kit** – Bundle of Themes and/or Patches (no Mods/Plugins).
-- **Expansion** – Bundle that includes at least one Plugin or Mod.
+- **Theme** - Visual changes only; no logic or data modifications.
+- **Patch** - Packaged update; may alter behavior. Official or angled.
+- **Plugin** - Adds features without rewriting the core.
+- **Mod** - Reworks fundamental logic; may break compatibility.
+- **Kit** - Bundle of Themes and/or Patches (no Mods/Plugins).
+- **Expansion** - Bundle that includes at least one Plugin or Mod.
 
 ## Mandatory Metadata
 Every Extension or Deviation must include a machine-readable metadata block (JSON or JSONC):
@@ -22,13 +24,13 @@ Every Extension or Deviation must include a machine-readable metadata block (JSO
   "description": "string",
   "date_created": "YYYY-MM-DD",
   "dependencies": ["ExtensionName@Version"],
-  "schema_compatibility": "schemaVersion >= X",
+  "schema_compatibility": "schemaVersion >= 4",
   "official": false,
   "angled": true
 }
 ```
 - Keep metadata versioned alongside code.
-- Declare schema compatibility based on the current `schemaVersion` (see [Schema & Migration Docs](../api/SCHEMA.md)).
+- Declare schema compatibility based on the current `schemaVersion` (currently 4).
 - List all AI assistants involved for transparency.
 
 ## Packaging & Structure
@@ -37,14 +39,21 @@ Every Extension or Deviation must include a machine-readable metadata block (JSO
 - Include uninstall instructions and state-cleanup steps. If you persist data under `cardspoke_*` keys or inject per-card `modsData`, document how to clear it when users disable the Extension.
 
 ## Compatibility & Toggling
-- Design for toggleability. Extensions—especially Patches and Mods—should fail safely when disabled.
+- Design for toggleability. Extensions - especially Patches and Mods - should fail safely when disabled.
 - Prefer feature flags and guards when modifying core behaviors.
 - For Kits/Expansions, list included Extensions and their versions.
 - Use the runtime hook dispatcher exposed at `window.CardSpoke_MODS` for lifecycle integrations instead of patching global state directly. Dev tools expose hook stats and error logs to help validate compatibility.
 
 ## Data & Storage
 - Respect user ownership. Do not transmit data off-device without explicit opt-in.
-- Use local storage APIs (LocalStorage/IndexedDB) by default; document any filesystem use. When writing to LocalStorage, namespace under your Extension ID to avoid colliding with built-in keys (rich text, grid view, typography, high contrast, active theme, dev mode).
+- Use local storage APIs (LocalStorage/IndexedDB) by default; document any filesystem use. When writing to LocalStorage, namespace under your Extension ID to avoid colliding with built-in keys:
+  - `cardspoke_richtext` - Rich text mode
+  - `cardspoke_gridView` - Grid view
+  - `cardspoke_highContrast` - High contrast mode
+  - `cardspoke_typography` - Typography preset
+  - `cardspoke_devmode` - Developer mode
+  - `cardspoke_theme` - Active theme
+  - `cardspoke_activeThemeExtension` - Active theme extension
 - Provide migrations for any data you create; version your schemas separately if needed.
 
 ## UI & UX Expectations
@@ -66,4 +75,3 @@ Every Extension or Deviation must include a machine-readable metadata block (JSO
 ## Open Items
 - [PLACEHOLDER] Distribution channel templates (e.g., sample marketplace listing).
 - [PLACEHOLDER] Minimum review checklist for accepting Extensions into an official catalog.
-

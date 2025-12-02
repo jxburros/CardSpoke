@@ -1,19 +1,35 @@
 # Developer Guide (Core App)
 
-This guide explains how to work on the CardSpoke core app, run tests, and align with the project’s lightweight, extension-first philosophy.
+This guide explains how to work on the CardSpoke core app, run tests, and align with the project's lightweight, extension-first philosophy.
+
+**Current Version:** 0.15.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
 
 ## Architecture Overview
-- **Ultra-light core:** Keep the main bundle lean. `www/app.js` is a self-contained single-file app with inline helpers for DOM creation, markdown-ish rendering, and accessibility utilities (focus trap, debounce, ID generation).
-- **Card model:** UI presents hierarchical, tiered cards for navigating knowledge. The default store shape (`createDefaultStore`) tracks `rootOrder`, per-card records, bookmarks, recent cards, mods, and view preferences.
+- **Ultra-light core:** Keep the main bundle lean. `www/app.js` is a self-contained single-file app with inline helpers for DOM creation (`h()`), markdown rendering (`simpleMarkdown()`), accessibility utilities (focus trap, debounce, ID generation), and fuzzy search (Levenshtein distance).
+- **Card model:** UI presents hierarchical, tiered cards for navigating knowledge. The default store shape (`createDefaultStore`) tracks `rootOrder`, per-card records (`cards`), `bookmarks`, `recentCards`, `mods`, `viewMode`, `activeTheme`, and `richTextEnabled`.
 - **Extension boundary:** Core exposes `window.CardSpoke_MODS` for hook dispatch plus dev tools (hook stats, error log). Mods should register hooks instead of directly mutating global state where possible.
-- **Local-first:** Default storage is LocalStorage/IndexedDB; avoid adding network dependencies without opt-in controls. Preferences (rich text, grid mode, high-contrast, typography, theme) persist under `cardspoke_*` keys and should be reused when adding new toggles.
+- **Local-first:** Default storage is LocalStorage/IndexedDB; avoid adding network dependencies without opt-in controls. Preferences persist under `cardspoke_*` keys:
+  - `cardspoke_richtext` - Rich text/markdown mode
+  - `cardspoke_gridView` - Grid vs list layout
+  - `cardspoke_highContrast` - High contrast mode
+  - `cardspoke_typography` - Typography preset (default/comfortable/compact/dyslexia)
+  - `cardspoke_devmode` - Developer mode
+  - `cardspoke_theme` - Light/dark theme
+  - `cardspoke_activeThemeExtension` - Active theme extension ID
+- **Self-contained for file:// protocol:** The app can be opened directly from the filesystem without CORS issues. All utilities are inlined in `app.js`.
 
 ## Repository Layout
-- `www/` – Prebuilt client bundle consumed by Capacitor. Update via the build pipeline before syncing. `app.js` implements rendering, dataset import/export (JSON/CSV/Markdown/TXT), backup rotation, and multi-dataset switching.
-- `tests/` – uvu test suites.
-- `types/` – Shared types describing card shapes, extension contracts, and dev tools.
-- `test-extension-improvements.js` – Extension behavior checks.
-- `capacitor.config.json` – Platform configuration for Capacitor.
+- `www/` - Prebuilt client bundle consumed by Capacitor:
+  - `app.js` - Main application (self-contained, ~9800 lines)
+  - `styles.css` - Default styling with light/dark themes and typography presets
+  - `index.html` - Entry point with modal structures and script loading
+  - `capacitor.js` - Capacitor runtime bridge
+  - `modules/` - Reference ES module versions (not used at runtime)
+- `tests/` - uvu test suites (~220 tests across 18 files)
+- `types/` - Shared types describing card shapes, extension contracts, and dev tools
+- `docs/` - Project documentation organized by category
+- `test-extension-improvements.js` - Extension behavior checks
+- `capacitor.config.json` - Platform configuration for Capacitor
 
 ## Development Workflow
 1. Install dependencies: `npm install` (Node 18+ recommended).
@@ -48,7 +64,7 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 ## Performance
 - Keep bundles small; prune dead code and unused dependencies.
 - Prefer lazy loading for heavy assets injected by Extensions.
-- Use the “Bake Mode” concept (merging Extensions) cautiously to avoid shipping incompatible combinations.
+- Use the "Bake Mode" concept (merging Extensions) cautiously to avoid shipping incompatible combinations.
 
 ## Release Hygiene
 - Update changelogs and metadata for any core update.
@@ -58,4 +74,3 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 ## Open Items
 - [PLACEHOLDER] Source directory mapping for the prebuilt `www/` assets.
 - [PLACEHOLDER] Preferred linter/formatter settings if/when adopted.
-
