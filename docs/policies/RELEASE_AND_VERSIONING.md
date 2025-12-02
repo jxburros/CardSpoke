@@ -5,7 +5,7 @@ CardSpoke differentiates between core updates and Extension-driven changes. Use 
 ## Versioning Model
 - Core uses semantic versioning (`MAJOR.MINOR.PATCH`).
 - Schema changes increment `schemaVersion` (see [Schema & Migration Docs](../api/SCHEMA.md)).
-- Extensions should also use semantic versioning and declare `schema_compatibility`. The current bundle reports `APP_VERSION = 0.15.0` and `SCHEMA_VERSION = 4` in `www/app.js`—mirror those values in docs and Extension metadata for alignment.
+- Extensions should also use semantic versioning and declare `schema_compatibility`. The current bundle reports `APP_VERSION = 0.16.0` and `SCHEMA_VERSION = 4` in `www/app.js`—mirror those values in docs and Extension metadata for alignment.
 
 ## Update Types
 - **Update (Core):** Changes to the canonical app; may bundle Extensions when operating in Bake Mode.
@@ -15,7 +15,7 @@ CardSpoke differentiates between core updates and Extension-driven changes. Use 
 - Update changelog with user-facing summary and breaking changes.
 - Record schema changes and migration notes.
 - Verify Extension compatibility; note any known incompatibilities.
-- Regenerate/validate `www/` assets if source changed. Confirm the self-contained entry (`www/index.html` + `app.js` + `styles.css`) still opens from `file://` before wrapping it in native shells.
+- Regenerate/validate `www/` assets if source changed. Run `npm run build` (concatenates `www/src/*.js` into `www/app.js`) and confirm the self-contained entry (`www/index.html` + `app.js` + `styles.css`) still opens from `file://` before wrapping it in native shells.
 - Tag release with version and schemaVersion.
 
 ## Release Checklist (Extension)

@@ -2,7 +2,7 @@
 
 These instructions are written for an AI assistant that must build a working CardSpoke Extension without inspecting the app UI. Follow them exactly to produce an Extension JSON artifact that passes automated checks and runs inside CardSpoke.
 
-**Current App Version:** 0.15.0 | **Schema Version:** 4
+**Current App Version:** 0.16.0 | **Schema Version:** 4
 
 ## 1) Deliverable Format (JSON Artifact)
 Create a single JSON file that includes everything the app needs:
@@ -140,7 +140,7 @@ For Themes, override CSS variables instead of DOM styles (e.g., `--bg-surface`, 
 ## 6) Data, Storage, and Safety
 - Data model: cards have `{ id, title, body, parentId|null, tags[], createdAt, updatedAt, modsData? }`.
 - Tag helpers exist (`getTags`, `addTag`, `removeTag`, `setTags`, `getAllTags`).
-- Dataset metadata tracks counts, schemaVersion (currently 4), and appVersion (currently 0.15.0); keep exports (`onExport`) compatible with the core formats (JSON/CSV/Markdown/TXT) so users can restore or merge datasets.
+- Dataset metadata tracks counts, schemaVersion (currently 4), and appVersion (currently 0.16.0); keep exports (`onExport`) compatible with the core formats (JSON/CSV/Markdown/TXT) so users can restore or merge datasets.
 - Respect user ownership: no network calls or off-device storage unless the user explicitly opts in (ask via UI prompt and document the behavior).
 - Persist custom state with namespaced `localStorage` keys and reversible defaults. Provide `onUninstall` cleanup that removes stored data and DOM. Avoid colliding with built-in preference keys (`cardspoke_richtext`, `cardspoke_gridView`, `cardspoke_highContrast`, `cardspoke_typography`, `cardspoke_activeThemeExtension`, `cardspoke_devmode`, `cardspoke_theme`).
 - Avoid obfuscation; log recoverable errors and fail safely.

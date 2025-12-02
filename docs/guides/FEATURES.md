@@ -2,7 +2,7 @@
 
 This catalog enumerates CardSpoke's capabilities so product, QA, and extension authors can reference everything in one place.
 
-**Current Version:** 0.15.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
+**Current Version:** 0.16.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
 
 ## Core Product Shape
 - **Card-based knowledge system:** Presents information as hierarchical, tiered cards for lightweight knowledge organization.
@@ -109,7 +109,7 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and extension a
 - **Native integrations:** Uses Capacitor plugins for app lifecycle (`@capacitor/app`), preferences (`@capacitor/preferences`), and filesystem persistence (`@capacitor/filesystem`).
 
 ## Schema, Versioning, and Compatibility
-- **Current schema version:** 4 (as of v0.15.0).
+- **Current schema version:** 4 (as of v0.16.0).
 - **Data domains:** Schema covers cards/relationships, user preferences, extension registry caches, and optional local file references.
 - **Default store shape:** `rootOrder`, `cards`, `mods`, `bookmarks`, `recentCards`, `viewMode`, `activeTheme`, `richTextEnabled`.
 - **Migration rules:** Schema bumps require documented migrations, idempotent steps, explicit fallbacks, and extension impact notes.

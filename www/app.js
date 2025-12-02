@@ -1,9 +1,10 @@
 // =============================================================
-// CardSpoke JavaScript Application
-// Version: 0.15.0
+// CardSpoke JavaScript Application (Source)
+// Version: 0.16.0
 // Creator: jxburros
 // Schema: v4
-// Note: Self-contained for file:// protocol compatibility
+// Note: Sources are split across www/src/* and concatenated with
+//       `npm run build` for the file://-friendly bundle in www/app.js.
 // =============================================================
 
 'use strict';
@@ -17,7 +18,7 @@
 
 // --- APP METADATA & SIGNATURES ---
 const APP_CREATOR = 'Jeffrey from GX Generations Software';
-const APP_VERSION = '0.15.0';
+const APP_VERSION = '0.16.0';
 const APP_RELEASE_DATE = '2025-11-30';
 const APP_UPDATER = 'Claude Code (Sonnet 4.5)';
 const SCHEMA_VERSION = 4;
@@ -332,7 +333,7 @@ function showToast(message, type = 'success', duration = 3000) {
 // =============================================================
 
 // Version History
-// Version 0.15.0: Self-contained for file:// compatibility
+// Version 0.16.0: Split source into buildable chunks (see www/src/*, `npm run build`)
 // Version 1.0.0: Major refactor - ES Modules for maintainability, Rich Text toggle, Theme extensions handler
 // Version 0.13.1: Accessibility & Theme Customization for Extensions
 // (see previous versions in git history)
@@ -641,6 +642,8 @@ const header = {
         return allResults.slice(0, MAX_RESULTS);
       }
 
+      // Source Part 2/5: Storage drivers, navigation, and mod runtime
+      // Concatenated via `npm run build` in lexical order of www/src/*.js
       // =============================================================
       // --- STORAGE DRIVER ARCHITECTURE (v0.9.4) ---
       // =============================================================
@@ -3062,6 +3065,8 @@ const header = {
         }
       }
 
+      // Source Part 3/5: Data CRUD, imports/exports, dataset modals
+      // Concatenated via `npm run build` in lexical order of www/src/*.js
       // --- DATA (CRUD) ---
 
       /**
@@ -6846,6 +6851,8 @@ console.log('✓ All examples completed!');
 
 
 
+      // Source Part 4/5: Rendering, themes, footer, and initialization
+      // Concatenated via `npm run build` in lexical order of www/src/*.js
       // =============================================================
       // --- RENDERING ---
       // Functions for rendering UI components and pages
@@ -8213,6 +8220,8 @@ console.log('✓ All examples completed!');
 
 
       // =============================================================
+      // Source Part 5/5: Advanced systems (undo/redo, tags, search) and boot
+      // Concatenated via `npm run build` in lexical order of www/src/*.js
       // --- UNDO/REDO SYSTEM (v0.12.0) ---
       // =============================================================
       

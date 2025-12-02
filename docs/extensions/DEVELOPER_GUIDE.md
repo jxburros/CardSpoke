@@ -2,7 +2,7 @@
 
 Build Extensions that fit CardSpoke's extension-first philosophy. Every Extension must be transparent, metadata-rich, and respectful of user ownership.
 
-**Current App Version:** 0.15.0 | **Schema Version:** 4
+**Current App Version:** 0.16.0 | **Schema Version:** 4
 
 ## Extension Types
 - **Theme** - Visual changes only; no logic or data modifications.

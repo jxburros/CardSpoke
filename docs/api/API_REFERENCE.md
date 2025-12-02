@@ -2,7 +2,7 @@
 
 This reference documents the surfaces extension developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke_MODS` extension runtime (also exposed as `window.CardSpoke.mods`). It consolidates the runtime contracts that ship in `www/app.js` and the type hints in `types/extensions.d.ts`.
 
-**Current Version:** 0.15.0 | **Schema Version:** 4
+**Current Version:** 0.16.0 | **Schema Version:** 4
 
 ## Global objects
 - **`window.CardSpoke.utils`**: async helpers for card CRUD, tagging, search, accessibility, dataset metadata, and toast UI helpers.
@@ -42,7 +42,7 @@ Implemented hooks are enforced by runtime validation. Unknown hook names log war
 ### Context passed to hooks
 The runtime builds a context object per invocation:
 - `modId`: current extension id.
-- `appVersion` / `schemaVersion`: release + schema numbers (currently 0.15.0 / 4).
+- `appVersion` / `schemaVersion`: release + schema numbers (currently 0.16.0 / 4).
 - `api`: see "Store API" below.
 - `utils`: reference to `CardSpoke.utils` (or `CIB.utils`).
 - `logger`: mod-scoped logger with `log/info/warn/error` prefixes.

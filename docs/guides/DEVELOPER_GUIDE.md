@@ -2,10 +2,10 @@
 
 This guide explains how to work on the CardSpoke core app, run tests, and align with the project's lightweight, extension-first philosophy.
 
-**Current Version:** 0.15.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
+**Current Version:** 0.16.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
 
 ## Architecture Overview
-- **Ultra-light core:** Keep the main bundle lean. `www/app.js` is a self-contained single-file app with inline helpers for DOM creation (`h()`), markdown rendering (`simpleMarkdown()`), accessibility utilities (focus trap, debounce, ID generation), and fuzzy search (Levenshtein distance).
+- **Ultra-light core:** Keep the main bundle lean. `www/app.js` is a self-contained bundle built by concatenating the numbered source slices in `www/src/*.js` (via `npm run build`) with inline helpers for DOM creation (`h()`), markdown rendering (`simpleMarkdown()`), accessibility utilities (focus trap, debounce, ID generation), and fuzzy search (Levenshtein distance).
 - **Card model:** UI presents hierarchical, tiered cards for navigating knowledge. The default store shape (`createDefaultStore`) tracks `rootOrder`, per-card records (`cards`), `bookmarks`, `recentCards`, `mods`, `viewMode`, `activeTheme`, and `richTextEnabled`.
 - **Extension boundary:** Core exposes `window.CardSpoke_MODS` for hook dispatch plus dev tools (hook stats, error log). Mods should register hooks instead of directly mutating global state where possible.
 - **Local-first:** Default storage is LocalStorage/IndexedDB; avoid adding network dependencies without opt-in controls. Preferences persist under `cardspoke_*` keys:
@@ -20,7 +20,8 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 
 ## Repository Layout
 - `www/` - Prebuilt client bundle consumed by Capacitor:
-  - `app.js` - Main application (self-contained, ~9800 lines)
+  - `src/` - Numbered source slices that concatenate into the browser bundle
+  - `app.js` - Main application (self-contained output of `npm run build`)
   - `styles.css` - Default styling with light/dark themes and typography presets
   - `index.html` - Entry point with modal structures and script loading
   - `capacitor.js` - Capacitor runtime bridge
