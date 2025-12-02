@@ -14,9 +14,9 @@ Create a single JSON file that includes everything the app needs:
     "version": "1.0.0",
     "creator": "Your Name or Org",
     "description": "What it does",
-    "releaseDate": "2024-01-15", // ISO date
-    "source": "community",       // "official" or "community"
-    "ai_assistants": "Model names used",
+    "date_created": "2024-01-15", // ISO date
+    "official": false,
+    "ai_assistants": ["Model names used"],
     "dependencies": ["OtherExt@1.0.0"],
     "schema_compatibility": "schemaVersion >= 1",
     "angled": true                 // mark true for community builds
