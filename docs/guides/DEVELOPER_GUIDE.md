@@ -52,7 +52,7 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 
 ## Release Hygiene
 - Update changelogs and metadata for any core update.
-- Document schema version changes and migrations in [Schema & Migration Docs](./SCHEMA.md).
+- Document schema version changes and migrations in [Schema & Migration Docs](../api/SCHEMA.md).
 - Clearly mark whether a change is **official** (core) or **angled** (Extension).
 
 ## Open Items

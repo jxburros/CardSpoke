@@ -34,7 +34,7 @@ These guidelines define expectations for Extensions, community behavior, and tra
 - Input validation in all user-facing forms.
 - No credential harvesting or disguised network calls.
 - Clear downgrade/removal instructions.
-- Mention any schema changes or migrations and link to [Schema & Migration Docs](../SCHEMA.md).
+- Mention any schema changes or migrations and link to [Schema & Migration Docs](../api/SCHEMA.md).
 
 ## Community Conduct
 - Follow the project’s code of conduct.

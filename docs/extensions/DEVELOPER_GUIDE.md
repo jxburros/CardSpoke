@@ -28,7 +28,7 @@ Every Extension or Deviation must include a machine-readable metadata block (JSO
 }
 ```
 - Keep metadata versioned alongside code.
-- Declare schema compatibility based on the current `schemaVersion` (see [Schema & Migration Docs](../SCHEMA.md)).
+- Declare schema compatibility based on the current `schemaVersion` (see [Schema & Migration Docs](../api/SCHEMA.md)).
 - List all AI assistants involved for transparency.
 
 ## Packaging & Structure
@@ -56,7 +56,7 @@ Every Extension or Deviation must include a machine-readable metadata block (JSO
 - Avoid privileged or obfuscated behavior.
 - Validate inputs; fail with clear errors instead of silent corruption.
 - Document removal steps and side effects.
-- See [Security & Safety Considerations](../SECURITY_AND_SAFETY.md) for required practices.
+- See [Security & Safety Considerations](../policies/SECURITY_AND_SAFETY.md) for required practices.
 
 ## Distribution & Credit
 - Clarify whether the Extension is **official** or **angled**.
