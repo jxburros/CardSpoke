@@ -1,0 +1,1785 @@
+      // Source Part 5/5: Advanced systems (undo/redo, tags, search) and boot
+      // Concatenated via `npm run build` in lexical order of www/src/*.js
+      // --- UNDO/REDO SYSTEM (v0.12.0) ---
+      // =============================================================
+      
+      /**
+       * Push a state to the undo stack
+       * @param {string} action - Description of the action
+       * @param {Object} data - Data needed to undo
+       */
+      function pushUndo(action, data) {
+        undoStack.push({
+          action,
+          data,
+          timestamp: Date.now()
+        });
+        if (undoStack.length > MAX_UNDO_STACK) {
+          undoStack.shift();
+        }
+        redoStack.length = 0;
+      }
+      
+      /**
+       * Undo the last action
+       */
+      function undo() {
+        if (undoStack.length === 0) {
+          showToast('Nothing to undo', 'info');
+          return false;
+        }
+        
+        const action = undoStack.pop();
+        
+        try {
+          switch (action.action) {
+            case 'deleteCard':
+              const cardData = action.data.card;
+              store.cards[cardData.id] = cardData;
+              if (cardData.parentId) {
+                const parent = store.cards[cardData.parentId];
+                if (parent && !parent.children.includes(cardData.id)) {
+                  parent.children.push(cardData.id);
+                }
+              } else {
+                if (!store.rootOrder.includes(cardData.id)) {
+                  store.rootOrder.push(cardData.id);
+                }
+              }
+              const trashIndex = trashBin.findIndex(t => t.card.id === cardData.id);
+              if (trashIndex > -1) trashBin.splice(trashIndex, 1);
+              break;
+              
+            case 'updateCard':
+              Object.assign(store.cards[action.data.cardId], action.data.previousState);
+              break;
+              
+            case 'createCard':
+              const card = store.cards[action.data.cardId];
+              if (card) {
+                if (card.parentId) {
+                  const parent = store.cards[card.parentId];
+                  if (parent) parent.children = parent.children.filter(c => c !== card.id);
+                } else {
+                  store.rootOrder = store.rootOrder.filter(c => c !== card.id);
+                }
+                delete store.cards[action.data.cardId];
+              }
+              break;
+              
+            case 'addTag':
+              removeTag(action.data.cardId, action.data.tag, true);
+              break;
+              
+            case 'removeTag':
+              addTag(action.data.cardId, action.data.tag, true);
+              break;
+              
+            case 'moveCard':
+              const movedCard = store.cards[action.data.cardId];
+              if (movedCard) {
+                const currentParent = store.cards[movedCard.parentId];
+                if (currentParent) {
+                  currentParent.children = currentParent.children.filter(c => c !== movedCard.id);
+                } else {
+                  store.rootOrder = store.rootOrder.filter(c => c !== movedCard.id);
+                }
+                movedCard.parentId = action.data.originalParentId;
+                if (action.data.originalParentId) {
+                  const origParent = store.cards[action.data.originalParentId];
+                  if (origParent && !origParent.children.includes(movedCard.id)) {
+                    origParent.children.push(movedCard.id);
+                  }
+                } else {
+                  if (!store.rootOrder.includes(movedCard.id)) {
+                    store.rootOrder.push(movedCard.id);
+                  }
+                }
+              }
+              break;
+          }
+          
+          redoStack.push(action);
+          save();
+          render();
+          showToast('Undo: ' + action.action, 'info');
+          return true;
+        } catch (err) {
+          console.error('Undo failed:', err);
+          showToast('Undo failed', 'error');
+          return false;
+        }
+      }
+      
+      /**
+       * Redo the last undone action
+       */
+      function redo() {
+        if (redoStack.length === 0) {
+          showToast('Nothing to redo', 'info');
+          return false;
+        }
+        
+        const action = redoStack.pop();
+        
+        try {
+          switch (action.action) {
+            case 'deleteCard':
+              const cardId = action.data.card.id;
+              const card = store.cards[cardId];
+              if (card) {
+                if (card.parentId) {
+                  const parent = store.cards[card.parentId];
+                  if (parent) parent.children = parent.children.filter(c => c !== cardId);
+                } else {
+                  store.rootOrder = store.rootOrder.filter(c => c !== cardId);
+                }
+                trashBin.unshift({ card: cloneCard(card), deletedAt: Date.now() });
+                if (trashBin.length > MAX_TRASH_SIZE) trashBin.pop();
+                delete store.cards[cardId];
+              }
+              break;
+              
+            case 'updateCard':
+              Object.assign(store.cards[action.data.cardId], action.data.newState);
+              break;
+              
+            case 'createCard':
+              const newCard = action.data.card;
+              store.cards[newCard.id] = newCard;
+              if (newCard.parentId) {
+                const parent = store.cards[newCard.parentId];
+                if (parent && !parent.children.includes(newCard.id)) {
+                  parent.children.push(newCard.id);
+                }
+              } else {
+                if (!store.rootOrder.includes(newCard.id)) {
+                  store.rootOrder.push(newCard.id);
+                }
+              }
+              break;
+              
+            case 'addTag':
+              addTag(action.data.cardId, action.data.tag, true);
+              break;
+              
+            case 'removeTag':
+              removeTag(action.data.cardId, action.data.tag, true);
+              break;
+              
+            case 'moveCard':
+              const mvCard = store.cards[action.data.cardId];
+              if (mvCard) {
+                const oldParent = store.cards[mvCard.parentId];
+                if (oldParent) {
+                  oldParent.children = oldParent.children.filter(c => c !== mvCard.id);
+                } else {
+                  store.rootOrder = store.rootOrder.filter(c => c !== mvCard.id);
+                }
+                mvCard.parentId = action.data.newParentId;
+                if (action.data.newParentId) {
+                  const newParent = store.cards[action.data.newParentId];
+                  if (newParent && !newParent.children.includes(mvCard.id)) {
+                    newParent.children.push(mvCard.id);
+                  }
+                } else {
+                  if (!store.rootOrder.includes(mvCard.id)) {
+                    store.rootOrder.push(mvCard.id);
+                  }
+                }
+              }
+              break;
+          }
+          
+          undoStack.push(action);
+          save();
+          render();
+          showToast('Redo: ' + action.action, 'info');
+          return true;
+        } catch (err) {
+          console.error('Redo failed:', err);
+          showToast('Redo failed', 'error');
+          return false;
+        }
+      }
+      
+      /**
+       * Show trash bin modal
+       */
+      function showTrashBin() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 600px;' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Trash Bin'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, 'X');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        const modalBody = h('div', { className: 'modal-body' });
+        
+        if (trashBin.length === 0) {
+          modalBody.appendChild(h('div', { className: 'empty' }, 'Trash bin is empty'));
+        } else {
+          const description = h('p', { style: 'margin-bottom: var(--space-lg); color: var(--text-secondary);' },
+            trashBin.length + ' item(s) in trash. Restore or permanently delete items.');
+          modalBody.appendChild(description);
+          
+          trashBin.forEach((item, index) => {
+            const itemDiv = h('div', {
+              style: 'background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: var(--space-md); display: flex; justify-content: space-between; align-items: center;'
+            });
+            
+            const info = h('div', { style: 'flex: 1;' });
+            info.appendChild(h('div', { style: 'font-weight: 700;' }, item.card.title || '(Untitled)'));
+            info.appendChild(h('div', { style: 'font-size: 0.875rem; color: var(--text-secondary);' },
+              'Deleted: ' + new Date(item.deletedAt).toLocaleString()));
+            itemDiv.appendChild(info);
+            
+            const actions = h('div', { style: 'display: flex; gap: var(--space-sm);' });
+            
+            const restoreBtn = h('button', {
+              className: 'btn btn-primary',
+              onclick: () => {
+                store.cards[item.card.id] = item.card;
+                if (item.card.parentId) {
+                  const parent = store.cards[item.card.parentId];
+                  if (parent && !parent.children.includes(item.card.id)) {
+                    parent.children.push(item.card.id);
+                  }
+                } else {
+                  if (!store.rootOrder.includes(item.card.id)) {
+                    store.rootOrder.push(item.card.id);
+                  }
+                }
+                trashBin.splice(index, 1);
+                save();
+                overlay.remove();
+                showTrashBin();
+                showToast('Card restored: ' + (item.card.title || '(Untitled)'));
+                render();
+              }
+            }, 'Restore');
+            actions.appendChild(restoreBtn);
+            
+            const deleteBtn = h('button', {
+              className: 'btn btn-danger',
+              onclick: () => {
+                if (confirm('Permanently delete this card?')) {
+                  trashBin.splice(index, 1);
+                  overlay.remove();
+                  showTrashBin();
+                  showToast('Card permanently deleted');
+                }
+              }
+            }, 'Delete');
+            actions.appendChild(deleteBtn);
+            
+            itemDiv.appendChild(actions);
+            modalBody.appendChild(itemDiv);
+          });
+          
+          const emptyBtn = h('button', {
+            className: 'btn btn-danger',
+            style: 'width: 100%; margin-top: var(--space-lg);',
+            onclick: () => {
+              if (confirm('Permanently delete all items in trash?')) {
+                trashBin.length = 0;
+                overlay.remove();
+                showToast('Trash emptied');
+              }
+            }
+          }, 'Empty Trash');
+          modalBody.appendChild(emptyBtn);
+        }
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        overlay.onclick = (e) => {
+          if (e.target === overlay) overlay.remove();
+        };
+      }
+
+      // =============================================================
+      // --- TAG MANAGEMENT SYSTEM (v0.12.0) ---
+      // =============================================================
+      
+      /**
+       * Rename a tag across all cards
+       */
+      function renameTag(oldTag, newTag) {
+        const normalizedOld = oldTag.replace(/^#/, '').toLowerCase().trim();
+        const normalizedNew = newTag.replace(/^#/, '').toLowerCase().trim();
+        
+        if (!normalizedOld || !normalizedNew) return 0;
+        if (normalizedOld === normalizedNew) return 0;
+        
+        let count = 0;
+        Object.values(store.cards).forEach(card => {
+          if (card.tags && card.tags.includes(normalizedOld)) {
+            card.tags = card.tags.map(t => t === normalizedOld ? normalizedNew : t);
+            card.tags = [...new Set(card.tags)];
+            card.updatedAt = Date.now();
+            count++;
+          }
+        });
+        
+        if (count > 0) save();
+        return count;
+      }
+      
+      /**
+       * Merge two tags
+       */
+      function mergeTags(tag1, tag2) {
+        return renameTag(tag1, tag2);
+      }
+      
+      /**
+       * Delete a tag from all cards
+       */
+      function deleteTagGlobal(tag) {
+        const normalizedTag = tag.replace(/^#/, '').toLowerCase().trim();
+        if (!normalizedTag) return 0;
+        
+        let count = 0;
+        Object.values(store.cards).forEach(card => {
+          if (card.tags && card.tags.includes(normalizedTag)) {
+            card.tags = card.tags.filter(t => t !== normalizedTag);
+            card.updatedAt = Date.now();
+            count++;
+          }
+        });
+        
+        if (count > 0) save();
+        return count;
+      }
+      
+      /**
+       * Get tag statistics
+       */
+      function getTagStats() {
+        const tagCounts = {};
+        Object.values(store.cards).forEach(card => {
+          if (card.tags) {
+            card.tags.forEach(tag => {
+              tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+            });
+          }
+        });
+        return Object.entries(tagCounts)
+          .map(([tag, count]) => ({ tag, count }))
+          .sort((a, b) => b.count - a.count);
+      }
+      
+      /**
+       * Show tag manager modal
+       */
+      function showTagManager() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 700px;' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Tag Manager'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, 'X');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        const modalBody = h('div', { className: 'modal-body' });
+        const tagStats = getTagStats();
+        
+        if (tagStats.length === 0) {
+          modalBody.appendChild(h('div', { className: 'empty' }, 'No tags found. Add tags to your cards to manage them here.'));
+        } else {
+          const summary = h('div', { style: 'background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); margin-bottom: var(--space-xl);' });
+          summary.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-sm);' }, 
+            tagStats.length + ' unique tags across ' + Object.keys(store.cards).length + ' cards'));
+          modalBody.appendChild(summary);
+          
+          tagStats.forEach(function(tagStat) {
+            const tag = tagStat.tag;
+            const count = tagStat.count;
+            const tagItem = h('div', {
+              style: 'background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: var(--space-md); display: flex; justify-content: space-between; align-items: center;'
+            });
+            
+            const tagInfo = h('div', { style: 'display: flex; align-items: center; gap: var(--space-md);' });
+            const tagChip = h('span', { 
+              className: 'card-tag',
+              style: 'cursor: pointer;',
+              onclick: function() {
+                overlay.remove();
+                goTo('search', { searchQuery: '#' + tag });
+              }
+            }, tag);
+            tagInfo.appendChild(tagChip);
+            tagInfo.appendChild(h('span', { style: 'color: var(--text-secondary);' }, '(' + count + ' card' + (count !== 1 ? 's' : '') + ')'));
+            tagItem.appendChild(tagInfo);
+            
+            const actions = h('div', { style: 'display: flex; gap: var(--space-sm);' });
+            
+            const renameBtn = h('button', {
+              className: 'btn',
+              style: 'font-size: var(--text-sm);',
+              onclick: function() {
+                const newName = prompt('Rename tag "' + tag + '" to:', tag);
+                if (newName && newName.trim() !== tag) {
+                  const affected = renameTag(tag, newName.trim());
+                  if (affected > 0) {
+                    showToast('Renamed "' + tag + '" to "' + newName.trim() + '" in ' + affected + ' card(s)');
+                    overlay.remove();
+                    showTagManager();
+                  }
+                }
+              }
+            }, 'Rename');
+            actions.appendChild(renameBtn);
+            
+            const mergeBtn = h('button', {
+              className: 'btn',
+              style: 'font-size: var(--text-sm);',
+              onclick: function() {
+                const otherTags = tagStats.map(function(t) { return t.tag; }).filter(function(t) { return t !== tag; });
+                if (otherTags.length === 0) {
+                  showToast('No other tags to merge with', 'info');
+                  return;
+                }
+                const targetTag = prompt('Merge "' + tag + '" into which tag?\n\nAvailable: ' + otherTags.join(', '));
+                if (targetTag && otherTags.includes(targetTag.trim().toLowerCase())) {
+                  const affected = mergeTags(tag, targetTag.trim());
+                  if (affected > 0) {
+                    showToast('Merged "' + tag + '" into "' + targetTag.trim() + '" (' + affected + ' card(s))');
+                    overlay.remove();
+                    showTagManager();
+                  }
+                }
+              }
+            }, 'Merge');
+            actions.appendChild(mergeBtn);
+            
+            const deleteBtn = h('button', {
+              className: 'btn btn-danger',
+              style: 'font-size: var(--text-sm);',
+              onclick: function() {
+                if (confirm('Delete tag "' + tag + '" from all ' + count + ' card(s)?')) {
+                  const affected = deleteTagGlobal(tag);
+                  showToast('Deleted tag "' + tag + '" from ' + affected + ' card(s)');
+                  overlay.remove();
+                  showTagManager();
+                }
+              }
+            }, 'Delete');
+            actions.appendChild(deleteBtn);
+            
+            tagItem.appendChild(actions);
+            modalBody.appendChild(tagItem);
+          });
+        }
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        overlay.onclick = function(e) {
+          if (e.target === overlay) overlay.remove();
+        };
+      }
+
+      // =============================================================
+      // --- ADVANCED SEARCH (v0.12.0) ---
+      // =============================================================
+      
+      /**
+       * Show advanced search modal with filters
+       */
+      function showAdvancedSearch() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 600px;' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Advanced Search'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, 'X');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        const modalBody = h('div', { className: 'modal-body' });
+        
+        // Search query
+        const queryGroup = h('div', { style: 'margin-bottom: var(--space-lg);' });
+        queryGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Search Text'));
+        const queryInput = h('input', {
+          type: 'text',
+          placeholder: 'Search in titles and content...',
+          style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-primary); color: var(--text-primary); font-size: 1rem;'
+        });
+        queryGroup.appendChild(queryInput);
+        modalBody.appendChild(queryGroup);
+        
+        // Filter by tag
+        const tagGroup = h('div', { style: 'margin-bottom: var(--space-lg);' });
+        tagGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Filter by Tag'));
+        const tagSelect = h('select', {
+          style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: 1rem;'
+        });
+        tagSelect.appendChild(h('option', { value: '' }, 'Any tag'));
+        getAllTags().forEach(function(tag) {
+          tagSelect.appendChild(h('option', { value: tag }, tag));
+        });
+        tagGroup.appendChild(tagSelect);
+        modalBody.appendChild(tagGroup);
+        
+        // Filter by bookmarked
+        const bookmarkGroup = h('div', { style: 'margin-bottom: var(--space-lg);' });
+        const bookmarkCheck = h('label', { style: 'display: flex; align-items: center; gap: var(--space-sm); cursor: pointer;' });
+        const bookmarkInput = h('input', { type: 'checkbox' });
+        bookmarkCheck.appendChild(bookmarkInput);
+        bookmarkCheck.appendChild(document.createTextNode('Only show bookmarked cards'));
+        bookmarkGroup.appendChild(bookmarkCheck);
+        modalBody.appendChild(bookmarkGroup);
+        
+        // Filter by date
+        const dateGroup = h('div', { style: 'margin-bottom: var(--space-lg);' });
+        dateGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Created/Modified'));
+        const dateSelect = h('select', {
+          style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: 1rem;'
+        });
+        dateSelect.appendChild(h('option', { value: '' }, 'Any time'));
+        dateSelect.appendChild(h('option', { value: 'today' }, 'Today'));
+        dateSelect.appendChild(h('option', { value: 'week' }, 'Past 7 days'));
+        dateSelect.appendChild(h('option', { value: 'month' }, 'Past 30 days'));
+        dateGroup.appendChild(dateSelect);
+        modalBody.appendChild(dateGroup);
+        
+        // Search button
+        const searchBtn = h('button', {
+          className: 'btn btn-primary',
+          style: 'width: 100%;',
+          onclick: function() {
+            const query = queryInput.value.trim();
+            const tagFilter = tagSelect.value;
+            const bookmarkOnly = bookmarkInput.checked;
+            const dateFilter = dateSelect.value;
+            
+            // Store filters
+            sessionStorage.setItem('searchFilters', JSON.stringify({
+              query: query, tagFilter: tagFilter, bookmarkOnly: bookmarkOnly, dateFilter: dateFilter
+            }));
+            
+            overlay.remove();
+            goTo('search', { searchQuery: query || '*' });
+          }
+        }, 'Search');
+        modalBody.appendChild(searchBtn);
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        overlay.onclick = function(e) {
+          if (e.target === overlay) overlay.remove();
+        };
+        
+        setTimeout(function() { queryInput.focus(); }, 100);
+      }
+
+      // =============================================================
+      // --- MARKDOWN PREVIEW (v0.12.0) ---
+      // =============================================================
+      
+      /**
+       * Simple markdown to HTML conversion
+       */
+      function simpleMarkdown(text) {
+        if (!text) return '';
+        
+        var html = text
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        
+        // Headers
+        html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+        html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+        html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+        
+        // Bold and italic
+        html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        
+        // Code
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        
+        // Lists
+        html = html.replace(/^\* (.+)$/gm, '<li>$1</li>');
+        html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+        
+        // Blockquotes
+        html = html.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+        
+        // Line breaks
+        html = html.replace(/\n\n/g, '</p><p>');
+        html = '<p>' + html + '</p>';
+        
+        return html;
+      }
+
+      // =============================================================
+      // --- EXTENSIONS STORE PLACEHOLDER (v0.12.0) ---
+      // =============================================================
+      
+      /**
+       * Show extensions store modal
+       */
+      function showExtensionsStore() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 800px;' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Extensions Store'));
+        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, 'X');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        const modalBody = h('div', { className: 'modal-body' });
+        
+        // Coming soon banner
+        const banner = h('div', {
+          style: 'background: linear-gradient(135deg, var(--primary), #1565c0); color: white; padding: var(--space-2xl); border-radius: var(--radius); margin-bottom: var(--space-xl); text-align: center;'
+        });
+        banner.appendChild(h('div', { style: 'font-size: 48px; margin-bottom: var(--space-md);' }, ''));
+        banner.appendChild(h('div', { style: 'font-size: var(--text-xl); font-weight: 700; margin-bottom: var(--space-sm);' }, 'Extensions Store Coming Soon'));
+        banner.appendChild(h('div', { style: 'opacity: 0.9;' }, 'Browse, install, and manage extensions from the community'));
+        modalBody.appendChild(banner);
+        
+        // Categories preview
+        modalBody.appendChild(h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Featured Categories'));
+        
+        const categories = [
+          { icon: '', name: 'Themes', desc: 'Visual styles and color schemes' },
+          { icon: '', name: 'Tools', desc: 'Productivity extensions' },
+          { icon: '', name: 'Analytics', desc: 'Data visualization' },
+          { icon: '', name: 'Integrations', desc: 'External services' }
+        ];
+        
+        const categoryGrid = h('div', {
+          style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-xl);'
+        });
+        
+        categories.forEach(function(cat) {
+          const catItem = h('div', {
+            style: 'background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border); text-align: center;'
+          });
+          catItem.appendChild(h('div', { style: 'font-size: 32px; margin-bottom: var(--space-sm);' }, cat.icon));
+          catItem.appendChild(h('div', { style: 'font-weight: 700;' }, cat.name));
+          catItem.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-secondary);' }, cat.desc));
+          catItem.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--primary); margin-top: var(--space-sm);' }, 'Coming soon'));
+          categoryGrid.appendChild(catItem);
+        });
+        
+        modalBody.appendChild(categoryGrid);
+        
+        // Current extensions link
+        const currentBtn = h('button', {
+          className: 'btn',
+          style: 'width: 100%;',
+          onclick: function() {
+            overlay.remove();
+            showModsManager();
+          }
+        }, 'Manage Installed Extensions');
+        modalBody.appendChild(currentBtn);
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        overlay.onclick = function(e) {
+          if (e.target === overlay) overlay.remove();
+        };
+      }
+
+      // =============================================================
+      // --- BULK IMPORT/EXPORT (v0.12.0) ---
+      // =============================================================
+      
+      /**
+       * Bulk export cards
+       */
+      function bulkExportCards(cardIds, format) {
+        format = format || 'json';
+        if (!cardIds || cardIds.length === 0) {
+          showToast('No cards selected for export', 'error');
+          return;
+        }
+        
+        const exportCards = {};
+        function includeChildren(id) {
+          const card = store.cards[id];
+          if (!card) return;
+          exportCards[id] = cloneCard(card);
+          card.children.forEach(function(childId) { includeChildren(childId); });
+        }
+        
+        cardIds.forEach(function(id) { includeChildren(id); });
+        
+        var content, filename, mimeType;
+        
+        if (format === 'markdown') {
+          content = Object.values(exportCards).map(function(card) {
+            var md = '# ' + (card.title || '(Untitled)') + '\n\n';
+            if (card.tags && card.tags.length) {
+              md += 'Tags: ' + card.tags.map(function(t) { return '#' + t; }).join(' ') + '\n\n';
+            }
+            md += card.body || '';
+            return md;
+          }).join('\n\n---\n\n');
+          filename = 'cardspoke-export-' + Date.now() + '.md';
+          mimeType = 'text/markdown';
+        } else if (format === 'txt') {
+          content = Object.values(exportCards).map(function(card) {
+            var txt = '=== ' + (card.title || '(Untitled)') + ' ===\n\n';
+            if (card.tags && card.tags.length) {
+              txt += 'Tags: ' + card.tags.join(', ') + '\n\n';
+            }
+            txt += card.body || '';
+            return txt;
+          }).join('\n\n' + '='.repeat(50) + '\n\n');
+          filename = 'cardspoke-export-' + Date.now() + '.txt';
+          mimeType = 'text/plain';
+        } else {
+          content = JSON.stringify({
+            exportedAt: new Date().toISOString(),
+            cardCount: Object.keys(exportCards).length,
+            cards: exportCards
+          }, null, 2);
+          filename = 'cardspoke-export-' + Date.now() + '.json';
+          mimeType = 'application/json';
+        }
+        
+        downloadWithFeedback(content, filename, mimeType);
+        showToast('Exported ' + Object.keys(exportCards).length + ' card(s)');
+      }
+      
+      /**
+       * Bulk import cards from JSON
+       */
+      function bulkImportCards(importData, targetParentId) {
+        try {
+          var cards = {};
+          
+          if (importData.cards) {
+            cards = importData.cards;
+          } else if (Array.isArray(importData)) {
+            importData.forEach(function(card) {
+              cards[card.id || uid()] = card;
+            });
+          } else if (importData.id) {
+            cards[importData.id] = importData;
+          }
+          
+          var idMap = {};
+          
+          Object.keys(cards).forEach(function(oldId) {
+            idMap[oldId] = uid();
+          });
+          
+          Object.values(cards).forEach(function(card) {
+            var newId = idMap[card.id];
+            var newCard = {
+              id: newId,
+              title: card.title || '',
+              body: card.body || '',
+              parentId: card.parentId ? (idMap[card.parentId] || targetParentId) : targetParentId,
+              children: card.children ? card.children.map(function(cid) { return idMap[cid]; }).filter(Boolean) : [],
+              tags: card.tags || [],
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            };
+            
+            store.cards[newId] = newCard;
+            
+            if (newCard.parentId) {
+              var parent = store.cards[newCard.parentId];
+              if (parent && !parent.children.includes(newId)) {
+                parent.children.push(newId);
+              }
+            } else {
+              if (!store.rootOrder.includes(newId)) {
+                store.rootOrder.push(newId);
+              }
+            }
+          });
+          
+          save();
+          return Object.keys(cards).length;
+        } catch (err) {
+          console.error('Bulk import failed:', err);
+          showToast('Import failed: ' + err.message, 'error');
+          return 0;
+        }
+      }
+
+      // =============================================================
+      // --- DRAG AND DROP (v0.12.0) ---
+      // =============================================================
+      
+      /**
+       * Handle drag start
+       */
+      function handleDragStart(e, cardId) {
+        draggedCardId = cardId;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', cardId);
+        e.target.style.opacity = '0.5';
+      }
+      
+      /**
+       * Handle drag end
+       */
+      function handleDragEnd(e) {
+        e.target.style.opacity = '1';
+        draggedCardId = null;
+        dragOverCardId = null;
+        document.querySelectorAll('.drag-over').forEach(function(el) { el.classList.remove('drag-over'); });
+      }
+      
+      /**
+       * Handle drag over
+       */
+      function handleDragOver(e, cardId) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        
+        if (dragOverCardId !== cardId) {
+          document.querySelectorAll('.drag-over').forEach(function(el) { el.classList.remove('drag-over'); });
+          if (cardId !== draggedCardId) {
+            var tile = e.target.closest('.card-tile');
+            if (tile) tile.classList.add('drag-over');
+          }
+          dragOverCardId = cardId;
+        }
+      }
+      
+      /**
+       * Handle drop
+       */
+      function handleDrop(e, targetCardId) {
+        e.preventDefault();
+        var tile = e.target.closest('.card-tile');
+        if (tile) tile.classList.remove('drag-over');
+        
+        if (!draggedCardId || draggedCardId === targetCardId) return;
+        
+        var draggedCard = store.cards[draggedCardId];
+        var targetCard = store.cards[targetCardId];
+        
+        if (!draggedCard || !targetCard) return;
+        
+        if (isDescendant(targetCardId, draggedCardId)) {
+          showToast('Cannot move a card into its own child', 'error');
+          return;
+        }
+        
+        pushUndo('moveCard', {
+          cardId: draggedCardId,
+          originalParentId: draggedCard.parentId,
+          newParentId: targetCardId
+        });
+        
+        if (draggedCard.parentId) {
+          var oldParent = store.cards[draggedCard.parentId];
+          if (oldParent) {
+            oldParent.children = oldParent.children.filter(function(c) { return c !== draggedCardId; });
+          }
+        } else {
+          store.rootOrder = store.rootOrder.filter(function(c) { return c !== draggedCardId; });
+        }
+        
+        draggedCard.parentId = targetCardId;
+        if (!targetCard.children.includes(draggedCardId)) {
+          targetCard.children.push(draggedCardId);
+        }
+        
+        draggedCard.updatedAt = Date.now();
+        save();
+        render();
+        
+        showToast('Moved "' + (draggedCard.title || '(Untitled)') + '" to "' + (targetCard.title || '(Untitled)') + '"');
+      }
+      
+      /**
+       * Check if a card is a descendant of another
+       */
+      function isDescendant(cardId, ancestorId) {
+        var ancestor = store.cards[ancestorId];
+        if (!ancestor) return false;
+        if (ancestor.children.includes(cardId)) return true;
+        return ancestor.children.some(function(childId) { return isDescendant(cardId, childId); });
+      }
+      
+      /**
+       * Reorder cards within a parent
+       */
+      function reorderCard(parentId, cardId, newIndex) {
+        if (parentId) {
+          var parent = store.cards[parentId];
+          if (!parent || !parent.children.includes(cardId)) return;
+          parent.children = parent.children.filter(function(c) { return c !== cardId; });
+          parent.children.splice(newIndex, 0, cardId);
+        } else {
+          if (!store.rootOrder.includes(cardId)) return;
+          store.rootOrder = store.rootOrder.filter(function(c) { return c !== cardId; });
+          store.rootOrder.splice(newIndex, 0, cardId);
+        }
+        save();
+        render();
+      }
+
+      /**
+       * Edit dataset name
+       */
+      function editDatasetName() {
+        var currentName = (store.metadata && store.metadata.name) || instanceKey;
+        var newName = prompt('Enter new dataset name:', currentName);
+        if (newName && newName.trim() && newName.trim() !== currentName) {
+          if (!store.metadata) store.metadata = {};
+          store.metadata.name = newName.trim();
+          store.metadata.updatedAt = Date.now();
+          // Update the datasets registry
+          const datasets = JSON.parse(localStorage.getItem('cardspoke_datasets') || '{}');
+          if (datasets[instanceKey]) {
+            datasets[instanceKey].name = newName.trim();
+            localStorage.setItem('cardspoke_datasets', JSON.stringify(datasets));
+          }
+          save();
+          showToast('Dataset renamed to: ' + newName.trim());
+          render();
+        }
+      }
+
+
+      // =============================================================
+      // --- KEYBOARD SHORTCUTS ---
+      // Global keyboard shortcuts for navigation and actions
+      // =============================================================
+      
+      const shortcuts = {
+        'ctrl+h': { action: () => goTo('list'), description: 'Go to Home (card list)' },
+        'ctrl+n': { action: () => { menu.newCard.click(); }, description: 'New card' },
+        'ctrl+f': { action: () => { searchInput.focus(); }, description: 'Focus search' },
+        'ctrl+b': { action: () => { menu.bookmarks.click(); closeMenu(); }, description: 'Show bookmarks' },
+        'ctrl+r': { action: () => { menu.recentCards.click(); closeMenu(); }, description: 'Show recent cards' },
+        'ctrl+e': { action: () => { menu.extensions.click(); closeMenu(); }, description: 'Show extensions' },
+        'ctrl+u': { action: () => { menu.upload.click(); closeMenu(); }, description: 'Upload data' },
+        'ctrl+/': { action: () => showKeyboardHelp(), description: 'Show this help' },
+        'ctrl+z': { action: () => undo(), description: 'Undo last action' },
+        'ctrl+y': { action: () => redo(), description: 'Redo last action' },
+        'escape': { action: () => handleEscape(), description: 'Close modals/go back' },
+        'alt+t': { action: () => { header.themeToggle.click(); }, description: 'Toggle theme' },
+        'alt+c': { action: () => toggleViewMode(), description: 'Toggle compact view' },
+        'ctrl+d': { action: () => { 
+          if (navState.page === 'read' && navState.cardId) {
+            const card = store.cards[navState.cardId];
+            if (card) {
+              const choice = confirm('Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)');
+              const newId = duplicateCard(navState.cardId, choice);
+              if (newId) {
+                showToast('Card duplicated successfully');
+                goTo('read', { cardId: newId });
+              }
+            }
+          }
+        }, description: 'Duplicate current card' },
+        'ctrl+t': { action: () => {
+          if (navState.page === 'edit') {
+            const tagsInput = document.getElementById('cardTags');
+            if (tagsInput) tagsInput.focus();
+          }
+        }, description: 'Focus tags input (when editing)' },
+        'ctrl+[': { action: () => {
+          if (navState.page === 'read' && navState.cardId) {
+            const card = store.cards[navState.cardId];
+            if (card && card.parentId) {
+              goTo('read', { cardId: card.parentId });
+            } else {
+              goTo('list');
+            }
+          }
+        }, description: 'Navigate to parent card' },
+        'ctrl+]': { action: () => {
+          if (navState.page === 'read' && navState.cardId) {
+            const card = store.cards[navState.cardId];
+            if (card && card.children.length > 0) {
+              goTo('read', { cardId: card.children[0] });
+            }
+          }
+        }, description: 'Navigate to first child card' },
+        'ctrl+g': { action: () => {
+          // Toggle between list and grid view
+          const gridModeEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
+          localStorage.setItem('cardspoke_gridView', (!gridModeEnabled).toString());
+          showToast(gridModeEnabled ? 'List view enabled' : 'Grid view enabled');
+          render();
+        }, description: 'Toggle grid/list view' },
+      };
+      
+      function handleEscape() {
+        // Close menu if open
+        if (menu.overlay.classList.contains('show')) {
+          closeMenu();
+          return;
+        }
+        // Close upload modal if open
+        if (uploadModal.overlay.classList.contains('show')) {
+          uploadModal.overlay.classList.remove('show');
+          return;
+        }
+        // Close help if open
+        const helpModal = document.getElementById('keyboardHelpModal');
+        if (helpModal && helpModal.classList.contains('show')) {
+          helpModal.classList.remove('show');
+          return;
+        }
+        // Otherwise go back if we can
+        if (navHistory.length > 0) {
+          goBack();
+        }
+      }
+      
+      function closeMenu() {
+        menu.overlay.classList.remove('show');
+      }
+      
+      
+      /**
+       * Show typography preset selector modal
+       */
+      function showTypographySelector() {
+        const currentTypography = localStorage.getItem('cardspoke_typography') || 'default';
+        
+        const modal = h('div', { 
+          id: 'typographyModal', 
+          className: 'menu-overlay show',
+          onclick: (e) => { if (e.target === modal) modal.remove(); }
+        },
+          h('div', { className: 'menu-panel' },
+            h('div', { className: 'menu-header' },
+              h('div', { className: 'menu-title' }, 'Typography'),
+              h('button', { 
+                className: 'menu-close',
+                onclick: () => modal.remove()
+              }, '✕')
+            ),
+            h('div', { className: 'typography-presets' },
+              h('div', { className: 'preset-description' }, 'Choose a reading mode that suits your preference:'),
+              ...[
+                { id: 'default', name: 'Default', desc: '16px, comfortable line height' },
+                { id: 'comfortable', name: 'Comfortable', desc: '18px, extra line height for relaxed reading' },
+                { id: 'compact', name: 'Compact', desc: '14px, tighter spacing for more content' },
+                { id: 'dyslexia', name: 'Dyslexia-Friendly', desc: '18px, wider spacing, readable font' }
+              ].map(preset => 
+                h('div', { 
+                  className: `preset-option ${currentTypography === preset.id ? 'active' : ''}`,
+                  onclick: () => {
+                    localStorage.setItem('cardspoke_typography', preset.id);
+                    document.documentElement.setAttribute('data-typography', preset.id);
+                    showToast(`Typography: ${preset.name}`);
+                    modal.remove();
+                  }
+                },
+                  h('div', { className: 'preset-name' }, preset.name),
+                  h('div', { className: 'preset-desc' }, preset.desc)
+                )
+              )
+            )
+          )
+        );
+        
+        document.body.appendChild(modal);
+      }
+
+      /**
+       * Generate smart tag suggestions for a card based on content
+       * @param {string} cardId - Card ID to analyze
+       * @param {number} limit - Maximum number of suggestions (default: 5)
+       * @returns {Array<{tag: string, score: number}>} Suggested tags with relevance scores
+       */
+      function suggestTags(cardId, limit = 5) {
+        const card = store.cards[cardId];
+        if (!card) return [];
+        
+        const existingTags = getTags(cardId);
+        const allExistingTags = getAllTags();
+        const suggestions = [];
+        
+        // Combine title and body for analysis
+        const content = ((card.title || '') + ' ' + (card.body || '')).toLowerCase();
+        
+        // Get tags from other cards with similar content
+        for (const tag of allExistingTags) {
+          if (existingTags.includes(tag)) continue; // Skip already applied tags
+          
+          // Find cards with this tag
+          const cardsWithTag = Object.values(store.cards).filter(c => 
+            c.tags && c.tags.includes(tag)
+          );
+          
+          // Calculate relevance based on content similarity
+          let totalScore = 0;
+          for (const otherCard of cardsWithTag) {
+            const otherContent = ((otherCard.title || '') + ' ' + (otherCard.body || '')).toLowerCase();
+            
+            // Simple word overlap scoring
+            const contentWords = new Set(content.split(/\s+/).filter(w => w.length > 3));
+            const otherWords = new Set(otherContent.split(/\s+/).filter(w => w.length > 3));
+            const commonWords = [...contentWords].filter(w => otherWords.has(w));
+            
+            if (commonWords.length > 0) {
+              totalScore += commonWords.length / Math.max(contentWords.size, otherWords.size);
+            }
+          }
+          
+          if (totalScore > 0) {
+            suggestions.push({
+              tag,
+              score: totalScore / cardsWithTag.length
+            });
+          }
+        }
+        
+        // Sort by score and return top suggestions
+        suggestions.sort((a, b) => b.score - a.score);
+        return suggestions.slice(0, limit);
+      }
+      
+      /**
+       * Show smart tag suggestions modal
+       * @param {string} cardId - Card ID to suggest tags for
+       */
+      function showTagSuggestions(cardId) {
+        const card = store.cards[cardId];
+        if (!card) return;
+        
+        const suggestions = suggestTags(cardId, 8);
+        
+        if (suggestions.length === 0) {
+          showToast('No tag suggestions available', 'info');
+          return;
+        }
+        
+        const modal = h('div', { 
+          id: 'tagSuggestionsModal', 
+          className: 'menu-overlay show',
+          onclick: (e) => { if (e.target === modal) modal.remove(); }
+        },
+          h('div', { className: 'menu-panel' },
+            h('div', { className: 'menu-header' },
+              h('div', { className: 'menu-title' }, 'Suggested Tags'),
+              h('button', { 
+                className: 'menu-close',
+                onclick: () => modal.remove()
+              }, '✕')
+            ),
+            h('div', { className: 'tag-suggestions' },
+              h('div', { className: 'suggestion-description' }, 
+                `Based on similar cards, you might want to add these tags:`
+              ),
+              ...suggestions.map(({ tag, score }) => 
+                h('button', { 
+                  className: 'suggestion-tag',
+                  onclick: () => {
+                    addTag(cardId, tag);
+                    showToast(`✓ Tag "${tag}" added`);
+                    modal.remove();
+                    render();
+                  }
+                },
+                  h('span', { className: 'tag-name' }, tag),
+                  h('span', { className: 'tag-score' }, `${Math.round(score * 100)}% match`)
+                )
+              ),
+              h('button', {
+                className: 'btn btn-primary',
+                onclick: () => {
+                  // Apply all suggestions
+                  suggestions.forEach(({ tag }) => addTag(cardId, tag, true));
+                  save();
+                  showToast(`✓ ${suggestions.length} tags added`);
+                  modal.remove();
+                  render();
+                }
+              }, `Apply All ${suggestions.length} Tags`)
+            )
+          )
+        );
+        
+        document.body.appendChild(modal);
+      }
+
+      // =========================================================
+      // Share Card Feature (v1.0.0)
+      // =========================================================
+
+      /**
+       * Get card and all descendants as an object
+       */
+      function getCardWithDescendants(cardId) {
+        const card = store.cards[cardId];
+        if (!card) return null;
+
+        const result = {
+          id: card.id,
+          title: card.title,
+          body: card.body,
+          tags: card.tags || [],
+          createdAt: card.createdAt,
+          updatedAt: card.updatedAt,
+          children: []
+        };
+
+        if (card.children && card.children.length > 0) {
+          card.children.forEach(childId => {
+            const childData = getCardWithDescendants(childId);
+            if (childData) result.children.push(childData);
+          });
+        }
+
+        return result;
+      }
+
+      /**
+       * Convert card tree to Markdown
+       */
+      function cardToMarkdown(cardData, depth = 0) {
+        let md = '';
+        const indent = '  '.repeat(depth);
+        const headingLevel = Math.min(depth + 1, 6);
+        const heading = '#'.repeat(headingLevel);
+
+        md += `${heading} ${cardData.title || '(Untitled)'}\n\n`;
+
+        if (cardData.tags && cardData.tags.length > 0) {
+          md += `*Tags: ${cardData.tags.map(t => '#' + t).join(', ')}*\n\n`;
+        }
+
+        if (cardData.body) {
+          md += `${cardData.body}\n\n`;
+        }
+
+        if (cardData.children && cardData.children.length > 0) {
+          cardData.children.forEach(child => {
+            md += cardToMarkdown(child, depth + 1);
+          });
+        }
+
+        return md;
+      }
+
+      /**
+       * Show share options for a card
+       */
+      function showShareCard(cardId) {
+        const card = store.cards[cardId];
+        if (!card) {
+          showToast('Card not found', 'error');
+          return;
+        }
+
+        const modal = h('div', {
+          className: 'modal-overlay show',
+          onclick: (e) => { if (e.target === modal) modal.remove(); }
+        },
+          h('div', { className: 'modal', style: 'max-width: 600px;' },
+            h('div', { className: 'modal-header' },
+              h('div', { className: 'modal-title' }, 'Share Card'),
+              h('button', {
+                className: 'modal-close',
+                'aria-label': 'Close',
+                onclick: () => modal.remove()
+              }, '✕')
+            ),
+            h('div', { className: 'modal-body' },
+              h('p', { style: 'margin-bottom: var(--space-xl); color: var(--text-secondary);' },
+                'Copy this card in different formats to share with others.'
+              ),
+
+              // Card only - JSON
+              h('div', { style: 'margin-bottom: var(--space-lg);' },
+                h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Card Only'),
+                h('button', {
+                  className: 'btn btn-primary',
+                  style: 'width: 100%; margin-bottom: var(--space-sm);',
+                  onclick: () => {
+                    const cardData = {
+                      id: card.id,
+                      title: card.title,
+                      body: card.body,
+                      tags: card.tags || []
+                    };
+                    navigator.clipboard.writeText(JSON.stringify(cardData, null, 2))
+                      .then(() => {
+                        showToast('Card copied as JSON');
+                        modal.remove();
+                      })
+                      .catch(() => showToast('Failed to copy', 'error'));
+                  }
+                }, '📋 Copy as JSON'),
+                h('button', {
+                  className: 'btn',
+                  style: 'width: 100%;',
+                  onclick: () => {
+                    let md = `# ${card.title || '(Untitled)'}\n\n`;
+                    if (card.tags && card.tags.length > 0) {
+                      md += `*Tags: ${card.tags.map(t => '#' + t).join(', ')}*\n\n`;
+                    }
+                    md += card.body || '';
+                    navigator.clipboard.writeText(md)
+                      .then(() => {
+                        showToast('Card copied as Markdown');
+                        modal.remove();
+                      })
+                      .catch(() => showToast('Failed to copy', 'error'));
+                  }
+                }, '📄 Copy as Markdown')
+              ),
+
+              // Card + Children
+              h('div', { style: 'margin-bottom: var(--space-lg);' },
+                h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Card + Children'),
+                h('button', {
+                  className: 'btn btn-primary',
+                  style: 'width: 100%; margin-bottom: var(--space-sm);',
+                  onclick: () => {
+                    const cardData = getCardWithDescendants(card.id);
+                    navigator.clipboard.writeText(JSON.stringify(cardData, null, 2))
+                      .then(() => {
+                        showToast('Card tree copied as JSON');
+                        modal.remove();
+                      })
+                      .catch(() => showToast('Failed to copy', 'error'));
+                  }
+                }, '📋 Copy Tree as JSON'),
+                h('button', {
+                  className: 'btn',
+                  style: 'width: 100%;',
+                  onclick: () => {
+                    const cardData = getCardWithDescendants(card.id);
+                    const md = cardToMarkdown(cardData);
+                    navigator.clipboard.writeText(md)
+                      .then(() => {
+                        showToast('Card tree copied as Markdown');
+                        modal.remove();
+                      })
+                      .catch(() => showToast('Failed to copy', 'error'));
+                  }
+                }, '📄 Copy Tree as Markdown')
+              ),
+
+              h('div', { style: 'font-size: var(--text-sm); color: var(--text-secondary); padding: var(--space-md); background: var(--bg-secondary); border-radius: var(--radius);' },
+                '💡 Use JSON format to import the card into another CardSpoke instance. Use Markdown to share in documents or emails.'
+              )
+            )
+          )
+        );
+
+        document.body.appendChild(modal);
+      }
+
+      // =========================================================
+      // Getting Started Guide (v1.0.0)
+      // =========================================================
+      function showGettingStarted() {
+        let modal = document.getElementById('gettingStartedModal');
+
+        if (!modal) {
+          modal = h('div', {
+            id: 'gettingStartedModal',
+            className: 'menu-overlay',
+            onclick: (e) => { if (e.target === modal) modal.classList.remove('show'); }
+          },
+            h('div', { className: 'menu-panel', style: 'max-width: 700px; max-height: 85vh; overflow-y: auto;' },
+              h('div', { className: 'menu-header' },
+                h('div', { className: 'menu-title' }, 'Getting Started with CardSpoke'),
+                h('button', {
+                  className: 'menu-close',
+                  'aria-label': 'Close',
+                  onclick: () => modal.classList.remove('show')
+                }, '✕')
+              ),
+              h('div', { style: 'padding: var(--space-lg);' },
+                // Welcome
+                h('div', { style: 'margin-bottom: var(--space-xl); text-align: center;' },
+                  h('h2', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Welcome to CardSpoke!'),
+                  h('p', { style: 'color: var(--text-secondary);' }, 'A local-first, lightweight hierarchical note-taking app')
+                ),
+
+                // What are Cards?
+                h('div', { style: 'margin-bottom: var(--space-xl);' },
+                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, '📝 What are Cards?'),
+                  h('p', { style: 'margin-bottom: var(--space-sm);' },
+                    'Cards are the building blocks of CardSpoke. Think of them as notes or ideas that can be organized hierarchically.'
+                  ),
+                  h('ul', { style: 'margin-left: var(--space-lg); margin-bottom: var(--space-sm);' },
+                    h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Each card has a title and body content'),
+                    h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Cards can have child cards to create nested structures'),
+                    h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Organize your thoughts in a hierarchy that makes sense to you')
+                  )
+                ),
+
+                // Creating Cards
+                h('div', { style: 'margin-bottom: var(--space-xl);' },
+                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, '✏️ Creating Cards'),
+                  h('div', { style: 'background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius); border-left: 3px solid var(--primary); margin-bottom: var(--space-md);' },
+                    h('p', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, 'To create your first card:'),
+                    h('ol', { style: 'margin-left: var(--space-lg);' },
+                      h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Click the menu button (☰) in the top right'),
+                      h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Select "New Card" or press Ctrl+N'),
+                      h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Add a title and body text'),
+                      h('li', {}, 'Click "Save Card"')
+                    )
+                  ),
+                  h('p', { style: 'margin-bottom: var(--space-sm);' },
+                    'To create a child card, open any existing card and click the "Add Child Card" button. Child cards appear nested under their parent.'
+                  )
+                ),
+
+                // Tags
+                h('div', { style: 'margin-bottom: var(--space-xl);' },
+                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, '🏷️ Using Tags'),
+                  h('p', { style: 'margin-bottom: var(--space-sm);' },
+                    'Tags help you categorize and find cards quickly:'
+                  ),
+                  h('ul', { style: 'margin-left: var(--space-lg); margin-bottom: var(--space-sm);' },
+                    h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Add tags when creating or editing a card'),
+                    h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Click on a tag to see all cards with that tag'),
+                    h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Use Tag Manager (in menu) to rename, merge, or delete tags')
+                  )
+                ),
+
+                // Search
+                h('div', { style: 'margin-bottom: var(--space-xl);' },
+                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, '🔍 Finding Cards with Search'),
+                  h('p', { style: 'margin-bottom: var(--space-sm);' },
+                    'CardSpoke has powerful search capabilities:'
+                  ),
+                  h('ul', { style: 'margin-left: var(--space-lg); margin-bottom: var(--space-sm);' },
+                    h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Press Ctrl+F or click the search icon to search'),
+                    h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Use ↑/↓ arrow keys to navigate results'),
+                    h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Press Enter to open the selected card'),
+                    h('li', { style: 'margin-bottom: var(--space-xs);' }, 'Search works across titles, content, and tags')
+                  )
+                ),
+
+                // Other Features
+                h('div', { style: 'margin-bottom: var(--space-xl);' },
+                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, '⭐ More Features'),
+                  h('div', { style: 'display: grid; gap: var(--space-md);' },
+                    h('div', {},
+                      h('strong', {}, 'Bookmarks'), ' — Click the star icon on any card to bookmark it for quick access'
+                    ),
+                    h('div', {},
+                      h('strong', {}, 'Undo/Redo'), ' — Press Ctrl+Z to undo and Ctrl+Y to redo changes'
+                    ),
+                    h('div', {},
+                      h('strong', {}, 'Export'), ' — Save your data in JSON, Markdown, or CSV formats (Data & Export menu)'
+                    ),
+                    h('div', {},
+                      h('strong', {}, 'Backups'), ' — Create manual backups anytime from the Data & Export menu'
+                    ),
+                    h('div', {},
+                      h('strong', {}, 'Extensions'), ' — Customize CardSpoke with themes and plugins (Extensions Hub)'
+                    ),
+                    h('div', {},
+                      h('strong', {}, 'Dark Mode'), ' — Toggle dark mode with the moon icon in the header'
+                    )
+                  )
+                ),
+
+                // Privacy Note
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('div', { style: 'background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius);' },
+                    h('p', { style: 'margin-bottom: var(--space-xs); font-weight: 600;' }, '🔒 Your Privacy Matters'),
+                    h('p', { style: 'color: var(--text-secondary); font-size: 0.9rem;' },
+                      'All your data is stored locally on your device. CardSpoke never sends your data to any server. You have complete control and ownership of your information.'
+                    )
+                  )
+                ),
+
+                // Get Started Button
+                h('div', { style: 'text-align: center;' },
+                  h('button', {
+                    className: 'btn btn-primary',
+                    style: 'padding: var(--space-md) var(--space-xl);',
+                    onclick: () => {
+                      modal.classList.remove('show');
+                      // Mark as seen
+                      localStorage.setItem('cardspoke_hasSeenGettingStarted', 'true');
+                      // Open new card creation
+                      goTo('edit', { cardId: null, parentId: null });
+                    }
+                  }, 'Create Your First Card')
+                )
+              )
+            )
+          );
+          document.body.appendChild(modal);
+        }
+
+        modal.classList.add('show');
+      }
+
+      // =========================================================
+      // In-app Help Modal (v0.12.1)
+      // =========================================================
+      function showHelp() {
+        let helpModal = document.getElementById('inAppHelpModal');
+        
+        if (!helpModal) {
+          helpModal = h('div', { 
+            id: 'inAppHelpModal', 
+            className: 'menu-overlay',
+            onclick: (e) => { if (e.target === helpModal) helpModal.classList.remove('show'); }
+          },
+            h('div', { className: 'menu-panel', style: 'max-width: 600px; max-height: 80vh; overflow-y: auto;' },
+              h('div', { className: 'menu-header' },
+                h('div', { className: 'menu-title' }, 'Help & Documentation'),
+                h('button', { 
+                  className: 'menu-close',
+                  onclick: () => helpModal.classList.remove('show')
+                }, '✕')
+              ),
+              h('div', { style: 'padding: var(--space-md);' },
+                // Quick Start Section
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Quick Start'),
+                  h('p', { style: 'margin-bottom: var(--space-xs);' }, '1. Click "New Card" to create your first card'),
+                  h('p', { style: 'margin-bottom: var(--space-xs);' }, '2. Add content, tags, and child cards'),
+                  h('p', { style: 'margin-bottom: var(--space-xs);' }, '3. Use search to find cards quickly'),
+                  h('p', {}, '4. Organize with bookmarks and recent cards')
+                ),
+                
+                // Features Section
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Key Features'),
+                  h('div', { style: 'display: grid; gap: var(--space-sm);' },
+                    h('div', {}, h('strong', {}, 'Cards'), ' — Hierarchical notes with parent-child relationships'),
+                    h('div', {}, h('strong', {}, 'Tags'), ' — Organize and filter cards with tags'),
+                    h('div', {}, h('strong', {}, 'Links'), ' — Reference other cards with [[Card Name]]'),
+                    h('div', {}, h('strong', {}, 'Search'), ' — Fuzzy search across all cards'),
+                    h('div', {}, h('strong', {}, 'Bookmarks'), ' — Star important cards for quick access'),
+                    h('div', {}, h('strong', {}, 'Undo/Redo'), ' — Ctrl+Z / Ctrl+Y for changes'),
+                    h('div', {}, h('strong', {}, 'Trash Bin'), ' — Recover deleted cards'),
+                    h('div', {}, h('strong', {}, 'Extensions'), ' — Customize with themes and plugins')
+                  )
+                ),
+                
+                // Keyboard Shortcuts Section
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Keyboard Shortcuts'),
+                  h('div', { style: 'display: grid; grid-template-columns: auto 1fr; gap: var(--space-xs) var(--space-md);' },
+                    h('kbd', { style: 'background: var(--bg-alt); padding: 2px 6px; border-radius: 4px;' }, 'Ctrl+N'),
+                    h('span', {}, 'New card'),
+                    h('kbd', { style: 'background: var(--bg-alt); padding: 2px 6px; border-radius: 4px;' }, 'Ctrl+F'),
+                    h('span', {}, 'Search'),
+                    h('kbd', { style: 'background: var(--bg-alt); padding: 2px 6px; border-radius: 4px;' }, 'Ctrl+Z'),
+                    h('span', {}, 'Undo'),
+                    h('kbd', { style: 'background: var(--bg-alt); padding: 2px 6px; border-radius: 4px;' }, 'Ctrl+Y'),
+                    h('span', {}, 'Redo'),
+                    h('kbd', { style: 'background: var(--bg-alt); padding: 2px 6px; border-radius: 4px;' }, 'Ctrl+/'),
+                    h('span', {}, 'All shortcuts')
+                  )
+                ),
+                
+                // Extensions Section
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Extensions'),
+                  h('p', { style: 'margin-bottom: var(--space-xs);' }, 'CardSpoke supports themes, plugins, and mods:'),
+                  h('ul', { style: 'margin-left: var(--space-md); margin-bottom: var(--space-sm);' },
+                    h('li', {}, 'Use the Extension Wizard to create custom extensions'),
+                    h('li', {}, 'Test code in the Playground'),
+                    h('li', {}, 'Access CardSpoke.utils API for card management')
+                  )
+                ),
+                
+                // Data & Privacy Section
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Data & Privacy'),
+                  h('p', {}, 'Your data is stored locally on your device. CardSpoke never sends your data to external servers. Export anytime to JSON, Markdown, or CSV.')
+                ),
+
+                // Language & Localization Section (v1.0.0)
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Language & Localization'),
+                  h('p', { style: 'margin-bottom: var(--space-sm);' },
+                    'CardSpoke supports community language packs. Visit the CardSpoke website to download language packs for your preferred language.'
+                  ),
+                  h('p', { style: 'font-size: var(--text-sm); color: var(--text-secondary);' },
+                    'Coming soon: Download language packs from ',
+                    h('a', {
+                      href: 'https://github.com/jxburros/CardSpoke/wiki/Language-Packs',
+                      target: '_blank',
+                      style: 'color: var(--primary);'
+                    }, 'CardSpoke Language Packs')
+                  )
+                ),
+
+                // Version Info
+                h('div', { style: 'padding-top: var(--space-md); border-top: 1px solid var(--border); text-align: center; color: var(--text-secondary);' },
+                  h('p', {}, `CardSpoke v${APP_VERSION}`),
+                  h('p', { style: 'font-size: var(--text-sm);' },
+                    h('a', { href: 'https://github.com/jxburros/CardSpoke', target: '_blank', style: 'color: var(--primary);' }, 'GitHub'),
+                    ' · ',
+                    h('a', { href: 'https://github.com/jxburros/CardSpoke/blob/main/README.md', target: '_blank', style: 'color: var(--primary);' }, 'Documentation')
+                  )
+                )
+              )
+            )
+          );
+          document.body.appendChild(helpModal);
+        }
+        
+        helpModal.classList.add('show');
+      }
+
+      function showKeyboardHelp() {
+        let helpModal = document.getElementById('keyboardHelpModal');
+        
+        if (!helpModal) {
+          // Create help modal
+          helpModal = h('div', { 
+            id: 'keyboardHelpModal', 
+            className: 'menu-overlay',
+            onclick: (e) => { if (e.target === helpModal) helpModal.classList.remove('show'); }
+          },
+            h('div', { className: 'menu-panel' },
+              h('div', { className: 'menu-header' },
+                h('div', { className: 'menu-title' }, 'Keyboard Shortcuts'),
+                h('button', { 
+                  className: 'menu-close',
+                  onclick: () => helpModal.classList.remove('show')
+                }, '✕')
+              ),
+              h('div', { className: 'keyboard-shortcuts' },
+                h('div', { className: 'shortcuts-section' },
+                  h('div', { className: 'shortcuts-section-title' }, 'Navigation'),
+                  ...Object.entries(shortcuts)
+                    .filter(([key]) => ['ctrl+h', 'ctrl+b', 'ctrl+r', 'escape'].includes(key))
+                    .map(([key, { description }]) => 
+                      h('div', { className: 'shortcut-item' },
+                        h('kbd', {}, key.replace('ctrl+', 'Ctrl+')),
+                        h('span', {}, description)
+                      )
+                    )
+                ),
+                h('div', { className: 'shortcuts-section' },
+                  h('div', { className: 'shortcuts-section-title' }, 'Actions'),
+                  ...Object.entries(shortcuts)
+                    .filter(([key]) => ['ctrl+n', 'ctrl+f', 'ctrl+u', 'ctrl+e'].includes(key))
+                    .map(([key, { description }]) => 
+                      h('div', { className: 'shortcut-item' },
+                        h('kbd', {}, key.replace('ctrl+', 'Ctrl+')),
+                        h('span', {}, description)
+                      )
+                    )
+                ),
+                h('div', { className: 'shortcuts-section' },
+                  h('div', { className: 'shortcuts-section-title' }, 'View'),
+                  ...Object.entries(shortcuts)
+                    .filter(([key]) => ['alt+t', 'alt+c'].includes(key))
+                    .map(([key, { description }]) => 
+                      h('div', { className: 'shortcut-item' },
+                        h('kbd', {}, key.replace('alt+', 'Alt+')),
+                        h('span', {}, description)
+                      )
+                    )
+                ),
+                h('div', { className: 'shortcuts-section' },
+                  h('div', { className: 'shortcuts-section-title' }, 'Help'),
+                  h('div', { className: 'shortcut-item' },
+                    h('kbd', {}, 'Ctrl+/'),
+                    h('span', {}, 'Show this help')
+                  )
+                )
+              )
+            )
+          );
+          document.body.appendChild(helpModal);
+        }
+        
+        helpModal.classList.add('show');
+      }
+      
+      // Global keyboard event handler
+      document.addEventListener('keydown', (e) => {
+        // Don't trigger shortcuts when typing in inputs
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+          // Allow Escape to work in inputs
+          if (e.key === 'Escape') {
+            e.target.blur();
+            handleEscape();
+          }
+          return;
+        }
+        
+        // Build shortcut key string
+        let key = e.key.toLowerCase();
+        if (e.ctrlKey || e.metaKey) key = 'ctrl+' + key;
+        if (e.altKey) key = 'alt+' + key;
+        
+        // Execute shortcut if it exists
+        const shortcut = shortcuts[key];
+        if (shortcut) {
+          e.preventDefault();
+          try {
+            shortcut.action();
+          } catch (error) {
+            console.error('Keyboard shortcut error:', error);
+            showToast('Shortcut failed: ' + key, 'error');
+          }
+        }
+      });
+
+      // =============================================================
+      // --- APPLICATION BOOT ---
+      // Initialize and start the application
+      // =============================================================
+      
+      initToast();                       // Initialize toast container
+      load();                          // Load data from localStorage
+      populateFooter();                // Populate footer with metadata
+      updateDatasetSelector();         // Update dataset selector options
+
+      // Apply saved typography preset
+      const savedTypography = localStorage.getItem('cardspoke_typography') || 'default';
+      document.documentElement.setAttribute('data-typography', savedTypography);
+
+      // Check for safe mode URL parameter (global for import/reset functions)
+      const urlParams = new URLSearchParams(window.location.search);
+      let safeMode = urlParams.has('safemode');
+
+      if (safeMode) {
+        console.warn('[Safe Mode] Extensions disabled via ?safemode parameter');
+        showToast('Safe Mode Active - Extensions Disabled', 'warning');
+      }
+
+      if (!safeMode) CardSpoke_MODS.syncFromStore();        // Initialize mods from store (skip in safe mode)
+      if (!safeMode) CardSpoke_MODS.runHook('onAppInit');   // Run mod initialization hooks (skip in safe mode)
+      render();                        // Initial render
+      populateFooter();                // Re-populate footer to ensure it displays
+
+      // First-run detection (v1.0.0) - Show Getting Started guide if no cards exist
+      setTimeout(() => {
+        const hasSeenGettingStarted = localStorage.getItem('cardspoke_hasSeenGettingStarted');
+        const hasCards = Object.keys(store.cards || {}).length > 0;
+
+        if (!hasSeenGettingStarted && !hasCards) {
+          showGettingStarted();
+        }
+      }, 500);
+
+      // Warn user about unsaved changes before leaving
+      window.addEventListener('beforeunload', (e) => {
+        if (dirty) {
+          e.preventDefault();
+          e.returnValue = '';
+        }
+      });

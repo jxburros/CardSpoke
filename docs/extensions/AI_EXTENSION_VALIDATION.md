@@ -2,7 +2,7 @@
 
 A strict checklist for AI-generated Extensions. Run through every section before returning an artifact.
 
-**Current App Version:** 0.15.0 | **Schema Version:** 4
+**Current App Version:** 0.16.0 | **Schema Version:** 4
 
 ## 1) Structure & Metadata
 - File is valid JSON: parse once after inserting JS/CSS strings.

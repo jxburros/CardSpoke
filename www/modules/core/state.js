@@ -1,13 +1,13 @@
 /**
  * CardSpoke State Management
- * Version: 0.15.0
+ * Version: 0.16.0
  * 
  * Core application state and metadata
  */
 
 // --- APP METADATA & SIGNATURES ---
 export const APP_CREATOR = 'jxburros';
-export const APP_VERSION = '0.15.0';
+export const APP_VERSION = '0.16.0';
 export const APP_RELEASE_DATE = '2025-11-30';
 export const APP_UPDATER = 'Claude Code (Sonnet 4.5)';
 export const SCHEMA_VERSION = 4;

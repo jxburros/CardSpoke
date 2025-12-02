@@ -1,12 +1,12 @@
 {
   "name": "cardspoke",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "A lightweight, extensible, multi-platform knowledge base framework",
   "main": "index.js",
   "scripts": {
     "test": "uvu tests",
     "test:watch": "uvu tests --watch",
-    "build": "echo 'Files already in www directory'",
+    "build": "mkdir -p www && cat www/src/*.js > www/app.js",
     "sync": "npx cap sync",
     "sync:android": "npx cap sync android",
     "sync:ios": "npx cap sync ios",

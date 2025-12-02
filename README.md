@@ -1,6 +1,6 @@
 # CardSpoke
 
-**Version:** 0.15.0 | **Schema:** v4 | **Release Date:** 2025-11-30
+**Version:** 0.16.0 | **Schema:** v4 | **Release Date:** 2025-11-30
 
 CardSpoke is a lightweight, card-based knowledge system built for extensibility. The core intentionally stays minimal while an extension framework enables themes, plugins, patches, and full-scale mods. Users keep control of their data with a local-first storage model and optional off-device integrations.
 
@@ -15,7 +15,7 @@ CardSpoke is a lightweight, card-based knowledge system built for extensibility.
    ```bash
    npm install
    ```
-2. Run the web build (files are pre-generated in `www`):
+2. Run the web build (concatenates the source slices in `www/src` into `www/app.js`):
    ```bash
    npm run build
    ```
@@ -30,6 +30,7 @@ CardSpoke is a lightweight, card-based knowledge system built for extensibility.
 
 ## Project Layout
 - `www/` – Prebuilt web assets for the Capacitor shell. `app.js` embeds utilities, renderer logic, and the Extension runtime; `styles.css` holds the default light/dark styling and typography presets.
+- `www/src/` – Source slices for `app.js`. Run `npm run build` to concatenate the numbered files into the single bundle for `file://` usage.
 - `types/` – Type declarations and shared interfaces (extension system types, card shapes, and dev tools contracts).
 - `tests/` – Automated tests (uvu).
 - `docs/` – Project documentation organized by category (see [Documentation](#documentation) below).

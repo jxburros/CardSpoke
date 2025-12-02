@@ -1,6 +1,6 @@
 /**
  * CardSpoke Toast Notifications
- * Version: 0.15.0
+ * Version: 0.16.0
  * 
  * Toast notification system for user feedback
  */
