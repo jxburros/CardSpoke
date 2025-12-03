@@ -1309,12 +1309,19 @@
             if (modData) {
               const modId = modData.id || uid();
               store.mods[modId] = {
-                enabled: false,
+                enabled: !!modData.enabled, // Preserve enabled field from JSON
                 js: modData.js || '',
                 css: modData.css || '',
                 meta: modData.meta || { name: modId } // Ensure meta exists
               };
               save();
+
+              // If extension is enabled, sync it immediately
+              if (modData.enabled && window.CardSpoke?.mods) {
+                window.CardSpoke.mods.syncFromStore();
+                window.CardSpoke.mods.runHook('onAppInit');
+              }
+
               showToast('Mod installed: ' + (modData.meta.name || modId));
               uploadModal.overlay.classList.remove('show');
             }
