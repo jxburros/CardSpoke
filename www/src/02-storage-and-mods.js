@@ -944,6 +944,72 @@
       const SAVE_DEBOUNCE_MS = 500; // Wait 500ms after last change before saving
       const MIN_SAVE_INTERVAL_MS = 100; // Minimum time between actual saves
 
+      // Cloud sync tracking
+      let cloudSyncTimeout = null;
+      let lastCloudSyncTime = 0;
+      const CLOUD_SYNC_DEBOUNCE_MS = 60000; // Wait 60s between cloud syncs to respect API limits
+
+      /**
+       * Sync data to cloud storage if configured
+       * Debounced to avoid excessive API calls
+       */
+      async function syncToCloud() {
+        // Check if cloud storage is configured
+        if (!store.metadata || !store.metadata.storageType) return;
+        
+        const storageType = store.metadata.storageType;
+        if (storageType !== 'googledrive' && storageType !== 'onedrive') return;
+        
+        try {
+          let driver;
+          const config = store.metadata.storageConfig || {};
+          
+          if (storageType === 'googledrive') {
+            driver = new GoogleDriveDriver();
+          } else if (storageType === 'onedrive') {
+            driver = new OneDriveDriver();
+          }
+          
+          if (!driver) return;
+          
+          await driver.init(config);
+          await driver.ensureAuthenticated();
+          await driver.set('cardspoke.json', JSON.stringify(store));
+          
+          lastCloudSyncTime = Date.now();
+          console.log(`[Cloud Sync] Synced to ${storageType} at ${new Date().toISOString()}`);
+          showToast('Cloud sync complete', 'success');
+        } catch (error) {
+          console.error('[Cloud Sync] Error:', error);
+          showToast('Cloud sync failed: ' + error.message, 'error');
+        }
+      }
+
+      /**
+       * Schedule cloud sync with debouncing
+       */
+      function scheduleCloudSync() {
+        // Check if cloud storage is configured
+        if (!store.metadata || !store.metadata.storageType) return;
+        
+        const storageType = store.metadata.storageType;
+        if (storageType !== 'googledrive' && storageType !== 'onedrive') return;
+        
+        // Clear any pending cloud sync
+        if (cloudSyncTimeout) {
+          clearTimeout(cloudSyncTimeout);
+          cloudSyncTimeout = null;
+        }
+        
+        // Check if we're syncing too frequently
+        const timeSinceLastSync = Date.now() - lastCloudSyncTime;
+        const delay = Math.max(CLOUD_SYNC_DEBOUNCE_MS, CLOUD_SYNC_DEBOUNCE_MS - timeSinceLastSync);
+        
+        cloudSyncTimeout = setTimeout(() => {
+          syncToCloud();
+        }, delay);
+      }
+
       function saveNow() {
         try {
           const key = instanceKey || 'nested_cards_store';
@@ -962,6 +1028,9 @@
               setTimeout(() => updateSaveStatus('idle'), 1000);
 
               console.log(`Saved in ${duration.toFixed(2)}ms`);
+              
+              // Schedule cloud sync if cloud storage is configured
+              scheduleCloudSync();
             } catch (e) {
               savePending = false;
               if (e.name === 'QuotaExceededError') {
