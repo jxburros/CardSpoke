@@ -1001,9 +1001,9 @@
           cloudSyncTimeout = null;
         }
         
-        // Check if we're syncing too frequently
+        // Check if we're syncing too frequently - if enough time has passed, sync immediately
         const timeSinceLastSync = Date.now() - lastCloudSyncTime;
-        const delay = Math.max(CLOUD_SYNC_DEBOUNCE_MS, CLOUD_SYNC_DEBOUNCE_MS - timeSinceLastSync);
+        const delay = timeSinceLastSync >= CLOUD_SYNC_DEBOUNCE_MS ? 0 : CLOUD_SYNC_DEBOUNCE_MS - timeSinceLastSync;
         
         cloudSyncTimeout = setTimeout(() => {
           syncToCloud();

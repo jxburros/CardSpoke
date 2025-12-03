@@ -1643,9 +1643,9 @@ const header = {
           cloudSyncTimeout = null;
         }
         
-        // Check if we're syncing too frequently
+        // Check if we're syncing too frequently - if enough time has passed, sync immediately
         const timeSinceLastSync = Date.now() - lastCloudSyncTime;
-        const delay = Math.max(CLOUD_SYNC_DEBOUNCE_MS, CLOUD_SYNC_DEBOUNCE_MS - timeSinceLastSync);
+        const delay = timeSinceLastSync >= CLOUD_SYNC_DEBOUNCE_MS ? 0 : CLOUD_SYNC_DEBOUNCE_MS - timeSinceLastSync;
         
         cloudSyncTimeout = setTimeout(() => {
           syncToCloud();
@@ -6271,7 +6271,8 @@ console.log('✓ All examples completed!');
         const themeExtensions = Object.entries(store.mods || {}).filter(function([modId, mod]) {
           return mod.meta && mod.meta.type === 'Theme';
         }).map(function([modId, mod]) {
-          return { ...mod, id: modId };
+          // Create new object with modId as the canonical id (modId is the key from store.mods)
+          return { meta: mod.meta, enabled: mod.enabled, js: mod.js, css: mod.css, id: modId };
         });
         
         // Get active theme extension ID
