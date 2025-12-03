@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "meta": {
+    "name": "Narrative Guards",
+    "type": "Mod",
+    "version": "1.0.0",
+    "creator": "CardSpoke Team",
+    "description": "Prevents deleting storyline cards that have threads attached",
+    "releaseDate": "2024-10-20",
+    "source": "official"
+  },
+  "js": "(function(){\n  CardSpoke_MODS.register('narrative-guards', {\n    meta: {\n      name: 'Narrative Guards',\n      type: 'Mod',\n      version: '1.0.0',\n      creator: 'CardSpoke Team',\n      description: 'Prevents deleting storyline cards that have threads attached',\n      releaseDate: '2024-10-20',\n      source: 'official'\n    },\n    onCardDelete(ctx, card){\n      if(card && Array.isArray(card.children) && card.children.length){\n        ctx.api.showToast('Keep threads intact: unlink children first.', 'error');\n        return false;\n      }\n    },\n    onDisable(){ /* behavioral mod only */ }\n  });\n})();",
+  "css": ""
+}
