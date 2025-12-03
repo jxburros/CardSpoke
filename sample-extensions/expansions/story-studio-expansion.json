@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "meta": {
+    "name": "Story Studio Expansion",
+    "type": "Expansion",
+    "version": "1.0.0",
+    "creator": "CardSpoke Team",
+    "description": "Story beats timeline overlay for narrative work",
+    "releaseDate": "2024-10-20",
+    "source": "official"
+  },
+  "js": "(function(){\n  CardSpoke_MODS.register('story-studio-expansion', {\n    meta: {\n      name: 'Story Studio Expansion',\n      type: 'Expansion',\n      version: '1.0.0',\n      creator: 'CardSpoke Team',\n      description: 'Story beats timeline overlay for narrative work',\n      releaseDate: '2024-10-20',\n      source: 'official'\n    },\n    onAppInit(){\n      const rail = document.createElement('div');\n      rail.className = 'ss-rail';\n      const labels = ['Hook','Inciting','Rising','Midpoint','Climax','Aftermath'];\n      labels.forEach((label, i) => {\n        const beat = document.createElement('div');\n        beat.className = 'ss-beat';\n        beat.style.setProperty('--beat-index', i);\n        const tag = document.createElement('span');\n        tag.className = 'ss-label';\n        tag.textContent = label;\n        beat.appendChild(tag);\n        rail.appendChild(beat);\n      });\n      document.body.appendChild(rail);\n    },\n    onDisable(){\n      const rail = document.querySelector('.ss-rail');\n      if(rail) rail.remove();\n    }\n  });\n})();",
+  "css": ".ss-rail { position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; width: min(580px, 82vw); padding: 12px 14px; background: color-mix(in srgb, #0f162b 78%, #ffffff 12%); border: 1px solid var(--border, rgba(255,255,255,0.1)); border-radius: 14px; box-shadow: 0 14px 28px rgba(0,0,0,0.22); } .ss-beat { position: relative; height: 12px; border-radius: 999px; background: linear-gradient(90deg, #7cd4ff, #c084fc); opacity: calc(0.64 + 0.05 * var(--beat-index)); } .ss-label { position: absolute; inset: auto 4px -22px 4px; text-align: center; font-size: 0.78rem; color: var(--text-muted, #c3d5ff); letter-spacing: 0.02em; }"
+}
