@@ -590,24 +590,6 @@
         runModHook('onImport', { type: 'text', mode, location, cards: createdIds });
       }
 
-      function importDOCX(text, mode = 'append', targetCardId) {
-        if (!targetCardId || !store.cards[targetCardId]) {
-          showToast('Please select a target card', 'error');
-          return;
-        }
-        const card = store.cards[targetCardId];
-        if (mode === 'append') {
-          card.body = (card.body ? card.body + '\n\n' : '') + text;
-        } else if (mode === 'replace') {
-          card.body = text;
-        }
-        card.updatedAt = Date.now();
-        save();
-        showToast('DOCX imported successfully');
-        render();
-        runModHook('onImport', { type: 'docx', mode, targetCardId });
-      }
-
       // --- INSTANCE & MODALS ---
 
       function showDatasetManager() {
@@ -1767,7 +1749,7 @@
             overlay.remove();
             setTimeout(() => showDataHub(), 100);
           }
-        }, '💾 Create Backup Now');
+        }, 'Create Backup Now');
         backupsSection.appendChild(createBackupBtn);
 
         // Show recent backups list
@@ -1798,7 +1780,7 @@
         const cloudSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
         cloudSection.appendChild(h('div', {
           style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
-        }, '☁️ Cloud Storage Sync'));
+        }, 'Cloud Storage Sync'));
 
         cloudSection.appendChild(h('p', {
           style: 'margin-bottom: var(--space-lg); color: var(--text-secondary); font-size: var(--text-sm);'
@@ -1846,7 +1828,9 @@
             }
           }
         });
-        googleDriveBtn.appendChild(h('span', { style: 'font-size: 24px;' }, '🔵'));
+        const googleIcon = h('span', { style: 'width: 24px; height: 24px;' });
+        googleIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M12 8v8"></path><path d="M8 12h8"></path></svg>';
+        googleDriveBtn.appendChild(googleIcon);
         const googleText = h('div', { style: 'flex: 1; text-align: left;' });
         googleText.appendChild(h('div', { style: 'font-weight: 600;' }, 'Google Drive'));
         googleText.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, 'Sign in with your Google account'));
@@ -1895,7 +1879,9 @@
             }
           }
         });
-        oneDriveBtn.appendChild(h('span', { style: 'font-size: 24px;' }, '📘'));
+        const onedriveIcon = h('span', { style: 'width: 24px; height: 24px;' });
+        onedriveIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>';
+        oneDriveBtn.appendChild(onedriveIcon);
         const onedriveText = h('div', { style: 'flex: 1; text-align: left;' });
         onedriveText.appendChild(h('div', { style: 'font-weight: 600;' }, 'OneDrive'));
         onedriveText.appendChild(h('div', { style: 'font-size: var(--text-sm); opacity: 0.9;' }, 'Sign in with your Microsoft account'));
@@ -1908,7 +1894,7 @@
         const webdavSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
         webdavSection.appendChild(h('div', {
           style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
-        }, '☁️ Self-Hosted Storage (WebDAV)'));
+        }, 'Self-Hosted Storage (WebDAV)'));
 
         webdavSection.appendChild(h('p', {
           style: 'margin-bottom: var(--space-lg); color: var(--text-secondary); font-size: var(--text-sm);'
@@ -3103,63 +3089,90 @@ console.log('✓ All examples completed!');
         
         modalBody.appendChild(typoSection);
         
-        // Theme Section
-        const themeSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
-        themeSection.appendChild(h('div', { 
+        // Mode Section (Light/Dark)
+        const modeSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
+        modeSection.appendChild(h('div', { 
           style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
-        }, 'Theme'));
+        }, 'Mode'));
         
         const currentTheme = store.activeTheme || 'light';
         
-        // Light theme option
+        // Light mode option
         const lightOption = h('div', { 
           className: 'theme-option',
           style: 'padding: var(--space-lg); border: 2px solid ' + (currentTheme === 'light' ? 'var(--text)' : 'var(--border)') + '; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: white; color: black;',
           onclick: function() {
             applyTheme('light');
             overlay.remove();
+            showAppearanceSettings();
           }
         });
-        lightOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, (currentTheme === 'light' ? '✓ ' : '') + 'Light Theme'));
-        lightOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #666;' }, 'Default light color scheme'));
-        themeSection.appendChild(lightOption);
+        lightOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, (currentTheme === 'light' ? '✓ ' : '') + 'Light Mode'));
+        lightOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #666;' }, 'Light color scheme'));
+        modeSection.appendChild(lightOption);
         
-        // Dark theme option
+        // Dark mode option
         const darkOption = h('div', { 
           className: 'theme-option',
           style: 'padding: var(--space-lg); border: 2px solid ' + (currentTheme === 'dark' ? 'white' : 'var(--border)') + '; margin-bottom: var(--space-md); cursor: pointer; border-radius: 4px; background: #1a1a1a; color: white;',
           onclick: function() {
             applyTheme('dark');
             overlay.remove();
+            showAppearanceSettings();
           }
         });
-        darkOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, (currentTheme === 'dark' ? '✓ ' : '') + 'Dark Theme'));
+        darkOption.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, (currentTheme === 'dark' ? '✓ ' : '') + 'Dark Mode'));
         darkOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: #aaa;' }, 'Dark color scheme'));
-        themeSection.appendChild(darkOption);
+        modeSection.appendChild(darkOption);
         
-        // Custom themes from extensions (ENHANCED)
-        const themeExtensions = Object.values(store.mods || {}).filter(function(mod) {
+        modalBody.appendChild(modeSection);
+        
+        // Theme Extensions Section
+        const themeSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
+        themeSection.appendChild(h('div', { 
+          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
+        }, 'Theme Extensions'));
+        
+        // Custom themes from extensions
+        const themeExtensions = Object.entries(store.mods || {}).filter(function([modId, mod]) {
           return mod.meta && mod.meta.type === 'Theme';
+        }).map(function([modId, mod]) {
+          // Create new object with modId as the canonical id (modId is the key from store.mods)
+          return { meta: mod.meta, enabled: mod.enabled, js: mod.js, css: mod.css, id: modId };
         });
         
         // Get active theme extension ID
         const activeThemeExtension = localStorage.getItem('cardspoke_activeThemeExtension') || null;
         
         if (themeExtensions.length > 0) {
-          themeSection.appendChild(h('div', { 
-            style: 'font-weight: 600; margin: var(--space-lg) 0 var(--space-md);'
-          }, 'Installed Theme Extensions'));
+          // Default Theme option (no extension)
+          const defaultThemeOption = h('div', {
+            style: 'padding: var(--space-md); border: 2px solid ' + (!activeThemeExtension ? 'var(--text)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer;',
+            onclick: function() {
+              localStorage.removeItem('cardspoke_activeThemeExtension');
+              document.documentElement.className = document.documentElement.className
+                .split(' ')
+                .filter(c => !c.startsWith('theme-ext-'))
+                .join(' ');
+              showToast('Default theme applied');
+              overlay.remove();
+              showAppearanceSettings();
+            }
+          });
+          defaultThemeOption.appendChild(h('div', { style: 'font-weight: 600;' }, (!activeThemeExtension ? '✓ ' : '') + 'Default Theme'));
+          defaultThemeOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, 'Standard CardSpoke appearance'));
+          themeSection.appendChild(defaultThemeOption);
           
           themeExtensions.forEach(function(theme) {
             const isActive = activeThemeExtension === theme.id;
             const themeOption = h('div', {
-              style: 'padding: var(--space-md); border: 2px solid ' + (isActive ? 'var(--primary)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer; display: flex; justify-content: space-between; align-items: center;',
+              style: 'padding: var(--space-md); border: 2px solid ' + (isActive ? 'var(--text)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer; display: flex; justify-content: space-between; align-items: center;',
               onclick: function() {
                 if (!theme.enabled) {
                   // Enable the theme extension first
                   CardSpoke_MODS.enable(theme.id);
                 }
-                // Apply the theme extension
+                // Apply the theme extension (preserves current Light/Dark mode)
                 localStorage.setItem('cardspoke_activeThemeExtension', theme.id);
                 // Remove all other theme extension classes and add this one
                 document.documentElement.className = document.documentElement.className
@@ -3189,25 +3202,6 @@ console.log('✓ All examples completed!');
             
             themeSection.appendChild(themeOption);
           });
-          
-          // Add "Reset to Default" button if a theme extension is active
-          if (activeThemeExtension) {
-            const resetBtn = h('button', {
-              className: 'btn',
-              style: 'width: 100%; margin-top: var(--space-md);',
-              onclick: function() {
-                localStorage.removeItem('cardspoke_activeThemeExtension');
-                document.documentElement.className = document.documentElement.className
-                  .split(' ')
-                  .filter(c => !c.startsWith('theme-ext-'))
-                  .join(' ');
-                showToast('Theme reset to default');
-                overlay.remove();
-                showAppearanceSettings();
-              }
-            }, 'Reset to Default Theme');
-            themeSection.appendChild(resetBtn);
-          }
         } else {
           themeSection.appendChild(h('div', { 
             style: 'padding: var(--space-lg); background: var(--bg-secondary); border-radius: 4px; text-align: center; color: var(--text-muted);'
@@ -3337,23 +3331,16 @@ console.log('✓ All examples completed!');
         // 1. Update all the select dropdowns
         updateImportLocationOptions();
         
-        // 2. Set the value for the TXT and DOCX dropdowns to this cardId
+        // 2. Set the value for the TXT dropdown to this cardId
         if (uploadModal.importLocationSelectTXT) {
           uploadModal.importLocationSelectTXT.value = cardId;
-        }
-        if (uploadModal.importLocationSelectDOCX) {
-          uploadModal.importLocationSelectDOCX.value = cardId;
         }
         
         // 3. Set the correct radio button for TXT import (append)
         const txtAppendRadio = document.querySelector('input[name="txtImportMode"][value="append"]');
         if (txtAppendRadio) txtAppendRadio.checked = true;
 
-        // 4. Set the correct radio button for DOCX import (append)
-        const docxAppendRadio = document.querySelector('input[name="docxImportMode"][value="append"]');
-        if (docxAppendRadio) docxAppendRadio.checked = true;
-
-        // 5. Switch to the correct tab
+        // 4. Switch to the correct tab
         uploadModal.tabs.forEach(t => t.classList.remove('active'));
         uploadModal.tabContents.forEach(content => content.classList.remove('active'));
         
@@ -3363,14 +3350,13 @@ console.log('✓ All examples completed!');
         if (tabEl) tabEl.classList.add('active');
         if (contentEl) contentEl.classList.add('active');
         
-        // 6. Show the modal
+        // 5. Show the modal
         uploadModal.overlay.classList.add('show');
       }
 
       function updateImportLocationOptions() {
         const selectJSON = uploadModal.importLocationSelectJSON;
         const selectTXT = uploadModal.importLocationSelectTXT;
-        const selectDOCX = uploadModal.importLocationSelectDOCX;
         const sortedCards = Object.values(store.cards).sort((a, b) => {
           const A = (a.title || '').toLowerCase();
           const B = (b.title || '').toLowerCase();
@@ -3393,15 +3379,6 @@ console.log('✓ All examples completed!');
             option.value = card.id;
             option.textContent = `Append to / Add children of: ${card.title || '(Untitled)'}`;
             selectTXT.appendChild(option);
-          });
-        }
-        if (selectDOCX) {
-          selectDOCX.innerHTML = '<option value="">Select a card...</option>';
-          sortedCards.forEach(card => {
-            const option = document.createElement('option');
-            option.value = card.id;
-            option.textContent = card.title || '(Untitled)';
-            selectDOCX.appendChild(option);
           });
         }
       }

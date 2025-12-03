@@ -372,7 +372,8 @@ const header = {
         homeBtn: document.getElementById('homeBtn'),
         themeToggle: document.getElementById('themeToggle'),
         menuBtn: document.getElementById('menuBtn'),
-        brandBtn: document.getElementById('brandBtn')
+        brandBtn: document.getElementById('brandBtn'),
+        undoBtn: document.getElementById('undoBtn')
       };
       
       const menu = {
@@ -416,9 +417,6 @@ const header = {
         fileUploadAreaTXT: document.getElementById('fileUploadAreaTXT'),
         fileInputTXT: document.getElementById('fileInputTXT'),
         importLocationSelectTXT: document.getElementById('importLocationSelectTXT'),
-        fileUploadAreaDOCX: document.getElementById('fileUploadAreaDOCX'),
-        fileInputDOCX: document.getElementById('fileInputDOCX'),
-        importLocationSelectDOCX: document.getElementById('importLocationSelectDOCX'),
         fileUploadAreaMods: document.getElementById('fileUploadAreaMods'),
         fileInputMods: document.getElementById('fileInputMods'),
         // Mod install fields

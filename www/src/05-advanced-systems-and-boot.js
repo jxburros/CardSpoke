@@ -1322,7 +1322,7 @@
                       })
                       .catch(() => showToast('Failed to copy', 'error'));
                   }
-                }, '📋 Copy as JSON'),
+                }, 'Copy as JSON'),
                 h('button', {
                   className: 'btn',
                   style: 'width: 100%;',
@@ -1339,7 +1339,7 @@
                       })
                       .catch(() => showToast('Failed to copy', 'error'));
                   }
-                }, '📄 Copy as Markdown')
+                }, 'Copy as Markdown')
               ),
 
               // Card + Children
@@ -1357,7 +1357,7 @@
                       })
                       .catch(() => showToast('Failed to copy', 'error'));
                   }
-                }, '📋 Copy Tree as JSON'),
+                }, 'Copy Tree as JSON'),
                 h('button', {
                   className: 'btn',
                   style: 'width: 100%;',
@@ -1371,11 +1371,11 @@
                       })
                       .catch(() => showToast('Failed to copy', 'error'));
                   }
-                }, '📄 Copy Tree as Markdown')
+                }, 'Copy Tree as Markdown')
               ),
 
               h('div', { style: 'font-size: var(--text-sm); color: var(--text-secondary); padding: var(--space-md); background: var(--bg-secondary); border-radius: var(--radius);' },
-                '💡 Use JSON format to import the card into another CardSpoke instance. Use Markdown to share in documents or emails.'
+                'Tip: Use JSON format to import the card into another CardSpoke instance. Use Markdown to share in documents or emails.'
               )
             )
           )
@@ -1414,7 +1414,7 @@
 
                 // What are Cards?
                 h('div', { style: 'margin-bottom: var(--space-xl);' },
-                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, '📝 What are Cards?'),
+                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, 'What are Cards?'),
                   h('p', { style: 'margin-bottom: var(--space-sm);' },
                     'Cards are the building blocks of CardSpoke. Think of them as notes or ideas that can be organized hierarchically.'
                   ),
@@ -1427,7 +1427,7 @@
 
                 // Creating Cards
                 h('div', { style: 'margin-bottom: var(--space-xl);' },
-                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, '✏️ Creating Cards'),
+                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, 'Creating Cards'),
                   h('div', { style: 'background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius); border-left: 3px solid var(--primary); margin-bottom: var(--space-md);' },
                     h('p', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, 'To create your first card:'),
                     h('ol', { style: 'margin-left: var(--space-lg);' },
@@ -1444,7 +1444,7 @@
 
                 // Tags
                 h('div', { style: 'margin-bottom: var(--space-xl);' },
-                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, '🏷️ Using Tags'),
+                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, 'Using Tags'),
                   h('p', { style: 'margin-bottom: var(--space-sm);' },
                     'Tags help you categorize and find cards quickly:'
                   ),
@@ -1457,7 +1457,7 @@
 
                 // Search
                 h('div', { style: 'margin-bottom: var(--space-xl);' },
-                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, '🔍 Finding Cards with Search'),
+                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, 'Finding Cards with Search'),
                   h('p', { style: 'margin-bottom: var(--space-sm);' },
                     'CardSpoke has powerful search capabilities:'
                   ),
@@ -1471,7 +1471,7 @@
 
                 // Other Features
                 h('div', { style: 'margin-bottom: var(--space-xl);' },
-                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, '⭐ More Features'),
+                  h('h3', { style: 'margin-bottom: var(--space-md); color: var(--primary);' }, 'More Features'),
                   h('div', { style: 'display: grid; gap: var(--space-md);' },
                     h('div', {},
                       h('strong', {}, 'Bookmarks'), ' — Click the star icon on any card to bookmark it for quick access'
@@ -1497,7 +1497,7 @@
                 // Privacy Note
                 h('div', { style: 'margin-bottom: var(--space-lg);' },
                   h('div', { style: 'background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius);' },
-                    h('p', { style: 'margin-bottom: var(--space-xs); font-weight: 600;' }, '🔒 Your Privacy Matters'),
+                    h('p', { style: 'margin-bottom: var(--space-xs); font-weight: 600;' }, 'Your Privacy Matters'),
                     h('p', { style: 'color: var(--text-secondary); font-size: 0.9rem;' },
                       'All your data is stored locally on your device. CardSpoke never sends your data to any server. You have complete control and ownership of your information.'
                     )

@@ -341,7 +341,6 @@
         } }, 'Add Child'));
         
         actions.appendChild(h('button', { className: 'btn', onclick: () => openUploadModalForCard(card.id, 'txt') }, 'Import TXT'));
-        actions.appendChild(h('button', { className: 'btn', onclick: () => openUploadModalForCard(card.id, 'docx') }, 'Import DOCX'));
         
         actions.appendChild(h('button', { className: 'btn btn-danger', onclick: () => {
           if (confirm('Delete this card and all its children?')) {
@@ -1044,13 +1043,6 @@
         const txtOutlineRadio = document.querySelector('input[name="txtImportMode"][value="outline"]');
         if (txtOutlineRadio) txtOutlineRadio.checked = true;
 
-        // Reset DOCX import to have no card selected
-        if (uploadModal.importLocationSelectDOCX) {
-          uploadModal.importLocationSelectDOCX.value = '';
-        }
-        const docxAppendRadio = document.querySelector('input[name="docxImportMode"][value="append"]');
-        if (docxAppendRadio) docxAppendRadio.checked = true;
-
         // Restore last used tab or default to json
         const lastTab = localStorage.getItem('cardspoke_lastUploadTab') || 'json';
         uploadModal.tabs.forEach(t => t.classList.remove('active'));
@@ -1170,6 +1162,10 @@
         goTo('list', { cardId: null });
       };
 
+      header.undoBtn.onclick = () => {
+        undo();
+      };
+
       searchInput.addEventListener('input', (e) => {
         if (e.target.value.trim()) {
           searchClear.style.display = 'block';
@@ -1262,25 +1258,6 @@
           uploadModal.overlay.classList.remove('show');
         };
         reader.readAsText(file);
-      });
-
-      uploadModal.fileUploadAreaDOCX.onclick = () => {
-        uploadModal.fileInputDOCX.click();
-      };
-
-      uploadModal.fileInputDOCX.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          const text = '(DOCX text extraction not fully implemented - would need mammoth.js library)';
-          const modeRadio = document.querySelector('input[name="docxImportMode"]:checked');
-          const mode = modeRadio ? modeRadio.value : 'append';
-          const targetCardId = uploadModal.importLocationSelectDOCX.value;
-          importDOCX(text, mode, targetCardId);
-          uploadModal.overlay.classList.remove('show');
-        };
-        reader.readAsArrayBuffer(file);
       });
 
       uploadModal.fileUploadAreaMods.onclick = () => {

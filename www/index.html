@@ -33,6 +33,9 @@
       <button class="brand" id="brandBtn" aria-label="Go to home">CardSpoke</button>
       <div class="spacer"></div>
       <span id="saveStatus" class="save-status" title=""></span>
+      <button class="header-btn" id="undoBtn" title="Undo (Ctrl+Z)" aria-label="Undo last action">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg>
+      </button>
       <button class="header-btn" id="homeBtn" title="Home" aria-label="Go to home">
         <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
       </button>
@@ -149,7 +152,6 @@
       <div class="modal-tabs" role="tablist">
         <button class="modal-tab active" data-tab="json" role="tab" aria-selected="true" aria-controls="tab-json">JSON</button>
         <button class="modal-tab" data-tab="txt" role="tab" aria-selected="false" aria-controls="tab-txt">TXT</button>
-        <button class="modal-tab" data-tab="docx" role="tab" aria-selected="false" aria-controls="tab-docx">DOCX</button>
         <button class="modal-tab" data-tab="mods" role="tab" aria-selected="false" aria-controls="tab-mods">Mods</button>
       </div>
       
@@ -200,41 +202,6 @@
             <label class="form-label">Import Location</label>
             <select id="importLocationSelectTXT" class="form-select">
               <option value="root">Add as Root Cards (Outline Mode)</option>
-            </select>
-          </div>
-        </div>
-        
-        <div class="tab-content" id="tab-docx" role="tabpanel" aria-labelledby="tab-docx">
-          <div class="file-upload-area" id="fileUploadAreaDOCX">
-            <div class="upload-text">Click to select or drag & drop DOCX file</div>
-            <div class="upload-hint">Extract text from Word documents (Beta)</div>
-          </div>
-          <input type="file" id="fileInputDOCX" accept=".docx" style="display: none;" />
-          
-          <div class="form-group">
-            <label class="form-label">Import Mode</label>
-            <div class="radio-group">
-              <label class="radio-option">
-                <input type="radio" name="docxImportMode" value="append" checked />
-                <div class="radio-label">
-                  <div>Append to Card Body</div>
-                  <div class="radio-description">Add extracted text to card details</div>
-                </div>
-              </label>
-              <label class="radio-option">
-                <input type="radio" name="docxImportMode" value="replace" />
-                <div class="radio-label">
-                  <div>Replace Card Body</div>
-                  <div class="radio-description">Replace card details with extracted text</div>
-                </div>
-              </label>
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label">Target Card</label>
-            <select id="importLocationSelectDOCX" class="form-select">
-              <option value="">Select a card...</option>
             </select>
           </div>
         </div>
