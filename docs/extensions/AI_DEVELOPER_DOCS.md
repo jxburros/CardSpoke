@@ -10,6 +10,7 @@ Create a single JSON file that includes everything the app needs:
 ```jsonc
 {
   "enabled": true,                // default enablement
+  "id": "my-extension",           // optional: auto-extracted from CardSpoke_MODS.register() call if omitted
   "meta": {
     "name": "My Extension",      // human-readable title
     "type": "Plugin",            // one of: Theme | Patch | Plugin | Mod | Kit | Expansion
@@ -30,6 +31,8 @@ Create a single JSON file that includes everything the app needs:
 
 Constraints the JSON must satisfy (mirrors automated tests):
 - Top-level fields: `enabled` (boolean), `js` (string), `css` (string), `meta` (object).
+- Optional top-level field: `id` (string) - if omitted, will be auto-extracted from the `CardSpoke_MODS.register('id', ...)` call in your JS code.
+- **IMPORTANT:** The `id` field (if provided) or the ID in your `CardSpoke_MODS.register()` call MUST match. The loader uses the registration ID to track your extension.
 - `meta.type` must match the folder/category name if sorted (e.g., `plugins/` -> `Plugin`).
 - Use an IIFE for JS and call `CardSpoke_MODS.register('id', { ...hooks })` inside it.
 - Hook names must be from the allowed list: `onAppInit`, `onEnable`, `onDisable`, `onUninstall`, `onCardSave`, `onCardDelete`, `onCardRender`, `onNavigate`, `onSearch`, `onThemeChange`, `onTypographyChange`, `onHighContrastChange`, `onExport`, `onImport`.

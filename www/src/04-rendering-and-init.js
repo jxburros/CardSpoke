@@ -1307,7 +1307,19 @@
               };
             }
             if (modData) {
-              const modId = modData.id || uid();
+              // Extract mod ID from JS code if not provided
+              let modId = modData.id;
+              if (!modId && modData.js) {
+                // Try to extract ID from CardSpoke_MODS.register('id', ...) call
+                const registerMatch = modData.js.match(/CardSpoke_MODS\.register\s*\(\s*['"]([^'"]+)['"]/);
+                if (registerMatch) {
+                  modId = registerMatch[1];
+                }
+              }
+              if (!modId) {
+                modId = uid(); // Fallback to random ID if extraction fails
+              }
+
               store.mods[modId] = {
                 enabled: !!modData.enabled, // Preserve enabled field from JSON
                 js: modData.js || '',
@@ -1346,7 +1358,16 @@
           showToast('Please provide mod name and JS code', 'error');
           return;
         }
-        const modId = modName.replace(/\s+/g, '-').toLowerCase();
+
+        // Extract mod ID from JS code, fallback to sanitized name
+        let modId;
+        const registerMatch = modJS.match(/CardSpoke_MODS\.register\s*\(\s*['"]([^'"]+)['"]/);
+        if (registerMatch) {
+          modId = registerMatch[1];
+        } else {
+          modId = modName.replace(/\s+/g, '-').toLowerCase();
+        }
+
         store.mods[modId] = {
           enabled: false,
           js: modJS,
