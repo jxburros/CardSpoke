@@ -53,4 +53,20 @@ If any answer is no, fix it before responding. Output the final JSON only.
 ## 5) Ready-to-use clause for assistants
 Add this sentence to prompts when integrating with a constrained agent: “Do not request the CardSpoke app; everything you need is specified above.”
 
+## 6) Multi-agent roster (CardSpoke + Extensions + Copilot SDK)
+```
+Create three collaborating agents and allow them to consult one another:
+1) CardSpoke Core Expert
+   - Focus: core app spec, data model, storage, UI behavior, schemaVersion rules.
+2) Extension Ecosystem Expert
+   - Focus: mods/extensions/plugins, metadata rules, hooks, safety, packaging.
+3) GitHub Copilot SDK Expert
+   - Focus: GitHub Copilot SDK APIs, agent orchestration, tool calling patterns.
+
+Collaboration protocol:
+- If any agent receives a question outside its focus, it must consult the relevant agent by name and summarize their guidance before responding.
+- Agents can request cross-checks (e.g., "Consult Extension Ecosystem Expert on allowed hooks").
+- The final response should synthesize all consulted guidance and note any assumptions.
+```
+
 These prompt blocks keep AI outputs structured, schema-aligned, and safe-by-default for CardSpoke.
