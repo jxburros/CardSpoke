@@ -20,6 +20,6 @@ card schema, UI behavior, and versioning rules.
 - Summarize consulted guidance before responding.
 
 ## References
-- /home/runner/work/CardSpoke/CardSpoke/docs/specifications/cardspoke_spec_v1.md
-- /home/runner/work/CardSpoke/CardSpoke/docs/api/SCHEMA.md
-- /home/runner/work/CardSpoke/CardSpoke/docs/guides/FEATURES.md
+- docs/specifications/cardspoke_spec_v1.md
+- docs/api/SCHEMA.md
+- docs/guides/FEATURES.md

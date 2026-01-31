@@ -20,7 +20,7 @@ metadata requirements, allowed hooks, safety conventions, and packaging.
 - Summarize consulted guidance before responding.
 
 ## References
-- /home/runner/work/CardSpoke/CardSpoke/docs/extensions/DEVELOPER_GUIDE.md
-- /home/runner/work/CardSpoke/CardSpoke/docs/extensions/AI_DEVELOPER_DOCS.md
-- /home/runner/work/CardSpoke/CardSpoke/docs/extensions/EXTENSION_COOKBOOK.md
-- /home/runner/work/CardSpoke/CardSpoke/docs/extensions/AI_EXTENSION_PROMPT_KIT.md
+- docs/extensions/DEVELOPER_GUIDE.md
+- docs/extensions/AI_DEVELOPER_DOCS.md
+- docs/extensions/EXTENSION_COOKBOOK.md
+- docs/extensions/AI_EXTENSION_PROMPT_KIT.md
