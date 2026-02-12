@@ -19,13 +19,14 @@ Every Extension or Deviation must include a machine-readable metadata block (JSO
   "type": "Theme | Patch | Plugin | Mod | Kit | Expansion | Deviation",
   "name": "string",
   "version": "X.Y.Z",
-  "author": "string",
+  "creator": "string",
   "ai_assistants": ["string"],
   "description": "string",
-  "date_created": "YYYY-MM-DD",
+  "releaseDate": "YYYY-MM-DD",
   "dependencies": ["ExtensionName@Version"],
   "schema_compatibility": "schemaVersion >= 4",
-  "official": false,
+  "source": "official | community",
+  "capabilities": ["cards", "tags", "ui", "a11y", "export", "import", "navigation", "storage"],
   "angled": true
 }
 ```
@@ -49,7 +50,7 @@ Every Extension or Deviation must include a machine-readable metadata block (JSO
 - Use local storage APIs (LocalStorage/IndexedDB) by default; document any filesystem use. When writing to LocalStorage, namespace under your Extension ID to avoid colliding with built-in keys:
   - `cardspoke_richtext` - Rich text mode
   - `cardspoke_gridView` - Grid view
-  - `cardspoke_highContrast` - High contrast mode
+  - `cardspoke_highcontrast` - High contrast mode
   - `cardspoke_typography` - Typography preset
   - `cardspoke_devmode` - Developer mode
   - `cardspoke_theme` - Active theme

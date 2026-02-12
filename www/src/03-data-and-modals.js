@@ -3005,7 +3005,7 @@ console.log('✓ All examples completed!');
         viewSection.appendChild(gridRow);
         
         // High Contrast Toggle
-        const highContrastEnabled = localStorage.getItem('cardspoke_highContrast') === 'true';
+        const highContrastEnabled = localStorage.getItem('cardspoke_highcontrast') === 'true';
         const contrastRow = h('div', { 
           className: 'menu-item-toggle',
           style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px;'
@@ -3016,7 +3016,7 @@ console.log('✓ All examples completed!');
           type: 'checkbox', 
           checked: highContrastEnabled,
           onchange: function(e) {
-            localStorage.setItem('cardspoke_highContrast', e.target.checked.toString());
+            localStorage.setItem('cardspoke_highcontrast', e.target.checked.toString());
             if (e.target.checked) {
               document.documentElement.classList.add('high-contrast');
             } else {

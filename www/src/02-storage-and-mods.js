@@ -1244,71 +1244,93 @@
       
        /**
         * =============================================================
-        * EXTENSION HOOKS (Planned & Implemented)
+        * EXTENSION HOOKS
         * =============================================================
-        * 
+        *
         * Extensions can register hooks to execute custom code at key points
         * in the application lifecycle. Use CardSpoke_MODS.register() to add hooks.
-        * 
-        * IMPLEMENTED HOOKS:
-        * ------------------
+        * All hooks receive a context object as their first argument.
+        *
+        * LIFECYCLE HOOKS:
+        * ----------------
         * @hook onAppInit(context)
         *   Called once when app initializes or when a mod is first loaded.
         *   Use for setup, initialization, or registering global handlers.
         *   @param {Object} context - Mod execution context
-        * 
+        *
+        * @hook onEnable(context)
+        *   Called when the extension is enabled.
+        *   Use to re-attach DOM elements, rebind hotkeys, or reopen connections.
+        *   @param {Object} context - Mod execution context
+        *
+        * @hook onDisable(context)
+        *   Called before the extension is disabled.
+        *   Use for cleanup: tear down DOM/listeners, flush timers.
+        *   @param {Object} context - Mod execution context
+        *
+        * @hook onUninstall(context)
+        *   Called before the extension is removed from the registry.
+        *   Use for final cleanup: purge storage, remove injected styles.
+        *   @param {Object} context - Mod execution context
+        *
+        * CARD HOOKS:
+        * -----------
         * @hook onCardSave(context, card, saveInfo)
         *   Called whenever a card is created or updated.
         *   @param {Object} context - Mod execution context
         *   @param {Object} card - Card data (cloned, read-only)
         *   @param {Object} saveInfo - { isNew: boolean, source: string }
-        * 
+        *
         * @hook onCardDelete(context, card)
         *   Called when a card is deleted.
         *   @param {Object} context - Mod execution context
         *   @param {Object} card - Card data before deletion (cloned)
-        * 
+        *
         * @hook onCardRender(context, card, element)
         *   Called after a card is rendered to the DOM.
         *   @param {Object} context - Mod execution context
         *   @param {Object} card - Card data (cloned)
         *   @param {HTMLElement} element - Card DOM element
-        * 
+        *
+        * APPEARANCE HOOKS:
+        * -----------------
         * @hook onThemeChange(context, theme)
         *   Called when the theme (light/dark) is changed. (v0.13.1)
         *   @param {Object} context - Mod execution context
         *   @param {'light'|'dark'} theme - The new theme
-        * 
+        *
         * @hook onTypographyChange(context, preset)
         *   Called when typography preset is changed. (v0.13.1)
         *   @param {Object} context - Mod execution context
         *   @param {string} preset - The new typography preset ('default', 'comfortable', 'compact', 'dyslexia')
-        * 
+        *
         * @hook onHighContrastChange(context, enabled)
         *   Called when high contrast mode is toggled. (v0.13.1)
         *   @param {Object} context - Mod execution context
         *   @param {boolean} enabled - Whether high contrast is now enabled
-        * 
-        * PLANNED HOOKS:
-        * -----------------------
+        *
+        * NAVIGATION & SEARCH HOOKS:
+        * --------------------------
         * @hook onNavigate(context, navState)
-        *   Called when navigation state changes
+        *   Called when navigation state changes.
         *   @param {Object} context - Mod execution context
         *   @param {Object} navState - { page, cardId, parentId, searchQuery }
-        * 
+        *
         * @hook onSearch(context, query, results)
-        *   Called when search is performed
+        *   Called when search is performed.
         *   @param {Object} context - Mod execution context
         *   @param {string} query - Search query
         *   @param {Array} results - Array of matching cards
-        * 
+        *
+        * DATA HOOKS:
+        * -----------
         * @hook onExport(context, exportData)
-        *   Called before data export
+        *   Called before data export.
         *   @param {Object} context - Mod execution context
         *   @param {Object} exportData - Data being exported
-        * 
+        *
         * @hook onImport(context, importData)
-        *   Called after data import
+        *   Called after data import.
         *   @param {Object} context - Mod execution context
         *   @param {Object} importData - Imported data structure
         */

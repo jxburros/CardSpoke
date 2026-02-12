@@ -26,10 +26,10 @@ Implemented hooks are enforced by runtime validation. Unknown hook names log war
 | `onThemeChange(ctx, theme)` | When the app theme toggles | Sync theme variables, re-compute contrast. |
 | `onTypographyChange(ctx, preset)` | When typography preset changes | Recalculate sizes/spacing your mod introduced. |
 | `onHighContrastChange(ctx, enabled)` | When high-contrast mode flips | Adjust palette for accessibility. |
-| `onNavigate(ctx, navState)` | **Planned** navigation change hook | Mirror router state, lazy-load resources. |
-| `onSearch(ctx, query, results)` | **Planned** search completion hook | Rank boosters, log queries, filter results. |
-| `onExport(ctx, data)` | **Planned** pre-export hook | Append metadata, transform payloads. |
-| `onImport(ctx, info)` | **Planned** post-import hook | Normalize incoming data, map legacy fields. |
+| `onNavigate(ctx, navState)` | When navigation state changes | Mirror router state, lazy-load resources. |
+| `onSearch(ctx, query, results)` | After search completes | Rank boosters, log queries, filter results. |
+| `onExport(ctx, data)` | Before data export | Append metadata, transform payloads. |
+| `onImport(ctx, info)` | After data import | Normalize incoming data, map legacy fields. |
 
 ### Registration and lifecycle
 - **`register(modId, definition)`**: Validates hook names, stores metadata, and resets error counters on success. Called once inside your IIFE.

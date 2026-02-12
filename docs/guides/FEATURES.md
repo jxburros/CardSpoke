@@ -17,7 +17,7 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and extension a
 - **Rich Text mode:** Enable markdown-style formatting in card bodies via Appearance settings (`cardspoke_richtext`).
 - **Grid View:** Toggle between list and grid layouts for card display (`cardspoke_gridView`).
 - **Compact View:** Reduce visual density with compact mode (`store.viewMode`).
-- **High Contrast mode:** Accessibility option for improved readability (`cardspoke_highContrast`).
+- **High Contrast mode:** Accessibility option for improved readability (`cardspoke_highcontrast`).
 - **Typography presets:** Choose from Default, Comfortable, Compact, or Dyslexia-Friendly reading modes (`cardspoke_typography`).
 - **Developer Mode:** Enable debug logging and developer features (`cardspoke_devmode`).
 - **Save status indicator:** Visual feedback showing save state (pending, saved, error) in the header.
