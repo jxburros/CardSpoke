@@ -1,0 +1,16 @@
+{
+  "id": "ocean-theme",
+  "manifest": {
+    "name": "Ocean Breeze",
+    "version": "1.0.0",
+    "author": "CardSpoke Community",
+    "description": "A cool, calming blue-green theme reminiscent of ocean waters",
+    "layer": "theme",
+    "compatibility": ">=0.16.0"
+  },
+  "config": {},
+  "css": ":root { --bg-primary: #0f1e2e; --bg-secondary: #162d42; --bg-card: #1a3550; --text-primary: #d4eaf7; --text-secondary: #8bb8d4; --accent: #29b6a8; --accent-hover: #35d4c4; --border-color: #1f4a6e; --shadow-color: rgba(41,182,168,0.12); } body { background-color: var(--bg-primary) !important; color: var(--text-primary) !important; } .card, .card-item { background-color: var(--bg-card) !important; border-color: var(--border-color) !important; color: var(--text-primary) !important; box-shadow: 0 2px 8px var(--shadow-color) !important; } .card-item:hover { border-color: var(--accent) !important; } header, .header { background-color: var(--bg-secondary) !important; border-bottom-color: var(--border-color) !important; } button { border-color: var(--border-color) !important; color: var(--text-primary) !important; } button:hover { background-color: var(--accent) !important; color: #fff !important; } .modal-content, .menu-section { background-color: var(--bg-secondary) !important; border-color: var(--border-color) !important; color: var(--text-primary) !important; } input, textarea, select { background-color: var(--bg-card) !important; border-color: var(--border-color) !important; color: var(--text-primary) !important; } input:focus, textarea:focus { border-color: var(--accent) !important; outline-color: var(--accent) !important; } .tag { background-color: var(--accent) !important; color: #fff !important; } .breadcrumb a, a { color: var(--accent) !important; } .toast { background-color: var(--bg-secondary) !important; color: var(--text-primary) !important; border-left-color: var(--accent) !important; }",
+  "js": "",
+  "overrides": {},
+  "enabled": false
+}

@@ -1,0 +1,16 @@
+{
+  "id": "quick-note",
+  "manifest": {
+    "name": "Quick Note",
+    "version": "1.0.0",
+    "author": "CardSpoke Community",
+    "description": "Adds a floating button to quickly create a new card from anywhere in the app",
+    "layer": "feature",
+    "compatibility": ">=0.16.0"
+  },
+  "config": {},
+  "css": "#mod-quick-note-btn { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: #4a90d9; color: #fff; border: none; font-size: 28px; line-height: 56px; text-align: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999; transition: transform 0.15s ease, background 0.15s ease; } #mod-quick-note-btn:hover { transform: scale(1.1); background: #357abd; } #mod-quick-note-btn:active { transform: scale(0.95); }",
+  "js": "CardSpoke_MODS.register('quick-note', {\n  onLoad: function(ctx) {\n    if (document.getElementById('mod-quick-note-btn')) return;\n    var btn = document.createElement('button');\n    btn.id = 'mod-quick-note-btn';\n    btn.textContent = '+';\n    btn.title = 'Quick Note: Create a new card';\n    btn.setAttribute('aria-label', 'Create a new card');\n    btn.addEventListener('click', function() {\n      var title = 'Quick Note ' + new Date().toLocaleString();\n      var id = storeAPI.createCard({ title: title, body: '' });\n      if (id) {\n        storeAPI.showToast('Created: ' + title, 'success');\n      }\n    });\n    document.body.appendChild(btn);\n    ctx.logger.info('Quick Note button added');\n  },\n  onDisable: function(ctx) {\n    var btn = document.getElementById('mod-quick-note-btn');\n    if (btn) btn.remove();\n    ctx.logger.info('Quick Note button removed');\n  },\n  onUninstall: function(ctx) {\n    var btn = document.getElementById('mod-quick-note-btn');\n    if (btn) btn.remove();\n  }\n});",
+  "overrides": {},
+  "enabled": false
+}

@@ -1,0 +1,20 @@
+{
+  "id": "minimal-writer",
+  "manifest": {
+    "name": "Minimal Writer",
+    "version": "1.0.0",
+    "author": "CardSpoke Community",
+    "description": "Transforms CardSpoke into a distraction-free writing app by hiding non-essential features",
+    "layer": "app",
+    "compatibility": ">=0.16.0"
+  },
+  "config": {},
+  "css": "body.mod-minimal-writer header { background: transparent !important; border-bottom: none !important; box-shadow: none !important; } body.mod-minimal-writer .card-item { border: none !important; box-shadow: none !important; background: transparent !important; max-width: 680px; margin: 0 auto; padding: 20px 0; } body.mod-minimal-writer textarea, body.mod-minimal-writer .card-body { font-family: Georgia, 'Times New Roman', serif !important; font-size: 18px !important; line-height: 1.8 !important; } body.mod-minimal-writer .card-item .card-title input, body.mod-minimal-writer .card-item .card-title { font-family: Georgia, 'Times New Roman', serif !important; font-size: 24px !important; font-weight: bold !important; }",
+  "js": "CardSpoke_MODS.register('minimal-writer', {\n  onLoad: function(ctx) {\n    document.body.classList.add('mod-minimal-writer');\n    ctx.logger.info('Minimal Writer activated');\n  },\n  onDisable: function(ctx) {\n    document.body.classList.remove('mod-minimal-writer');\n    ctx.logger.info('Minimal Writer deactivated');\n  },\n  onUninstall: function(ctx) {\n    document.body.classList.remove('mod-minimal-writer');\n  }\n});",
+  "overrides": {
+    "appName": "Writer",
+    "hideMenuItems": ["menuRecentCards", "menuBookmarks"],
+    "disableFeatures": ["bookmarks", "recentCards"]
+  },
+  "enabled": false
+}
