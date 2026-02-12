@@ -1,16 +1,16 @@
 # CardSpoke Feature Catalog
 
-This catalog enumerates CardSpoke's capabilities so product, QA, and extension authors can reference everything in one place.
+This catalog enumerates CardSpoke's capabilities so product, QA, and mod authors can reference everything in one place.
 
 **Current Version:** 0.16.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
 
 ## Core Product Shape
 - **Card-based knowledge system:** Presents information as hierarchical, tiered cards for lightweight knowledge organization.
-- **Intentionally minimal core:** Keeps the built-in experience ultra-light while delegating optional complexity to Extensions.
+- **Intentionally minimal core:** Keeps the built-in experience ultra-light while delegating optional complexity to mods.
 - **Self-contained bundle:** The `www/app.js` file is self-contained for `file://` protocol compatibility, with all utilities inlined to avoid CORS issues when opening directly from the filesystem.
-- **Extension-ready foundation:** Built with a dedicated Extension Framework so new behaviors can be added without bloating the core. The runtime exposes `CardSpoke_MODS` with hook dispatch, an event bus, and dev tools for inspecting hook stats and errors.
-- **Extension types:** Themes, Patches, Plugins, Mods, Kits, and Expansions cover cosmetic tweaks through deep logic swaps.
-- **Schema-aware:** Uses an explicit `schemaVersion` (currently 4) to gate features and Extensions.
+- **Mod-ready foundation:** Built with a three-layer mod system so new behaviors can be added without bloating the core. The runtime exposes `CardSpoke_MODS` with hook dispatch, an event bus, and dev tools for inspecting hook stats and errors.
+- **Mod layers:** Theme (CSS only), Feature (CSS+JS), and App (CSS+JS+overrides) cover cosmetic tweaks through full app transformations.
+- **Schema-aware:** Uses an explicit `schemaVersion` (currently 4) to gate features and mods.
 
 ## User Interface Features
 - **Dark/Light theme toggle:** Switch between dark and light modes via the header button or `Alt+T` keyboard shortcut.
@@ -80,15 +80,14 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and extension a
 - `Alt+C` — Toggle compact view
 - `Escape` — Close modals/go back
 
-## Extension Ecosystem
-- **Extension Hub:** Central UI for managing installed extensions, browsing the store (coming soon), using the Extension Wizard, and testing in the Playground.
-- **Extension types:** Supports Themes (visual only), Patches (packaged updates), Plugins (feature additions), Mods (fundamental changes), Kits (Theme/Patch bundles), and Expansions (bundles with Plugins or Mods).
-- **Extension Wizard:** Step-by-step UI for creating new extensions with metadata, JS, and CSS.
-- **Playground:** Live code testing environment for extension development.
-- **Hot reload:** Reload extensions without restarting the app via `CardSpoke_MODS.reload()`.
-- **Safe Mode:** Launch with `?safemode` URL parameter to disable all extensions for troubleshooting.
-- **Metadata transparency:** Every Extension declares type, version, author, AI assistants, description, date, dependencies, schema compatibility, and official/angled flags.
-- **Toggleable experimentation:** Patches and Mods are switchable for compatibility testing and safe rollback.
+## Mod Ecosystem
+- **Mod Manager:** Central UI for managing installed mods with tabs for viewing installed mods, installing new ones, and creating mods directly in-app.
+- **Three-layer system:** Theme (CSS only, lowest risk), Feature (CSS+JS, medium risk), and App (CSS+JS+overrides, highest risk) layers cover the full spectrum from visual tweaks to full app transformations.
+- **Override system:** App-layer mods can rename the app, hide/add menu items, inject custom pages, and disable built-in features.
+- **Hot reload:** Reload mods without restarting the app via `CardSpoke_MODS.reload()`.
+- **Safe Mode:** Launch with `?safemode` URL parameter to disable all mods for troubleshooting.
+- **Risk assessment:** Automatic risk scoring based on layer and code analysis (network access, DOM manipulation, storage usage).
+- **Metadata transparency:** Every mod declares name, version, author, description, layer, and compatibility in its manifest.
 - **Dev tools:** Inspect mods, view hook stats, access error logs, and manually test hooks.
 
 ## Accessibility Features
@@ -101,7 +100,7 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and extension a
 
 ## Deviations (Forks)
 - **Fork allowance with boundaries:** Community members can ship Deviations but must not use the "CardSpoke" name/branding and must provide mandatory metadata and credit.
-- **Monetization permitted:** Deviations and Extensions may be monetized while remaining transparent about authorship and endorsement status.
+- **Monetization permitted:** Deviations and mods may be monetized while remaining transparent about authorship and endorsement status.
 
 ## Platform & Build Footprint
 - **Prebuilt web bundle:** Ships bundled web assets in `www/` that feed the Capacitor shells. The bundle is self-contained and works via `file://` protocol.
@@ -110,17 +109,17 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and extension a
 
 ## Schema, Versioning, and Compatibility
 - **Current schema version:** 4 (as of v0.16.0).
-- **Data domains:** Schema covers cards/relationships, user preferences, extension registry caches, and optional local file references.
+- **Data domains:** Schema covers cards/relationships, user preferences, mod registry, and optional local file references.
 - **Default store shape:** `rootOrder`, `cards`, `mods`, `bookmarks`, `recentCards`, `viewMode`, `activeTheme`, `richTextEnabled`.
-- **Migration rules:** Schema bumps require documented migrations, idempotent steps, explicit fallbacks, and extension impact notes.
-- **Compatibility safeguards:** Extensions must declare schema compatibility and refuse to run on unsupported versions.
+- **Migration rules:** Schema bumps require documented migrations, idempotent steps, explicit fallbacks, and mod impact notes.
+- **Compatibility safeguards:** Mods must declare compatibility and refuse to run on unsupported versions.
 
 ## Developer & Testing Experience
 - **Node/uvu toolchain:** Uses Node (18+) with `npm run build` for web assets and `npm test` (uvu) for automated checks.
-- **Extension-focused testing:** `test-extension-improvements.js` and related tests target extension scenarios to keep compatibility tight.
+- **Mod-focused testing:** `sample-extensions.test.js` and related tests target mod package format and layer system to keep compatibility tight.
 - **Capacitor workflows:** `npm run sync` plus platform-specific `open` scripts accelerate native iteration without manual setup.
 
 ## Community & Governance Features
-- **Accountability for angled content:** Community-made Extensions must publish versioning, creator identity, AI assistants used, and changelogs to stay transparent.
+- **Accountability for angled content:** Community-made mods must publish versioning, creator identity, AI assistants used, and changelogs to stay transparent.
 - **Credit & ownership rules:** CardSpoke stays free-to-use under JX Holdings, LLC ownership; creators must credit CardSpoke/JX Holdings and avoid implying official endorsement without approval.
-- **Quality expectations:** Extensions should fail safely, avoid data corruption or obfuscation, and document install/removal steps for user trust.
+- **Quality expectations:** Mods should fail safely, avoid data corruption or obfuscation, and document install/removal steps for user trust.

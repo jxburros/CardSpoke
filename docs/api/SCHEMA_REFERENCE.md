@@ -11,7 +11,7 @@ This file summarizes the persisted data model and schema versioning rules used b
 
 ## Core domains
 - **Cards:** `cards` map keyed by id, with `rootOrder` tracking top-level ordering and `children` arrays on each card for hierarchy.
-- **Extensions:** `mods` registry stores extension metadata, `enabled` flag, and bundled JS/CSS for replay at startup.
+- **Mods:** `mods` registry stores mod metadata, `enabled` flag, and bundled JS/CSS for replay at startup.
 - **User preferences:** `viewMode`, `activeTheme`, typography preset (`cardspoke_typography`), high contrast (`cardspoke_highcontrast`), grid view (`cardspoke_gridView`), and rich text flags (`cardspoke_richtext`).
 - **Navigation & history:** `navState` plus `recentCards` and `bookmarks` collections for quick recall.
 - **Trash/undo:** Undo/redo stacks (up to 50 entries) and `trashBin` entries (up to 100) keep recovery history.
@@ -29,7 +29,7 @@ Each card in the `cards` map has the following structure:
   createdAt: number,    // Creation timestamp (ms)
   updatedAt: number,    // Last update timestamp (ms)
   isRichText?: boolean, // Per-card rich text (Markdown) flag
-  modsData?: object     // Optional extension-specific data
+  modsData?: object     // Optional mod-specific data
 }
 ```
 
@@ -39,7 +39,7 @@ A new dataset starts with:
 {
   rootOrder: [],        // Ordered array of root card IDs
   cards: {},            // Map of card ID to card object
-  mods: {},             // Map of extension ID to extension state
+  mods: {},             // Map of mod ID to mod state
   bookmarks: [],        // Array of bookmarked card IDs
   recentCards: [],      // Array of recently accessed card IDs
   viewMode: 'normal',   // 'normal' or 'compact'
@@ -56,7 +56,7 @@ Preferences are stored under `cardspoke_*` keys in LocalStorage:
 - `cardspoke_typography` - Typography preset (default/comfortable/compact/dyslexia)
 - `cardspoke_devmode` - Developer mode enabled (boolean as string)
 - `cardspoke_theme` - Current theme (light/dark)
-- `cardspoke_activeThemeExtension` - ID of active theme extension
+- `cardspoke_activeThemeMod` - ID of active theme mod
 - `cardspoke_hasSeenGettingStarted` - First-run guide shown (boolean as string)
 - `cardspoke_dataset_metadata` - Dataset manager metadata (JSON)
 - `activeInstance` - Current active dataset/instance key
@@ -67,5 +67,5 @@ Preferences are stored under `cardspoke_*` keys in LocalStorage:
 - **Optional cloud/file drivers**: Google Drive, OneDrive, WebDAV (see [Storage Driver Interface](./STORAGE_DRIVER_INTERFACE.md)) used only when explicitly configured by the user.
 
 ## Migration expectations
-- Keep migrations idempotent and provide fallbacks if a migration fails (e.g., block extensions, fall back to read-only view).
-- Document every migration with from-to versions, change summary, steps, fallback behavior, and extension impact.
+- Keep migrations idempotent and provide fallbacks if a migration fails (e.g., block mods, fall back to read-only view).
+- Document every migration with from-to versions, change summary, steps, fallback behavior, and mod impact.

@@ -466,11 +466,11 @@
           if (modCount > 0) {
             const confirmImportMods = confirm(
               `⚠️ SECURITY WARNING\n\n` +
-              `This import includes ${modCount} extension(s).\n\n` +
-              `Extensions can execute code and access your data. ` +
-              `Only import extensions from sources you trust.\n\n` +
-              `Do you want to import the extensions?\n` +
-              `(Click Cancel to import only the cards without extensions)`
+              `This import includes ${modCount} mod(s).\n\n` +
+              `Mods can execute code and access your data. ` +
+              `Only import mods from sources you trust.\n\n` +
+              `Do you want to import the mods?\n` +
+              `(Click Cancel to import only the cards without mods)`
             );
             if (!confirmImportMods) {
               delete pkg.mods;
@@ -1100,7 +1100,7 @@
             <h3 style="margin-bottom: var(--space-md); color: var(--text-primary);">Dataset Contents</h3>
             <div style="background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border);">
               <div style="margin-bottom: var(--space-sm);"><strong>Cards:</strong> ${cardCount}</div>
-              <div style="margin-bottom: var(--space-sm);"><strong>Extensions:</strong> ${modCount}</div>
+              <div style="margin-bottom: var(--space-sm);"><strong>Mods:</strong> ${modCount}</div>
               <div style="margin-bottom: var(--space-sm);"><strong>Bookmarks:</strong> ${bookmarkCount}</div>
               <div style="margin-bottom: var(--space-sm);"><strong>Recent Cards:</strong> ${recentCount}</div>
             </div>
@@ -1146,1772 +1146,332 @@
       }
 
 
-      /**
-       * Show Extensions Hub - unified interface for extensions management (v0.12.3)
-       * Combines Extensions, Extensions Store, Extension Wizard, and Playground
-       */
-      function showExtensionsHub(initialTab = 'installed') {
-        const overlay = h('div', { className: 'modal-overlay show' });
-        const modal = h('div', { className: 'modal', style: 'max-width: 900px; max-height: 90vh;' });
-        const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Extensions Hub'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove(), 'aria-label': 'Close' }, '✕');
-        modalHeader.appendChild(closeBtn);
+      // =============================================================
+      // --- MOD MANAGER UI ---
+      // Unified interface for installing, managing, and creating mods
+      // =============================================================
+
+      function showModManager(initialTab) {
+        initialTab = initialTab || 'installed';
+
+        var overlay = h('div', { className: 'modal-overlay show' });
+        var modal = h('div', { className: 'modal', style: 'max-width: 700px; max-height: 85vh;' });
+        var modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Mod Manager'));
+        modalHeader.appendChild(h('button', {
+          className: 'modal-close',
+          onclick: function() { overlay.remove(); }
+        }, '\u2715'));
         modal.appendChild(modalHeader);
-        
-        // Tabs for different sections
-        const tabContainer = h('div', { className: 'modal-tabs', role: 'tablist' });
-        const tabs = [
-          { id: 'installed', label: 'Installed', ariaLabel: 'View installed extensions' },
-          { id: 'store', label: 'Store', ariaLabel: 'Browse extensions store' },
-          { id: 'wizard', label: 'Wizard', ariaLabel: 'Create new extension' },
-          { id: 'playground', label: 'Playground', ariaLabel: 'Test extension code' }
+
+        var tabs = [
+          { id: 'installed', label: 'Installed' },
+          { id: 'install', label: 'Install' },
+          { id: 'create', label: 'Create' }
         ];
-        
-        let activeTab = initialTab;
-        
-        function renderTabContent() {
-          const existingBody = modal.querySelector('.modal-body');
-          if (existingBody) existingBody.remove();
-          
-          const modalBody = h('div', { className: 'modal-body', style: 'max-height: calc(90vh - 150px); overflow-y: auto;' });
-          
-          switch (activeTab) {
-            case 'installed':
-              renderInstalledTab(modalBody);
-              break;
-            case 'store':
-              renderStoreTab(modalBody);
-              break;
-            case 'wizard':
-              renderWizardTab(modalBody, overlay);
-              break;
-            case 'playground':
-              renderPlaygroundTab(modalBody);
-              break;
-          }
-          
-          modal.appendChild(modalBody);
-        }
-        
-        function renderInstalledTab(container) {
-          const mods = Object.entries(store.mods || {});
-          
-          if (mods.length === 0) {
-            container.appendChild(h('div', { className: 'empty', style: 'padding: var(--space-2xl);' }, 
-              'No extensions installed. Browse the Store or create one with the Wizard!'));
-            return;
-          }
-          
-          const devMode = isDeveloperMode();
-          
-          mods.forEach(function([modId, modData]) {
-            const modItem = h('div', {
-              style: 'background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: var(--space-md);'
-            });
-            
-            const modHeader = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
-            const modInfo = h('div', {});
-            const titleRow = h('div', { style: 'display: flex; align-items: center; gap: var(--space-sm);' });
-            titleRow.appendChild(h('span', { style: 'font-weight: 700; font-size: var(--text-lg);' }, modData.meta?.name || modId));
 
-            // Security: Add risk badge
-            const risk = assessExtensionRisk(modData);
-            const riskBadge = h('span', {
-              style: `font-size: var(--text-xs); padding: 2px 8px; border-radius: 12px; background: ${risk.color}22; color: ${risk.color}; font-weight: 700; border: 1px solid ${risk.color};`,
-              title: risk.permissions.join(', ') || 'No special permissions'
-            }, risk.icon + ' ' + risk.riskLevel);
-            titleRow.appendChild(riskBadge);
+        var tabBar = h('div', { className: 'modal-tabs', role: 'tablist' });
+        var tabContentArea = h('div', { className: 'modal-body', style: 'overflow-y: auto; max-height: 60vh; padding: var(--space-lg);' });
 
-            modInfo.appendChild(titleRow);
-            modInfo.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' },
-              'v' + (modData.meta?.version || '1.0.0') + ' by ' + (modData.meta?.creator || 'Unknown')));
-            modHeader.appendChild(modInfo);
-            
-            const toggleBtn = h('button', {
-              className: modData.enabled ? 'btn btn-primary' : 'btn',
-              onclick: function() {
-                if (modData.enabled) CardSpoke_MODS.disable(modId);
-                else CardSpoke_MODS.enable(modId);
-                overlay.remove();
-                showExtensionsHub('installed');
-              }
-            }, modData.enabled ? 'Enabled ✓' : 'Disabled');
-            modHeader.appendChild(toggleBtn);
-            
-            modItem.appendChild(modHeader);
-            
-            if (modData.meta?.description) {
-              modItem.appendChild(h('div', { style: 'margin-bottom: var(--space-sm);' }, modData.meta.description));
-            }
-            
-            // Actions row
-            const actionsRow = h('div', { style: 'display: flex; gap: var(--space-sm);' });
-            
-            if (devMode) {
-              const exportBtn = h('button', {
-                className: 'btn',
-                style: 'font-size: var(--text-sm);',
-                onclick: function() {
-                  const blob = new Blob([JSON.stringify(modData, null, 2)], { type: 'application/json' });
-                  const url = URL.createObjectURL(blob);
-                  const a = h('a', { href: url, download: modId + '.json' });
-                  a.click();
-                  URL.revokeObjectURL(url);
-                  showToast('Extension exported');
-                }
-              }, 'Export');
-              actionsRow.appendChild(exportBtn);
-            }
-            
-            const deleteBtn = h('button', {
-              className: 'btn btn-danger',
-              style: 'font-size: var(--text-sm);',
-              onclick: function() {
-                if (confirm('Delete extension "' + (modData.meta?.name || modId) + '"?')) {
-                  CardSpoke_MODS.disable(modId);
-                  delete store.mods[modId];
-                  save();
-                  showToast('Extension deleted');
-                  overlay.remove();
-                  showExtensionsHub('installed');
-                }
-              }
-            }, 'Delete');
-            actionsRow.appendChild(deleteBtn);
-            
-            modItem.appendChild(actionsRow);
-            container.appendChild(modItem);
-          });
-          
-          // Upload Extension button
-          const uploadSection = h('div', { style: 'margin-top: var(--space-xl); padding-top: var(--space-xl); border-top: 1px solid var(--border);' });
-          uploadSection.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md);' }, 'Install Extension'));
-          
-          const uploadArea = h('div', { 
-            className: 'file-upload-area',
-            style: 'padding: var(--space-xl);',
-            onclick: function() {
-              const input = h('input', { type: 'file', accept: '.json', style: 'display:none' });
-              input.onchange = function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                  const reader = new FileReader();
-                  reader.onload = function(ev) {
-                    try {
-                      const modData = JSON.parse(ev.target.result);
-                      const modId = modData.id || file.name.replace('.json', '');
-
-                      // Security: Assess extension risk and show warning
-                      const risk = assessExtensionRisk(modData);
-                      const extName = modData.meta?.name || modId;
-
-                      let warningMessage = `Install extension "${extName}"?\n\n`;
-                      warningMessage += `Type: ${risk.type}\n`;
-                      warningMessage += `Security Risk: ${risk.riskLevel}\n\n`;
-
-                      if (risk.permissions.length > 0) {
-                        warningMessage += 'This extension will be able to:\n';
-                        risk.permissions.forEach(p => warningMessage += `• ${p}\n`);
-                      }
-
-                      if (risk.riskLevel === 'HIGH') {
-                        warningMessage += '\n⚠️ HIGH RISK: This extension can access and modify all your data, ';
-                        warningMessage += 'and could send it to external servers. Only install if you trust the source.';
-                      } else if (risk.riskLevel === 'MEDIUM') {
-                        warningMessage += '\n⚠️ MEDIUM RISK: This extension can modify your data. ';
-                        warningMessage += 'Only install from trusted sources.';
-                      } else if (risk.hasJS) {
-                        warningMessage += '\n✓ LOW RISK: This extension has limited capabilities.';
-                      } else {
-                        warningMessage += '\n✓ LOW RISK: This is a CSS-only theme with no code execution.';
-                      }
-
-                      if (confirm(warningMessage)) {
-                        store.mods[modId] = modData;
-                        save();
-                        CardSpoke_MODS.syncFromStore();
-                        showToast('Extension installed: ' + extName);
-                        overlay.remove();
-                        showExtensionsHub('installed');
-                      }
-                    } catch (err) {
-                      showToast('Invalid extension file: ' + err.message, 'error');
-                    }
-                  };
-                  reader.readAsText(file);
-                }
-              };
-              input.click();
-            }
-          });
-          uploadArea.appendChild(h('div', { className: 'upload-text' }, 'Click to install extension (.json)'));
-          uploadSection.appendChild(uploadArea);
-          container.appendChild(uploadSection);
-        }
-        
-        function renderStoreTab(container) {
-          const banner = h('div', {
-            style: 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: var(--space-2xl); border-radius: var(--radius); margin-bottom: var(--space-xl); text-align: center;'
-          });
-          banner.appendChild(h('div', { style: 'font-size: 48px; margin-bottom: var(--space-md);' }, ''));
-          banner.appendChild(h('div', { style: 'font-size: var(--text-xl); font-weight: 700; margin-bottom: var(--space-sm);' }, 'Extensions Store'));
-          banner.appendChild(h('div', { style: 'opacity: 0.9;' }, 'Coming Soon! Browse and install community extensions.'));
-          container.appendChild(banner);
-          
-          const categories = [
-            { icon: '', name: 'Themes', desc: 'Visual styles and color schemes' },
-            { icon: '', name: 'Tools', desc: 'Productivity enhancements' },
-            { icon: '', name: 'Analytics', desc: 'Data visualization' },
-            { icon: '', name: 'Integrations', desc: 'External services' }
-          ];
-          
-          const grid = h('div', { style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-lg);' });
-          categories.forEach(function(cat) {
-            const card = h('div', {
-              style: 'padding: var(--space-lg); border: 1px solid var(--border); border-radius: var(--radius); text-align: center;'
-            });
-            card.appendChild(h('div', { style: 'font-size: 32px; margin-bottom: var(--space-sm);' }, cat.icon));
-            card.appendChild(h('div', { style: 'font-weight: 700;' }, cat.name));
-            card.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, cat.desc));
-            grid.appendChild(card);
-          });
-          container.appendChild(grid);
-        }
-        
-        function renderWizardTab(container, overlayRef) {
-          container.appendChild(h('div', { style: 'font-weight: 700; font-size: var(--text-lg); margin-bottom: var(--space-lg);' }, 
-            'Create New Extension'));
-          
-          const form = h('form', { 
-            style: 'display: flex; flex-direction: column; gap: var(--space-lg);',
-            onsubmit: function(e) {
-              e.preventDefault();
-              const formData = new FormData(e.target);
-              const modId = formData.get('name').toLowerCase().replace(/[^a-z0-9-]/g, '-');
-              const newMod = {
-                id: modId,
-                meta: {
-                  name: formData.get('name'),
-                  type: formData.get('type'),
-                  creator: formData.get('creator'),
-                  version: '1.0.0',
-                  releaseDate: new Date().toISOString().split('T')[0],
-                  description: formData.get('description')
-                },
-                js: formData.get('js') || '',
-                css: formData.get('css') || '',
-                enabled: false
-              };
-              store.mods[modId] = newMod;
-              save();
-              showToast('Extension created: ' + newMod.meta.name);
-              overlayRef.remove();
-              showExtensionsHub('installed');
-            }
-          });
-          
-          form.appendChild(createFormGroup('Name', 'text', 'name', 'My Extension', true));
-          form.appendChild(createFormGroup('Creator', 'text', 'creator', 'Your Name', true));
-          form.appendChild(createFormGroup('Description', 'text', 'description', 'A brief description'));
-          
-          const typeGroup = h('div', { className: 'form-group' });
-          typeGroup.appendChild(h('label', { className: 'form-label' }, 'Type'));
-          const typeSelect = h('select', { className: 'form-select', name: 'type' });
-          ['Theme', 'Patch', 'Plugin', 'Mod'].forEach(function(t) {
-            typeSelect.appendChild(h('option', { value: t }, t));
-          });
-          typeGroup.appendChild(typeSelect);
-          form.appendChild(typeGroup);
-          
-          const jsGroup = h('div', { className: 'form-group' });
-          jsGroup.appendChild(h('label', { className: 'form-label' }, 'JavaScript (optional)'));
-          jsGroup.appendChild(h('textarea', { 
-            className: 'form-textarea', 
-            name: 'js', 
-            placeholder: "CardSpoke_MODS.register('my-mod', { onAppInit(ctx) { console.log('Hello!'); } });",
-            style: 'min-height: 100px; font-family: monospace;'
-          }));
-          form.appendChild(jsGroup);
-          
-          const cssGroup = h('div', { className: 'form-group' });
-          cssGroup.appendChild(h('label', { className: 'form-label' }, 'CSS (optional)'));
-          cssGroup.appendChild(h('textarea', { 
-            className: 'form-textarea', 
-            name: 'css', 
-            placeholder: '/* Custom styles */',
-            style: 'min-height: 80px; font-family: monospace;'
-          }));
-          form.appendChild(cssGroup);
-          
-          form.appendChild(h('button', { type: 'submit', className: 'btn btn-primary' }, 'Create Extension'));
-          container.appendChild(form);
-        }
-        
-        function createFormGroup(label, type, name, placeholder, required) {
-          const group = h('div', { className: 'form-group' });
-          group.appendChild(h('label', { className: 'form-label' }, label));
-          group.appendChild(h('input', { 
-            type: type, 
-            className: 'form-input', 
-            name: name, 
-            placeholder: placeholder,
-            required: required || false
-          }));
-          return group;
-        }
-        
-        function renderPlaygroundTab(container) {
-          container.appendChild(h('div', { style: 'font-weight: 700; font-size: var(--text-lg); margin-bottom: var(--space-md);' }, 
-            'Code Playground'));
-          container.appendChild(h('div', { style: 'color: var(--text-muted); margin-bottom: var(--space-lg);' }, 
-            'Test CardSpoke API code in a sandboxed environment.'));
-          
-          const codeArea = h('textarea', {
-            className: 'form-textarea',
-            style: 'min-height: 200px; font-family: monospace; font-size: var(--text-sm);',
-            placeholder: "// Example: Use CardSpoke.utils API\nconst meta = await CardSpoke.utils.getDatasetMeta();\nconsole.log('Dataset:', meta.name);\n\n// Search cards\nconst results = await CardSpoke.utils.searchCards('test');\nconsole.log('Found:', results.length, 'cards');",
-            id: 'playgroundCode'
-          });
-          container.appendChild(codeArea);
-          
-          const outputArea = h('pre', {
-            style: 'background: #1e1e1e; color: #d4d4d4; padding: var(--space-lg); border-radius: var(--radius); min-height: 100px; margin-top: var(--space-lg); overflow: auto; font-family: monospace; font-size: var(--text-sm);',
-            id: 'playgroundOutput'
-          }, '// Output will appear here');
-          container.appendChild(outputArea);
-          
-          const btnRow = h('div', { style: 'display: flex; gap: var(--space-md); margin-top: var(--space-lg);' });
-          
-          const runBtn = h('button', {
-            className: 'btn btn-primary',
-            onclick: function() {
-              const code = document.getElementById('playgroundCode').value;
-              const output = document.getElementById('playgroundOutput');
-              output.textContent = '';
-              
-              const sandboxConsole = {
-                log: function() { output.textContent += Array.from(arguments).join(' ') + '\n'; },
-                error: function() { output.textContent += '[ERROR] ' + Array.from(arguments).join(' ') + '\n'; },
-                warn: function() { output.textContent += '[WARN] ' + Array.from(arguments).join(' ') + '\n'; }
-              };
-              
-              try {
-                const fn = new Function('console', 'CardSpoke', 'return (async () => {' + code + '})();');
-                fn(sandboxConsole, window.CardSpoke).then(function() {
-                  output.textContent += '\n[OK] Code executed successfully';
-                }).catch(function(err) {
-                  output.textContent += '\n[ERROR] Error: ' + err.message;
-                });
-              } catch (err) {
-                output.textContent = '[ERROR] Syntax Error: ' + err.message;
-              }
-            }
-          }, 'Run Code');
-          btnRow.appendChild(runBtn);
-          
-          const clearBtn = h('button', {
-            className: 'btn',
-            onclick: function() {
-              document.getElementById('playgroundCode').value = '';
-              document.getElementById('playgroundOutput').textContent = '// Output will appear here';
-            }
-          }, 'Clear');
-          btnRow.appendChild(clearBtn);
-          
-          container.appendChild(btnRow);
-        }
-        
-        // Create tabs
         tabs.forEach(function(tab) {
-          const tabBtn = h('button', {
-            className: 'modal-tab' + (activeTab === tab.id ? ' active' : ''),
+          var btn = h('button', {
+            className: 'modal-tab' + (tab.id === initialTab ? ' active' : ''),
             'data-tab': tab.id,
             role: 'tab',
-            'aria-selected': (activeTab === tab.id).toString(),
-            'aria-label': tab.ariaLabel,
             onclick: function() {
-              activeTab = tab.id;
-              // Update tab styles
-              tabContainer.querySelectorAll('.modal-tab').forEach(function(t) {
-                t.classList.remove('active');
-                t.setAttribute('aria-selected', 'false');
-              });
-              this.classList.add('active');
-              this.setAttribute('aria-selected', 'true');
-              renderTabContent();
+              tabBar.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
+              btn.classList.add('active');
+              renderTab(tab.id);
             }
           }, tab.label);
-          tabContainer.appendChild(tabBtn);
+          tabBar.appendChild(btn);
         });
-        
-        modal.appendChild(tabContainer);
-        renderTabContent();
-        
+
+        modal.appendChild(tabBar);
+        modal.appendChild(tabContentArea);
         overlay.appendChild(modal);
+        overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
         document.body.appendChild(overlay);
-        
-        trapFocus(modal);
-        
-        overlay.onclick = function(e) {
-          if (e.target === overlay) overlay.remove();
-        };
-      }
 
-
-
-      /**
-       * Show Data Hub - unified interface for dataset and export management (v0.12.3)
-       * Combines Dataset Manager, Dataset Info, and all export options
-       */
-      function showDataHub() {
-        const overlay = h('div', { className: 'modal-overlay show' });
-        const modal = h('div', { className: 'modal', style: 'max-width: 700px; max-height: 90vh;' });
-        const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Data & Export'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove(), 'aria-label': 'Close' }, '✕');
-        modalHeader.appendChild(closeBtn);
-        modal.appendChild(modalHeader);
-        
-        const modalBody = h('div', { className: 'modal-body', style: 'max-height: calc(90vh - 100px); overflow-y: auto;' });
-        
-        // Dataset Info Section
-        const infoSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
-        infoSection.appendChild(h('div', { 
-          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
-        }, 'Dataset Info'));
-        
-        // Dataset name with rename capability (v0.12.3 fix)
-        const currentDatasetName = ((store.metadata && store.metadata.name) || instanceKey || 'Default').trim();
-        const nameRow = h('div', { 
-          style: 'display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-lg); background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius); border: 1px solid var(--border);'
-        });
-        nameRow.appendChild(h('label', { 
-          style: 'font-weight: 600; min-width: 80px;'
-        }, 'Name:'));
-        const nameInput = h('input', {
-          type: 'text',
-          value: currentDatasetName,
-          id: 'datasetNameInput',
-          style: 'flex: 1; padding: var(--space-sm); border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-primary); color: var(--text-primary);'
-        });
-        nameRow.appendChild(nameInput);
-        const saveNameBtn = h('button', {
-          className: 'btn btn-primary',
-          onclick: function() {
-            const newName = nameInput.value.trim();
-            if (newName && newName !== currentDatasetName.trim()) {
-              if (!store.metadata) store.metadata = {};
-              store.metadata.name = newName;
-              store.metadata.updatedAt = Date.now();
-              save();
-              showToast('Dataset renamed to: ' + newName);
-            }
-          }
-        }, 'Save');
-        nameRow.appendChild(saveNameBtn);
-        infoSection.appendChild(nameRow);
-        
-        const cardCount = Object.keys(store.cards || {}).length;
-        const tagCount = getAllTags().length;
-        const modCount = Object.keys(store.mods || {}).length;
-        const bookmarkCount = (store.bookmarks || []).length;
-        
-        const statsGrid = h('div', { style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-lg);' });
-        
-        const stats = [
-          { label: 'Cards', value: cardCount, icon: '' },
-          { label: 'Tags', value: tagCount, icon: '' },
-          { label: 'Extensions', value: modCount, icon: '' },
-          { label: 'Bookmarks', value: bookmarkCount, icon: '' }
-        ];
-        
-        stats.forEach(function(stat) {
-          const statCard = h('div', {
-            style: 'background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); text-align: center; border: 1px solid var(--border);'
-          });
-          statCard.appendChild(h('div', { style: 'font-size: 24px; margin-bottom: var(--space-xs);' }, stat.icon));
-          statCard.appendChild(h('div', { style: 'font-size: var(--text-2xl); font-weight: 700;' }, String(stat.value)));
-          statCard.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, stat.label));
-          statsGrid.appendChild(statCard);
-        });
-        
-        infoSection.appendChild(statsGrid);
-        
-        // Storage info
-        const storageInfo = h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' });
-        try {
-          const key = instanceKey || 'nested_cards_store';
-          const storeSize = JSON.stringify(store).length;
-          storageInfo.textContent = 'Storage: ~' + Math.round(storeSize / 1024) + ' KB used';
-        } catch(e) {
-          storageInfo.textContent = 'Storage: Unable to calculate';
+        function renderTab(tabId) {
+          tabContentArea.innerHTML = '';
+          if (tabId === 'installed') renderInstalledTab();
+          else if (tabId === 'install') renderInstallTab();
+          else if (tabId === 'create') renderCreateTab();
         }
-        infoSection.appendChild(storageInfo);
-        
-        modalBody.appendChild(infoSection);
-        
-        // Export Section
-        const exportSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
-        exportSection.appendChild(h('div', { 
-          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
-        }, 'Export Data'));
-        
-        const exportOptions = [
-          { id: 'json', label: 'Full Backup (JSON)', desc: 'Complete dataset with all cards and settings', icon: '' },
-          { id: 'txt', label: 'Cards as Text', desc: 'Plain text format for reading', icon: '' },
-          { id: 'markdown', label: 'Cards as Markdown', desc: 'Formatted markdown with headers and tags', icon: '' },
-          { id: 'csv', label: 'Cards as CSV', desc: 'Spreadsheet format for analysis', icon: '' },
-          { id: 'mods', label: 'Extensions Only', desc: 'Export all installed extensions', icon: '' }
-        ];
-        
-        exportOptions.forEach(function(opt) {
-          const exportBtn = h('button', {
-            className: 'btn',
-            style: 'width: 100%; text-align: center; padding: var(--space-lg); margin-bottom: var(--space-sm); border: 1px solid var(--border); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; gap: var(--space-md);',
-            onclick: function() {
-              switch (opt.id) {
-                case 'json':
-                  downloadWithFeedback(JSON.stringify(store, null, 2), 'cardspoke-backup-' + Date.now() + '.json', 'application/json');
-                  break;
-                case 'txt':
-                  const txtContent = Object.values(store.cards || {}).map(function(c) {
-                    return '=== ' + (c.title || '(Untitled)') + ' ===\n' + (c.body || '');
-                  }).join('\n\n');
-                  downloadWithFeedback(txtContent, 'cardspoke-cards-' + Date.now() + '.txt', 'text/plain');
-                  break;
-                case 'markdown':
-                  const mdContent = Object.values(store.cards || {}).map(function(c) {
-                    var md = '# ' + (c.title || '(Untitled)') + '\n';
-                    if (c.tags && c.tags.length) md += 'Tags: ' + c.tags.map(function(t) { return '#' + t; }).join(' ') + '\n';
-                    md += '\n' + (c.body || '');
-                    return md;
-                  }).join('\n\n---\n\n');
-                  downloadWithFeedback(mdContent, 'cardspoke-cards-' + Date.now() + '.md', 'text/markdown');
-                  break;
-                case 'csv':
-                  var csvContent = 'ID,Title,Body,Tags,Parent\n';
-                  Object.values(store.cards || {}).forEach(function(c) {
-                    csvContent += '"' + c.id + '","' + (c.title || '').replace(/"/g, '""') + '","' + (c.body || '').replace(/"/g, '""') + '","' + (c.tags || []).join(';') + '","' + (c.parentId || '') + '"\n';
-                  });
-                  downloadWithFeedback(csvContent, 'cardspoke-cards-' + Date.now() + '.csv', 'text/csv');
-                  break;
-                case 'mods':
-                  downloadWithFeedback(JSON.stringify(store.mods || {}, null, 2), 'cardspoke-extensions-' + Date.now() + '.json', 'application/json');
-                  break;
-              }
-              showToast('Export complete: ' + opt.label);
-            }
-          });
-          exportBtn.appendChild(h('span', { style: 'font-size: 20px;' }, opt.icon));
-          const textDiv = h('div', {});
-          textDiv.appendChild(h('div', { style: 'font-weight: 600;' }, opt.label));
-          textDiv.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, opt.desc));
-          exportBtn.appendChild(textDiv);
-          exportSection.appendChild(exportBtn);
-        });
-        
-        modalBody.appendChild(exportSection);
 
-        // Backups Section (v1.0.0)
-        const backupsSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
-        backupsSection.appendChild(h('div', {
-          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
-        }, 'Manual Backups'));
+        function renderInstalledTab() {
+          var modIds = Object.keys(store.mods || {});
+          if (modIds.length === 0) {
+            tabContentArea.appendChild(h('div', { className: 'empty', style: 'padding: var(--space-xl);' },
+              'No mods installed. Use the Install tab to add mods.'));
+            return;
+          }
 
-        backupsSection.appendChild(h('p', {
-          style: 'margin-bottom: var(--space-lg); color: var(--text-secondary); font-size: var(--text-sm);'
-        }, 'Create timestamped backups of your entire dataset. Backups are downloaded as JSON files that you can restore later.'));
+          modIds.forEach(function(modId) {
+            var pkg = store.mods[modId];
+            var manifest = pkg.manifest || {};
+            var risk = assessModRisk(pkg);
+            var layer = manifest.layer || 'feature';
 
-        const createBackupBtn = h('button', {
-          className: 'btn btn-primary',
-          style: 'width: 100%; padding: var(--space-lg); margin-bottom: var(--space-lg);',
-          onclick: function() {
-            const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
-            const backupName = 'cardspoke-backup-' + timestamp + '.json';
-            const backupData = JSON.stringify(store, null, 2);
-            downloadWithFeedback(backupData, backupName, 'application/json');
-
-            // Store backup record in localStorage
-            const backups = JSON.parse(localStorage.getItem('cardspoke_backups') || '[]');
-            backups.unshift({
-              timestamp: Date.now(),
-              name: backupName,
-              cardCount: Object.keys(store.cards || {}).length,
-              size: Math.round(backupData.length / 1024)
+            var card = h('div', {
+              style: 'border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md); margin-bottom: var(--space-md);'
             });
-            // Keep only last 10 backup records
-            if (backups.length > 10) backups.length = 10;
-            localStorage.setItem('cardspoke_backups', JSON.stringify(backups));
 
-            showToast('Backup created: ' + backupName);
-            // Refresh the modal
-            overlay.remove();
-            setTimeout(() => showDataHub(), 100);
-          }
-        }, 'Create Backup Now');
-        backupsSection.appendChild(createBackupBtn);
+            // Header row with name and toggle
+            var headerRow = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
+            headerRow.appendChild(h('div', { style: 'font-weight: 700; font-size: var(--text-lg);' }, manifest.name || modId));
 
-        // Show recent backups list
-        const backups = JSON.parse(localStorage.getItem('cardspoke_backups') || '[]');
-        if (backups.length > 0) {
-          backupsSection.appendChild(h('div', {
-            style: 'font-weight: 600; margin-bottom: var(--space-sm); font-size: var(--text-sm);'
-          }, 'Recent Backups:'));
-
-          const backupsList = h('div', { style: 'background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius); border: 1px solid var(--border);' });
-          backups.slice(0, 5).forEach(function(backup) {
-            const backupItem = h('div', {
-              style: 'padding: var(--space-sm) 0; border-bottom: 1px solid var(--border); font-size: var(--text-sm);'
-            });
-            const date = new Date(backup.timestamp);
-            backupItem.appendChild(h('div', { style: 'font-weight: 600;' }, backup.name));
-            backupItem.appendChild(h('div', { style: 'color: var(--text-secondary); font-size: 12px;' },
-              date.toLocaleString() + ' • ' + backup.cardCount + ' cards • ' + backup.size + ' KB'
-            ));
-            backupsList.appendChild(backupItem);
-          });
-          backupsSection.appendChild(backupsList);
-        }
-
-        modalBody.appendChild(backupsSection);
-
-        // Cloud Storage Section
-        const cloudSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
-        cloudSection.appendChild(h('div', {
-          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
-        }, 'Cloud Storage Sync'));
-
-        cloudSection.appendChild(h('p', {
-          style: 'margin-bottom: var(--space-lg); color: var(--text-secondary); font-size: var(--text-sm);'
-        }, 'Sync your data across devices using your own cloud storage accounts. Click to connect and create a synced dataset.'));
-
-        // Google Drive button
-        const googleDriveBtn = h('button', {
-          className: 'btn',
-          style: 'width: 100%; padding: var(--space-lg); margin-bottom: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); display: flex; align-items: center; gap: var(--space-md); background: #fff; color: #333;',
-          onclick: async function() {
-            const name = prompt('Enter a name for this dataset:', 'Google Drive Dataset');
-            if (!name) return;
-
-            try {
-              showToast('Connecting to Google Drive...', 'info');
-              const driver = new GoogleDriveDriver();
-              await driver.init({});
-              await driver.ensureAuthenticated();
-              showToast('✓ Connected to Google Drive!', 'success');
-
-              // Store as the active dataset with Google Drive storage type
-              const newKey = 'cardspoke_googledrive_' + Date.now();
-              localStorage.setItem('activeInstance', newKey);
-              instanceKey = newKey;
-              store = {
-                rootOrder: [],
-                cards: {},
-                mods: {},
-                bookmarks: [],
-                recentCards: [],
-                viewMode: 'normal',
-                activeTheme: 'light',
-                metadata: {
-                  name: name,
-                  storageType: 'googledrive',
-                  createdAt: Date.now()
-                }
-              };
-              save();
-              render();
-              overlay.remove();
-              showToast('Dataset created with Google Drive sync!');
-            } catch (error) {
-              showToast('Failed to connect: ' + error.message, 'error');
-            }
-          }
-        });
-        const googleIcon = h('span', { style: 'width: 24px; height: 24px;' });
-        googleIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M12 8v8"></path><path d="M8 12h8"></path></svg>';
-        googleDriveBtn.appendChild(googleIcon);
-        const googleText = h('div', { style: 'flex: 1; text-align: left;' });
-        googleText.appendChild(h('div', { style: 'font-weight: 600;' }, 'Google Drive'));
-        googleText.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, 'Sign in with your Google account'));
-        googleDriveBtn.appendChild(googleText);
-        cloudSection.appendChild(googleDriveBtn);
-
-        // OneDrive button
-        const oneDriveBtn = h('button', {
-          className: 'btn',
-          style: 'width: 100%; padding: var(--space-lg); margin-bottom: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); display: flex; align-items: center; gap: var(--space-md); background: #0078d4; color: #fff;',
-          onclick: async function() {
-            const name = prompt('Enter a name for this dataset:', 'OneDrive Dataset');
-            if (!name) return;
-
-            try {
-              showToast('Connecting to OneDrive...', 'info');
-              const driver = new OneDriveDriver();
-              await driver.init({});
-              await driver.ensureAuthenticated();
-              showToast('✓ Connected to OneDrive!', 'success');
-
-              // Store as the active dataset with OneDrive storage type
-              const newKey = 'cardspoke_onedrive_' + Date.now();
-              localStorage.setItem('activeInstance', newKey);
-              instanceKey = newKey;
-              store = {
-                rootOrder: [],
-                cards: {},
-                mods: {},
-                bookmarks: [],
-                recentCards: [],
-                viewMode: 'normal',
-                activeTheme: 'light',
-                metadata: {
-                  name: name,
-                  storageType: 'onedrive',
-                  createdAt: Date.now()
-                }
-              };
-              save();
-              render();
-              overlay.remove();
-              showToast('Dataset created with OneDrive sync!');
-            } catch (error) {
-              showToast('Failed to connect: ' + error.message, 'error');
-            }
-          }
-        });
-        const onedriveIcon = h('span', { style: 'width: 24px; height: 24px;' });
-        onedriveIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>';
-        oneDriveBtn.appendChild(onedriveIcon);
-        const onedriveText = h('div', { style: 'flex: 1; text-align: left;' });
-        onedriveText.appendChild(h('div', { style: 'font-weight: 600;' }, 'OneDrive'));
-        onedriveText.appendChild(h('div', { style: 'font-size: var(--text-sm); opacity: 0.9;' }, 'Sign in with your Microsoft account'));
-        oneDriveBtn.appendChild(onedriveText);
-        cloudSection.appendChild(oneDriveBtn);
-
-        modalBody.appendChild(cloudSection);
-
-        // WebDAV Helper Section
-        const webdavSection = h('div', { style: 'margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border);' });
-        webdavSection.appendChild(h('div', {
-          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
-        }, 'Self-Hosted Storage (WebDAV)'));
-
-        webdavSection.appendChild(h('p', {
-          style: 'margin-bottom: var(--space-lg); color: var(--text-secondary); font-size: var(--text-sm);'
-        }, 'Connect to your own WebDAV server (Nextcloud, ownCloud, or any WebDAV-compatible storage) to keep your data on infrastructure you control.'));
-
-        // Info box
-        const webdavInfo = h('div', {
-          style: 'background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: var(--space-lg);'
-        });
-
-        webdavInfo.appendChild(h('div', {
-          style: 'font-weight: 600; margin-bottom: var(--space-sm);'
-        }, 'What you\'ll need:'));
-
-        const requirements = [
-          'WebDAV server URL (e.g., https://cloud.example.com/remote.php/webdav/)',
-          'Username for your WebDAV account',
-          'Password or app-specific token',
-          'CORS configured on your server (if using from browser)'
-        ];
-
-        requirements.forEach(function(req) {
-          const item = h('div', {
-            style: 'padding: var(--space-xs) 0; color: var(--text-secondary); font-size: var(--text-sm);'
-          }, '• ' + req);
-          webdavInfo.appendChild(item);
-        });
-
-        webdavSection.appendChild(webdavInfo);
-
-        // CORS warning
-        const corsWarning = h('div', {
-          style: 'background: #fff3cd; border: 1px solid #ffc107; padding: var(--space-md); border-radius: var(--radius); margin-bottom: var(--space-lg); font-size: var(--text-sm);'
-        });
-        corsWarning.appendChild(h('div', {
-          style: 'font-weight: 600; margin-bottom: var(--space-xs);'
-        }, '⚠️ CORS Configuration Required'));
-        corsWarning.appendChild(h('div', {}, 'For browser access, your WebDAV server must allow CORS requests. Add these headers to your server:'));
-        corsWarning.appendChild(h('pre', {
-          style: 'background: rgba(0,0,0,0.1); padding: var(--space-sm); margin-top: var(--space-sm); border-radius: var(--radius); overflow-x: auto; font-size: 12px;'
-        }, 'Access-Control-Allow-Origin: *\nAccess-Control-Allow-Methods: GET, PUT, DELETE\nAccess-Control-Allow-Headers: Authorization, Content-Type'));
-        webdavSection.appendChild(corsWarning);
-
-        // Create WebDAV dataset button
-        const createWebDAVBtn = h('button', {
-          className: 'btn btn-primary',
-          style: 'width: 100%; padding: var(--space-lg);',
-          onclick: function() {
-            overlay.remove();
-            setTimeout(() => showDatasetManager(), 100);
-          }
-        }, '+ Create WebDAV Dataset');
-        webdavSection.appendChild(createWebDAVBtn);
-
-        modalBody.appendChild(webdavSection);
-
-        // Dataset Management Section
-        const manageSection = h('div', {});
-        manageSection.appendChild(h('div', { 
-          style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
-        }, 'Dataset Management'));
-        
-        // Description
-        manageSection.appendChild(h('p', {
-          style: 'margin-bottom: var(--space-lg); color: var(--text-muted); font-size: var(--text-sm);'
-        }, 'Create new datasets to organize different types of content separately, or switch between existing datasets.'));
-        
-        // Create new dataset button
-        const createDatasetBtn = h('button', {
-          className: 'btn btn-primary',
-          style: 'width: 100%; padding: var(--space-lg); margin-bottom: var(--space-lg);',
-          onclick: function() {
-            const newName = prompt('Enter name for new dataset:', 'New Dataset');
-            if (newName && newName.trim()) {
-              // Create a new instance key for the dataset using uid() for better uniqueness
-              const newKey = 'cardspoke_' + uid();
-              // Save current store before switching
-              save(true);
-              // Store the dataset name mapping
-              const datasets = JSON.parse(localStorage.getItem('cardspoke_datasets') || '{}');
-              datasets[newKey] = {
-                name: newName.trim(),
-                createdAt: Date.now()
-              };
-              // Add current dataset if not already tracked
-              if (!datasets[instanceKey]) {
-                datasets[instanceKey] = {
-                  name: (store.metadata && store.metadata.name) || 'Default',
-                  createdAt: Date.now()
-                };
+            var toggleBtn = h('button', {
+              className: 'btn ' + (pkg.enabled ? 'btn-primary' : ''),
+              style: 'font-size: var(--text-sm); padding: var(--space-xs) var(--space-md);',
+              onclick: function() {
+                if (pkg.enabled) CardSpoke_MODS.disable(modId);
+                else CardSpoke_MODS.enable(modId);
+                renderTab('installed');
               }
-              localStorage.setItem('cardspoke_datasets', JSON.stringify(datasets));
-              // Switch to the new dataset
-              instanceKey = newKey;
-              localStorage.setItem('activeInstance', newKey);
-              // Create fresh store for new dataset
-              store = createDefaultStore();
-              store.metadata = { name: newName.trim(), createdAt: Date.now() };
-              save(true);
-              showToast('Created and switched to dataset: ' + newName.trim());
-              overlay.remove();
-              render();
-            }
-          }
-        }, '➕ Create New Dataset');
-        manageSection.appendChild(createDatasetBtn);
-        
-        // List existing datasets
-        const datasets = JSON.parse(localStorage.getItem('cardspoke_datasets') || '{}');
-        // Ensure current dataset is in the list
-        if (!datasets[instanceKey]) {
-          datasets[instanceKey] = {
-            name: (store.metadata && store.metadata.name) || 'Default',
-            createdAt: Date.now()
-          };
-          localStorage.setItem('cardspoke_datasets', JSON.stringify(datasets));
-        }
-        
-        const datasetKeys = Object.keys(datasets);
-        if (datasetKeys.length > 0) {
-          manageSection.appendChild(h('div', {
-            style: 'font-weight: 600; margin-bottom: var(--space-sm); font-size: var(--text-sm);'
-          }, 'Available Datasets:'));
-          
-          const datasetList = h('div', { 
-            style: 'background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: var(--space-lg);' 
-          });
-          
-          datasetKeys.forEach(function(key) {
-            const dataset = datasets[key];
-            const isActive = key === instanceKey;
-            const datasetItem = h('div', {
-              style: 'padding: var(--space-sm); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;' + (isActive ? ' background: var(--bg-tertiary, rgba(0,0,0,0.05));' : '')
-            });
-            
-            const datasetInfo = h('div', {});
-            datasetInfo.appendChild(h('div', { style: 'font-weight: 600;' }, (isActive ? '✓ ' : '') + (dataset.name || key)));
-            if (dataset.createdAt) {
-              datasetInfo.appendChild(h('div', { style: 'font-size: 12px; color: var(--text-muted);' }, 
-                'Created: ' + new Date(dataset.createdAt).toLocaleDateString()));
-            }
-            datasetItem.appendChild(datasetInfo);
-            
-            if (!isActive) {
-              const switchBtn = h('button', {
-                className: 'btn btn-primary',
-                style: 'font-size: var(--text-sm); padding: var(--space-xs) var(--space-md);',
-                onclick: function() {
-                  // Save current store before switching
-                  save(true);
-                  // Switch to the selected dataset
-                  instanceKey = key;
-                  localStorage.setItem('activeInstance', key);
-                  // Load the new store
-                  load();
-                  showToast('Switched to dataset: ' + (dataset.name || key));
-                  overlay.remove();
-                  render();
-                }
-              }, 'Switch');
-              datasetItem.appendChild(switchBtn);
-            }
-            
-            datasetList.appendChild(datasetItem);
-          });
-          
-          manageSection.appendChild(datasetList);
-        }
-        
-        // Rename current dataset button
-        const renameBtn = h('button', {
-          className: 'btn',
-          style: 'margin-right: var(--space-md);',
-          onclick: function() {
-            editDatasetName();
-            overlay.remove();
-          }
-        }, 'Rename Current Dataset');
-        manageSection.appendChild(renameBtn);
-        
-        modalBody.appendChild(manageSection);
-        
-        modal.appendChild(modalBody);
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-        
-        trapFocus(modal);
-        
-        overlay.onclick = function(e) {
-          if (e.target === overlay) overlay.remove();
-        };
-      }
+            }, pkg.enabled ? 'Enabled' : 'Disabled');
+            headerRow.appendChild(toggleBtn);
+            card.appendChild(headerRow);
 
-      function showModsManager() {
-        const overlay = h('div', { className: 'modal-overlay show' });
-        const modal = h('div', { className: 'modal' });
-        const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Extension Manager'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
-        modalHeader.appendChild(closeBtn);
-        modal.appendChild(modalHeader);
-        const modalBody = h('div', { className: 'modal-body' });
-        
-        const modList = Object.entries(store.mods).map(([modId, modData]) => {
-          const meta = modData.meta || {};
-          const modItem = h('div', { style: 'padding: var(--space-lg); border: 1px solid var(--border); margin-bottom: var(--space-md);' });
-          const modHeader = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
-          const headerLeft = h('div', { style: 'display: flex; align-items: center; gap: var(--space-sm);' });
-          headerLeft.appendChild(h('div', { style: 'font-weight: 700;' }, meta.name || modId));
-          // Add type badge if type is specified
-          if (meta.type) {
-            const badgeClass = 'ext-badge ext-' + (meta.type.toLowerCase());
-            const badge = h('span', { className: badgeClass }, meta.type);
-            headerLeft.appendChild(badge);
-          }
-          // Add official/community source badge (v0.12.2)
-          if (meta.source) {
-            const sourceBadge = h('span', { 
-              className: 'ext-badge ext-badge-' + (meta.source === 'official' ? 'official' : 'community')
-            }, meta.source === 'official' ? '✓ Official' : 'Community');
-            headerLeft.appendChild(sourceBadge);
-          }
-          modHeader.appendChild(headerLeft);
-          const toggleBtn = h('button', {
-            className: modData.enabled ? 'btn btn-danger' : 'btn btn-primary',
-            onclick: () => {
-              if (modData.enabled) CardSpoke_MODS.disable(modId);
-              else CardSpoke_MODS.enable(modId);
-              overlay.remove();
-              showModsManager();
+            // Info row
+            var infoRow = h('div', { style: 'display: flex; gap: var(--space-md); font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-sm); flex-wrap: wrap;' });
+            infoRow.appendChild(h('span', {}, 'v' + (manifest.version || '?')));
+            infoRow.appendChild(h('span', {}, 'by ' + (manifest.author || 'Unknown')));
+            infoRow.appendChild(h('span', { style: 'background: var(--bg-secondary, var(--surface)); padding: 2px 8px; border-radius: 10px; text-transform: uppercase; font-size: var(--text-xs); font-weight: 600;' }, layer));
+            infoRow.appendChild(h('span', { style: 'color: ' + risk.color + '; font-weight: 600;' }, risk.icon + ' ' + risk.riskLevel));
+            card.appendChild(infoRow);
+
+            if (manifest.description) {
+              card.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-medium); margin-bottom: var(--space-sm);' }, manifest.description));
             }
-          }, modData.enabled ? 'Disable' : 'Enable');
-          modHeader.appendChild(toggleBtn);
-          modItem.appendChild(modHeader);
-          
-          // *** ADDED: Display new mod metadata ***
-          if (meta.version) {
-            modItem.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, `Version: ${meta.version}`));
-          }
-          if (meta.creator) {
-            modItem.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, `By: ${meta.creator}`));
-          }
-           if (meta.releaseDate) {
-            modItem.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, `Date: ${meta.releaseDate}`));
-          }
-          if (meta.description) {
-            modItem.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); margin-top: var(--space-sm);' }, meta.description));
-          }
-          // Show AI assistants if specified (v0.12.2)
-          if (meta.ai_assistants) {
-            modItem.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); font-style: italic;' }, 
-              'AI: ' + meta.ai_assistants));
-          }
-          
-          const deleteBtn = h('button', {
-            className: 'btn btn-danger',
-            style: 'font-size: var(--text-sm); margin-top: var(--space-md);',
-            onclick: () => {
-              if (confirm(`Delete extension "${meta.name || modId}"?`)) {
-                CardSpoke_MODS.disable(modId);
-                delete store.mods[modId];
-                save();
-                overlay.remove();
-                showModsManager();
+
+            // Action buttons
+            var actions = h('div', { style: 'display: flex; gap: var(--space-sm); flex-wrap: wrap;' });
+
+            actions.appendChild(h('button', {
+              className: 'btn',
+              style: 'font-size: var(--text-xs);',
+              onclick: function() {
+                var json = JSON.stringify(pkg, null, 2);
+                downloadWithFeedback(json, modId + '.json', 'application/json');
+                showToast('Mod exported');
               }
-            }
-          }, 'Delete');
-          modItem.appendChild(deleteBtn);
-          return modItem;
-        });
-        
-        if (modList.length === 0) {
-          modalBody.appendChild(h('div', { className: 'empty' }, 'No extensions installed'));
-        } else {
-          modList.forEach(item => modalBody.appendChild(item));
-        }
-        modal.appendChild(modalBody);
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-      }
+            }, 'Export'));
 
+            actions.appendChild(h('button', {
+              className: 'btn',
+              style: 'font-size: var(--text-xs);',
+              onclick: function() {
+                CardSpoke_MODS.reload(modId);
+                renderTab('installed');
+              }
+            }, 'Reload'));
 
-      /**
-       * Show Extension Wizard
-       * Interactive wizard for creating new extensions
-       */
-      function showExtensionWizard() {
-        const overlay = h('div', { className: 'modal-overlay show' });
-        const modal = h('div', { className: 'modal', style: 'max-width: 700px;' });
-        const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Extension Wizard'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
-        modalHeader.appendChild(closeBtn);
-        modal.appendChild(modalHeader);
-        
-        const modalBody = h('div', { className: 'modal-body' });
-        
-        // Introduction
-        modalBody.appendChild(h('div', { style: 'margin-bottom: var(--space-xl); font-size: var(--text-base);' }, 
-          'Create a new extension using our guided wizard. Choose a type, configure metadata, and get started with a working template.'));
-        
-        // Step 1: Extension Type Selection
-        const typeSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
-        typeSection.appendChild(h('div', { 
-          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
-        }, 'Step 1: Choose Extension Type'));
-        
-        const types = [
-          { value: 'theme', label: 'Theme', desc: 'Custom CSS styling for CardSpoke UI', icon: '' },
-          { value: 'patch', label: 'Patch', desc: 'Small modifications or enhancements', icon: '' },
-          { value: 'plugin', label: 'Plugin', desc: 'Add new functionality with JavaScript hooks', icon: '' },
-          { value: 'mod', label: 'Mod', desc: 'Comprehensive modifications (CSS + JS)', icon: '' },
-          { value: 'kit', label: 'Kit', desc: 'Bundle of related extensions (themes + plugins)', icon: '' },
-          { value: 'expansion', label: 'Expansion', desc: 'Major feature additions and overhauls', icon: '' }
-        ];
-        
-        let selectedType = 'plugin';
-        const typeButtons = [];
-        
-        types.forEach(type => {
-          const btn = h('button', {
-            className: 'wizard-type-btn',
-            style: `
-              display: block;
-              width: 100%;
-              padding: var(--space-lg);
-              margin-bottom: var(--space-sm);
-              border: 2px solid var(--border);
-              background: var(--bg-primary);
-              text-align: left;
-              cursor: pointer;
-              border-radius: 4px;
-              transition: all 0.2s;
-            `,
-            onclick: () => {
-              selectedType = type.value;
-              typeButtons.forEach(b => b.style.borderColor = 'var(--border)');
-              btn.style.borderColor = 'var(--primary)';
-            }
+            actions.appendChild(h('button', {
+              className: 'btn',
+              style: 'font-size: var(--text-xs); color: var(--danger, #ef4444);',
+              onclick: function() {
+                if (confirm('Uninstall mod "' + (manifest.name || modId) + '"?')) {
+                  CardSpoke_MODS.uninstall(modId);
+                  showToast('Mod uninstalled');
+                  renderTab('installed');
+                }
+              }
+            }, 'Uninstall'));
+
+            card.appendChild(actions);
+            tabContentArea.appendChild(card);
           });
-          
-          const header = h('div', { style: 'display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-xs);' });
-          header.appendChild(h('span', { style: 'font-size: 24px;' }, type.icon));
-          header.appendChild(h('span', { style: 'font-weight: 600; font-size: var(--text-lg);' }, type.label));
-          btn.appendChild(header);
-          btn.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); margin-left: 32px;' }, type.desc));
-          
-          if (type.value === selectedType) {
-            btn.style.borderColor = 'var(--primary)';
-          }
-          
-          typeButtons.push(btn);
-          typeSection.appendChild(btn);
-        });
-        
-        modalBody.appendChild(typeSection);
-        
-        // Step 2: Extension Metadata
-        const metaSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
-        metaSection.appendChild(h('div', { 
-          style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);'
-        }, 'Step 2: Extension Details'));
-        
-        const form = h('div', { style: 'display: flex; flex-direction: column; gap: var(--space-lg);' });
-        
-        // Extension Name
-        const nameGroup = h('div', {});
-        nameGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Extension Name *'));
-        const nameInput = h('input', {
-          type: 'text',
-          placeholder: 'My Awesome Extension',
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            font-size: 1rem;
-          `
-        });
-        nameGroup.appendChild(nameInput);
-        form.appendChild(nameGroup);
-        
-        // Extension ID
-        const idGroup = h('div', {});
-        idGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Extension ID *'));
-        idGroup.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-xs);' }, 
-          'Unique identifier (lowercase, no spaces, e.g., "my-extension")'));
-        const idInput = h('input', {
-          type: 'text',
-          placeholder: 'my-extension',
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            font-size: 1rem;
-          `
-        });
-        idGroup.appendChild(idInput);
-        form.appendChild(idGroup);
-        
-        // Creator Name
-        const creatorGroup = h('div', {});
-        creatorGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Your Name'));
-        const creatorInput = h('input', {
-          type: 'text',
-          placeholder: 'Your Name',
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            font-size: 1rem;
-          `
-        });
-        creatorGroup.appendChild(creatorInput);
-        form.appendChild(creatorGroup);
-        
-        // Description
-        const descGroup = h('div', {});
-        descGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Description'));
-        const descInput = h('textarea', {
-          placeholder: 'Brief description of what your extension does...',
-          rows: 3,
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            font-size: 1rem;
-            resize: vertical;
-          `
-        });
-        descGroup.appendChild(descInput);
-        form.appendChild(descGroup);
-        
-        // AI Assistants Field (v0.12.2 - Spec Compliance §2.5)
-        const aiGroup = h('div', {});
-        aiGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'AI Assistants Used (Optional)'));
-        aiGroup.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-xs);' }, 
-          'List any AI tools used to create this extension (e.g., "GitHub Copilot, ChatGPT")'));
-        const aiInput = h('input', {
-          type: 'text',
-          placeholder: 'e.g., GitHub Copilot, ChatGPT',
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            font-size: 1rem;
-          `
-        });
-        aiGroup.appendChild(aiInput);
-        form.appendChild(aiGroup);
-        
-        // Official/Community Toggle (v0.12.2 - Spec Compliance §2.5)
-        const sourceGroup = h('div', { style: 'margin-top: var(--space-md);' });
-        const sourceLabel = h('label', { 
-          style: 'display: flex; align-items: center; gap: var(--space-sm); cursor: pointer;'
-        });
-        const sourceCheck = h('input', { type: 'checkbox' });
-        sourceLabel.appendChild(sourceCheck);
-        sourceLabel.appendChild(document.createTextNode('This is an official CardSpoke extension'));
-        sourceGroup.appendChild(sourceLabel);
-        sourceGroup.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-left: 24px;' }, 
-          'Check if this extension is from the CardSpoke team (leave unchecked for community extensions)'));
-        form.appendChild(sourceGroup);
-        
-        metaSection.appendChild(form);
-        modalBody.appendChild(metaSection);
-        
-        // Action Buttons
-        const actions = h('div', { style: 'display: flex; gap: var(--space-md); justify-content: flex-end; margin-top: var(--space-xl);' });
-        
-        const cancelBtn = h('button', {
-          className: 'btn',
-          onclick: () => overlay.remove()
-        }, 'Cancel');
-        
-        const generateBtn = h('button', {
-          className: 'btn btn-primary',
-          onclick: () => {
-            const name = nameInput.value.trim();
-            const id = idInput.value.trim();
-            const creator = creatorInput.value.trim() || 'Anonymous';
-            const description = descInput.value.trim();
-            const aiAssistants = aiInput.value.trim();
-            const isOfficial = sourceCheck.checked;
-            
-            if (!name) {
-              showToast('Please enter an extension name', 'error');
-              return;
-            }
-            if (!id) {
-              showToast('Please enter an extension ID', 'error');
-              return;
-            }
-            if (!/^[a-z0-9-]+$/.test(id)) {
-              showToast('Extension ID must be lowercase letters, numbers, and hyphens only', 'error');
-              return;
-            }
-            if (store.mods[id]) {
-              showToast('An extension with this ID already exists', 'error');
-              return;
-            }
-            
-            generateExtensionTemplate(id, name, creator, description, selectedType, overlay, aiAssistants, isOfficial);
-          }
-        }, 'Generate Extension');
-        
-        actions.appendChild(cancelBtn);
-        actions.appendChild(generateBtn);
-        modalBody.appendChild(actions);
-        
-        modal.appendChild(modalBody);
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-      }
-      
-      /**
-       * Generate extension template code
-       */
-      function generateExtensionTemplate(id, name, creator, description, type, wizardOverlay, aiAssistants = '', isOfficial = false) {
-        const today = new Date().toISOString().split('T')[0];
-        
-        // Generate JavaScript template based on type
-        let jsTemplate = '';
-        
-        if (type === 'theme') {
-          jsTemplate = `// ${name} - Theme Extension
-// Created: ${today}
-
-(function() {
-  'use strict';
-  
-  // Theme extensions primarily use CSS
-  // This file can be left minimal or used for dynamic theme switching
-  
-  CardSpoke_MODS.register('${id}', {
-    meta: {
-      name: '${name}',
-      type: 'Theme',
-      creator: '${creator}',
-      version: '1.0.0',
-      releaseDate: '${today}',
-      description: '${description || 'A custom theme for CardSpoke'}',
-      source: '${isOfficial ? 'official' : 'community'}',
-      ai_assistants: '${aiAssistants || ''}'
-    },
-    onAppInit(ctx) {
-      console.log('[${id}] Theme loaded');
-    }
-  });
-})();`;
-        } else if (type === 'patch') {
-          jsTemplate = `// ${name} - Patch Extension
-// Created: ${today}
-
-(function() {
-  'use strict';
-  
-  CardSpoke_MODS.register('${id}', {
-    meta: {
-      name: '${name}',
-      type: 'Patch',
-      creator: '${creator}',
-      version: '1.0.0',
-      releaseDate: '${today}',
-      description: '${description || 'A small enhancement to CardSpoke'}',
-      source: '${isOfficial ? 'official' : 'community'}',
-      ai_assistants: '${aiAssistants || ''}'
-    },
-    onAppInit(ctx) {
-      console.log('[${id}] Patch loaded');
-      // Add your initialization code here
-    },
-    onCardRender(ctx, card, element) {
-      // Called when a card is rendered
-      // Modify the element or card display here
-    }
-  });
-})();`;
-        } else {
-          // Plugin, Mod, or Expansion
-          jsTemplate = `// ${name} - ${type.charAt(0).toUpperCase() + type.slice(1)} Extension
-// Created: ${today}
-
-(function() {
-  'use strict';
-  
-  CardSpoke_MODS.register('${id}', {
-    meta: {
-      name: '${name}',
-      type: '${type.charAt(0).toUpperCase() + type.slice(1)}',
-      creator: '${creator}',
-      version: '1.0.0',
-      releaseDate: '${today}',
-      description: '${description || 'A custom extension for CardSpoke'}',
-      source: '${isOfficial ? 'official' : 'community'}',
-      ai_assistants: '${aiAssistants || ''}'
-    },
-    onAppInit(ctx) {
-      console.log('[${id}] Extension loaded');
-      console.log('App Version:', ctx.appVersion);
-      console.log('Available API:', ctx.api);
-      
-      // Example: Use CardSpoke.utils API
-      // const meta = await CardSpoke.utils.getDatasetMeta();
-      // console.log('Dataset info:', meta);
-    },
-    onCardSave(ctx, card, changes) {
-      // Called when a card is saved
-      // console.log('[${id}] Card saved:', card.id);
-    },
-    onCardDelete(ctx, card) {
-      // Called when a card is deleted
-      // console.log('[${id}] Card deleted:', card.id);
-    },
-    onCardRender(ctx, card, element) {
-      // Called when a card is rendered
-      // Modify the element appearance or add interactivity
-    }
-  });
-})();`;
         }
-        
-        // Generate CSS template
-        let cssTemplate = `/* ${name} - Styles */
-/* Created: ${today} */
 
-/* Add your custom styles here */
-/* Example:
-.card {
-  border-color: #your-color;
-}
-*/
-`;
-        
-        // Show generated code in a new modal
-        if (wizardOverlay) wizardOverlay.remove();
-        
-        const overlay = h('div', { className: 'modal-overlay show' });
-        const modal = h('div', { className: 'modal', style: 'max-width: 900px;' });
-        const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, `Extension Generated: ${name}`));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
-        modalHeader.appendChild(closeBtn);
-        modal.appendChild(modalHeader);
-        
-        const modalBody = h('div', { className: 'modal-body' });
-        
-        modalBody.appendChild(h('div', { style: 'margin-bottom: var(--space-lg); color: var(--text-muted);' }, 
-          'Your extension template has been generated! You can now install it directly or download the code to customize further.'));
-        
-        // JavaScript Code
-        modalBody.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-sm);' }, 'JavaScript Code:'));
-        const jsCodeArea = h('textarea', {
-          readonly: true,
-          rows: 15,
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            font-family: monospace;
-            font-size: 0.875rem;
-            margin-bottom: var(--space-lg);
-            resize: vertical;
-          `
-        }, jsTemplate);
-        modalBody.appendChild(jsCodeArea);
-        
-        // CSS Code
-        modalBody.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-sm);' }, 'CSS Code (Optional):'));
-        const cssCodeArea = h('textarea', {
-          readonly: true,
-          rows: 8,
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            font-family: monospace;
-            font-size: 0.875rem;
-            margin-bottom: var(--space-lg);
-            resize: vertical;
-          `
-        }, cssTemplate);
-        modalBody.appendChild(cssCodeArea);
-        
-        // Actions
-        const actions = h('div', { style: 'display: flex; gap: var(--space-md); justify-content: flex-end;' });
-        
-        const downloadBtn = h('button', {
-          className: 'btn',
-          onclick: () => {
-            const content = JSON.stringify({
-              id,
-              meta: {
-                name,
-                type: type.charAt(0).toUpperCase() + type.slice(1),
-                creator,
-                version: '1.0.0',
-                releaseDate: today,
-                description: description || `A custom ${type} for CardSpoke`,
-                source: isOfficial ? 'official' : 'community',
-                ai_assistants: aiAssistants || ''
-              },
-              js: jsTemplate,
-              css: cssTemplate,
-              enabled: false
-            }, null, 2);
-            
-            const blob = new Blob([content], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${id}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            showToast('Extension downloaded!', 'success');
-          }
-        }, 'Download JSON');
-        
-        const installBtn = h('button', {
-          className: 'btn btn-primary',
-          onclick: () => {
-            store.mods[id] = {
-              meta: {
-                name,
-                type: type.charAt(0).toUpperCase() + type.slice(1),
-                creator,
-                version: '1.0.0',
-                releaseDate: today,
-                description: description || `A custom ${type} for CardSpoke`,
-                source: isOfficial ? 'official' : 'community',
-                ai_assistants: aiAssistants || ''
-              },
-              js: jsTemplate,
-              css: cssTemplate,
-              enabled: false
+        function renderInstallTab() {
+          // File upload
+          var uploadSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
+          uploadSection.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md);' }, 'Install from File'));
+
+          var fileInput = h('input', { type: 'file', accept: '.json', style: 'display: none;' });
+          var uploadArea = h('div', {
+            className: 'file-upload-area',
+            style: 'cursor: pointer; padding: var(--space-xl); text-align: center; border: 2px dashed var(--border); border-radius: var(--radius);',
+            onclick: function() { fileInput.click(); }
+          });
+          uploadArea.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, 'Click to select a mod JSON file'));
+          uploadArea.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, 'Or drag & drop a .json mod package'));
+
+          fileInput.onchange = function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+              try {
+                var pkg = JSON.parse(ev.target.result);
+                var validation = validateModPackage(pkg);
+                if (!validation.valid) {
+                  showToast('Invalid mod: ' + validation.errors.join(', '), 'error');
+                  return;
+                }
+                var risk = assessModRisk(pkg);
+                var msg = 'Install mod "' + (pkg.manifest.name || pkg.id) + '"?\n\n';
+                msg += 'Layer: ' + pkg.manifest.layer + '\n';
+                msg += 'Risk: ' + risk.riskLevel + '\n';
+                if (risk.permissions.length) msg += '\nPermissions:\n- ' + risk.permissions.join('\n- ');
+                if (risk.risks.length) msg += '\n\nWarnings:\n- ' + risk.risks.join('\n- ');
+                if (confirm(msg)) {
+                  CardSpoke_MODS.install(pkg, true);
+                  renderTab('installed');
+                  // Switch to installed tab
+                  tabBar.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
+                  tabBar.querySelector('[data-tab="installed"]').classList.add('active');
+                }
+              } catch (err) {
+                showToast('Failed to parse mod file: ' + err.message, 'error');
+              }
             };
-            
-            save();
-            overlay.remove();
-            showToast(`Extension "${name}" installed! Enable it in the Extensions Manager.`, 'success');
-          }
-        }, 'Install Extension');
-        
-        actions.appendChild(downloadBtn);
-        actions.appendChild(installBtn);
-        modalBody.appendChild(actions);
-        
-        modal.appendChild(modalBody);
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-      }
+            reader.readAsText(file);
+          };
 
+          uploadSection.appendChild(uploadArea);
+          uploadSection.appendChild(fileInput);
+          tabContentArea.appendChild(uploadSection);
 
-      /**
-       * Show Extension Playground
-       * Sandboxed environment for testing extension code
-       */
-      function showPlayground() {
-        const overlay = h('div', { className: 'modal-overlay show' });
-        const modal = h('div', { className: 'modal', style: 'max-width: 1200px; max-height: 90vh;' });
-        const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Extension Playground'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
-        modalHeader.appendChild(closeBtn);
-        modal.appendChild(modalHeader);
-        
-        const modalBody = h('div', { className: 'modal-body', style: 'padding: 0; display: flex; flex-direction: column; height: calc(90vh - 60px);' });
-        
-        // Toolbar
-        const toolbar = h('div', { 
-          style: `
-            padding: var(--space-md);
-            border-bottom: 1px solid var(--border);
-            background: var(--bg-secondary);
-            display: flex;
-            gap: var(--space-md);
-            align-items: center;
-          `
-        });
-        
-        const runBtn = h('button', {
-          className: 'btn btn-primary',
-          style: 'font-weight: 600;',
-          onclick: () => runPlaygroundCode()
-        }, 'Run Code');
-        
-        const clearBtn = h('button', {
-          className: 'btn',
-          onclick: () => {
-            if (confirm('Clear all code and console output?')) {
-              playgroundEditor.value = getPlaygroundTemplate();
-              playgroundConsole.innerHTML = '';
+          // Paste JSON
+          var pasteSection = h('div', {});
+          pasteSection.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md);' }, 'Install from JSON'));
+          pasteSection.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); margin-bottom: var(--space-sm);' },
+            'Paste a complete mod JSON package below:'));
+
+          var textarea = h('textarea', {
+            className: 'form-textarea',
+            style: 'width: 100%; min-height: 200px; font-family: monospace; font-size: var(--text-sm);',
+            placeholder: '{\n  "id": "my-mod",\n  "manifest": {\n    "name": "My Mod",\n    "version": "1.0.0",\n    "author": "You",\n    "layer": "theme"\n  },\n  "css": "",\n  "js": "",\n  "enabled": false\n}'
+          });
+          pasteSection.appendChild(textarea);
+
+          pasteSection.appendChild(h('button', {
+            className: 'btn btn-primary',
+            style: 'margin-top: var(--space-md);',
+            onclick: function() {
+              try {
+                var pkg = JSON.parse(textarea.value);
+                var validation = validateModPackage(pkg);
+                if (!validation.valid) {
+                  showToast('Invalid mod: ' + validation.errors.join(', '), 'error');
+                  return;
+                }
+                CardSpoke_MODS.install(pkg, true);
+                renderTab('installed');
+                tabBar.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
+                tabBar.querySelector('[data-tab="installed"]').classList.add('active');
+              } catch (err) {
+                showToast('Invalid JSON: ' + err.message, 'error');
+              }
             }
-          }
-        }, 'Clear');
-        
-        const templateBtn = h('button', {
-          className: 'btn',
-          onclick: () => {
-            playgroundEditor.value = getPlaygroundTemplate();
-            showToast('Template loaded', 'info');
-          }
-        }, 'Load Template');
-        
-        toolbar.appendChild(runBtn);
-        toolbar.appendChild(clearBtn);
-        toolbar.appendChild(templateBtn);
-        toolbar.appendChild(h('div', { style: 'flex: 1;' })); // Spacer
-        toolbar.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, 
-          'Tip: Use CardSpoke.utils API for safe data access'));
-        
-        modalBody.appendChild(toolbar);
-        
-        // Split view: Editor (left) and Console (right)
-        const splitView = h('div', { 
-          style: `
-            flex: 1;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1px;
-            background: var(--border);
-            overflow: hidden;
-          `
-        });
-        
-        // Editor Panel
-        const editorPanel = h('div', { 
-          style: `
-            background: var(--bg-primary);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-          `
-        });
-        
-        editorPanel.appendChild(h('div', { 
-          style: `
-            padding: var(--space-sm) var(--space-md);
-            background: var(--bg-secondary);
-            font-weight: 600;
-            border-bottom: 1px solid var(--border);
-          `
-        }, 'JavaScript Editor'));
-        
-        const playgroundEditor = h('textarea', {
-          id: 'playgroundEditor',
-          placeholder: 'Write your extension code here...',
-          style: `
-            flex: 1;
-            padding: var(--space-md);
-            border: none;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            font-family: 'Courier New', monospace;
-            font-size: 0.875rem;
-            line-height: 1.5;
-            resize: none;
-            overflow: auto;
-          `
-        }, getPlaygroundTemplate());
-        
-        editorPanel.appendChild(playgroundEditor);
-        splitView.appendChild(editorPanel);
-        
-        // Console Panel
-        const consolePanel = h('div', { 
-          style: `
-            background: var(--bg-primary);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-          `
-        });
-        
-        consolePanel.appendChild(h('div', { 
-          style: `
-            padding: var(--space-sm) var(--space-md);
-            background: var(--bg-secondary);
-            font-weight: 600;
-            border-bottom: 1px solid var(--border);
-          `
-        }, 'Console Output'));
-        
-        const playgroundConsole = h('div', {
-          id: 'playgroundConsole',
-          style: `
-            flex: 1;
-            padding: var(--space-md);
-            overflow: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 0.875rem;
-            line-height: 1.6;
-          `
-        });
-        
-        playgroundConsole.appendChild(h('div', { style: 'color: var(--text-muted);' }, 
-          '→ Console ready. Click "Run Code" to execute your code.'));
-        
-        consolePanel.appendChild(playgroundConsole);
-        splitView.appendChild(consolePanel);
-        
-        modalBody.appendChild(splitView);
-        
-        // Function to run playground code
-        function runPlaygroundCode() {
-          const code = playgroundEditor.value;
-          playgroundConsole.innerHTML = '';
-          
-          const logEntry = (message, type = 'info') => {
-            const color = {
-              info: 'var(--text-primary)',
-              success: '#4caf50',
-              warning: '#ff9800',
-              error: '#f44336'
-            }[type];
-            
-            const entry = h('div', { 
-              style: `color: ${color}; margin-bottom: var(--space-xs); border-left: 3px solid ${color}; padding-left: var(--space-sm);` 
-            }, message);
-            playgroundConsole.appendChild(entry);
-          };
-          
-          // Create sandboxed console
-          const sandboxConsole = {
-            log: (...args) => logEntry(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' '), 'info'),
-            error: (...args) => logEntry('ERROR: ' + args.map(a => String(a)).join(' '), 'error'),
-            warn: (...args) => logEntry('WARNING: ' + args.map(a => String(a)).join(' '), 'warning'),
-            info: (...args) => logEntry('INFO: ' + args.map(a => String(a)).join(' '), 'info')
-          };
-          
-          logEntry('→ Executing code...', 'info');
-          
-          try {
-            // Use Function constructor to avoid eval and restrict scope
-            const fn = new Function('console', 'CardSpoke', `
-              "use strict";
-              return (async () => {
-                ${code}
-              })();
-            `);
-
-            fn(sandboxConsole, window.CardSpoke).then(() => {
-              logEntry('✓ Code execution completed', 'success');
-            }).catch(err => {
-              logEntry('Async error: ' + err.message, 'error');
-              console.error('[Playground]', err);
-            });
-            
-          } catch (err) {
-            logEntry('Execution error: ' + err.message, 'error');
-            console.error('[Playground]', err);
-          }
+          }, 'Install Mod'));
+          tabContentArea.appendChild(pasteSection);
         }
-        
-        // Store references for button handlers (namespaced to avoid global pollution)
-        window.CardSpoke = window.CardSpoke || {};
-        window.CardSpoke.playground = { editor: playgroundEditor, console: playgroundConsole, runCode: runPlaygroundCode };
-        
-        modal.appendChild(modalBody);
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-      }
-      
-      /**
-       * Get playground code template
-       */
-      function getPlaygroundTemplate() {
-        return `// Extension Playground
-// Test your extension code here in a safe environment
 
-// Example 1: Use CardSpoke.utils API to get dataset info
-const meta = await CardSpoke.utils.getDatasetMeta();
-console.log('Dataset:', meta.name);
-console.log('Total cards:', meta.cardCount);
+        function renderCreateTab() {
+          var form = h('div', {});
+          form.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md);' }, 'Create a New Mod'));
+          form.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); margin-bottom: var(--space-lg);' },
+            'Fill in the details below to create a new mod package.'));
 
-// Example 2: Create a new card
-const result = await CardSpoke.utils.createCard({
-  title: 'Test Card from Playground',
-  body: 'This card was created in the playground!',
-  tags: ['playground', 'test']
-});
-console.log('Created card:', result.id);
+          function createField(label, type, id, placeholder, required) {
+            var group = h('div', { className: 'form-group', style: 'margin-bottom: var(--space-md);' });
+            group.appendChild(h('label', { className: 'form-label' }, label + (required ? ' *' : '')));
+            var input = h('input', { type: type, id: 'create-mod-' + id, className: 'form-input', placeholder: placeholder || '' });
+            group.appendChild(input);
+            return group;
+          }
 
-// Example 3: Search for cards
-const searchResults = await CardSpoke.utils.searchCards('test');
-console.log('Found', searchResults.length, 'cards matching "test"');
+          form.appendChild(createField('Mod ID', 'text', 'id', 'my-custom-mod', true));
+          form.appendChild(createField('Name', 'text', 'name', 'My Custom Mod', true));
+          form.appendChild(createField('Author', 'text', 'author', 'Your Name', true));
+          form.appendChild(createField('Version', 'text', 'version', '1.0.0', false));
+          form.appendChild(createField('Description', 'text', 'description', 'What does this mod do?', false));
 
-// Example 4: Get all tags
-const allTags = await CardSpoke.utils.getAllTags();
-console.log('All tags:', allTags);
+          // Layer selection
+          var layerGroup = h('div', { className: 'form-group', style: 'margin-bottom: var(--space-md);' });
+          layerGroup.appendChild(h('label', { className: 'form-label' }, 'Layer *'));
+          var layerSelect = h('select', { id: 'create-mod-layer', className: 'form-select' });
+          layerSelect.appendChild(h('option', { value: 'theme' }, 'Theme - CSS only, visual changes'));
+          layerSelect.appendChild(h('option', { value: 'feature', selected: true }, 'Feature - CSS + JS, adds functionality'));
+          layerSelect.appendChild(h('option', { value: 'app' }, 'App - Full app transformation'));
+          layerGroup.appendChild(layerSelect);
+          form.appendChild(layerGroup);
 
-// Example 5: Show a toast notification
-await CardSpoke.utils.showToast('Playground code executed!', 'success');
+          // CSS textarea
+          var cssGroup = h('div', { className: 'form-group', style: 'margin-bottom: var(--space-md);' });
+          cssGroup.appendChild(h('label', { className: 'form-label' }, 'CSS'));
+          cssGroup.appendChild(h('textarea', {
+            id: 'create-mod-css',
+            className: 'form-textarea',
+            style: 'width: 100%; min-height: 100px; font-family: monospace; font-size: var(--text-sm);',
+            placeholder: '/* Custom styles */\n.my-class { color: red; }'
+          }));
+          form.appendChild(cssGroup);
 
-console.log('✓ All examples completed!');
-`;
+          // JS textarea
+          var jsGroup = h('div', { className: 'form-group', style: 'margin-bottom: var(--space-md);' });
+          jsGroup.appendChild(h('label', { className: 'form-label' }, 'JavaScript'));
+          jsGroup.appendChild(h('textarea', {
+            id: 'create-mod-js',
+            className: 'form-textarea',
+            style: 'width: 100%; min-height: 150px; font-family: monospace; font-size: var(--text-sm);',
+            placeholder: '(function() {\n  CardSpoke_MODS.register(\'my-mod\', {\n    onLoad: function(ctx) {\n      ctx.logger.log(\'Mod loaded!\');\n    }\n  });\n})();'
+          }));
+          form.appendChild(jsGroup);
+
+          // Create button
+          form.appendChild(h('button', {
+            className: 'btn btn-primary',
+            onclick: function() {
+              var id = (document.getElementById('create-mod-id').value || '').trim();
+              var name = (document.getElementById('create-mod-name').value || '').trim();
+              var author = (document.getElementById('create-mod-author').value || '').trim();
+              var version = (document.getElementById('create-mod-version').value || '1.0.0').trim();
+              var description = (document.getElementById('create-mod-description').value || '').trim();
+              var layer = document.getElementById('create-mod-layer').value;
+              var css = (document.getElementById('create-mod-css').value || '').trim();
+              var js = (document.getElementById('create-mod-js').value || '').trim();
+
+              if (!id) { showToast('Mod ID is required', 'error'); return; }
+              if (!name) { showToast('Mod name is required', 'error'); return; }
+              if (!author) { showToast('Author is required', 'error'); return; }
+              if (!/^[a-z0-9-]+$/.test(id)) { showToast('ID must be lowercase letters, numbers, and hyphens', 'error'); return; }
+              if (store.mods[id]) { showToast('A mod with this ID already exists', 'error'); return; }
+              if (layer === 'theme' && js) { showToast('Theme mods cannot contain JavaScript', 'error'); return; }
+
+              var pkg = {
+                id: id,
+                manifest: {
+                  name: name,
+                  version: version,
+                  author: author,
+                  description: description,
+                  layer: layer,
+                  compatibility: '>=' + APP_VERSION
+                },
+                config: {},
+                css: css,
+                js: js,
+                overrides: {},
+                enabled: false
+              };
+
+              CardSpoke_MODS.install(pkg, false);
+              showToast('Mod created: ' + name);
+              renderTab('installed');
+              tabBar.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
+              tabBar.querySelector('[data-tab="installed"]').classList.add('active');
+            }
+          }, 'Create Mod'));
+
+          tabContentArea.appendChild(form);
+        }
+
+        renderTab(initialTab);
       }
 
       function showAppearanceSettings() {
@@ -3127,29 +1687,30 @@ console.log('✓ All examples completed!');
         
         modalBody.appendChild(modeSection);
         
-        // Theme Extensions Section
+        // Theme Mods Section
         const themeSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
-        themeSection.appendChild(h('div', { 
+        themeSection.appendChild(h('div', {
           style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
-        }, 'Theme Extensions'));
-        
-        // Custom themes from extensions
+        }, 'Theme Mods'));
+
+        // Custom themes from mods
         const themeExtensions = Object.entries(store.mods || {}).filter(function([modId, mod]) {
-          return mod.meta && mod.meta.type === 'Theme';
+          var manifest = mod.manifest || mod.meta || {};
+          return manifest.layer === 'theme' || (manifest.type && manifest.type === 'Theme');
         }).map(function([modId, mod]) {
-          // Create new object with modId as the canonical id (modId is the key from store.mods)
-          return { meta: mod.meta, enabled: mod.enabled, js: mod.js, css: mod.css, id: modId };
+          var manifest = mod.manifest || mod.meta || {};
+          return { manifest: manifest, meta: manifest, enabled: mod.enabled, css: mod.css, id: modId };
         });
-        
-        // Get active theme extension ID
-        const activeThemeExtension = localStorage.getItem('cardspoke_activeThemeExtension') || null;
+
+        // Get active theme mod ID
+        const activeThemeExtension = localStorage.getItem('cardspoke_activeThemeMod') || null;
         
         if (themeExtensions.length > 0) {
           // Default Theme option (no extension)
           const defaultThemeOption = h('div', {
             style: 'padding: var(--space-md); border: 2px solid ' + (!activeThemeExtension ? 'var(--text)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer;',
             onclick: function() {
-              localStorage.removeItem('cardspoke_activeThemeExtension');
+              localStorage.removeItem('cardspoke_activeThemeMod');
               document.documentElement.className = document.documentElement.className
                 .split(' ')
                 .filter(c => !c.startsWith('theme-ext-'))
@@ -3173,24 +1734,24 @@ console.log('✓ All examples completed!');
                   CardSpoke_MODS.enable(theme.id);
                 }
                 // Apply the theme extension (preserves current Light/Dark mode)
-                localStorage.setItem('cardspoke_activeThemeExtension', theme.id);
+                localStorage.setItem('cardspoke_activeThemeMod', theme.id);
                 // Remove all other theme extension classes and add this one
                 document.documentElement.className = document.documentElement.className
                   .split(' ')
                   .filter(c => !c.startsWith('theme-ext-'))
                   .join(' ');
                 document.documentElement.classList.add('theme-ext-' + theme.id);
-                showToast('Theme applied: ' + (theme.meta.name || theme.id));
+                showToast('Theme applied: ' + (theme.manifest.name || theme.id));
                 overlay.remove();
                 showAppearanceSettings();
               }
             });
             
             const themeInfo = h('div', {});
-            themeInfo.appendChild(h('div', { style: 'font-weight: 600;' }, (isActive ? '✓ ' : '') + (theme.meta.name || theme.id)));
-            themeInfo.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, 'By ' + (theme.meta.creator || 'Unknown')));
-            if (theme.meta.description) {
-              themeInfo.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-top: var(--space-xs);' }, theme.meta.description));
+            themeInfo.appendChild(h('div', { style: 'font-weight: 600;' }, (isActive ? '✓ ' : '') + (theme.manifest.name || theme.id)));
+            themeInfo.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, 'By ' + (theme.manifest.author || theme.manifest.creator || 'Unknown')));
+            if (theme.manifest.description) {
+              themeInfo.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-top: var(--space-xs);' }, theme.manifest.description));
             }
             themeOption.appendChild(themeInfo);
             
@@ -3207,7 +1768,7 @@ console.log('✓ All examples completed!');
             style: 'padding: var(--space-lg); background: var(--bg-secondary); border-radius: 4px; text-align: center; color: var(--text-muted);'
           },
             h('div', { style: 'margin-bottom: var(--space-sm);' }, 'No custom themes installed'),
-            h('div', { style: 'font-size: var(--text-sm);' }, 'Install theme extensions from the Extensions Hub')
+            h('div', { style: 'font-size: var(--text-sm);' }, 'Install theme mods from the Mod Manager')
           ));
         }
         

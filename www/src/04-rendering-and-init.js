@@ -1056,9 +1056,9 @@
         uploadModal.overlay.classList.add('show');
       };
 
-      menu.extensionsHub.onclick = () => {
+      menu.modManager.onclick = () => {
         menu.overlay.classList.remove('show');
-        showExtensionsHub('installed');
+        showModManager('installed');
       };
 
       if (menu.tagManager) {
@@ -1305,10 +1305,10 @@
               };
               save();
 
-              // If extension is enabled, sync it immediately
-              if (modData.enabled && window.CardSpoke?.mods) {
+              // If mod is enabled, sync it immediately
+              if (modData.enabled && window.CardSpoke && window.CardSpoke.mods) {
                 window.CardSpoke.mods.syncFromStore();
-                window.CardSpoke.mods.runHook('onAppInit');
+                window.CardSpoke.mods.runHook('onLoad');
               }
 
               showToast('Mod installed: ' + (modData.meta.name || modId));
