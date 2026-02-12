@@ -7,7 +7,7 @@ A Deviation is any fork or derivative build of CardSpoke. Use this guide to stay
 - Provide prominent credit to CardSpoke and JX Holdings, LLC in your README and about screens.
 
 ## Mandatory Metadata
-Include the required metadata block for Deviations (see [Extensions Developer Guide](../extensions/DEVELOPER_GUIDE.md)) with `type: "Deviation"`.
+Include the required metadata block for Deviations (see [Mod System](../MOD_SYSTEM.md)) with the appropriate manifest fields.
 
 ## Licenses & Attribution
 - CardSpoke core is licensed under an ISC-style license with branding restrictions (see [LICENSE](../../LICENSE)).
@@ -29,5 +29,5 @@ Include the required metadata block for Deviations (see [Extensions Developer Gu
 
 ## Open Items
 - [PLACEHOLDER] Required notice template for about pages and splash screens.
-- [PLACEHOLDER] Checklist for validating Deviation compatibility with popular Extensions.
+- [PLACEHOLDER] Checklist for validating Deviation compatibility with popular mods.
 

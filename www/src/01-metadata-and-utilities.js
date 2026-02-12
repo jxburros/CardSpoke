@@ -206,21 +206,23 @@ function setRichTextEnabled(enabled) {
 }
 
 /**
- * Get the active theme extension ID (if any)
+ * Get the active theme mod ID (if any)
  */
-function getActiveThemeExtension() {
-  return localStorage.getItem('cardspoke_activeThemeExtension') || null;
+function getActiveThemeMod() {
+  return localStorage.getItem('cardspoke_activeThemeMod') || localStorage.getItem('cardspoke_activeThemeExtension') || null;
 }
 
 /**
- * Set the active theme extension
+ * Set the active theme mod
  */
-function setActiveThemeExtension(extensionId) {
-  if (extensionId) {
-    localStorage.setItem('cardspoke_activeThemeExtension', extensionId);
+function setActiveThemeMod(modId) {
+  if (modId) {
+    localStorage.setItem('cardspoke_activeThemeMod', modId);
   } else {
-    localStorage.removeItem('cardspoke_activeThemeExtension');
+    localStorage.removeItem('cardspoke_activeThemeMod');
   }
+  // Clean up legacy key
+  localStorage.removeItem('cardspoke_activeThemeExtension');
 }
 
 /**
@@ -334,8 +336,8 @@ function showToast(message, type = 'success', duration = 3000) {
 
 // Version History
 // Version 0.16.0: Split source into buildable chunks (see www/src/*, `npm run build`)
-// Version 1.0.0: Major refactor - ES Modules for maintainability, Rich Text toggle, Theme extensions handler
-// Version 0.13.1: Accessibility & Theme Customization for Extensions
+// Version 1.0.0: Major refactor - ES Modules for maintainability, Rich Text toggle, Theme mod handler
+// Version 0.13.1: Accessibility & Theme Customization for Mods
 // (see previous versions in git history)
 
 // --- CORE APP STATE ---
@@ -381,7 +383,7 @@ const header = {
         closeBtn: document.getElementById('menuClose'),
         newCard: document.getElementById('menuNewCard'),
         upload: document.getElementById('menuUpload'),
-        extensionsHub: document.getElementById('menuExtensionsHub'),
+        modManager: document.getElementById('menuModManager'),
         appearance: document.getElementById('menuAppearance'),
         tagManager: document.getElementById('menuTagManager'),
         advancedSearch: document.getElementById('menuAdvancedSearch'),

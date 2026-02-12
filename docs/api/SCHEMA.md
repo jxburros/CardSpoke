@@ -7,13 +7,13 @@ CardSpoke uses a schema version (`schemaVersion`) to track data model changes ac
 - **Data domains:**
   - Cards and hierarchical relationships
   - User preferences (theme, layout, toggles)
-  - Extension registry/manifest cache
+  - Mod registry/manifest cache
   - Local file references (if enabled via Filesystem)
-- **Default store shape:** `rootOrder` (top-level card ordering), `cards` (id → card), `mods` (extension state), `bookmarks`, `recentCards`, `viewMode`, `activeTheme`, `richTextEnabled`.
+- **Default store shape:** `rootOrder` (top-level card ordering), `cards` (id → card), `mods` (mod state), `bookmarks`, `recentCards`, `viewMode`, `activeTheme`, `richTextEnabled`.
 - **Storage layers:**
   - LocalStorage for lightweight config
   - IndexedDB for structured card data and histories
-  - Optional filesystem assets via Capacitor Filesystem (documented per Extension)
+  - Optional filesystem assets via Capacitor Filesystem (documented per mod)
 
 ## Versioning Rules
 - Increment `schemaVersion` on any backward-incompatible change.
@@ -27,7 +27,7 @@ For each schema change, record:
 - **Change summary:** What changed and why
 - **Migration steps:** Ordered operations, including data transformations
 - **Fallback behavior:** How the app handles migration failure
-- **Extension impact:** Which Extensions depend on the change
+- **Mod impact:** Which mods depend on the change
 
 Example:
 ```md
@@ -38,13 +38,13 @@ Example:
   2. Migrate legacy tag arrays on cards to references.
   3. Validate referential integrity; log any skipped records.
 - **Fallback:** If migration fails, keep database at v3, disable tag-dependent features, prompt user to retry.
-- **Extensions:** Tagging Plugin v2.0+ requires schemaVersion >= 4.
+- **Mods:** Tagging mod v2.0+ requires schemaVersion >= 4.
 ```
 
 ## Fallback & Compatibility
-- On incompatible schema, block Extensions and prompt users with remediation steps.
+- On incompatible schema, block mods and prompt users with remediation steps.
 - Provide read-only access if feasible when migrations cannot complete.
-- Extensions must declare `schema_compatibility` and refuse to run on older schemas. Include the expected `cardspoke_*` preference keys any Extension consumes so mismatched schemas do not wipe toggles.
+- Mods must declare `compatibility` in their manifest and refuse to run on older schemas. Include the expected `cardspoke_*` preference keys any mod consumes so mismatched schemas do not wipe toggles.
 
 ## Testing Migrations
 - Add uvu tests for each migration path (happy path + failure cases).
@@ -53,5 +53,4 @@ Example:
 
 ## Documentation Updates
 - Update this file for every schemaVersion change.
-- Reference schema changes in release notes and relevant Extension READMEs.
-
+- Reference schema changes in release notes and relevant mod documentation.

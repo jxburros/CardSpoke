@@ -628,73 +628,10 @@
       // =============================================================
       
       /**
-       * Show extensions store modal
+       * Show mod store modal (coming soon)
        */
-      function showExtensionsStore() {
-        const overlay = h('div', { className: 'modal-overlay show' });
-        const modal = h('div', { className: 'modal', style: 'max-width: 800px;' });
-        const modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Extensions Store'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, 'X');
-        modalHeader.appendChild(closeBtn);
-        modal.appendChild(modalHeader);
-        
-        const modalBody = h('div', { className: 'modal-body' });
-        
-        // Coming soon banner
-        const banner = h('div', {
-          style: 'background: linear-gradient(135deg, var(--primary), #1565c0); color: white; padding: var(--space-2xl); border-radius: var(--radius); margin-bottom: var(--space-xl); text-align: center;'
-        });
-        banner.appendChild(h('div', { style: 'font-size: 48px; margin-bottom: var(--space-md);' }, ''));
-        banner.appendChild(h('div', { style: 'font-size: var(--text-xl); font-weight: 700; margin-bottom: var(--space-sm);' }, 'Extensions Store Coming Soon'));
-        banner.appendChild(h('div', { style: 'opacity: 0.9;' }, 'Browse, install, and manage extensions from the community'));
-        modalBody.appendChild(banner);
-        
-        // Categories preview
-        modalBody.appendChild(h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Featured Categories'));
-        
-        const categories = [
-          { icon: '', name: 'Themes', desc: 'Visual styles and color schemes' },
-          { icon: '', name: 'Tools', desc: 'Productivity extensions' },
-          { icon: '', name: 'Analytics', desc: 'Data visualization' },
-          { icon: '', name: 'Integrations', desc: 'External services' }
-        ];
-        
-        const categoryGrid = h('div', {
-          style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-xl);'
-        });
-        
-        categories.forEach(function(cat) {
-          const catItem = h('div', {
-            style: 'background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border); text-align: center;'
-          });
-          catItem.appendChild(h('div', { style: 'font-size: 32px; margin-bottom: var(--space-sm);' }, cat.icon));
-          catItem.appendChild(h('div', { style: 'font-weight: 700;' }, cat.name));
-          catItem.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-secondary);' }, cat.desc));
-          catItem.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--primary); margin-top: var(--space-sm);' }, 'Coming soon'));
-          categoryGrid.appendChild(catItem);
-        });
-        
-        modalBody.appendChild(categoryGrid);
-        
-        // Current extensions link
-        const currentBtn = h('button', {
-          className: 'btn',
-          style: 'width: 100%;',
-          onclick: function() {
-            overlay.remove();
-            showModsManager();
-          }
-        }, 'Manage Installed Extensions');
-        modalBody.appendChild(currentBtn);
-        
-        modal.appendChild(modalBody);
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-        
-        overlay.onclick = function(e) {
-          if (e.target === overlay) overlay.remove();
-        };
+      function showModStore() {
+        showModManager('install');
       }
 
       // =============================================================
@@ -968,7 +905,7 @@
         'ctrl+f': { action: () => { searchInput.focus(); }, description: 'Focus search' },
         'ctrl+b': { action: () => { menu.bookmarks.click(); closeMenu(); }, description: 'Show bookmarks' },
         'ctrl+r': { action: () => { menu.recentCards.click(); closeMenu(); }, description: 'Show recent cards' },
-        'ctrl+e': { action: () => { menu.extensions.click(); closeMenu(); }, description: 'Show extensions' },
+        'ctrl+e': { action: () => { showModManager('installed'); closeMenu(); }, description: 'Show mod manager' },
         'ctrl+u': { action: () => { menu.upload.click(); closeMenu(); }, description: 'Upload data' },
         'ctrl+/': { action: () => showKeyboardHelp(), description: 'Show this help' },
         'ctrl+z': { action: () => undo(), description: 'Undo last action' },
@@ -1486,7 +1423,7 @@
                       h('strong', {}, 'Backups'), ' — Create manual backups anytime from the Data & Export menu'
                     ),
                     h('div', {},
-                      h('strong', {}, 'Extensions'), ' — Customize CardSpoke with themes and plugins (Extensions Hub)'
+                      h('strong', {}, 'Mods'), ' — Customize CardSpoke with themes and mods (Mod Manager)'
                     ),
                     h('div', {},
                       h('strong', {}, 'Dark Mode'), ' — Toggle dark mode with the moon icon in the header'
@@ -1568,7 +1505,7 @@
                     h('div', {}, h('strong', {}, 'Bookmarks'), ' — Star important cards for quick access'),
                     h('div', {}, h('strong', {}, 'Undo/Redo'), ' — Ctrl+Z / Ctrl+Y for changes'),
                     h('div', {}, h('strong', {}, 'Trash Bin'), ' — Recover deleted cards'),
-                    h('div', {}, h('strong', {}, 'Extensions'), ' — Customize with themes and plugins')
+                    h('div', {}, h('strong', {}, 'Mods'), ' — Customize with themes and mods')
                   )
                 ),
                 
@@ -1589,14 +1526,14 @@
                   )
                 ),
                 
-                // Extensions Section
+                // Mods Section
                 h('div', { style: 'margin-bottom: var(--space-lg);' },
-                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Extensions'),
-                  h('p', { style: 'margin-bottom: var(--space-xs);' }, 'CardSpoke supports themes, plugins, and mods:'),
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Mods'),
+                  h('p', { style: 'margin-bottom: var(--space-xs);' }, 'CardSpoke supports JSON-based mods in three layers:'),
                   h('ul', { style: 'margin-left: var(--space-md); margin-bottom: var(--space-sm);' },
-                    h('li', {}, 'Use the Extension Wizard to create custom extensions'),
-                    h('li', {}, 'Test code in the Playground'),
-                    h('li', {}, 'Access CardSpoke.utils API for card management')
+                    h('li', {}, 'Theme mods: CSS-only visual changes'),
+                    h('li', {}, 'Feature mods: Add new functionality with JS hooks'),
+                    h('li', {}, 'App mods: Full app transformations with overrides')
                   )
                 ),
                 
@@ -1757,12 +1694,12 @@
       let safeMode = urlParams.has('safemode');
 
       if (safeMode) {
-        console.warn('[Safe Mode] Extensions disabled via ?safemode parameter');
-        showToast('Safe Mode Active - Extensions Disabled', 'warning');
+        console.warn('[Safe Mode] Mods disabled via ?safemode parameter');
+        showToast('Safe Mode Active - Mods Disabled', 'warning');
       }
 
       if (!safeMode) CardSpoke_MODS.syncFromStore();        // Initialize mods from store (skip in safe mode)
-      if (!safeMode) CardSpoke_MODS.runHook('onAppInit');   // Run mod initialization hooks (skip in safe mode)
+      if (!safeMode) CardSpoke_MODS.runHook('onLoad');      // Run mod initialization hooks (skip in safe mode)
       render();                        // Initial render
       populateFooter();                // Re-populate footer to ensure it displays
 

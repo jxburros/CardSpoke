@@ -1,22 +1,21 @@
 # CardSpoke API Reference
 
-This reference documents the surfaces extension developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke_MODS` extension runtime (also exposed as `window.CardSpoke.mods`). It consolidates the runtime contracts that ship in `www/app.js` and the type hints in `types/extensions.d.ts`.
+This reference documents the surfaces mod developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke_MODS` mod runtime (also exposed as `window.CardSpoke.mods`). It consolidates the runtime contracts that ship in `www/app.js`.
 
 **Current Version:** 0.16.0 | **Schema Version:** 4
 
 ## Global objects
 - **`window.CardSpoke.utils`**: async helpers for card CRUD, tagging, search, accessibility, dataset metadata, and toast UI helpers.
-- **`window.CardSpoke_MODS` / `window.CardSpoke.mods`**: the extension system that registers hooks, dispatches lifecycle events, offers an event bus, and exposes developer tooling.
-- **Legacy aliases**: `window.CIB` and `window.CIB_MODS` mirror the same objects for backward compatibility.
+- **`window.CardSpoke_MODS` / `window.CardSpoke.mods`**: the mod system that registers hooks, dispatches lifecycle events, offers an event bus, and exposes developer tooling.
 
-## Extension runtime (`CardSpoke_MODS`)
+## Mod runtime (`CardSpoke_MODS`)
 
 ### Supported hook names
 Implemented hooks are enforced by runtime validation. Unknown hook names log warnings but still register. Hooks may be async.
 
 | Hook | When it fires | Common uses |
 | --- | --- | --- |
-| `onAppInit(ctx)` | First enable or after sync on load | Allocate resources, register listeners, seed state. |
+| `onLoad(ctx)` | First enable or after sync on load | Allocate resources, register listeners, seed state. |
 | `onEnable(ctx)` | After a mod is enabled | Re-attach DOM, rebind hotkeys, reopen sockets. |
 | `onDisable(ctx)` | Before disabling a mod | Tear down DOM/listeners, flush timers. |
 | `onUninstall(ctx)` | Before removal from registry | Purge storage, remove injected styles. |
@@ -33,18 +32,18 @@ Implemented hooks are enforced by runtime validation. Unknown hook names log war
 
 ### Registration and lifecycle
 - **`register(modId, definition)`**: Validates hook names, stores metadata, and resets error counters on success. Called once inside your IIFE.
-- **`enable(modId)` / `disable(modId)`**: Toggle mods persisted in the store; enabling reapplies CSS, runs `onEnable`, then `onAppInit`. Disabling calls `onDisable` before removing styles.
+- **`enable(modId)` / `disable(modId)`**: Toggle mods persisted in the store; enabling reapplies CSS, runs `onEnable`, then `onLoad`. Disabling calls `onDisable` before removing styles.
 - **`unregister(modId)`**: Runs `onUninstall`, clears registry entry, removes styles, and evicts persisted mod state.
 - **`syncFromStore()`**: Loads enabled mods from the persisted store, applies CSS, and prunes stale registry entries.
-- **`reload(modId)`**: Executes `onDisable`, clears styles/hooks/error counts, re-runs registration from persisted code+CSS, and then replays `onEnable`/`onAppInit`.
-- **Hook dispatch**: `runHook(hookName, ...args)` fans out to enabled mods, honoring one-time semantics for `onAppInit`. Use `runHookForMod` to target a single mod.
+- **`reload(modId)`**: Executes `onDisable`, clears styles/hooks/error counts, re-runs registration from persisted code+CSS, and then replays `onEnable`/`onLoad`.
+- **Hook dispatch**: `runHook(hookName, ...args)` fans out to enabled mods, honoring one-time semantics for `onLoad`. Use `runHookForMod` to target a single mod.
 
 ### Context passed to hooks
 The runtime builds a context object per invocation:
-- `modId`: current extension id.
+- `modId`: current mod id.
 - `appVersion` / `schemaVersion`: release + schema numbers (currently 0.16.0 / 4).
 - `api`: see "Store API" below.
-- `utils`: reference to `CardSpoke.utils` (or `CIB.utils`).
+- `utils`: reference to `CardSpoke.utils`.
 - `logger`: mod-scoped logger with `log/info/warn/error` prefixes.
 
 ### Store API
@@ -67,7 +66,7 @@ Use `CardSpoke_MODS.events` to coordinate between mods:
 `CardSpoke_MODS.devTools` exposes debugging aids:
 - `inspectMod(id)` and `listAllMods()` for visibility into hooks, metadata, load state, and enablement.
 - `getHookStats(modId?)`: timing and failure counters per hook call.
-- `getErrorLog()` / `clearErrorLog()`: global extension error buffer.
+- `getErrorLog()` / `clearErrorLog()`: global mod error buffer.
 - `testHook(modId, hookName, ...args)`: invoke a hook manually.
 - `getEventListeners()`: per-event subscription counts.
 
