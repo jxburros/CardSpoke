@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "meta": {
+    "name": "Minimal Kit",
+    "type": "Kit",
+    "version": "1.0.0",
+    "creator": "CardSpoke Team",
+    "description": "A minimalist styling kit that strips away visual noise and focuses on clean typography and generous whitespace for a distraction-free experience.",
+    "releaseDate": "2025-05-01",
+    "source": "official",
+    "capabilities": ["theming"],
+    "angled": false
+  },
+  "js": "",
+  "css": ":root {\n  --bg-primary: #fafafa;\n  --bg-card: #ffffff;\n  --text-primary: #2c2c2c;\n  --text-secondary: #777777;\n  --accent-primary: #555555;\n  --accent-border: #e8e8e8;\n}\n\n.cs-card {\n  border: 1px solid var(--accent-border);\n  border-radius: 4px;\n  padding: 20px;\n  margin: 8px 0;\n}\n\n.cs-btn {\n  border-radius: 3px;\n  font-weight: 400;\n}"
+}

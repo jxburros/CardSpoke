@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "meta": {
+    "name": "Auto Tagger",
+    "type": "Mod",
+    "version": "1.4.0",
+    "creator": "CardSpoke Team",
+    "description": "Automatically suggests tags based on card content keywords. Analyzes card body text against a configurable keyword-to-tag mapping and proposes relevant tags before saving.",
+    "releaseDate": "2025-07-12",
+    "source": "official",
+    "capabilities": ["cards", "tags"],
+    "angled": false
+  },
+  "js": "(function() {\n  var TAG_INDICATOR_CLASS = 'cs-auto-tag-suggestion';\n\n  var keywordMap = {\n    'bug': 'bug-report',\n    'error': 'bug-report',\n    'fix': 'bug-fix',\n    'feature': 'feature-request',\n    'enhancement': 'feature-request',\n    'urgent': 'priority-high',\n    'critical': 'priority-high',\n    'blocker': 'priority-high',\n    'minor': 'priority-low',\n    'todo': 'task',\n    'task': 'task',\n    'review': 'needs-review',\n    'feedback': 'needs-review',\n    'docs': 'documentation',\n    'documentation': 'documentation',\n    'api': 'api-related',\n    'endpoint': 'api-related',\n    'test': 'testing',\n    'spec': 'testing',\n    'design': 'design',\n    'ui': 'design',\n    'ux': 'design',\n    'performance': 'performance',\n    'slow': 'performance',\n    'optimize': 'performance',\n    'security': 'security',\n    'auth': 'security',\n    'deploy': 'devops',\n    'ci': 'devops',\n    'pipeline': 'devops'\n  };\n\n  function extractSuggestedTags(text) {\n    if (!text || typeof text !== 'string') return [];\n    var lower = text.toLowerCase();\n    var words = lower.split(/[\\s,.;:!?()\\[\\]{}\"']+/);\n    var tagSet = {};\n    for (var i = 0; i < words.length; i++) {\n      var word = words[i].trim();\n      if (keywordMap[word]) {\n        tagSet[keywordMap[word]] = true;\n      }\n    }\n    return Object.keys(tagSet).sort();\n  }\n\n  function removeSuggestions() {\n    var elems = document.querySelectorAll('.' + TAG_INDICATOR_CLASS);\n    for (var i = 0; i < elems.length; i++) {\n      elems[i].parentNode.removeChild(elems[i]);\n    }\n  }\n\n  CardSpoke_MODS.register({\n    name: 'Auto Tagger',\n    hooks: {\n      onAppInit: function() {\n        console.log('[Auto Tagger] Mod initialized with', Object.keys(keywordMap).length, 'keyword rules');\n      },\n      onCardSave: function(cardData) {\n        if (!cardData || !cardData.body) return cardData;\n        var suggested = extractSuggestedTags(cardData.body);\n        if (suggested.length > 0) {\n          var existing = cardData.tags || [];\n          var newTags = [];\n          for (var i = 0; i < suggested.length; i++) {\n            if (existing.indexOf(suggested[i]) === -1) {\n              newTags.push(suggested[i]);\n            }\n          }\n          if (newTags.length > 0) {\n            cardData.tags = existing.concat(newTags);\n            console.log('[Auto Tagger] Suggested tags:', newTags.join(', '));\n          }\n        }\n        return cardData;\n      },\n      onDisable: function() {\n        removeSuggestions();\n        console.log('[Auto Tagger] Mod disabled');\n      }\n    }\n  });\n})()",
+  "css": ""
+}

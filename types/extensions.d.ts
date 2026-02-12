@@ -1,6 +1,6 @@
 /**
  * TypeScript definitions for CardSpoke Extension System
- * @version 0.14.0
+ * @version 0.16.0
  * @author CardSpoke Team
  */
 
@@ -14,14 +14,17 @@ declare namespace CardSpoke {
     title: string;
     body: string;
     parentId: string | null;
+    children: string[];
     tags: string[];
     createdAt: number;
     updatedAt: number;
+    isRichText?: boolean;
     modsData?: Record<string, any>;
   }
 
   interface SaveInfo {
     isNew: boolean;
+    source: string;
     previousData?: Partial<Card>;
   }
 
@@ -45,8 +48,9 @@ declare namespace CardSpoke {
 
   interface NavState {
     page: string;
-    cardId?: string;
-    [key: string]: any;
+    cardId?: string | null;
+    parentId?: string | null;
+    searchQuery?: string;
   }
 
   // ============================================================================

@@ -12,7 +12,7 @@ This file summarizes the persisted data model and schema versioning rules used b
 ## Core domains
 - **Cards:** `cards` map keyed by id, with `rootOrder` tracking top-level ordering and `children` arrays on each card for hierarchy.
 - **Extensions:** `mods` registry stores extension metadata, `enabled` flag, and bundled JS/CSS for replay at startup.
-- **User preferences:** `viewMode`, `activeTheme`, typography preset (`cardspoke_typography`), high contrast (`cardspoke_highContrast`), grid view (`cardspoke_gridView`), and rich text flags (`cardspoke_richtext`).
+- **User preferences:** `viewMode`, `activeTheme`, typography preset (`cardspoke_typography`), high contrast (`cardspoke_highcontrast`), grid view (`cardspoke_gridView`), and rich text flags (`cardspoke_richtext`).
 - **Navigation & history:** `navState` plus `recentCards` and `bookmarks` collections for quick recall.
 - **Trash/undo:** Undo/redo stacks (up to 50 entries) and `trashBin` entries (up to 100) keep recovery history.
 
@@ -28,6 +28,7 @@ Each card in the `cards` map has the following structure:
   tags: string[],       // Array of tag strings
   createdAt: number,    // Creation timestamp (ms)
   updatedAt: number,    // Last update timestamp (ms)
+  isRichText?: boolean, // Per-card rich text (Markdown) flag
   modsData?: object     // Optional extension-specific data
 }
 ```
@@ -51,7 +52,7 @@ A new dataset starts with:
 Preferences are stored under `cardspoke_*` keys in LocalStorage:
 - `cardspoke_richtext` - Rich text mode enabled (boolean as string)
 - `cardspoke_gridView` - Grid view enabled (boolean as string)
-- `cardspoke_highContrast` - High contrast mode (boolean as string)
+- `cardspoke_highcontrast` - High contrast mode (boolean as string)
 - `cardspoke_typography` - Typography preset (default/comfortable/compact/dyslexia)
 - `cardspoke_devmode` - Developer mode enabled (boolean as string)
 - `cardspoke_theme` - Current theme (light/dark)

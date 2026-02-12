@@ -17,8 +17,8 @@ Create a single JSON file that includes everything the app needs:
     "version": "1.0.0",
     "creator": "Your Name or Org",
     "description": "What it does",
-    "date_created": "2024-01-15", // ISO date
-    "official": false,
+    "releaseDate": "2024-01-15", // ISO date
+    "source": "community",      // "official" or "community"
     "ai_assistants": ["Model names used"],
     "dependencies": ["OtherExt@1.0.0"],
     "schema_compatibility": "schemaVersion >= 4",
@@ -145,7 +145,7 @@ For Themes, override CSS variables instead of DOM styles (e.g., `--bg-surface`, 
 - Tag helpers exist (`getTags`, `addTag`, `removeTag`, `setTags`, `getAllTags`).
 - Dataset metadata tracks counts, schemaVersion (currently 4), and appVersion (currently 0.16.0); keep exports (`onExport`) compatible with the core formats (JSON/CSV/Markdown/TXT) so users can restore or merge datasets.
 - Respect user ownership: no network calls or off-device storage unless the user explicitly opts in (ask via UI prompt and document the behavior).
-- Persist custom state with namespaced `localStorage` keys and reversible defaults. Provide `onUninstall` cleanup that removes stored data and DOM. Avoid colliding with built-in preference keys (`cardspoke_richtext`, `cardspoke_gridView`, `cardspoke_highContrast`, `cardspoke_typography`, `cardspoke_activeThemeExtension`, `cardspoke_devmode`, `cardspoke_theme`).
+- Persist custom state with namespaced `localStorage` keys and reversible defaults. Provide `onUninstall` cleanup that removes stored data and DOM. Avoid colliding with built-in preference keys (`cardspoke_richtext`, `cardspoke_gridView`, `cardspoke_highcontrast`, `cardspoke_typography`, `cardspoke_activeThemeExtension`, `cardspoke_devmode`, `cardspoke_theme`).
 - Avoid obfuscation; log recoverable errors and fail safely.
 
 ## 7) Build Steps for an AI

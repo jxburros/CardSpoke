@@ -11,7 +11,7 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 - **Local-first:** Default storage is LocalStorage/IndexedDB; avoid adding network dependencies without opt-in controls. Preferences persist under `cardspoke_*` keys:
   - `cardspoke_richtext` - Rich text/markdown mode
   - `cardspoke_gridView` - Grid vs list layout
-  - `cardspoke_highContrast` - High contrast mode
+  - `cardspoke_highcontrast` - High contrast mode
   - `cardspoke_typography` - Typography preset (default/comfortable/compact/dyslexia)
   - `cardspoke_devmode` - Developer mode
   - `cardspoke_theme` - Light/dark theme

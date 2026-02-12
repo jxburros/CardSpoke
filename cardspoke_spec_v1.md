@@ -213,13 +213,14 @@ Every Extension or Deviation must include a machine-readable metadata block:
   "type": "Theme | Patch | Plugin | Mod | Kit | Expansion | Deviation",
   "name": "string",
   "version": "X.Y.Z",
-  "author": "string",
+  "creator": "string",
   "ai_assistants": ["string"],
   "description": "string",
-  "date_created": "YYYY-MM-DD",
+  "releaseDate": "YYYY-MM-DD",
   "dependencies": ["ExtensionName@Version"],
   "schema_compatibility": "schemaVersion >= X",
-  "official": false,
+  "source": "official | community",
+  "capabilities": ["cards", "tags", "ui", "a11y", "export", "import", "navigation", "storage"],
   "angled": true
 }
 ```

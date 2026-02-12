@@ -181,7 +181,7 @@ export function showAppearanceSettings(renderCallback) {
   viewSection.appendChild(gridRow);
   
   // High Contrast Toggle
-  const highContrastEnabled = localStorage.getItem('cardspoke_highContrast') === 'true';
+  const highContrastEnabled = localStorage.getItem('cardspoke_highcontrast') === 'true';
   const contrastRow = h('div', { 
     className: 'menu-item-toggle',
     style: 'padding: var(--space-md); border: 1px solid var(--border); border-radius: 4px;'
@@ -192,7 +192,7 @@ export function showAppearanceSettings(renderCallback) {
     type: 'checkbox', 
     checked: highContrastEnabled,
     onchange: function(e) {
-      localStorage.setItem('cardspoke_highContrast', e.target.checked.toString());
+      localStorage.setItem('cardspoke_highcontrast', e.target.checked.toString());
       if (e.target.checked) {
         document.documentElement.classList.add('high-contrast');
       } else {
@@ -423,6 +423,6 @@ export function initAppearance() {
   document.documentElement.setAttribute('data-typography', savedTypography);
   
   // Apply saved high contrast mode
-  const savedHC = localStorage.getItem('cardspoke_highContrast') === 'true';
+  const savedHC = localStorage.getItem('cardspoke_highcontrast') === 'true';
   if (savedHC) document.documentElement.classList.add('high-contrast');
 }
