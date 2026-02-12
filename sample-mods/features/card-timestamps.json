@@ -1,0 +1,16 @@
+{
+  "id": "card-timestamps",
+  "manifest": {
+    "name": "Card Timestamps",
+    "version": "1.0.0",
+    "author": "CardSpoke Community",
+    "description": "Shows human-readable created and updated timestamps on each card",
+    "layer": "feature",
+    "compatibility": ">=0.16.0"
+  },
+  "config": {},
+  "css": ".mod-timestamp { display: block; font-size: 10px; margin-top: 6px; padding-top: 4px; border-top: 1px solid rgba(128,128,128,0.2); opacity: 0.6; font-family: monospace; line-height: 1.5; } .mod-timestamp:hover { opacity: 1; }",
+  "js": "CardSpoke_MODS.register('card-timestamps', {\n  onLoad: function(ctx) {\n    ctx.logger.info('Card Timestamps loaded');\n  },\n  onCardRender: function(ctx, card, element) {\n    if (!card || !element) return;\n    var existing = element.querySelector('.mod-timestamp');\n    if (existing) existing.remove();\n    var created = card.createdAt ? new Date(card.createdAt).toLocaleString() : 'unknown';\n    var updated = card.updatedAt ? new Date(card.updatedAt).toLocaleString() : 'unknown';\n    var el = document.createElement('div');\n    el.className = 'mod-timestamp';\n    el.textContent = 'Created: ' + created + ' | Updated: ' + updated;\n    element.appendChild(el);\n  },\n  onDisable: function(ctx) {\n    var stamps = document.querySelectorAll('.mod-timestamp');\n    stamps.forEach(function(s) { s.remove(); });\n    ctx.logger.info('Card Timestamps disabled');\n  }\n});",
+  "overrides": {},
+  "enabled": false
+}

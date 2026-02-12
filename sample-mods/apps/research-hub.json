@@ -1,0 +1,21 @@
+{
+  "id": "research-hub",
+  "manifest": {
+    "name": "Research Hub",
+    "version": "1.0.0",
+    "author": "CardSpoke Community",
+    "description": "Rebrands CardSpoke as a research-focused tool with a custom menu item for research stats",
+    "layer": "app",
+    "compatibility": ">=0.16.0"
+  },
+  "config": {},
+  "css": "#mod-research-stats { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(40,40,60,0.95); color: #ccc; padding: 6px 16px; font-size: 12px; font-family: monospace; z-index: 9998; display: none; border-top: 1px solid rgba(100,100,200,0.3); } #mod-research-stats.visible { display: flex; gap: 24px; justify-content: center; } #mod-research-stats .stat-item { display: inline-block; } #mod-research-stats .stat-value { color: #7cacf8; font-weight: bold; }",
+  "js": "CardSpoke_MODS.register('research-hub', {\n  onLoad: function(ctx) {\n    if (document.getElementById('mod-research-stats')) return;\n    var bar = document.createElement('div');\n    bar.id = 'mod-research-stats';\n    document.body.appendChild(bar);\n    this._updateStats = function() {\n      var meta = storeAPI.getDatasetMeta();\n      var cards = storeAPI.listCards();\n      var totalWords = cards.reduce(function(sum, c) {\n        var text = (c.title || '') + ' ' + (c.body || '');\n        return sum + text.trim().split(/\\s+/).filter(function(w) { return w.length > 0; }).length;\n      }, 0);\n      var totalTags = storeAPI.getAllTags().length;\n      bar.innerHTML = '<span class=\"stat-item\">Cards: <span class=\"stat-value\">' + meta.cardCount + '</span></span>' +\n        '<span class=\"stat-item\">Words: <span class=\"stat-value\">' + totalWords + '</span></span>' +\n        '<span class=\"stat-item\">Tags: <span class=\"stat-value\">' + totalTags + '</span></span>' +\n        '<span class=\"stat-item\">Bookmarks: <span class=\"stat-value\">' + meta.bookmarkCount + '</span></span>';\n    };\n    this._updateStats();\n    bar.classList.add('visible');\n    ctx.logger.info('Research Hub loaded');\n  },\n  onCardSave: function(ctx, card, saveInfo) {\n    if (this._updateStats) this._updateStats();\n  },\n  onDisable: function(ctx) {\n    var bar = document.getElementById('mod-research-stats');\n    if (bar) bar.remove();\n    ctx.logger.info('Research Hub disabled');\n  },\n  onUninstall: function(ctx) {\n    var bar = document.getElementById('mod-research-stats');\n    if (bar) bar.remove();\n  }\n});",
+  "overrides": {
+    "appName": "Research Hub",
+    "customMenuItems": [
+      { "id": "toggleResearchStats", "label": "Toggle Research Stats", "section": "actions" }
+    ]
+  },
+  "enabled": false
+}

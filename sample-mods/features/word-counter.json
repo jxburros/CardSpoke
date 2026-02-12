@@ -1,0 +1,16 @@
+{
+  "id": "word-counter",
+  "manifest": {
+    "name": "Word Counter",
+    "version": "1.0.0",
+    "author": "CardSpoke Community",
+    "description": "Displays a live word and character count badge on each card during rendering",
+    "layer": "feature",
+    "compatibility": ">=0.16.0"
+  },
+  "config": {},
+  "css": ".mod-word-count { display: inline-block; font-size: 11px; padding: 2px 8px; margin-top: 4px; border-radius: 10px; background: rgba(128,128,128,0.15); color: inherit; opacity: 0.7; font-family: monospace; } .mod-word-count:hover { opacity: 1; }",
+  "js": "CardSpoke_MODS.register('word-counter', {\n  onLoad: function(ctx) {\n    ctx.logger.info('Word Counter loaded');\n  },\n  onCardRender: function(ctx, card, element) {\n    if (!card || !element) return;\n    var existing = element.querySelector('.mod-word-count');\n    if (existing) existing.remove();\n    var text = (card.body || '') + ' ' + (card.title || '');\n    var words = text.trim().split(/\\s+/).filter(function(w) { return w.length > 0; }).length;\n    var chars = text.trim().length;\n    var badge = document.createElement('span');\n    badge.className = 'mod-word-count';\n    badge.textContent = words + ' words / ' + chars + ' chars';\n    badge.title = 'Word and character count';\n    element.appendChild(badge);\n  },\n  onDisable: function(ctx) {\n    var badges = document.querySelectorAll('.mod-word-count');\n    badges.forEach(function(b) { b.remove(); });\n    ctx.logger.info('Word Counter disabled');\n  }\n});",
+  "overrides": {},
+  "enabled": false
+}

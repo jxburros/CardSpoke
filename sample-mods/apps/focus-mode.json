@@ -1,0 +1,19 @@
+{
+  "id": "focus-mode",
+  "manifest": {
+    "name": "Focus Mode",
+    "version": "1.0.0",
+    "author": "CardSpoke Community",
+    "description": "Strips the app down to a minimal writing experience by hiding navigation and extras",
+    "layer": "app",
+    "compatibility": ">=0.16.0"
+  },
+  "config": {},
+  "css": "body.mod-focus-active .breadcrumb { display: none !important; } body.mod-focus-active footer { display: none !important; } body.mod-focus-active .card-item { border: none !important; box-shadow: none !important; padding: 16px 24px !important; max-width: 720px; margin: 0 auto; } body.mod-focus-active textarea, body.mod-focus-active .card-body { font-size: 17px !important; line-height: 1.7 !important; } #mod-focus-toggle { position: fixed; top: 8px; right: 8px; z-index: 10000; padding: 4px 12px; border-radius: 4px; border: 1px solid rgba(128,128,128,0.3); background: rgba(128,128,128,0.1); cursor: pointer; font-size: 12px; opacity: 0.5; transition: opacity 0.2s; } #mod-focus-toggle:hover { opacity: 1; }",
+  "js": "CardSpoke_MODS.register('focus-mode', {\n  onLoad: function(ctx) {\n    if (document.getElementById('mod-focus-toggle')) return;\n    var btn = document.createElement('button');\n    btn.id = 'mod-focus-toggle';\n    btn.textContent = 'Focus';\n    btn.title = 'Toggle Focus Mode';\n    btn.setAttribute('aria-label', 'Toggle focus mode');\n    btn.addEventListener('click', function() {\n      document.body.classList.toggle('mod-focus-active');\n      btn.textContent = document.body.classList.contains('mod-focus-active') ? 'Exit Focus' : 'Focus';\n    });\n    document.body.appendChild(btn);\n    ctx.logger.info('Focus Mode ready');\n  },\n  onDisable: function(ctx) {\n    document.body.classList.remove('mod-focus-active');\n    var btn = document.getElementById('mod-focus-toggle');\n    if (btn) btn.remove();\n    ctx.logger.info('Focus Mode disabled');\n  },\n  onUninstall: function(ctx) {\n    document.body.classList.remove('mod-focus-active');\n    var btn = document.getElementById('mod-focus-toggle');\n    if (btn) btn.remove();\n  }\n});",
+  "overrides": {
+    "hideMenuItems": ["menuRecentCards"],
+    "disableFeatures": ["recentCards"]
+  },
+  "enabled": false
+}

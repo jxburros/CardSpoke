@@ -2,11 +2,18 @@
  * Mod System Test Suite
  *
  * Validates the new JSON-based mod loading system including
- * package validation, risk assessment, and mod format compliance.
+ * package validation, risk assessment, mod format compliance,
+ * and the actual sample mod files.
  */
 
 import { test } from 'uvu';
 import * as assert from 'uvu/assert';
+import { readFileSync, readdirSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // ==========================================================================
 // Mod Package Format Tests
@@ -32,6 +39,31 @@ function createValidModPackage(overrides = {}) {
     overrides: overrides.overrides || {},
     enabled: overrides.enabled !== undefined ? overrides.enabled : false
   };
+}
+
+function validateModPackage(pkg) {
+  const errors = [];
+  if (!pkg || typeof pkg !== 'object') return { valid: false, errors: ['Not an object'] };
+  if (!pkg.id || typeof pkg.id !== 'string') errors.push('Missing or invalid "id"');
+  if (pkg.id && !/^[a-z0-9-]+$/.test(pkg.id)) errors.push('ID must be lowercase alphanumeric with hyphens');
+  if (!pkg.manifest || typeof pkg.manifest !== 'object') {
+    errors.push('Missing "manifest" object');
+  } else {
+    if (!pkg.manifest.name) errors.push('Missing manifest.name');
+    if (!pkg.manifest.version) errors.push('Missing manifest.version');
+    if (!pkg.manifest.author) errors.push('Missing manifest.author');
+    if (!pkg.manifest.layer) errors.push('Missing manifest.layer');
+    if (pkg.manifest.layer && !VALID_LAYERS.includes(pkg.manifest.layer)) {
+      errors.push('Invalid manifest.layer: ' + pkg.manifest.layer);
+    }
+  }
+  if (pkg.manifest && pkg.manifest.layer === 'theme' && pkg.js && pkg.js.trim().length > 0) {
+    errors.push('Theme-layer mods cannot contain JavaScript');
+  }
+  if (pkg.overrides && Object.keys(pkg.overrides).length > 0 && pkg.manifest && pkg.manifest.layer !== 'app') {
+    errors.push('Only app-layer mods can use overrides');
+  }
+  return { valid: errors.length === 0, errors };
 }
 
 test('valid mod package has all required fields', () => {
@@ -157,7 +189,6 @@ test('theme mod is lowest risk', () => {
     css: ':root { --bg: blue; }',
     js: ''
   });
-  // Theme with no JS should be SAFE
   assert.is(pkg.manifest.layer, 'theme');
   assert.is(pkg.js, '');
 });
@@ -181,6 +212,116 @@ test('app mod with overrides is highest risk', () => {
   });
   assert.is(pkg.manifest.layer, 'app');
   assert.ok(pkg.overrides.disableFeatures, 'can disable features');
+});
+
+// ==========================================================================
+// Sample Mod File Validation Tests
+// ==========================================================================
+
+const sampleModsDir = join(__dirname, '..', 'sample-mods');
+
+function loadSampleMods(subdir) {
+  const dir = join(sampleModsDir, subdir);
+  const files = readdirSync(dir).filter(f => f.endsWith('.json'));
+  return files.map(f => {
+    const raw = readFileSync(join(dir, f), 'utf8');
+    return { filename: f, pkg: JSON.parse(raw) };
+  });
+}
+
+test('all sample theme mods are valid JSON and pass validation', () => {
+  const mods = loadSampleMods('themes');
+  assert.is(mods.length, 3, 'should have exactly 3 theme mods');
+  mods.forEach(({ filename, pkg }) => {
+    const result = validateModPackage(pkg);
+    assert.ok(result.valid, `${filename}: ${result.errors.join(', ')}`);
+    assert.is(pkg.manifest.layer, 'theme', `${filename} should be theme layer`);
+    assert.is(pkg.js, '', `${filename} theme must have no JS`);
+    assert.ok(pkg.css.length > 0, `${filename} theme should have CSS`);
+  });
+});
+
+test('all sample feature mods are valid JSON and pass validation', () => {
+  const mods = loadSampleMods('features');
+  assert.is(mods.length, 3, 'should have exactly 3 feature mods');
+  mods.forEach(({ filename, pkg }) => {
+    const result = validateModPackage(pkg);
+    assert.ok(result.valid, `${filename}: ${result.errors.join(', ')}`);
+    assert.is(pkg.manifest.layer, 'feature', `${filename} should be feature layer`);
+    assert.ok(pkg.js.length > 0, `${filename} feature should have JS`);
+  });
+});
+
+test('all sample app mods are valid JSON and pass validation', () => {
+  const mods = loadSampleMods('apps');
+  assert.is(mods.length, 3, 'should have exactly 3 app mods');
+  mods.forEach(({ filename, pkg }) => {
+    const result = validateModPackage(pkg);
+    assert.ok(result.valid, `${filename}: ${result.errors.join(', ')}`);
+    assert.is(pkg.manifest.layer, 'app', `${filename} should be app layer`);
+    assert.ok(pkg.overrides && Object.keys(pkg.overrides).length > 0, `${filename} app should have overrides`);
+  });
+});
+
+test('all sample mods have unique IDs', () => {
+  const allMods = [
+    ...loadSampleMods('themes'),
+    ...loadSampleMods('features'),
+    ...loadSampleMods('apps')
+  ];
+  const ids = allMods.map(m => m.pkg.id);
+  const uniqueIds = new Set(ids);
+  assert.is(uniqueIds.size, ids.length, 'All mod IDs must be unique: ' + ids.join(', '));
+});
+
+test('all sample mods register hooks via CardSpoke_MODS.register in their JS', () => {
+  const featureMods = loadSampleMods('features');
+  const appMods = loadSampleMods('apps');
+  [...featureMods, ...appMods].forEach(({ filename, pkg }) => {
+    if (pkg.js && pkg.js.trim().length > 0) {
+      assert.ok(
+        pkg.js.includes('CardSpoke_MODS.register('),
+        `${filename} JS should register via CardSpoke_MODS.register()`
+      );
+    }
+  });
+});
+
+test('all sample mods use their own ID in register calls', () => {
+  const featureMods = loadSampleMods('features');
+  const appMods = loadSampleMods('apps');
+  [...featureMods, ...appMods].forEach(({ filename, pkg }) => {
+    if (pkg.js && pkg.js.trim().length > 0) {
+      assert.ok(
+        pkg.js.includes("'" + pkg.id + "'") || pkg.js.includes('"' + pkg.id + '"'),
+        `${filename} JS should register with its own ID '${pkg.id}'`
+      );
+    }
+  });
+});
+
+test('all sample mods start disabled', () => {
+  const allMods = [
+    ...loadSampleMods('themes'),
+    ...loadSampleMods('features'),
+    ...loadSampleMods('apps')
+  ];
+  allMods.forEach(({ filename, pkg }) => {
+    assert.is(pkg.enabled, false, `${filename} should start disabled`);
+  });
+});
+
+test('feature and app mods implement onDisable for clean teardown', () => {
+  const featureMods = loadSampleMods('features');
+  const appMods = loadSampleMods('apps');
+  [...featureMods, ...appMods].forEach(({ filename, pkg }) => {
+    if (pkg.js && pkg.js.trim().length > 0) {
+      assert.ok(
+        pkg.js.includes('onDisable'),
+        `${filename} should implement onDisable hook for clean teardown`
+      );
+    }
+  });
 });
 
 test.run();
