@@ -2,7 +2,7 @@
 
 This reference documents the surfaces mod developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke_MODS` mod runtime (also exposed as `window.CardSpoke.mods`). It consolidates the runtime contracts that ship in `www/app.js`.
 
-**Current Version:** 0.16.0 | **Schema Version:** 4
+**Current Version:** 0.16.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
 
 ## Global objects
 - **`window.CardSpoke.utils`**: async helpers for card CRUD, tagging, search, accessibility, dataset metadata, and toast UI helpers.
@@ -29,6 +29,9 @@ Implemented hooks are enforced by runtime validation. Unknown hook names log war
 | `onSearch(ctx, query, results)` | After search completes | Rank boosters, log queries, filter results. |
 | `onExport(ctx, data)` | Before data export | Append metadata, transform payloads. |
 | `onImport(ctx, info)` | After data import | Normalize incoming data, map legacy fields. |
+| `onRender(ctx)` | After app UI re-renders | Update custom UI components, refresh visualizations. |
+| `onPageChange(ctx, page)` | When the active page/view changes | Load page-specific data, initialize page components. |
+| `onAppInit(ctx)` | Once at app initialization after boot | Initialize global state, register app-wide services. |
 
 ### Registration and lifecycle
 - **`register(modId, definition)`**: Validates hook names, stores metadata, and resets error counters on success. Called once inside your IIFE.

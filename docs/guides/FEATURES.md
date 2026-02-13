@@ -114,6 +114,30 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and mod authors
 - **Migration rules:** Schema bumps require documented migrations, idempotent steps, explicit fallbacks, and mod impact notes.
 - **Compatibility safeguards:** Mods must declare compatibility and refuse to run on unsupported versions.
 
+## LocalStorage Keys
+CardSpoke uses LocalStorage for preferences and lightweight configuration. All keys are prefixed with `cardspoke_`:
+
+### User Preferences
+- `cardspoke_richtext` – Boolean: Enable markdown-style rich text formatting in card bodies
+- `cardspoke_gridView` – Boolean: Toggle between grid and list card layouts
+- `cardspoke_highcontrast` – Boolean: Enable high-contrast mode for accessibility
+- `cardspoke_typography` – String: Typography preset (default/comfortable/compact/dyslexia)
+- `cardspoke_devmode` – Boolean: Enable developer mode and debug logging
+- `cardspoke_theme` – String: Active theme (light/dark)
+- `cardspoke_activeThemeMod` – String: ID of active theme mod (if any)
+
+### Application State
+- `cardspoke_datasets` – JSON: Array of dataset metadata objects
+- `cardspoke_dataset_metadata` – JSON: Current dataset manager metadata
+- `cardspoke_lastUploadTab` – String: Last active upload tab (JSON/TXT/DOCX/CSV/MD)
+- `cardspoke_hasSeenGettingStarted` – Boolean: Tracks onboarding guide completion
+
+### File System Integration
+- `cardspoke_file_handle_*` – Various: File handle references for local file storage (Capacitor)
+
+### Legacy Keys (Maintained for Backward Compatibility)
+- `cardspoke_activeThemeExtension` – String: Legacy theme extension reference (migrated to mods)
+
 ## Developer & Testing Experience
 - **Node/uvu toolchain:** Uses Node (18+) with `npm run build` for web assets and `npm test` (uvu) for automated checks.
 - **Mod-focused testing:** `sample-extensions.test.js` and related tests target mod package format and layer system to keep compatibility tight.

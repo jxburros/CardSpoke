@@ -4,11 +4,11 @@
 This review analyzes CardSpoke by reading core docs (`README.md`, `docs/guides/FEATURES.md`) and runtime slices in `www/src/` that define storage, navigation, rendering, and advanced systems.
 
 ## Product and architecture summary
-CardSpoke is a local-first, card-based knowledge app with a minimal core and built-in extension runtime. The architecture combines:
+CardSpoke is a local-first, card-based knowledge app with a minimal core and built-in mod runtime. The architecture combines:
 - **Single-bundle runtime** (`www/app.js`) built from numbered slices in `www/src`.
 - **Stateful client store** (`store`) persisted by dataset key.
 - **Hierarchical card graph model** (`cards`, `rootOrder`, `parentId`, `children`).
-- **Hook-driven extension engine** (`onCardSave`, `onNavigate`, `onRender`, etc.).
+- **Hook-driven mod engine** (`onCardSave`, `onNavigate`, `onRender`, etc.).
 - **Route-based UI composition** (`list`, `read`, `edit`, `search`) orchestrated by `render()`.
 
 This yields flexibility and extensibility, with most responsibilities currently concentrated in one shared runtime surface.
@@ -79,7 +79,7 @@ Findings:
 Risks/opportunities:
 - Multi-card operations need transaction-aware undo boundaries.
 
-### 5) Extension/mod ecosystem
+### 5) Mod ecosystem
 Key systems:
 - Mod package validation, layer model, risk assessment, hook dispatch.
 - Mod manager for install/create/manage.
@@ -131,7 +131,7 @@ The following recommendations are now consolidated as an implementation package 
    - Group multi-card operations into one logical undo action.
    - Include bulk import, recursive duplicate, and tag merge.
 
-4. **Extension safety UX hardening**
+4. **Mod safety UX hardening**
    - Add capability summaries pre-install.
    - Add first-run consent prompts for sensitive behaviors (network/storage/DOM overrides).
 

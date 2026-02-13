@@ -1,14 +1,14 @@
 # CardSpoke Specification v1.0 (AI-Optimized Edition)
 **Purpose:** Define the philosophy, rules, structure, licensing, and ecosystem of **CardSpoke** for use by humans and AI systems.  
-**Audience:** Developers, Extension creators, Deviators (fork creators), community moderators, automated agents.
+**Audience:** Developers, mod creators, Deviators (fork creators), community moderators, automated agents.
 
 ---
 
 ## 1. Summary
 - **CardSpoke** is a lightweight, card-based information system that presents knowledge in hierarchical, tiered structures.  
-- It is **free to use**, owned by **JX Holdings, LLC**, and intentionally **malleable**, with a built-in **Extension Framework**.  
+- It is **free to use**, owned by **JX Holdings, LLC**, and intentionally **malleable**, with a built-in **Mod System**.  
 - Users own their data; CardSpoke does **not** host or collect data except voluntary submissions.  
-- The ecosystem allows **Extensions**, **Deviations**, and **community contributions** with required credit, versioning, and transparency.
+- The ecosystem allows **Mods**, **Deviations**, and **community contributions** with required credit, versioning, and transparency.
 
 ---
 
@@ -24,11 +24,11 @@
 - CardSpoke will not host or collect user data.
 
 ### 2.3 Mod-Friendly Architecture
-- The app is intentionally built to support mods (“Extensions”).  
+- The app is intentionally built to support mods.  
 - Low barriers for beginners; high ceilings for advanced developers.
 
 ### 2.4 Community Ecosystem
-- Community builds on the core through Extensions and Deviations.  
+- Community builds on the core through mods and Deviations.  
 - CardSpoke remains free; community creators may monetize their work.
 
 ### 2.5 Accountability & Transparency
@@ -51,9 +51,9 @@ All Angled content requires:
 
 ### 3.2 Community Rights
 Creators may:
-- Make **Extensions**  
+- Make **Mods**  
 - Make **Deviations** (forks)  
-- Monetize Extensions and Deviations  
+- Monetize Mods and Deviations  
 - Release them anywhere  
 
 Creators must:
@@ -68,25 +68,25 @@ Creators must:
 ### 3.3 Liability
 JX Holdings is not responsible for:
 - Breakage caused by angled content  
-- Data loss from third-party Extensions  
+- Data loss from third-party Mods  
 - Security issues introduced by community content  
 
 Compatibility is attempted but not guaranteed.
 
 ---
 
-## 4. Extension Ecosystem Specification
+## 4. Mod Ecosystem Specification
 
 ### 4.1 Overview
-**Extension** = Any modular add-on to CardSpoke.  
-Extensions must declare:
+**Mod** = Any modular add-on to CardSpoke.  
+Mods must declare:
 - Type  
 - Version  
 - Author metadata  
 - Dependencies  
 - Whether they modify logic, UI, or data structures  
 
-### 4.2 Extension Types (Canonical)
+### 4.2 Mod Types (Canonical)
 
 #### 1. Theme
 - Cosmetic only.  
@@ -136,7 +136,7 @@ Rules:
 
 ### 6.1 Update Types
 - **Update** = Core app changes  
-- **Patch** = Extension-based updates for modular upgrades  
+- **Patch** = Mod-based updates for modular upgrades  
 
 ### 6.2 Backward Compatibility
 - CardSpoke *attempts* backward compatibility.  
@@ -176,8 +176,8 @@ CardSpoke does *not*:
 
 - **Official** — Created by JX Holdings
 - **Angled** — Community-created
-- **Extension** — Any modular addition
-- **Theme / Patch / Plugin / Mod / Kit / Expansion** — Extension subtypes
+- **Mod** — Any modular addition
+- **Theme / Patch / Plugin / Mod / Kit / Expansion** — Mod subtypes
 - **Deviation** — Fork
 - **Schema Version** — Data model version
 - **Legacy** — Older maintained versions
@@ -189,7 +189,7 @@ CardSpoke does *not*:
 ## 9. Community Standards
 
 ### 9.1 Quality Expectations
-Extensions should:
+Mods should:
 - Fail safely  
 - Avoid data corruption  
 - Provide clear errors  
@@ -205,8 +205,8 @@ Creators must:
 
 ---
 
-## 10. Mandatory Metadata for Extensions & Deviations
-Every Extension or Deviation must include a machine-readable metadata block:
+## 10. Mandatory Metadata for Mods & Deviations
+Every Mod or Deviation must include a machine-readable metadata block:
 
 ```json
 {
@@ -217,7 +217,7 @@ Every Extension or Deviation must include a machine-readable metadata block:
   "ai_assistants": ["string"],
   "description": "string",
   "releaseDate": "YYYY-MM-DD",
-  "dependencies": ["ExtensionName@Version"],
+  "dependencies": ["ModName@Version"],
   "schema_compatibility": "schemaVersion >= X",
   "source": "official | community",
   "capabilities": ["cards", "tags", "ui", "a11y", "export", "import", "navigation", "storage"],
@@ -233,9 +233,9 @@ Every Extension or Deviation must include a machine-readable metadata block:
 CardSpoke aims to be:
 - A universal card-based knowledge system  
 - Adaptable to writing, research, planning, worldbuilding, PKM, design, etc.  
-- A foundation for community-driven Extensions and custom builds  
+- A foundation for community-driven Mods and custom builds  
 - A lightweight app with heavyweight potential  
-- A durable ecosystem built through Extensions instead of core bloat  
+- A durable ecosystem built through Mods instead of core bloat  
 
 ---
 

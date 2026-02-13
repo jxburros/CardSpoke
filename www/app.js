@@ -2077,7 +2077,8 @@ const header = {
         'onCardSave', 'onCardDelete', 'onCardRender',
         'onNavigate', 'onSearch', 'onThemeChange',
         'onTypographyChange', 'onHighContrastChange',
-        'onExport', 'onImport', 'onRender', 'onPageChange'
+        'onExport', 'onImport', 'onRender', 'onPageChange',
+        'onAppInit'
       ]);
 
       /**
