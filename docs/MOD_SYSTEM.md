@@ -2,7 +2,7 @@
 
 This document describes the JSON-based mod loading system that powers CardSpoke's extensibility. Mods can range from simple visual themes to full app-layer transformations.
 
-**Current Version:** 0.16.0 | **Schema Version:** 4
+**Current Version:** 0.16.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
 
 ## Overview
 
@@ -126,6 +126,8 @@ Mods register hooks via `CardSpoke_MODS.register()`. The runtime dispatches hook
 | `onSearch(ctx, query, results)` | After search completes | Rank boosters, filter results. |
 | `onExport(ctx, data)` | Before data export | Append metadata, transform payloads. |
 | `onImport(ctx, info)` | After data import | Normalize incoming data. |
+| `onRender(ctx)` | After app UI re-renders | Update custom UI components, refresh visualizations. |
+| `onPageChange(ctx, page)` | When the active page/view changes | Load page-specific data, initialize page components. |
 
 ### Hook Context Object
 Each hook receives a context with:
