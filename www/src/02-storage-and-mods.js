@@ -783,9 +783,6 @@
             case 'onedrive':
               driver = new OneDriveDriver();
               break;
-            case 'webdav':
-              driver = new WebDAVDriver();
-              break;
             case 'localstorage':
             default:
               driver = new LocalStorageDriver();
@@ -944,6 +941,103 @@
       const SAVE_DEBOUNCE_MS = 500; // Wait 500ms after last change before saving
       const MIN_SAVE_INTERVAL_MS = 100; // Minimum time between actual saves
 
+
+      let indexedDbMirrorDriver = null;
+
+      async function getIndexedDbMirrorDriver() {
+        if (indexedDbMirrorDriver) return indexedDbMirrorDriver;
+        const driver = new IndexedDBDriver();
+        await driver.init({ dbName: 'CardSpokeDB', storeName: 'datasets' });
+        indexedDbMirrorDriver = driver;
+        return indexedDbMirrorDriver;
+      }
+
+      function isIndexedDbDataset() {
+        return !!(store && store.metadata && store.metadata.storageType === 'indexeddb');
+      }
+
+      function getStorageType() {
+        return (store && store.metadata && store.metadata.storageType) || 'localstorage';
+      }
+
+      function supportsFileSystemAccess() {
+        return typeof window.showSaveFilePicker === 'function';
+      }
+
+      function getDatasetFileHandleKey() {
+        const key = instanceKey || 'nested_cards_store';
+        return (store.metadata && store.metadata.storageConfig && store.metadata.storageConfig.handleKey) || (`cardspoke_file_handle_${key}`);
+      }
+
+      async function openFileHandleDb() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open('CardSpokeFileHandles', 1);
+          req.onerror = () => reject(req.error);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles');
+          };
+          req.onsuccess = () => resolve(req.result);
+        });
+      }
+
+      async function saveDatasetFileHandle(handleKey, handle) {
+        const db = await openFileHandleDb();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(['handles'], 'readwrite');
+          tx.objectStore('handles').put(handle, handleKey);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+
+      async function loadDatasetFileHandle(handleKey) {
+        const db = await openFileHandleDb();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(['handles'], 'readonly');
+          const req = tx.objectStore('handles').get(handleKey);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => reject(req.error);
+        });
+      }
+
+      async function ensureLocalFileHandle() {
+        if (!supportsFileSystemAccess()) {
+          throw new Error('File System Access API is not supported in this browser/runtime');
+        }
+        const handleKey = getDatasetFileHandleKey();
+        let handle = await loadDatasetFileHandle(handleKey);
+        if (!handle) {
+          const suggestedName = ((store.metadata && store.metadata.name) || 'cardspoke-dataset').replace(/\s+/g, '-').toLowerCase() + '.json';
+          handle = await window.showSaveFilePicker({
+            suggestedName,
+            types: [{ description: 'JSON Dataset', accept: { 'application/json': ['.json'] } }]
+          });
+          await saveDatasetFileHandle(handleKey, handle);
+        }
+        if (store.metadata && store.metadata.storageConfig) {
+          store.metadata.storageConfig.handleKey = handleKey;
+          store.metadata.storageConfig.fileName = handle.name || 'dataset.json';
+        }
+        return handle;
+      }
+
+      async function writeDatasetToLocalFile(payload) {
+        if (getStorageType() !== 'localfile') return;
+        const handle = await ensureLocalFileHandle();
+        const writable = await handle.createWritable();
+        await writable.write(payload);
+        await writable.close();
+      }
+
+      async function readDatasetFromLocalFile() {
+        if (getStorageType() !== 'localfile') return null;
+        const handle = await ensureLocalFileHandle();
+        const file = await handle.getFile();
+        const text = await file.text();
+        return text || null;
+      }
+
       // Cloud sync tracking
       let cloudSyncTimeout = null;
       let lastCloudSyncTime = 0;
@@ -1018,7 +1112,15 @@
           // Use requestIdleCallback if available to avoid blocking UI
           const doSave = () => {
             try {
-              localStorage.setItem(key, JSON.stringify(store));
+              const payload = JSON.stringify(store);
+              localStorage.setItem(key, payload);
+
+              if (isIndexedDbDataset()) {
+                getIndexedDbMirrorDriver()
+                  .then(driver => driver.set(key, payload))
+                  .catch(err => console.error('[IndexedDB] Mirror save failed:', err));
+              }
+
               const duration = performance.now() - startTime;
               lastSaveTime = Date.now();
               savePending = false;
@@ -1031,6 +1133,14 @@
               
               // Schedule cloud sync if cloud storage is configured
               scheduleCloudSync();
+
+              if (getStorageType() === 'localfile') {
+                writeDatasetToLocalFile(payload)
+                  .catch(err => {
+                    console.error('[Local File] Save failed:', err);
+                    showToast('Local file save failed: ' + err.message, 'error');
+                  });
+              }
             } catch (e) {
               savePending = false;
               if (e.name === 'QuotaExceededError') {
@@ -1158,7 +1268,8 @@
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
             viewMode: parsed.viewMode || 'normal',
-            activeTheme: parsed.activeTheme || 'light'
+            activeTheme: parsed.activeTheme || 'light',
+            metadata: parsed.metadata || {}
           };
 
           // Data migration: rebuild rootOrder if needed
@@ -1200,6 +1311,51 @@
           if (needsMigration) {
             save();
             showToast('Data migrated: synchronized root cards');
+          }
+
+          const storageType = getStorageType();
+          if (storageType === 'indexeddb') {
+            getIndexedDbMirrorDriver()
+              .then(driver => driver.get(key))
+              .then(payload => {
+                if (!payload) return;
+                const parsedMirror = typeof payload === 'string' ? JSON.parse(payload) : payload;
+                if (!parsedMirror || typeof parsedMirror !== 'object') return;
+                store = {
+                  rootOrder: parsedMirror.rootOrder || [],
+                  cards: parsedMirror.cards || {},
+                  mods: parsedMirror.mods || {},
+                  bookmarks: parsedMirror.bookmarks || [],
+                  recentCards: parsedMirror.recentCards || [],
+                  viewMode: parsedMirror.viewMode || 'normal',
+                  activeTheme: parsedMirror.activeTheme || 'light',
+                  metadata: parsedMirror.metadata || store.metadata
+                };
+                render();
+              })
+              .catch(err => {
+                console.error('[IndexedDB] Load failed, using LocalStorage fallback:', err);
+              });
+          } else if (storageType === 'localfile') {
+            readDatasetFromLocalFile()
+              .then(payload => {
+                if (!payload) return;
+                const parsedFile = JSON.parse(payload);
+                store = {
+                  rootOrder: parsedFile.rootOrder || [],
+                  cards: parsedFile.cards || {},
+                  mods: parsedFile.mods || {},
+                  bookmarks: parsedFile.bookmarks || [],
+                  recentCards: parsedFile.recentCards || [],
+                  viewMode: parsedFile.viewMode || 'normal',
+                  activeTheme: parsedFile.activeTheme || 'light',
+                  metadata: parsedFile.metadata || store.metadata
+                };
+                render();
+              })
+              .catch(err => {
+                console.error('[Local File] Load failed, using LocalStorage fallback:', err);
+              });
           }
         } catch (e) {
           bootError('Corrupted data.');

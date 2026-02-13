@@ -93,6 +93,7 @@
           };
           renderBatch();
           window.addEventListener('scroll', onScroll, { passive: true });
+          registerRenderCleanup(() => window.removeEventListener('scroll', onScroll));
           main.appendChild(grid);
         }
       }
@@ -818,6 +819,7 @@
             };
             renderBatch();
             window.addEventListener('scroll', onScroll, { passive: true });
+            registerRenderCleanup(() => window.removeEventListener('scroll', onScroll));
             main.appendChild(grid);
           }
         }).catch(err => {
@@ -832,6 +834,7 @@
        */
       function render() {
         try {
+          runRenderCleanup();
           renderBreadcrumbs();
           main.innerHTML = '';
           switch (navState.page) {

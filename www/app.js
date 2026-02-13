@@ -356,6 +356,23 @@ let searchResultsState = {
   elements: [],
   selectedIndex: 0
 };
+let renderCleanupCallbacks = [];
+
+function registerRenderCleanup(fn) {
+  if (typeof fn === 'function') renderCleanupCallbacks.push(fn);
+}
+
+function runRenderCleanup() {
+  if (!renderCleanupCallbacks.length) return;
+  renderCleanupCallbacks.forEach(fn => {
+    try {
+      fn();
+    } catch (err) {
+      console.error('[Render Cleanup] Failed:', err);
+    }
+  });
+  renderCleanupCallbacks = [];
+}
 
 // --- UNDO/REDO SYSTEM STATE (v0.12.0) ---
 const undoStack = [];
@@ -641,7 +658,6 @@ const header = {
         const MAX_RESULTS = 100;
         return allResults.slice(0, MAX_RESULTS);
       }
-
       // Source Part 2/5: Storage drivers, navigation, and mod runtime
       // Concatenated via `npm run build` in lexical order of www/src/*.js
       // =============================================================
@@ -1427,9 +1443,6 @@ const header = {
             case 'onedrive':
               driver = new OneDriveDriver();
               break;
-            case 'webdav':
-              driver = new WebDAVDriver();
-              break;
             case 'localstorage':
             default:
               driver = new LocalStorageDriver();
@@ -1588,6 +1601,103 @@ const header = {
       const SAVE_DEBOUNCE_MS = 500; // Wait 500ms after last change before saving
       const MIN_SAVE_INTERVAL_MS = 100; // Minimum time between actual saves
 
+
+      let indexedDbMirrorDriver = null;
+
+      async function getIndexedDbMirrorDriver() {
+        if (indexedDbMirrorDriver) return indexedDbMirrorDriver;
+        const driver = new IndexedDBDriver();
+        await driver.init({ dbName: 'CardSpokeDB', storeName: 'datasets' });
+        indexedDbMirrorDriver = driver;
+        return indexedDbMirrorDriver;
+      }
+
+      function isIndexedDbDataset() {
+        return !!(store && store.metadata && store.metadata.storageType === 'indexeddb');
+      }
+
+      function getStorageType() {
+        return (store && store.metadata && store.metadata.storageType) || 'localstorage';
+      }
+
+      function supportsFileSystemAccess() {
+        return typeof window.showSaveFilePicker === 'function';
+      }
+
+      function getDatasetFileHandleKey() {
+        const key = instanceKey || 'nested_cards_store';
+        return (store.metadata && store.metadata.storageConfig && store.metadata.storageConfig.handleKey) || (`cardspoke_file_handle_${key}`);
+      }
+
+      async function openFileHandleDb() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open('CardSpokeFileHandles', 1);
+          req.onerror = () => reject(req.error);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles');
+          };
+          req.onsuccess = () => resolve(req.result);
+        });
+      }
+
+      async function saveDatasetFileHandle(handleKey, handle) {
+        const db = await openFileHandleDb();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(['handles'], 'readwrite');
+          tx.objectStore('handles').put(handle, handleKey);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+
+      async function loadDatasetFileHandle(handleKey) {
+        const db = await openFileHandleDb();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(['handles'], 'readonly');
+          const req = tx.objectStore('handles').get(handleKey);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => reject(req.error);
+        });
+      }
+
+      async function ensureLocalFileHandle() {
+        if (!supportsFileSystemAccess()) {
+          throw new Error('File System Access API is not supported in this browser/runtime');
+        }
+        const handleKey = getDatasetFileHandleKey();
+        let handle = await loadDatasetFileHandle(handleKey);
+        if (!handle) {
+          const suggestedName = ((store.metadata && store.metadata.name) || 'cardspoke-dataset').replace(/\s+/g, '-').toLowerCase() + '.json';
+          handle = await window.showSaveFilePicker({
+            suggestedName,
+            types: [{ description: 'JSON Dataset', accept: { 'application/json': ['.json'] } }]
+          });
+          await saveDatasetFileHandle(handleKey, handle);
+        }
+        if (store.metadata && store.metadata.storageConfig) {
+          store.metadata.storageConfig.handleKey = handleKey;
+          store.metadata.storageConfig.fileName = handle.name || 'dataset.json';
+        }
+        return handle;
+      }
+
+      async function writeDatasetToLocalFile(payload) {
+        if (getStorageType() !== 'localfile') return;
+        const handle = await ensureLocalFileHandle();
+        const writable = await handle.createWritable();
+        await writable.write(payload);
+        await writable.close();
+      }
+
+      async function readDatasetFromLocalFile() {
+        if (getStorageType() !== 'localfile') return null;
+        const handle = await ensureLocalFileHandle();
+        const file = await handle.getFile();
+        const text = await file.text();
+        return text || null;
+      }
+
       // Cloud sync tracking
       let cloudSyncTimeout = null;
       let lastCloudSyncTime = 0;
@@ -1662,7 +1772,15 @@ const header = {
           // Use requestIdleCallback if available to avoid blocking UI
           const doSave = () => {
             try {
-              localStorage.setItem(key, JSON.stringify(store));
+              const payload = JSON.stringify(store);
+              localStorage.setItem(key, payload);
+
+              if (isIndexedDbDataset()) {
+                getIndexedDbMirrorDriver()
+                  .then(driver => driver.set(key, payload))
+                  .catch(err => console.error('[IndexedDB] Mirror save failed:', err));
+              }
+
               const duration = performance.now() - startTime;
               lastSaveTime = Date.now();
               savePending = false;
@@ -1675,6 +1793,14 @@ const header = {
               
               // Schedule cloud sync if cloud storage is configured
               scheduleCloudSync();
+
+              if (getStorageType() === 'localfile') {
+                writeDatasetToLocalFile(payload)
+                  .catch(err => {
+                    console.error('[Local File] Save failed:', err);
+                    showToast('Local file save failed: ' + err.message, 'error');
+                  });
+              }
             } catch (e) {
               savePending = false;
               if (e.name === 'QuotaExceededError') {
@@ -1802,7 +1928,8 @@ const header = {
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
             viewMode: parsed.viewMode || 'normal',
-            activeTheme: parsed.activeTheme || 'light'
+            activeTheme: parsed.activeTheme || 'light',
+            metadata: parsed.metadata || {}
           };
 
           // Data migration: rebuild rootOrder if needed
@@ -1844,6 +1971,51 @@ const header = {
           if (needsMigration) {
             save();
             showToast('Data migrated: synchronized root cards');
+          }
+
+          const storageType = getStorageType();
+          if (storageType === 'indexeddb') {
+            getIndexedDbMirrorDriver()
+              .then(driver => driver.get(key))
+              .then(payload => {
+                if (!payload) return;
+                const parsedMirror = typeof payload === 'string' ? JSON.parse(payload) : payload;
+                if (!parsedMirror || typeof parsedMirror !== 'object') return;
+                store = {
+                  rootOrder: parsedMirror.rootOrder || [],
+                  cards: parsedMirror.cards || {},
+                  mods: parsedMirror.mods || {},
+                  bookmarks: parsedMirror.bookmarks || [],
+                  recentCards: parsedMirror.recentCards || [],
+                  viewMode: parsedMirror.viewMode || 'normal',
+                  activeTheme: parsedMirror.activeTheme || 'light',
+                  metadata: parsedMirror.metadata || store.metadata
+                };
+                render();
+              })
+              .catch(err => {
+                console.error('[IndexedDB] Load failed, using LocalStorage fallback:', err);
+              });
+          } else if (storageType === 'localfile') {
+            readDatasetFromLocalFile()
+              .then(payload => {
+                if (!payload) return;
+                const parsedFile = JSON.parse(payload);
+                store = {
+                  rootOrder: parsedFile.rootOrder || [],
+                  cards: parsedFile.cards || {},
+                  mods: parsedFile.mods || {},
+                  bookmarks: parsedFile.bookmarks || [],
+                  recentCards: parsedFile.recentCards || [],
+                  viewMode: parsedFile.viewMode || 'normal',
+                  activeTheme: parsedFile.activeTheme || 'light',
+                  metadata: parsedFile.metadata || store.metadata
+                };
+                render();
+              })
+              .catch(err => {
+                console.error('[Local File] Load failed, using LocalStorage fallback:', err);
+              });
           }
         } catch (e) {
           bootError('Corrupted data.');
@@ -2848,7 +3020,8 @@ const header = {
        * Delete a card and all its children recursively
        * @param {string} id - Card ID to delete
        */
-      function deleteCard(id) {
+      function deleteCard(id, opts = {}) {
+        const { skipSave = false } = opts;
         const card = store.cards[id];
         if (!card) return;
         
@@ -2863,7 +3036,7 @@ const header = {
         if (trashBin.length > MAX_TRASH_SIZE) trashBin.pop();
         
         runModHook('onCardDelete', cloneCard(card));
-        (card.children || []).forEach(cid => deleteCard(cid));
+        (card.children || []).forEach(cid => deleteCard(cid, { skipSave: true }));
         if (card.parentId) {
           const parent = store.cards[card.parentId];
           if (parent) parent.children = parent.children.filter(c => c !== id);
@@ -2871,7 +3044,121 @@ const header = {
           store.rootOrder = store.rootOrder.filter(c => c !== id);
         }
         delete store.cards[id];
-        save();
+        if (!skipSave) save();
+      }
+
+      function getStorageTypeLabel(storageType) {
+        switch (storageType) {
+          case 'indexeddb': return 'IndexedDB';
+          case 'localfile': return 'Local File (chosen location)';
+          case 'googledrive': return 'Google Drive';
+          case 'onedrive': return 'OneDrive';
+          default: return 'LocalStorage';
+        }
+      }
+
+      async function migrateCurrentDatasetStorage(targetStorage) {
+        const currentStorage = (store.metadata && store.metadata.storageType) || 'localstorage';
+        if (targetStorage === currentStorage) {
+          showToast('Dataset is already using ' + getStorageTypeLabel(targetStorage), 'info');
+          return;
+        }
+
+        if (!store.metadata) store.metadata = {};
+        if (!store.metadata.storageConfig) store.metadata.storageConfig = {};
+
+        if (targetStorage === 'indexeddb') {
+          const driver = new IndexedDBDriver();
+          await driver.init({ dbName: 'CardSpokeDB', storeName: 'datasets' });
+          await driver.set(instanceKey, JSON.stringify(store));
+          store.metadata.storageType = 'indexeddb';
+          store.metadata.storageConfig = { dbName: 'CardSpokeDB', storeName: 'datasets' };
+        } else if (targetStorage === 'localfile') {
+          if (typeof window.showSaveFilePicker !== 'function') {
+            throw new Error('Local file location selection is not supported in this environment');
+          }
+          store.metadata.storageType = 'localfile';
+          if (!store.metadata.storageConfig) store.metadata.storageConfig = {};
+          await writeDatasetToLocalFile(JSON.stringify(store));
+        } else if (targetStorage === 'googledrive' || targetStorage === 'onedrive') {
+          const driver = targetStorage === 'googledrive' ? new GoogleDriveDriver() : new OneDriveDriver();
+          await driver.init({});
+          await driver.ensureAuthenticated();
+          await driver.set('cardspoke.json', JSON.stringify(store));
+          store.metadata.storageType = targetStorage;
+          store.metadata.storageConfig = {};
+        } else {
+          store.metadata.storageType = 'localstorage';
+          store.metadata.storageConfig = {};
+        }
+
+        store.metadata.migratedAt = Date.now();
+        save(true);
+        showToast('Dataset storage updated to ' + getStorageTypeLabel(targetStorage), 'success');
+      }
+
+      function showDatasetStorageSettings() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 560px;' });
+        const header = h('div', { className: 'modal-header' });
+        header.appendChild(h('div', { className: 'modal-title' }, 'Dataset Storage Settings'));
+        header.appendChild(h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕'));
+        modal.appendChild(header);
+
+        const body = h('div', { className: 'modal-body' });
+        const currentStorage = (store.metadata && store.metadata.storageType) || 'localstorage';
+
+        body.appendChild(h('p', { style: 'margin-bottom: var(--space-md); color: var(--text-secondary);' },
+          'New datasets default to LocalStorage. You can migrate this dataset to another on-device storage backend after creation.'));
+        body.appendChild(h('p', { style: 'margin-bottom: var(--space-lg);' },
+          'Current storage: ' + getStorageTypeLabel(currentStorage)));
+
+        const select = h('select', {
+          style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: var(--space-md);'
+        });
+        const localOpt = h('option', { value: 'localstorage' }, 'LocalStorage (default)');
+        const idbOpt = h('option', { value: 'indexeddb' }, 'IndexedDB (on-device database)');
+        const fileOpt = h('option', { value: 'localfile' }, 'Local File (choose location on device)');
+        const gdriveOpt = h('option', { value: 'googledrive' }, 'Google Drive (your account)');
+        const onedriveOpt = h('option', { value: 'onedrive' }, 'OneDrive (your account)');
+        if (currentStorage === 'localstorage') localOpt.selected = true;
+        if (currentStorage === 'indexeddb') idbOpt.selected = true;
+        if (currentStorage === 'localfile') fileOpt.selected = true;
+        if (currentStorage === 'googledrive') gdriveOpt.selected = true;
+        if (currentStorage === 'onedrive') onedriveOpt.selected = true;
+        select.appendChild(localOpt);
+        select.appendChild(idbOpt);
+        select.appendChild(fileOpt);
+        select.appendChild(gdriveOpt);
+        select.appendChild(onedriveOpt);
+        body.appendChild(select);
+
+        body.appendChild(h('div', { style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' },
+          'Migration copies data to the selected storage target and keeps a local fallback copy in LocalStorage.'));
+
+        const migrateBtn = h('button', {
+          className: 'btn btn-primary',
+          style: 'width: 100%;',
+          onclick: async () => {
+            migrateBtn.disabled = true;
+            const target = select.value;
+            try {
+              await migrateCurrentDatasetStorage(target);
+              overlay.remove();
+            } catch (err) {
+              showToast('Migration failed: ' + err.message, 'error');
+              migrateBtn.disabled = false;
+            }
+          }
+        }, 'Migrate Storage');
+        body.appendChild(migrateBtn);
+
+        modal.appendChild(body);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        overlay.onclick = (e) => {
+          if (e.target === overlay) overlay.remove();
+        };
       }
 
       /**
@@ -3438,7 +3725,7 @@ const header = {
               const cardCount = parsed ? Object.keys(parsed.cards || {}).length : 0;
               const datasetName = (parsed && parsed.metadata && parsed.metadata.name) || key;
               const storageType = (parsed && parsed.metadata && parsed.metadata.storageType) || 'localstorage';
-              const storageTypeDisplay = storageType === 'indexeddb' ? 'IndexedDB' : 'LocalStorage';
+              const storageTypeDisplay = getStorageTypeLabel(storageType);
               
               datasetMeta.textContent = `Storage: ${storageTypeDisplay} • Size: ${formatBytes(size)} • Cards: ${cardCount}`;
             } catch (e) {
@@ -3469,6 +3756,17 @@ const header = {
                 }
               }, 'Open');
               actions.appendChild(openBtn);
+            }
+
+            if (isCurrent) {
+              const storageBtn = h('button', {
+                className: 'btn',
+                onclick: () => {
+                  overlay.remove();
+                  showDatasetStorageSettings();
+                }
+              }, 'Storage Settings');
+              actions.appendChild(storageBtn);
             }
 
             const deleteBtn = h('button', { 
@@ -3559,103 +3857,18 @@ const header = {
 
         const optionLocal = h('option', { value: 'localstorage' }, 'LocalStorage (Browser storage, fast access)');
         const optionIndexed = h('option', { value: 'indexeddb' }, 'IndexedDB (Browser database, larger capacity)');
+        const optionLocalFile = h('option', { value: 'localfile' }, 'Local File (choose location on device)');
         const optionGoogleDrive = h('option', { value: 'googledrive' }, 'Google Drive (Cross-Device, cloud sync)');
         const optionOneDrive = h('option', { value: 'onedrive' }, 'OneDrive (Cross-Device, cloud sync)');
-        const optionWebDAV = h('option', { value: 'webdav' }, 'WebDAV Server (Self-hosted)');
-        storageSelect.appendChild(optionLocal);
+                storageSelect.appendChild(optionLocal);
         storageSelect.appendChild(optionIndexed);
+        storageSelect.appendChild(optionLocalFile);
         storageSelect.appendChild(optionGoogleDrive);
         storageSelect.appendChild(optionOneDrive);
-        storageSelect.appendChild(optionWebDAV);
 
         const storageHelp = h('div', {
           style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);'
-        }, 'LocalStorage: ~5MB, fast. IndexedDB: ~50MB+. Cloud options: unlimited storage, sync across devices.');
-
-        // WebDAV configuration fields (conditional)
-        const webdavConfig = h('div', {
-          id: 'webdavConfig',
-          style: 'display: none; margin-bottom: var(--space-lg);'
-        });
-
-        const webdavUrlLabel = h('label', {
-          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600; color: var(--text-primary);'
-        }, 'WebDAV Server URL');
-        const webdavUrlInput = h('input', {
-          type: 'text',
-          id: 'webdavUrl',
-          placeholder: 'https://your-server.com/webdav/',
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            margin-bottom: var(--space-md);
-            font-size: 1rem;
-          `
-        });
-
-        const webdavUserLabel = h('label', {
-          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600; color: var(--text-primary);'
-        }, 'Username');
-        const webdavUserInput = h('input', {
-          type: 'text',
-          id: 'webdavUser',
-          placeholder: 'username',
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            margin-bottom: var(--space-md);
-            font-size: 1rem;
-          `
-        });
-
-        const webdavPassLabel = h('label', {
-          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600; color: var(--text-primary);'
-        }, 'Password');
-        const webdavPassInput = h('input', {
-          type: 'password',
-          id: 'webdavPass',
-          placeholder: 'password',
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            margin-bottom: var(--space-xs);
-            font-size: 1rem;
-          `
-        });
-
-        const webdavHelp = h('div', {
-          style: 'font-size: 0.875rem; color: var(--text-secondary);'
-        }, 'Warning: Password will NOT be saved for security. You\'ll need to re-enter it each session.');
-
-        webdavConfig.appendChild(webdavUrlLabel);
-        webdavConfig.appendChild(webdavUrlInput);
-        webdavConfig.appendChild(webdavUserLabel);
-        webdavConfig.appendChild(webdavUserInput);
-        webdavConfig.appendChild(webdavPassLabel);
-        webdavConfig.appendChild(webdavPassInput);
-        webdavConfig.appendChild(webdavHelp);
-
-        // Show/hide WebDAV config based on storage type selection
-        storageSelect.addEventListener('change', () => {
-          const selected = storageSelect.value;
-          if (selected === 'webdav') {
-            webdavConfig.style.display = 'block';
-          } else {
-            webdavConfig.style.display = 'none';
-          }
-        });
+        }, 'Default: LocalStorage. You can migrate later. Local File lets you choose a save location. Cloud options use your own Google Drive or OneDrive account.');
 
         // PIN protection (future feature)
         const pinLabel = h('label', { 
@@ -3700,19 +3913,11 @@ const header = {
               name = 'Dataset_' + count;
             }
 
-            // Validate WebDAV config if selected
-            let config = {};
-            if (storageType === 'webdav') {
-              const url = document.getElementById('webdavUrl').value.trim();
-              const username = document.getElementById('webdavUser').value.trim();
-              const password = document.getElementById('webdavPass').value;
-
-              if (!url || !username || !password) {
-                showToast('Please fill in all WebDAV configuration fields', 'error');
+            if (storageType === 'localfile') {
+              if (typeof window.showSaveFilePicker !== 'function') {
+                showToast('Local file location selection is not supported in this environment', 'error');
                 return;
               }
-
-              config = { url, username, password };
             }
 
             // For cloud storage (Google Drive, OneDrive), initialize and trigger auth
@@ -3780,7 +3985,6 @@ const header = {
         createForm.appendChild(storageLabel);
         createForm.appendChild(storageSelect);
         createForm.appendChild(storageHelp);
-        createForm.appendChild(webdavConfig);
         createForm.appendChild(pinLabel);
         createForm.appendChild(pinInput);
         createForm.appendChild(pinHelp);
@@ -3860,7 +4064,7 @@ const header = {
         // Get storage type and display name from store metadata
         const displayName = (store && store.metadata && store.metadata.name) || currentKey;
         const storageType = (store && store.metadata && store.metadata.storageType) || 'localstorage';
-        const storageTypeDisplay = storageType === 'indexeddb' ? 'IndexedDB' : 'LocalStorage';
+        const storageTypeDisplay = getStorageTypeLabel(storageType);
 
         // Create info sections
         const infoHtml = `
@@ -5099,7 +5303,6 @@ const header = {
       }
 
 
-
       // Source Part 4/5: Rendering, themes, footer, and initialization
       // Concatenated via `npm run build` in lexical order of www/src/*.js
       // =============================================================
@@ -5195,6 +5398,7 @@ const header = {
           };
           renderBatch();
           window.addEventListener('scroll', onScroll, { passive: true });
+          registerRenderCleanup(() => window.removeEventListener('scroll', onScroll));
           main.appendChild(grid);
         }
       }
@@ -5920,6 +6124,7 @@ const header = {
             };
             renderBatch();
             window.addEventListener('scroll', onScroll, { passive: true });
+            registerRenderCleanup(() => window.removeEventListener('scroll', onScroll));
             main.appendChild(grid);
           }
         }).catch(err => {
@@ -5934,6 +6139,7 @@ const header = {
        */
       function render() {
         try {
+          runRenderCleanup();
           renderBreadcrumbs();
           main.innerHTML = '';
           switch (navState.page) {
