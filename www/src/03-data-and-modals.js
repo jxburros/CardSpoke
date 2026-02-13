@@ -70,7 +70,8 @@
        * Delete a card and all its children recursively
        * @param {string} id - Card ID to delete
        */
-      function deleteCard(id) {
+      function deleteCard(id, opts = {}) {
+        const { skipSave = false } = opts;
         const card = store.cards[id];
         if (!card) return;
         
@@ -85,7 +86,7 @@
         if (trashBin.length > MAX_TRASH_SIZE) trashBin.pop();
         
         runModHook('onCardDelete', cloneCard(card));
-        (card.children || []).forEach(cid => deleteCard(cid));
+        (card.children || []).forEach(cid => deleteCard(cid, { skipSave: true }));
         if (card.parentId) {
           const parent = store.cards[card.parentId];
           if (parent) parent.children = parent.children.filter(c => c !== id);
@@ -93,7 +94,121 @@
           store.rootOrder = store.rootOrder.filter(c => c !== id);
         }
         delete store.cards[id];
-        save();
+        if (!skipSave) save();
+      }
+
+      function getStorageTypeLabel(storageType) {
+        switch (storageType) {
+          case 'indexeddb': return 'IndexedDB';
+          case 'localfile': return 'Local File (chosen location)';
+          case 'googledrive': return 'Google Drive';
+          case 'onedrive': return 'OneDrive';
+          default: return 'LocalStorage';
+        }
+      }
+
+      async function migrateCurrentDatasetStorage(targetStorage) {
+        const currentStorage = (store.metadata && store.metadata.storageType) || 'localstorage';
+        if (targetStorage === currentStorage) {
+          showToast('Dataset is already using ' + getStorageTypeLabel(targetStorage), 'info');
+          return;
+        }
+
+        if (!store.metadata) store.metadata = {};
+        if (!store.metadata.storageConfig) store.metadata.storageConfig = {};
+
+        if (targetStorage === 'indexeddb') {
+          const driver = new IndexedDBDriver();
+          await driver.init({ dbName: 'CardSpokeDB', storeName: 'datasets' });
+          await driver.set(instanceKey, JSON.stringify(store));
+          store.metadata.storageType = 'indexeddb';
+          store.metadata.storageConfig = { dbName: 'CardSpokeDB', storeName: 'datasets' };
+        } else if (targetStorage === 'localfile') {
+          if (typeof window.showSaveFilePicker !== 'function') {
+            throw new Error('Local file location selection is not supported in this environment');
+          }
+          store.metadata.storageType = 'localfile';
+          if (!store.metadata.storageConfig) store.metadata.storageConfig = {};
+          await writeDatasetToLocalFile(JSON.stringify(store));
+        } else if (targetStorage === 'googledrive' || targetStorage === 'onedrive') {
+          const driver = targetStorage === 'googledrive' ? new GoogleDriveDriver() : new OneDriveDriver();
+          await driver.init({});
+          await driver.ensureAuthenticated();
+          await driver.set('cardspoke.json', JSON.stringify(store));
+          store.metadata.storageType = targetStorage;
+          store.metadata.storageConfig = {};
+        } else {
+          store.metadata.storageType = 'localstorage';
+          store.metadata.storageConfig = {};
+        }
+
+        store.metadata.migratedAt = Date.now();
+        save(true);
+        showToast('Dataset storage updated to ' + getStorageTypeLabel(targetStorage), 'success');
+      }
+
+      function showDatasetStorageSettings() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 560px;' });
+        const header = h('div', { className: 'modal-header' });
+        header.appendChild(h('div', { className: 'modal-title' }, 'Dataset Storage Settings'));
+        header.appendChild(h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕'));
+        modal.appendChild(header);
+
+        const body = h('div', { className: 'modal-body' });
+        const currentStorage = (store.metadata && store.metadata.storageType) || 'localstorage';
+
+        body.appendChild(h('p', { style: 'margin-bottom: var(--space-md); color: var(--text-secondary);' },
+          'New datasets default to LocalStorage. You can migrate this dataset to another on-device storage backend after creation.'));
+        body.appendChild(h('p', { style: 'margin-bottom: var(--space-lg);' },
+          'Current storage: ' + getStorageTypeLabel(currentStorage)));
+
+        const select = h('select', {
+          style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: var(--space-md);'
+        });
+        const localOpt = h('option', { value: 'localstorage' }, 'LocalStorage (default)');
+        const idbOpt = h('option', { value: 'indexeddb' }, 'IndexedDB (on-device database)');
+        const fileOpt = h('option', { value: 'localfile' }, 'Local File (choose location on device)');
+        const gdriveOpt = h('option', { value: 'googledrive' }, 'Google Drive (your account)');
+        const onedriveOpt = h('option', { value: 'onedrive' }, 'OneDrive (your account)');
+        if (currentStorage === 'localstorage') localOpt.selected = true;
+        if (currentStorage === 'indexeddb') idbOpt.selected = true;
+        if (currentStorage === 'localfile') fileOpt.selected = true;
+        if (currentStorage === 'googledrive') gdriveOpt.selected = true;
+        if (currentStorage === 'onedrive') onedriveOpt.selected = true;
+        select.appendChild(localOpt);
+        select.appendChild(idbOpt);
+        select.appendChild(fileOpt);
+        select.appendChild(gdriveOpt);
+        select.appendChild(onedriveOpt);
+        body.appendChild(select);
+
+        body.appendChild(h('div', { style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' },
+          'Migration copies data to the selected storage target and keeps a local fallback copy in LocalStorage.'));
+
+        const migrateBtn = h('button', {
+          className: 'btn btn-primary',
+          style: 'width: 100%;',
+          onclick: async () => {
+            migrateBtn.disabled = true;
+            const target = select.value;
+            try {
+              await migrateCurrentDatasetStorage(target);
+              overlay.remove();
+            } catch (err) {
+              showToast('Migration failed: ' + err.message, 'error');
+              migrateBtn.disabled = false;
+            }
+          }
+        }, 'Migrate Storage');
+        body.appendChild(migrateBtn);
+
+        modal.appendChild(body);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        overlay.onclick = (e) => {
+          if (e.target === overlay) overlay.remove();
+        };
       }
 
       /**
@@ -660,7 +775,7 @@
               const cardCount = parsed ? Object.keys(parsed.cards || {}).length : 0;
               const datasetName = (parsed && parsed.metadata && parsed.metadata.name) || key;
               const storageType = (parsed && parsed.metadata && parsed.metadata.storageType) || 'localstorage';
-              const storageTypeDisplay = storageType === 'indexeddb' ? 'IndexedDB' : 'LocalStorage';
+              const storageTypeDisplay = getStorageTypeLabel(storageType);
               
               datasetMeta.textContent = `Storage: ${storageTypeDisplay} • Size: ${formatBytes(size)} • Cards: ${cardCount}`;
             } catch (e) {
@@ -691,6 +806,17 @@
                 }
               }, 'Open');
               actions.appendChild(openBtn);
+            }
+
+            if (isCurrent) {
+              const storageBtn = h('button', {
+                className: 'btn',
+                onclick: () => {
+                  overlay.remove();
+                  showDatasetStorageSettings();
+                }
+              }, 'Storage Settings');
+              actions.appendChild(storageBtn);
             }
 
             const deleteBtn = h('button', { 
@@ -781,103 +907,18 @@
 
         const optionLocal = h('option', { value: 'localstorage' }, 'LocalStorage (Browser storage, fast access)');
         const optionIndexed = h('option', { value: 'indexeddb' }, 'IndexedDB (Browser database, larger capacity)');
+        const optionLocalFile = h('option', { value: 'localfile' }, 'Local File (choose location on device)');
         const optionGoogleDrive = h('option', { value: 'googledrive' }, 'Google Drive (Cross-Device, cloud sync)');
         const optionOneDrive = h('option', { value: 'onedrive' }, 'OneDrive (Cross-Device, cloud sync)');
-        const optionWebDAV = h('option', { value: 'webdav' }, 'WebDAV Server (Self-hosted)');
-        storageSelect.appendChild(optionLocal);
+                storageSelect.appendChild(optionLocal);
         storageSelect.appendChild(optionIndexed);
+        storageSelect.appendChild(optionLocalFile);
         storageSelect.appendChild(optionGoogleDrive);
         storageSelect.appendChild(optionOneDrive);
-        storageSelect.appendChild(optionWebDAV);
 
         const storageHelp = h('div', {
           style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);'
-        }, 'LocalStorage: ~5MB, fast. IndexedDB: ~50MB+. Cloud options: unlimited storage, sync across devices.');
-
-        // WebDAV configuration fields (conditional)
-        const webdavConfig = h('div', {
-          id: 'webdavConfig',
-          style: 'display: none; margin-bottom: var(--space-lg);'
-        });
-
-        const webdavUrlLabel = h('label', {
-          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600; color: var(--text-primary);'
-        }, 'WebDAV Server URL');
-        const webdavUrlInput = h('input', {
-          type: 'text',
-          id: 'webdavUrl',
-          placeholder: 'https://your-server.com/webdav/',
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            margin-bottom: var(--space-md);
-            font-size: 1rem;
-          `
-        });
-
-        const webdavUserLabel = h('label', {
-          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600; color: var(--text-primary);'
-        }, 'Username');
-        const webdavUserInput = h('input', {
-          type: 'text',
-          id: 'webdavUser',
-          placeholder: 'username',
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            margin-bottom: var(--space-md);
-            font-size: 1rem;
-          `
-        });
-
-        const webdavPassLabel = h('label', {
-          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600; color: var(--text-primary);'
-        }, 'Password');
-        const webdavPassInput = h('input', {
-          type: 'password',
-          id: 'webdavPass',
-          placeholder: 'password',
-          style: `
-            width: 100%;
-            padding: var(--space-md);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            margin-bottom: var(--space-xs);
-            font-size: 1rem;
-          `
-        });
-
-        const webdavHelp = h('div', {
-          style: 'font-size: 0.875rem; color: var(--text-secondary);'
-        }, 'Warning: Password will NOT be saved for security. You\'ll need to re-enter it each session.');
-
-        webdavConfig.appendChild(webdavUrlLabel);
-        webdavConfig.appendChild(webdavUrlInput);
-        webdavConfig.appendChild(webdavUserLabel);
-        webdavConfig.appendChild(webdavUserInput);
-        webdavConfig.appendChild(webdavPassLabel);
-        webdavConfig.appendChild(webdavPassInput);
-        webdavConfig.appendChild(webdavHelp);
-
-        // Show/hide WebDAV config based on storage type selection
-        storageSelect.addEventListener('change', () => {
-          const selected = storageSelect.value;
-          if (selected === 'webdav') {
-            webdavConfig.style.display = 'block';
-          } else {
-            webdavConfig.style.display = 'none';
-          }
-        });
+        }, 'Default: LocalStorage. You can migrate later. Local File lets you choose a save location. Cloud options use your own Google Drive or OneDrive account.');
 
         // PIN protection (future feature)
         const pinLabel = h('label', { 
@@ -922,19 +963,11 @@
               name = 'Dataset_' + count;
             }
 
-            // Validate WebDAV config if selected
-            let config = {};
-            if (storageType === 'webdav') {
-              const url = document.getElementById('webdavUrl').value.trim();
-              const username = document.getElementById('webdavUser').value.trim();
-              const password = document.getElementById('webdavPass').value;
-
-              if (!url || !username || !password) {
-                showToast('Please fill in all WebDAV configuration fields', 'error');
+            if (storageType === 'localfile') {
+              if (typeof window.showSaveFilePicker !== 'function') {
+                showToast('Local file location selection is not supported in this environment', 'error');
                 return;
               }
-
-              config = { url, username, password };
             }
 
             // For cloud storage (Google Drive, OneDrive), initialize and trigger auth
@@ -1002,7 +1035,6 @@
         createForm.appendChild(storageLabel);
         createForm.appendChild(storageSelect);
         createForm.appendChild(storageHelp);
-        createForm.appendChild(webdavConfig);
         createForm.appendChild(pinLabel);
         createForm.appendChild(pinInput);
         createForm.appendChild(pinHelp);
@@ -1082,7 +1114,7 @@
         // Get storage type and display name from store metadata
         const displayName = (store && store.metadata && store.metadata.name) || currentKey;
         const storageType = (store && store.metadata && store.metadata.storageType) || 'localstorage';
-        const storageTypeDisplay = storageType === 'indexeddb' ? 'IndexedDB' : 'LocalStorage';
+        const storageTypeDisplay = getStorageTypeLabel(storageType);
 
         // Create info sections
         const infoHtml = `
@@ -2319,6 +2351,5 @@
         
         return related.slice(0, limit);
       }
-
 
 

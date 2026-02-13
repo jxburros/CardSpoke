@@ -356,6 +356,23 @@ let searchResultsState = {
   elements: [],
   selectedIndex: 0
 };
+let renderCleanupCallbacks = [];
+
+function registerRenderCleanup(fn) {
+  if (typeof fn === 'function') renderCleanupCallbacks.push(fn);
+}
+
+function runRenderCleanup() {
+  if (!renderCleanupCallbacks.length) return;
+  renderCleanupCallbacks.forEach(fn => {
+    try {
+      fn();
+    } catch (err) {
+      console.error('[Render Cleanup] Failed:', err);
+    }
+  });
+  renderCleanupCallbacks = [];
+}
 
 // --- UNDO/REDO SYSTEM STATE (v0.12.0) ---
 const undoStack = [];
@@ -641,4 +658,3 @@ const header = {
         const MAX_RESULTS = 100;
         return allResults.slice(0, MAX_RESULTS);
       }
-
