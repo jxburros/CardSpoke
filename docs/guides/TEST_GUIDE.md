@@ -1,6 +1,6 @@
 # Test Guide
 
-CardSpoke uses `uvu` for automated tests. This guide covers how to run and write tests for core features and Extensions.
+CardSpoke uses `uvu` for automated tests. This guide covers how to run and write tests for core features and mods.
 
 ## Commands
 - Run all tests:
