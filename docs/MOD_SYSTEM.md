@@ -128,6 +128,7 @@ Mods register hooks via `CardSpoke_MODS.register()`. The runtime dispatches hook
 | `onImport(ctx, info)` | After data import | Normalize incoming data. |
 | `onRender(ctx)` | After app UI re-renders | Update custom UI components, refresh visualizations. |
 | `onPageChange(ctx, page)` | When the active page/view changes | Load page-specific data, initialize page components. |
+| `onAppInit(ctx)` | Once at app initialization after boot | Initialize global state, register app-wide services. |
 
 ### Hook Context Object
 Each hook receives a context with:
