@@ -15,6 +15,7 @@ Drivers extend the abstract `StorageDriver` class and must implement:
 ## Built-in drivers
 - **IndexedDBDriver (`kind: 'indexeddb'`)**: stores datasets in the `datasets` object store inside `CardSpokeDB` (configurable names). Uses read/write transactions per operation and computes size by summing serialized values.
 - **LocalStorageDriver (`kind: 'localstorage'`)**: prefix-based keys (default `cardspoke_`); JSON serializes values and calculates size from stored string lengths.
+- **LocalFileDriver (`kind: 'localfile'`)**: stores datasets in a local file using the File System Access API (web) or Capacitor Filesystem plugin (native). For web, prompts user to select/create a JSON file and persists the file handle in IndexedDB for future access. For native platforms (iOS/Android), stores data in the Documents directory. Provides full control over where data is saved.
 - **GoogleDriveDriver (`kind: 'googledrive'`)**: OAuth via Google Identity Services; reads/writes a JSON file (default `cardspoke.json`) using Drive v3 APIs. Requires developer-supplied client id; surfaces toast errors on failures.
 - **OneDriveDriver (`kind: 'onedrive'`)**: Auth via MSAL; also stores a JSON payload in the user’s drive and uses PUT/PATCH operations to update it.
 - **WebDAVDriver (`kind: 'webdav'`)**: Basic-auth to a configured endpoint; reads/writes a JSON file (default `cardspoke.json`) and warns about CORS when misconfigured.
