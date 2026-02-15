@@ -124,7 +124,9 @@ class LocalFileDriver extends StorageDriver {
 
   async init(config = {}) {
     this.fileName = config.fileName || 'cardspoke.json';
-    this.isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform();
+    this.isNative = typeof window.Capacitor !== 'undefined' && 
+                    typeof window.Capacitor.isNativePlatform === 'function' && 
+                    window.Capacitor.isNativePlatform();
     return Promise.resolve();
   }
 

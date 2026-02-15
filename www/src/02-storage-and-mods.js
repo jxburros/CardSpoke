@@ -751,7 +751,9 @@
           this.handleKey = config.handleKey || 'cardspoke_localfile_handle';
           
           // Detect if running in Capacitor native environment
-          this.isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform();
+          this.isNative = typeof window.Capacitor !== 'undefined' && 
+                          typeof window.Capacitor.isNativePlatform === 'function' && 
+                          window.Capacitor.isNativePlatform();
           
           if (this.isNative) {
             // Native: Use Capacitor Filesystem
@@ -864,9 +866,19 @@
                 directory: Directory.Documents,
                 encoding: 'utf8'
               });
-              return JSON.parse(result.data);
+              const text = result.data || '';
+              if (!text.trim()) {
+                return {};
+              }
+              try {
+                return JSON.parse(text);
+              } catch (parseError) {
+                console.error('Failed to parse file content:', parseError);
+                throw new Error('Invalid JSON in file');
+              }
             } catch (error) {
-              if (error.message && error.message.includes('does not exist')) {
+              // Check for file not found error
+              if (error.code === 'NOT_FOUND' || (error.message && error.message.toLowerCase().includes('not exist'))) {
                 return {};
               }
               throw error;
@@ -876,7 +888,15 @@
             await this.ensureHandle();
             const file = await this.fileHandle.getFile();
             const text = await file.text();
-            return text ? JSON.parse(text) : {};
+            if (!text.trim()) {
+              return {};
+            }
+            try {
+              return JSON.parse(text);
+            } catch (parseError) {
+              console.error('Failed to parse file content:', parseError);
+              throw new Error('Invalid JSON in file');
+            }
           }
         }
 
