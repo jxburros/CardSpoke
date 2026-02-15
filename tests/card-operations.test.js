@@ -9,7 +9,8 @@ import {
   createTestStore,
   createTestCard,
   addCardToStore,
-  deleteCardFromStore
+  deleteCardFromStore,
+  cloneCard
 } from './helpers.js';
 
 test('createTestCard creates a valid card', () => {
@@ -136,6 +137,59 @@ test('card hierarchy maintains integrity', () => {
   assert.ok(parent.children.includes(child1.id), 'Parent should include child1');
   assert.ok(parent.children.includes(child2.id), 'Parent should include child2');
   assert.is(store.rootOrder.length, 1, 'Should have 1 root card');
+});
+
+test('cloneCard returns null for null input', () => {
+  assert.is(cloneCard(null), null, 'Should return null for null');
+});
+
+test('cloneCard creates independent tags array', () => {
+  const card = createTestCard('Tagged Card', 'Body');
+  card.tags = ['javascript', 'testing'];
+
+  const cloned = cloneCard(card);
+
+  assert.equal(cloned.tags, ['javascript', 'testing'], 'Cloned tags should match');
+
+  // Modify clone's tags - should NOT affect original
+  cloned.tags.push('new-tag');
+
+  assert.is(card.tags.length, 2, 'Original tags should still have 2 items');
+  assert.is(cloned.tags.length, 3, 'Cloned tags should have 3 items');
+});
+
+test('cloneCard creates independent children array', () => {
+  const card = createTestCard('Parent', 'Body');
+  card.children = ['child1', 'child2'];
+
+  const cloned = cloneCard(card);
+
+  // Modify clone's children - should NOT affect original
+  cloned.children.push('child3');
+
+  assert.is(card.children.length, 2, 'Original children should still have 2 items');
+  assert.is(cloned.children.length, 3, 'Cloned children should have 3 items');
+});
+
+test('cloneCard deep-clones modsData', () => {
+  const card = createTestCard('Modded Card', 'Body');
+  card.modsData = { myMod: { setting: 'value' } };
+
+  const cloned = cloneCard(card);
+  cloned.modsData.myMod.setting = 'changed';
+
+  assert.is(card.modsData.myMod.setting, 'value', 'Original modsData should be unchanged');
+  assert.is(cloned.modsData.myMod.setting, 'changed', 'Cloned modsData should be changed');
+});
+
+test('cloneCard handles card with empty tags', () => {
+  const card = createTestCard('No Tags', 'Body');
+  card.tags = [];
+
+  const cloned = cloneCard(card);
+
+  assert.ok(Array.isArray(cloned.tags), 'Cloned tags should be an array');
+  assert.is(cloned.tags.length, 0, 'Cloned tags should be empty');
 });
 
 test.run();

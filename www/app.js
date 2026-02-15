@@ -123,6 +123,7 @@ function cloneCard(card) {
   return {
     ...card,
     children: Array.isArray(card.children) ? card.children.slice() : [],
+    tags: Array.isArray(card.tags) ? card.tags.slice() : [],
     modsData
   };
 }
@@ -4226,7 +4227,7 @@ const header = {
               metadata: {
                 name: name,
                 storageType: storageType,
-                storageConfig: config,
+                storageConfig: {},
                 createdAt: Date.now()
               }
             };
@@ -4328,61 +4329,72 @@ const header = {
         const storageType = (store && store.metadata && store.metadata.storageType) || 'localstorage';
         const storageTypeDisplay = getStorageTypeLabel(storageType);
 
-        // Create info sections
-        const infoHtml = `
-          <div style="margin-bottom: var(--space-xl);">
-            <h3 style="margin-bottom: var(--space-md); color: var(--text-primary);">Current Dataset</h3>
-            <div style="background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border);">
-              <div style="margin-bottom: var(--space-sm);"><strong>Name:</strong> ${displayName}</div>
-              <div style="margin-bottom: var(--space-sm);"><strong>Storage Type:</strong> ${storageTypeDisplay}</div>
-              <div style="margin-bottom: var(--space-sm);"><strong>Size:</strong> ${formatBytes(dataSize)}</div>
-              <div style="margin-bottom: var(--space-sm);"><strong>PIN Protected:</strong> No</div>
-            </div>
-          </div>
+        // Create info sections using safe DOM methods
+        const infoRow = (label, value) => {
+          const row = h('div', { style: 'margin-bottom: var(--space-sm);' });
+          row.appendChild(h('strong', {}, label));
+          row.appendChild(document.createTextNode(' ' + value));
+          return row;
+        };
+        const sectionStyle = 'background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border);';
+        const headingStyle = 'margin-bottom: var(--space-md); color: var(--text-primary);';
 
-          <div style="margin-bottom: var(--space-xl);">
-            <h3 style="margin-bottom: var(--space-md); color: var(--text-primary);">Dataset Contents</h3>
-            <div style="background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border);">
-              <div style="margin-bottom: var(--space-sm);"><strong>Cards:</strong> ${cardCount}</div>
-              <div style="margin-bottom: var(--space-sm);"><strong>Mods:</strong> ${modCount}</div>
-              <div style="margin-bottom: var(--space-sm);"><strong>Bookmarks:</strong> ${bookmarkCount}</div>
-              <div style="margin-bottom: var(--space-sm);"><strong>Recent Cards:</strong> ${recentCount}</div>
-            </div>
-          </div>
+        // Current Dataset section
+        const currentSection = h('div', { style: 'margin-bottom: var(--space-xl);' },
+          h('h3', { style: headingStyle }, 'Current Dataset'),
+          h('div', { style: sectionStyle },
+            infoRow('Name:', displayName),
+            infoRow('Storage Type:', storageTypeDisplay),
+            infoRow('Size:', formatBytes(dataSize)),
+            infoRow('PIN Protected:', 'No')
+          )
+        );
+        modalBody.appendChild(currentSection);
 
-          <div style="margin-bottom: var(--space-xl);">
-            <h3 style="margin-bottom: var(--space-md); color: var(--text-primary);">Storage Overview</h3>
-            <div style="background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius); border: 1px solid var(--border);">
-              <div style="margin-bottom: var(--space-sm);"><strong>Total LocalStorage:</strong> ${formatBytes(totalSize)}</div>
-              <div style="margin-bottom: var(--space-sm);"><strong>Total Items:</strong> ${itemCount}</div>
-              <div style="margin-bottom: var(--space-sm);"><strong>Quota Used:</strong> ~${Math.round((totalSize / (5 * 1024 * 1024)) * 100)}% (typical 5MB limit)</div>
-            </div>
-          </div>
+        // Dataset Contents section
+        const contentsSection = h('div', { style: 'margin-bottom: var(--space-xl);' },
+          h('h3', { style: headingStyle }, 'Dataset Contents'),
+          h('div', { style: sectionStyle },
+            infoRow('Cards:', String(cardCount)),
+            infoRow('Mods:', String(modCount)),
+            infoRow('Bookmarks:', String(bookmarkCount)),
+            infoRow('Recent Cards:', String(recentCount))
+          )
+        );
+        modalBody.appendChild(contentsSection);
 
-          <div>
-            <h3 style="margin-bottom: var(--space-md); color: var(--text-primary);">Quick Actions</h3>
-            <div style="display: flex; gap: var(--space-md); flex-wrap: wrap;">
-              <button id="exportDataBtn" class="btn btn-primary">Export Dataset</button>
-              <button id="switchInstanceBtn" class="btn btn-secondary">Switch Dataset</button>
-            </div>
-          </div>
-        `;
+        // Storage Overview section
+        const quotaPercent = '~' + Math.round((totalSize / (5 * 1024 * 1024)) * 100) + '% (typical 5MB limit)';
+        const storageSection = h('div', { style: 'margin-bottom: var(--space-xl);' },
+          h('h3', { style: headingStyle }, 'Storage Overview'),
+          h('div', { style: sectionStyle },
+            infoRow('Total LocalStorage:', formatBytes(totalSize)),
+            infoRow('Total Items:', String(itemCount)),
+            infoRow('Quota Used:', quotaPercent)
+          )
+        );
+        modalBody.appendChild(storageSection);
 
-        modalBody.innerHTML = infoHtml;
+        // Quick Actions section
+        const exportBtn = h('button', {
+          className: 'btn btn-primary',
+          onclick: () => { overlay.remove(); handleExport('instance-json'); }
+        }, 'Export Dataset');
+        const switchBtn = h('button', {
+          className: 'btn btn-secondary',
+          onclick: () => { overlay.remove(); showDatasetManager(); }
+        }, 'Switch Dataset');
+        const actionsSection = h('div', {},
+          h('h3', { style: headingStyle }, 'Quick Actions'),
+          h('div', { style: 'display: flex; gap: var(--space-md); flex-wrap: wrap;' },
+            exportBtn, switchBtn
+          )
+        );
+        modalBody.appendChild(actionsSection);
+
         modal.appendChild(modalBody);
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
-
-        // Add event listeners for quick actions
-        document.getElementById('exportDataBtn').onclick = () => {
-          overlay.remove();
-          handleExport('instance-json');
-        };
-
-        document.getElementById('switchInstanceBtn').onclick = () => {
-          overlay.remove();
-          showDatasetManager();
-        };
 
         overlay.onclick = (e) => {
           if (e.target === overlay) overlay.remove();
@@ -6112,8 +6124,6 @@ const header = {
           dirty = true;
         };
         const addBlockPrefix = (prefix) => {
-          const lines = bodyTextarea.value.split(/\n/);
-          lines.push();
           const cursor = bodyTextarea.selectionStart;
           const value = bodyTextarea.value;
           const before = value.slice(0, cursor);
@@ -6676,7 +6686,7 @@ const header = {
 
       menu.dataHub.onclick = () => {
         menu.overlay.classList.remove('show');
-        showDataHub();
+        showDatasetInfo();
       };
 
       menu.clearAll.onclick = () => {

@@ -175,6 +175,24 @@ function addToRecentCards(store, cardId) {
   }
 }
 
+function cloneCard(card) {
+  if (!card) return null;
+  let modsData = {};
+  if (card.modsData) {
+    try {
+      modsData = JSON.parse(JSON.stringify(card.modsData));
+    } catch (err) {
+      modsData = { ...card.modsData };
+    }
+  }
+  return {
+    ...card,
+    children: Array.isArray(card.children) ? card.children.slice() : [],
+    tags: Array.isArray(card.tags) ? card.tags.slice() : [],
+    modsData
+  };
+}
+
 export {
   MockLocalStorage,
   uid,
@@ -185,7 +203,8 @@ export {
   searchCards,
   toggleBookmark,
   isBookmarked,
-  addToRecentCards
+  addToRecentCards,
+  cloneCard
 };
 
 // Aliases for compatibility
