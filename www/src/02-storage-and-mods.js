@@ -733,6 +733,264 @@
       }
 
       /**
+       * Local File Storage Driver
+       * Uses File System Access API (web) or Capacitor Filesystem (native)
+       */
+      class LocalFileDriver extends StorageDriver {
+        constructor() {
+          super();
+          this.fileHandle = null;
+          this.fileName = 'cardspoke.json';
+          this.handleKey = 'cardspoke_localfile_handle';
+          this.isNative = false;
+          this.nativeFilePath = null;
+        }
+
+        async init(config = {}) {
+          this.fileName = config.fileName || 'cardspoke.json';
+          this.handleKey = config.handleKey || 'cardspoke_localfile_handle';
+          
+          // Detect if running in Capacitor native environment
+          this.isNative = typeof window.Capacitor !== 'undefined' && 
+                          typeof window.Capacitor.isNativePlatform === 'function' && 
+                          window.Capacitor.isNativePlatform();
+          
+          if (this.isNative) {
+            // Native: Use Capacitor Filesystem
+            const { Filesystem } = window.Capacitor.Plugins;
+            if (!Filesystem) {
+              throw new Error('Capacitor Filesystem plugin not available');
+            }
+            // Store file in Documents directory
+            this.nativeFilePath = this.fileName;
+          } else {
+            // Web: Try to restore file handle from IndexedDB
+            await this.restoreHandle();
+          }
+          
+          return Promise.resolve();
+        }
+
+        async restoreHandle() {
+          try {
+            // Try to restore the file handle from IndexedDB
+            const db = await this.openHandleDB();
+            const handle = await this.getHandleFromDB(db);
+            if (handle) {
+              // Verify we still have permission
+              const permission = await handle.queryPermission({ mode: 'readwrite' });
+              if (permission === 'granted') {
+                this.fileHandle = handle;
+              }
+            }
+          } catch (error) {
+            console.warn('Could not restore file handle:', error);
+          }
+        }
+
+        async openHandleDB() {
+          return new Promise((resolve, reject) => {
+            const request = indexedDB.open('CardSpokeFileHandles', 1);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+            request.onupgradeneeded = (event) => {
+              const db = event.target.result;
+              if (!db.objectStoreNames.contains('handles')) {
+                db.createObjectStore('handles');
+              }
+            };
+          });
+        }
+
+        async getHandleFromDB(db) {
+          return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['handles'], 'readonly');
+            const store = transaction.objectStore('handles');
+            const request = store.get(this.handleKey);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+          });
+        }
+
+        async saveHandleToDB(handle) {
+          const db = await this.openHandleDB();
+          return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['handles'], 'readwrite');
+            const store = transaction.objectStore('handles');
+            const request = store.put(handle, this.handleKey);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve();
+          });
+        }
+
+        async ensureHandle() {
+          if (this.isNative) {
+            // Native platform always has access to file system
+            return;
+          }
+          
+          if (!this.fileHandle) {
+            // Check if File System Access API is supported
+            if (!('showSaveFilePicker' in window)) {
+              throw new Error('File System Access API not supported in this browser. Please use Chrome, Edge, or another compatible browser.');
+            }
+            
+            // Prompt user to select/create a file
+            try {
+              this.fileHandle = await window.showSaveFilePicker({
+                suggestedName: this.fileName,
+                types: [{
+                  description: 'CardSpoke Data File',
+                  accept: { 'application/json': ['.json'] }
+                }]
+              });
+              
+              // Save handle to IndexedDB for future use
+              await this.saveHandleToDB(this.fileHandle);
+            } catch (error) {
+              if (error.name === 'AbortError') {
+                throw new Error('File selection cancelled by user');
+              }
+              throw error;
+            }
+          }
+        }
+
+        async readFile() {
+          if (this.isNative) {
+            // Native: Read using Capacitor Filesystem
+            const { Filesystem, Directory } = window.Capacitor.Plugins;
+            try {
+              const result = await Filesystem.readFile({
+                path: this.nativeFilePath,
+                directory: Directory.Documents,
+                encoding: 'utf8'
+              });
+              const text = result.data || '';
+              if (!text.trim()) {
+                return {};
+              }
+              try {
+                return JSON.parse(text);
+              } catch (parseError) {
+                console.error('Failed to parse file content:', parseError);
+                throw new Error('Invalid JSON in file');
+              }
+            } catch (error) {
+              // Check for file not found error
+              if (error.code === 'NOT_FOUND' || (error.message && error.message.toLowerCase().includes('not exist'))) {
+                return {};
+              }
+              throw error;
+            }
+          } else {
+            // Web: Read using File System Access API
+            await this.ensureHandle();
+            const file = await this.fileHandle.getFile();
+            const text = await file.text();
+            if (!text.trim()) {
+              return {};
+            }
+            try {
+              return JSON.parse(text);
+            } catch (parseError) {
+              console.error('Failed to parse file content:', parseError);
+              throw new Error('Invalid JSON in file');
+            }
+          }
+        }
+
+        async writeFile(data) {
+          if (this.isNative) {
+            // Native: Write using Capacitor Filesystem
+            const { Filesystem, Directory } = window.Capacitor.Plugins;
+            await Filesystem.writeFile({
+              path: this.nativeFilePath,
+              data: JSON.stringify(data, null, 2),
+              directory: Directory.Documents,
+              encoding: 'utf8'
+            });
+          } else {
+            // Web: Write using File System Access API
+            await this.ensureHandle();
+            const writable = await this.fileHandle.createWritable();
+            await writable.write(JSON.stringify(data, null, 2));
+            await writable.close();
+          }
+        }
+
+        async get(key) {
+          try {
+            const data = await this.readFile();
+            return data[key] || null;
+          } catch (error) {
+            console.error('LocalFile get error:', error);
+            showToast('Failed to read from local file: ' + error.message, 'error');
+            return null;
+          }
+        }
+
+        async set(key, value) {
+          try {
+            const data = await this.readFile();
+            data[key] = value;
+            await this.writeFile(data);
+          } catch (error) {
+            console.error('LocalFile set error:', error);
+            showToast('Failed to save to local file: ' + error.message, 'error');
+            throw error;
+          }
+        }
+
+        async remove(key) {
+          try {
+            const data = await this.readFile();
+            delete data[key];
+            await this.writeFile(data);
+          } catch (error) {
+            console.error('LocalFile remove error:', error);
+            showToast('Failed to remove from local file: ' + error.message, 'error');
+            throw error;
+          }
+        }
+
+        async list(prefix = '') {
+          try {
+            const data = await this.readFile();
+            const keys = Object.keys(data);
+            return prefix ? keys.filter(k => k.startsWith(prefix)) : keys;
+          } catch (error) {
+            console.error('LocalFile list error:', error);
+            return [];
+          }
+        }
+
+        async getSize() {
+          try {
+            if (this.isNative) {
+              const { Filesystem, Directory } = window.Capacitor.Plugins;
+              const stat = await Filesystem.stat({
+                path: this.nativeFilePath,
+                directory: Directory.Documents
+              });
+              return stat.size;
+            } else {
+              await this.ensureHandle();
+              const file = await this.fileHandle.getFile();
+              return file.size;
+            }
+          } catch (error) {
+            console.error('LocalFile getSize error:', error);
+            return 0;
+          }
+        }
+
+        getKind() {
+          return 'localfile';
+        }
+      }
+
+      /**
        * Dataset Manager
        * Manages multiple datasets with different storage drivers
        */
@@ -782,6 +1040,9 @@
               break;
             case 'onedrive':
               driver = new OneDriveDriver();
+              break;
+            case 'localfile':
+              driver = new LocalFileDriver();
               break;
             case 'localstorage':
             default:
