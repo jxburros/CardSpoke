@@ -159,7 +159,7 @@ Common keys you will interact with:
 - `cardspoke_devmode`
 - `cardspoke_theme`
 - `cardspoke_activeThemeMod`
-- `cardspoke_datasets` (dataset registry metadata)
+- `cardspoke_dataset_metadata` (dataset registry metadata)
 
 Safe migration detail: legacy `cardspoke_activeThemeExtension` is cleaned up when setting active theme mod.
 
