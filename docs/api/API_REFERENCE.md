@@ -1,98 +1,194 @@
 # CardSpoke API Reference
 
-This reference documents the surfaces plugin developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke.Plugin` plugin runtime (also exposed as `window.CardSpoke.plugins`). It consolidates the runtime contracts that ship in `www/app.js`.
+This reference documents the surfaces plugin developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke.Plugin` plugin runtime. It consolidates the runtime contracts that ship in `www/app.js`.
 
 **Current Version:** 0.16.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
 
 ## Global objects
-- **`window.CardSpoke.utils`**: async helpers for card CRUD, tagging, search, accessibility, dataset metadata, and toast UI helpers.
-- **`window.CardSpoke.Plugin` / `window.CardSpoke.plugins`**: the plugin system that registers hooks, dispatches lifecycle events, offers an event bus, and exposes developer tooling.
+- **`window.CardSpoke.utils`**: helpers for card CRUD, tagging, search, accessibility, dataset metadata, and toast UI helpers.
+- **`window.CardSpoke.Plugin`**: the plugin system that manages plugin registration, lifecycle, permissions, and resource management.
 
-## plugin runtime (`CardSpoke.Plugin`)
+## Plugin Runtime (`CardSpoke.Plugin`)
 
-### Supported hook names
-Implemented hooks are enforced by runtime validation. Unknown hook names log warnings but still register. Hooks may be async.
+### Plugin Definition Format
 
-| Hook | When it fires | Common uses |
-| --- | --- | --- |
-| `onLoad(ctx)` | First enable or after sync on load | Allocate resources, register listeners, seed state. |
-| `onEnable(ctx)` | After a plugin is enabled | Re-attach DOM, rebind hotkeys, reopen sockets. |
-| `onDisable(ctx)` | Before disabling a plugin | Tear down DOM/listeners, flush timers. |
-| `onUninstall(ctx)` | Before removal from registry | Purge storage, remove injected styles. |
-| `onCardSave(ctx, card, saveInfo)` | After create/update/duplicate | Derive fields, enforce validation, emit events. |
-| `onCardDelete(ctx, card)` | Before a card is fully removed | Guard deletes, cascade clean-up. |
-| `onCardRender(ctx, card, element)` | After a card's DOM renders | Inject UI, annotate content, attach buttons. |
-| `onThemeChange(ctx, theme)` | When the app theme toggles | Sync theme variables, re-compute contrast. |
-| `onTypographyChange(ctx, preset)` | When typography preset changes | Recalculate sizes/spacing your plugin introduced. |
-| `onHighContrastChange(ctx, enabled)` | When high-contrast mode flips | Adjust palette for accessibility. |
-| `onNavigate(ctx, navState)` | When navigation state changes | Mirror router state, lazy-load resources. |
-| `onSearch(ctx, query, results)` | After search completes | Rank boosters, log queries, filter results. |
-| `onExport(ctx, data)` | Before data export | Append metadata, transform payloads. |
-| `onRender(ctx)` | After app UI re-renders | Update custom UI components, refresh visualizations. |
-| `onPageChange(ctx, page)` | When the active page/view changes | Load page-specific data, initialize page components. |
-| `onAppInit(ctx)` | Once at app initialization after boot | Initialize global state, register app-wide services. |
+Plugins are registered with the following structure:
 
-### Registration and lifecycle
-- **`register(modId, definition)`**: Validates hook names, stores metadata, and resets error counters on success. Called once inside your IIFE.
-- **`enable(modId)` / `disable(modId)`**: Toggle plugins persisted in the store; enabling reapplies CSS, runs `onEnable`, then `onLoad`. Disabling calls `onDisable` before removing styles.
-- **`unregister(modId)`**: Runs `onUninstall`, clears registry entry, removes styles, and evicts persisted plugin state.
-- **`syncFromStore()`**: Loads enabled plugins from the persisted store, applies CSS, and prunes stale registry entries.
-- **`reload(modId)`**: Executes `onDisable`, clears styles/hooks/error counts, re-runs registration from persisted code+CSS, and then replays `onEnable`/`onLoad`.
-- **Hook dispatch**: `runHook(hookName, ...args)` fans out to enabled plugins, honoring one-time semantics for `onLoad`. Use `runHookForMod` to target a single plugin.
+```javascript
+window.CardSpoke.Plugin.register('plugin-id', {
+  manifest: {
+    name: "Plugin Name",
+    version: "1.0.0",
+    author: "Author Name",
+    description: "Plugin description",
+    layer: "theme | feature | app",
+    permissions: ["ui-override", "storage", "network", "filesystem", "core-override"]
+  },
+  setup: async (ctx) => {
+    // Initialization logic - called when plugin is enabled
+    // Use ctx.api to interact with the app
+  },
+  teardown: async (ctx) => {
+    // Cleanup logic - called when plugin is disabled
+    // Resources are automatically cleaned up
+  },
+  css: "/* Optional CSS styles */"
+});
+```
 
-### Context passed to hooks
-The runtime builds a context object per invocation:
-- `pluginId`: current plugin id.
-- `appVersion` / `schemaVersion`: release + schema numbers (currently 0.16.0 / 4).
-- `api`: see "Store API" below.
-- `utils`: reference to `CardSpoke.utils`.
-- `logger`: plugin-scoped logger with `log/info/warn/error` prefixes.
+### Registration and Lifecycle Methods
 
-### Store API
-`createStoreAPI(modId)` exposes safe, synchronous helpers for hooks:
-- **Read & navigation**: `getAppInfo()`, `getCard(id)`, `listCards()`, `listRootIds()`, `getNavState()`, `navigate(page, opts)`, `goBack()`.
-- **UI feedback**: `showToast(message, type?)`, `markDirty()`.
-- **Card CRUD**: `createCard({ title, body, parentId?, tags? })`, `updateCard(id, updates)`, `deleteCard(id)`.
-- **Tagging**: `getTags(cardId)`, `addTag(cardId, tag)`, `removeTag(cardId, tag)`, `setTags(cardId, tags)`, `getAllTags()`.
-- **Dataset metadata**: `getDatasetMeta()` returns counts, schema/app versions, and dataset name.
-- **Logging**: `logger` plus `log/warn/error/info` wrappers.
+- **`register(id, definition)`**: Registers a plugin with the given ID and definition. Creates a plugin context and stores the plugin instance. Does not enable the plugin automatically.
+- **`unregister(id)`**: Unregisters a plugin, running teardown if enabled, cleaning up resources, and removing from persistent storage.
+- **`get(id)`**: Returns the plugin instance for the given ID, or undefined if not found.
+- **`list()`**: Returns an array of all registered plugin instances.
+- **`enable(id)`**: Enables a plugin by checking permissions, applying CSS, and running the setup function. Throws an error if permissions are not granted or if setup fails.
+- **`disable(id)`**: Disables a plugin by running teardown, removing CSS, and cleaning up resources.
+- **`install(pkg)`**: Installs a plugin package, registers it with a unique ID, and auto-enables based on risk assessment (SAFE and LOW risk plugins are enabled automatically). Persists to store. Returns the generated plugin ID.
+- **`assessModRisk(pkg)`**: Assesses the risk level of a plugin package based on layer, capabilities, and permissions. Returns one of: `'SAFE'`, `'LOW'`, `'MEDIUM'`, `'HIGH'`.
+  - `SAFE`: Theme layer with CSS only, no JavaScript
+  - `LOW`: Feature layer with JavaScript, no core overrides
+  - `MEDIUM`: Default for unclear cases
+  - `HIGH`: App layer or plugins with core overrides
+- **`syncFromStore(safeMode)`**: Loads enabled plugins from persistent storage during app boot. If `safeMode` is true, plugins are registered but not enabled.
+- **`notifyDataUpdate()`**: Notifies all registered data update listeners that data has changed. Used internally when cards are modified.
 
-### Event bus
-Use `CardSpoke.Plugin.events` to coordinate between plugins:
-- `on(event, cb)`: subscribe.
-- `off(event, cb)`: unsubscribe.
-- `emit(event, data)`: broadcast.
-- `clear(event?)`: remove listeners for one or all events.
+### Plugin Context (ctx)
 
-### Developer tools
-`CardSpoke.Plugin.devTools` exposes debugging aids:
-- `inspectMod(id)` and `listAllMods()` for visibility into hooks, metadata, load state, and enablement.
-- `getHookStats(modId?)`: timing and failure counters per hook call.
-- `getErrorLog()` / `clearErrorLog()`: global plugin error buffer.
-- `testHook(modId, hookName, ...args)`: invoke a hook manually.
-- `getEventListeners()`: per-event subscription counts.
+The context object passed to setup and teardown functions contains:
+
+- **`ctx.pluginId`**: The ID of the current plugin
+- **`ctx.appVersion`**: Current app version (0.16.0)
+- **`ctx.schemaVersion`**: Current schema version (4)
+- **`ctx.api`**: API object with `ui`, `data`, `storage`, and `events` namespaces
+- **`ctx.logger`**: Plugin-scoped logger with methods: `log()`, `info()`, `warn()`, `error()`
+
+### Plugin API (ctx.api)
+
+#### UI API (ctx.api.ui)
+
+- **`inject(selector, element, position)`**: Injects a DOM element at the specified selector. Position can be `'before'`, `'after'`, `'prepend'`, or `'append'` (default). Returns a cleanup function that removes the element.
+- **`replace(selector, element)`**: Replaces the element at the selector with a new element. Returns a cleanup function that restores the original element.
+- **`registerComponent(name, component)`**: Registers a UI component with the Component Registry. Component object should include a `priority` field.
+- **`unregisterComponent(name)`**: Unregisters a previously registered component.
+- **`showToast(message, type, duration)`**: Displays a toast notification. Type can be `'info'`, `'success'`, `'warning'`, or `'error'`. Duration is in milliseconds (default handled by implementation).
+
+#### Data API (ctx.api.data)
+
+- **`onUpdate(callback)`**: Registers a callback to be notified when data changes. Returns a cleanup function that unregisters the callback.
+- **`getCard(id)`**: Returns a cloned card object for the given ID, or undefined if not found.
+- **`listCards()`**: Returns an array of all card objects (cloned).
+- **`createCard(data)`**: Creates a new card with the specified data object. Data should contain `title`, `body`, `parentId`, and `tags` fields. Returns the new card ID.
+- **`updateCard(id, updates)`**: Updates the card with the given ID with the provided updates object. Returns the updated card.
+- **`deleteCard(id)`**: Deletes the card with the given ID. Returns true if successful.
+- **`getTags(cardId)`**: Returns an array of tags for the specified card.
+- **`addTag(cardId, tag)`**: Adds a tag to the specified card. Returns true if successful.
+- **`removeTag(cardId, tag)`**: Removes a tag from the specified card. Returns true if successful.
+- **`setTags(cardId, tags)`**: Sets the tags for the specified card to the provided array. Returns true if successful.
+- **`getAllTags()`**: Returns an array of all unique tags across all cards.
+
+#### Storage API (ctx.api.storage)
+
+The storage API provides plugin-namespaced storage using localStorage:
+
+- **`get(key)`**: Retrieves a value from storage. The key is automatically namespaced to the plugin.
+- **`set(key, value)`**: Stores a value. The key is automatically namespaced to the plugin.
+- **`remove(key)`**: Removes a value from storage.
+- **`clear()`**: Clears all storage for this plugin.
+
+#### Events API (ctx.api.events)
+
+The events API provides an event bus for inter-plugin communication. Note: This is a shared event bus, not plugin-specific.
+
+- **`on(eventName, callback)`**: Subscribes to an event. Returns a cleanup function.
+- **`off(eventName, callback)`**: Unsubscribes from an event.
+- **`emit(eventName, data)`**: Emits an event with optional data.
+- **`clear(eventName)`**: Clears all listeners for the specified event (or all events if no name provided).
+
+### Resource Management
+
+The Plugin API automatically manages resources:
+- DOM elements injected via `ctx.api.ui.inject()` or `ctx.api.ui.replace()` are tracked and cleaned up when the plugin is disabled
+- Event listeners registered via `ctx.api.data.onUpdate()` are automatically unsubscribed on disable
+- Components registered via `ctx.api.ui.registerComponent()` are tracked
+- CSS styles are automatically applied on enable and removed on disable
+
+### Permissions System
+
+Plugins must declare required permissions in their manifest:
+
+- **`ui-override`**: Permission to inject or replace DOM elements
+- **`storage`**: Permission to access localStorage (plugin-namespaced)
+- **`network`**: Permission to make network requests (not enforced by core, but declared for transparency)
+- **`filesystem`**: Permission to access filesystem APIs (mobile only)
+- **`core-override`**: Permission to override core functionality (high risk)
+
+Permissions are checked when a plugin is enabled, and users are prompted to grant access.
 
 ## Utilities API (`CardSpoke.utils`)
 
-### Card & tag helpers
-- `createCard({ title, body?, parentId?, tags? })`: creates, tags, saves, and re-renders UI.
-- `updateCard(cardId, changes)`: updates fields and optionally tags.
-- `getCard(cardId)`: cloned card or `null`.
-- `searchCards(query)`: case-insensitive match against title/body/tags.
-- Tag helpers: `getTags`, `addTag`, `removeTag`, `setTags`, `getAllTags`.
+The utilities API provides global helper functions available to all plugins and the core app.
 
-### Dataset metadata
-`getDatasetMeta()` returns dataset name, counts (cards, roots, bookmarks, recent, plugins), and schema/app versions.
+### Card Operations
 
-### UI feedback
-`showToast(message, type = 'info', duration = 3000)` surfaces notifications.
+**Note:** The internal `createCard()` function has the signature `createCard(title, body, parentId, skipSave, skipHooks)` and returns a card ID. When using `ctx.api.data.createCard()`, pass an object with `title`, `body`, `parentId`, and `tags` fields.
 
-### Accessibility & appearance
-- `getAccessibilitySettings()` returns theme, typography preset, high-contrast flag, and reduced-motion preference.
-- Theme controls: `setTheme(theme)`, `getTheme()`, `onThemeChange(cb)`, `getThemeVariables()` (categorised CSS variables to theme).
-- Typography controls: `setTypography(preset)`, `getTypography()`.
-- High contrast: `setHighContrast(enabled)`, `isHighContrast()`.
-- Motion: `prefersReducedMotion()`.
+Direct window functions (available but not recommended for plugin use):
+- `window.createCard(title, body, parentId, skipSave, skipHooks)`: Creates a card and returns its ID
+- `window.updateCard(id, updates, skipSave, skipHooks)`: Updates a card's fields
+- `window.deleteCard(id, opts)`: Deletes a card and its children recursively
+- `window.getCard(id)`: Retrieves a card by ID
+- `window.cloneCard(card)`: Creates a deep clone of a card object
+
+### Tag Operations
+
+Direct window functions for tag management:
+- `window.getTags(cardId)`: Returns array of tags for a card
+- `window.addTag(cardId, tag)`: Adds a tag to a card
+- `window.removeTag(cardId, tag)`: Removes a tag from a card  
+- `window.setTags(cardId, tags)`: Sets all tags for a card
+- `window.getAllTags()`: Returns all unique tags across all cards
+
+### Search
+
+- `window.searchCards(query)`: Case-insensitive search across card titles, bodies, and tags. Returns array of matching cards.
+
+### Dataset Metadata
+
+- `window.getDatasetMeta()`: Returns metadata about the current dataset including:
+  - `name`: Dataset name
+  - `cardCount`: Total number of cards
+  - `rootCount`: Number of root-level cards
+  - `tagCount`: Number of unique tags
+  - `appVersion`: Current app version
+  - `schemaVersion`: Current schema version
+
+### UI Feedback
+
+- `window.showToast(message, type, duration)`: Displays a toast notification
+  - `message`: Text to display
+  - `type`: One of `'info'`, `'success'`, `'warning'`, `'error'`
+  - `duration`: Display duration in milliseconds (default: 3000)
+
+### Theme and Accessibility
+
+Direct window functions for appearance:
+- `window.setTheme(theme)`: Sets the theme (`'light'` or `'dark'`)
+- `window.getTheme()`: Returns the current theme
+- `window.setTypography(preset)`: Sets the typography preset
+- `window.getTypography()`: Returns the current typography preset
+- `window.setHighContrast(enabled)`: Enables or disables high contrast mode
+- `window.isHighContrast()`: Returns whether high contrast mode is enabled
+- `window.prefersReducedMotion()`: Returns whether the user prefers reduced motion
+
+### Storage and Persistence
+
+- `window.save()`: Saves the current state to localStorage
+- `window.load()`: Loads state from localStorage
 
 ### Notes
-All helpers are async (Promise-returning) unless noted. Errors are caught and logged to the console; most functions return fallback values instead of throwing.
+
+- Most utility functions work with the global `window.store` object
+- Plugins should prefer using `ctx.api.data` methods over direct window functions for better compatibility
+- Functions may return `undefined`, `null`, or empty arrays when data is not available
+- The app uses localStorage for preferences and datasets, IndexedDB is planned for future versions
