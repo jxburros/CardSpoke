@@ -155,9 +155,8 @@ Owns advanced behavior and startup:
   4. `updateDatasetSelector()`
   5. Apply saved typography
   6. Parse URL safe mode (`?safemode`)
-  7. If not safe mode: `CardSpoke.Plugin.syncFromStore()`
-  8. If not safe mode: `CardSpoke.Plugin.runHook('onLoad')`
-  9. `render()`
+  7. If not safe mode: `CardSpoke.Plugin.syncFromStore()` - loads and enables plugins
+  8. `render()`
 
 ---
 
@@ -292,82 +291,95 @@ Recommended (not hard-enforced) for quality:
 
 ---
 
-## 7) Hook System (Names, Timing, Signatures)
+## 7) Plugin Lifecycle System (Setup and Teardown)
 
-These are recognized hook names in runtime:
+The modern plugin system uses `setup` and `teardown` functions instead of individual hooks:
 
-- `onLoad(ctx)`
-- `onEnable(ctx)`
-- `onDisable(ctx)`
-- `onUninstall(ctx)`
-- `onCardSave(ctx, card, saveInfo)`
-- `onCardDelete(ctx, card)`
-- `onCardRender(ctx, card, element)`
-- `onNavigate(ctx, navState)`
-- `onSearch(ctx, query, results)`
-- `onThemeChange(ctx, theme)`
-- `onTypographyChange(ctx, preset)`
-- `onHighContrastChange(ctx, enabled)`
-- `onExport(ctx, data)`
-- `onImport(ctx, info)`
-- `onRender(ctx)`
-- `onPageChange(ctx, page)`
-- `onAppInit(ctx)`
+### Lifecycle Functions
 
-## Hook context (`ctx`) includes
+- **`setup(ctx)`**: Called when the plugin is enabled. Use this for initialization, resource allocation, and registering middleware/components.
+- **`teardown(ctx)`**: Called when the plugin is disabled or uninstalled. Resources are automatically cleaned up, but custom cleanup can be performed here.
 
-- `pluginId`
-- `appVersion`
-- `schemaVersion`
-- `api` (store/runtime API bindings)
-- `utils` (`window.CardSpoke.utils`)
-- `logger` (`log/info/warn/error` scoped to plugin)
+### Plugin Context (`ctx`) includes
 
-## Registration pattern
+- `pluginId` - The plugin's unique identifier
+- `appVersion` - Current app version (0.16.0)
+- `schemaVersion` - Current schema version (4)
+- `api` - API object with `ui`, `data`, `storage`, and `events` namespaces
+- `logger` - Plugin-scoped logger (`log`, `info`, `warn`, `error`)
+
+### Registration Pattern
 
 ```js
-CardSpoke.Plugin.register('word-counter', {
-  onLoad(ctx) {
-    ctx.logger.info('loaded');
+window.CardSpoke.Plugin.register('word-counter', {
+  manifest: {
+    name: "Word Counter",
+    version: "1.0.0",
+    author: "Author Name",
+    layer: "feature",
+    permissions: ["ui-override"]
   },
-  onCardRender(ctx, card, el) {
-    if (!card || !el) return;
-    const words = (card.body || '').trim().split(/\s+/).filter(Boolean).length;
-    const badge = document.createElement('span');
-    badge.className = 'word-counter-badge';
-    badge.textContent = `${words} words`;
-    el.appendChild(badge);
+  
+  setup: async (ctx) => {
+    ctx.logger.info('Plugin enabled');
+    
+    // Register middleware to inject word count on card render
+    if (window.CardSpoke.Middleware) {
+      window.CardSpoke.Middleware.register({
+        name: 'word-counter-render',
+        priority: 5,
+        operations: ['card.render'],
+        handler: async (mctx, next) => {
+          const { card, element } = mctx.args;
+          if (card && element) {
+            const words = (card.body || '').trim().split(/\s+/).filter(Boolean).length;
+            const badge = document.createElement('span');
+            badge.className = 'word-counter-badge';
+            badge.textContent = `${words} words`;
+            element.appendChild(badge);
+          }
+          await next();
+        }
+      });
+    }
   },
-  onDisable(ctx) {
-    ctx.logger.info('disabled');
+  
+  teardown: async (ctx) => {
+    ctx.logger.info('Plugin disabled');
+    // Middleware is automatically unregistered
   }
 });
 ```
 
-Idempotency rule: `onCardRender` may run many times. Guard against duplicate injections (e.g. query existing badge before append).
+**Note:** Resource management (DOM cleanup, listener removal) is automatic. The middleware pipeline should be used for intercepting core operations like card render, save, delete, etc.
 
 ---
 
-## 8) Runtime APIs: `CardSpoke.Plugin` and `window.CardSpoke.utils`
+## 8) Runtime APIs: `CardSpoke.Plugin` and Window Functions
 
-## `CardSpoke.Plugin` (runtime manager)
+## `CardSpoke.Plugin` (Plugin Manager)
 
 Common operations:
 
-- `register(modId, hooks)`
-- `unregister(modId)`
-- `install(pkg)`
-- `uninstall(modId)`
-- `enable(modId)` / `disable(modId)`
-- `reload(modId)`
-- `runHook(hookName, ...args)`
-- `runHookForMod(modId, hookName, ...args)`
-- `syncFromStore()`
-- `getActiveOverrides()`
+- `register(id, definition)` - Register a plugin with ID and definition
+- `unregister(id)` - Unregister a plugin
+- `install(pkg)` - Install a plugin package, returns generated ID
+- `enable(id)` - Enable a registered plugin
+- `disable(id)` - Disable an enabled plugin
+- `get(id)` - Get plugin instance by ID
+- `list()` - List all registered plugins
+- `assessModRisk(pkg)` - Assess risk level (SAFE, LOW, MEDIUM, HIGH)
+- `syncFromStore(safeMode)` - Load plugins from storage at boot
+- `notifyDataUpdate()` - Notify data listeners of changes
+
+**Deprecated methods** (no longer exist):
+- ~~`runHook(hookName, ...args)`~~ - Use middleware pipeline instead
+- ~~`runHookForMod(modId, hookName, ...args)`~~ - Use middleware pipeline instead
+- ~~`reload(modId)`~~ - Not implemented
 
 Diagnostics:
 
-- `devTools.inspectMod(id)`
+- `get(id)` - Get plugin instance details
 - `devTools.listAllMods()`
 - `devTools.getHookStats(modId?)`
 - `devTools.getErrorLog()` / `devTools.clearErrorLog()`
@@ -460,7 +472,7 @@ Interpretation guidance:
 
 ## 11) Safe Mode and Recovery
 
-Launching with `?safemode` disables plugin sync and startup execution.
+Launching with `?safemode` disables plugin loading and execution.
 
 Practical use:
 
@@ -471,17 +483,17 @@ Practical use:
 In safe mode:
 - Runtime warns in console
 - A warning toast indicates plugins are disabled
-- `CardSpoke.Plugin.syncFromStore()` and initial `onLoad` dispatch are skipped
+- `CardSpoke.Plugin.syncFromStore()` is skipped (no plugins are loaded)
 
 ---
 
-## 12) Concrete plugin Development Workflow
+## 12) Concrete Plugin Development Workflow
 
 ## Step 1: Pick minimal layer
 
-- Visual-only change → `theme`
-- Add behavior/UI that composes with core → `feature`
-- Need global/app-level transformation → `app`
+- Visual-only change → `theme` (CSS only, SAFE risk)
+- Add behavior/UI that composes with core → `feature` (CSS+JS, LOW risk)
+- Need global/app-level transformation → `app` (CSS+JS+overrides, HIGH risk)
 
 ## Step 2: Start from examples
 
@@ -493,24 +505,54 @@ Use `sample-plugins/` closest to your target behavior:
 
 ## Step 3: Build iteratively
 
-1. Implement `onLoad` logging only
-2. Add one functional hook (often `onCardRender` or `onNavigate`)
-3. Add teardown in `onDisable`/`onUninstall`
-4. Validate install/enable/disable/reload loop
+1. Implement basic `setup()` with logging
+2. Add one functional behavior (often injecting UI or registering middleware)
+3. Add cleanup in `teardown()` if needed (most cleanup is automatic)
+4. Validate install/enable/disable cycle
+
+Example progression:
+
+```js
+// Iteration 1: Basic logging
+setup: async (ctx) => {
+  ctx.logger.info('Plugin enabled');
+}
+
+// Iteration 2: Add functionality
+setup: async (ctx) => {
+  ctx.logger.info('Plugin enabled');
+  const cards = ctx.api.data.listCards();
+  ctx.logger.info(`Found ${cards.length} cards`);
+}
+
+// Iteration 3: Add UI injection
+setup: async (ctx) => {
+  ctx.logger.info('Plugin enabled');
+  const element = document.createElement('div');
+  element.textContent = 'Plugin UI';
+  ctx.api.ui.inject('#sidebar', element, 'append');
+}
+```
 
 ## Step 4: Validate with dev tools
 
 In console:
 
 ```js
-CardSpoke.Plugin.devTools.inspectMod('my-plugin');
-CardSpoke.Plugin.devTools.getHookStats('my-plugin');
-CardSpoke.Plugin.devTools.getErrorLog();
+// Get plugin instance
+window.CardSpoke.Plugin.get('my-plugin');
+
+// List all plugins
+window.CardSpoke.Plugin.list();
+
+// Check plugin details
+const plugin = window.CardSpoke.Plugin.get('my-plugin');
+console.log(plugin.enabled, plugin.definition);
 ```
 
 ## Step 5: Test safe mode fallback
 
-Ensure app remains functional with your plugin fully bypassed.
+Ensure app remains functional with your plugin fully bypassed by loading with `?safemode`.
 
 ---
 
