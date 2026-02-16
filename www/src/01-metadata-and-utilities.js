@@ -112,19 +112,19 @@ function highlightText(text, query) {
  */
 function cloneCard(card) {
   if (!card) return null;
-  let modsData = {};
-  if (card.modsData) {
+  let pluginsData = {};
+  if (card.pluginsData) {
     try {
-      modsData = JSON.parse(JSON.stringify(card.modsData));
+      pluginsData = JSON.parse(JSON.stringify(card.pluginsData));
     } catch (err) {
-      modsData = { ...card.modsData };
+      pluginsData = { ...card.pluginsData };
     }
   }
   return {
     ...card,
     children: Array.isArray(card.children) ? card.children.slice() : [],
     tags: Array.isArray(card.tags) ? card.tags.slice() : [],
-    modsData
+    pluginsData
   };
 }
 
@@ -207,16 +207,16 @@ function setRichTextEnabled(enabled) {
 }
 
 /**
- * Get the active theme mod ID (if any)
+ * Get the active theme plugin ID (if any)
  */
-function getActiveThemeMod() {
+function getActiveThemePlugin() {
   return localStorage.getItem('cardspoke_activeThemeMod') || localStorage.getItem('cardspoke_activeThemeExtension') || null;
 }
 
 /**
- * Set the active theme mod
+ * Set the active theme plugin
  */
-function setActiveThemeMod(modId) {
+function setActiveThemePlugin(modId) {
   if (modId) {
     localStorage.setItem('cardspoke_activeThemeMod', modId);
   } else {
@@ -400,7 +400,7 @@ const header = {
         closeBtn: document.getElementById('menuClose'),
         newCard: document.getElementById('menuNewCard'),
         upload: document.getElementById('menuUpload'),
-        modManager: document.getElementById('menuModManager'),
+        modManager: document.getElementById('menuPluginManager'),
         appearance: document.getElementById('menuAppearance'),
         tagManager: document.getElementById('menuTagManager'),
         advancedSearch: document.getElementById('menuAdvancedSearch'),

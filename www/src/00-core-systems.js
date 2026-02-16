@@ -14,7 +14,7 @@
 // Include core systems
 // Middleware Pipeline System
 // Replaces the hook-based system with a priority-weighted pipeline
-// Allows mods to intercept and modify core operations
+// Allows plugins to intercept and modify core operations
 
 (function() {
   'use strict';
@@ -174,7 +174,7 @@
   console.log('[Middleware] Pipeline system initialized');
 })();
 // Component Registry System
-// Allows mods to register and override UI components
+// Allows plugins to register and override UI components
 // Provides a central registry for component resolution
 
 (function() {
@@ -819,7 +819,7 @@
       this.register(id, definition);
 
       // Auto-enable based on risk (only LOW and SAFE)
-      const risk = this.assessModRisk(pkg);
+      const risk = this.assessPluginRisk(pkg);
       if (risk === 'SAFE' || risk === 'LOW') {
         await this.enable(id);
       }
@@ -847,7 +847,7 @@
      * @param {Object} pkg - Plugin package
      * @returns {string} Risk level: SAFE, LOW, MEDIUM, HIGH
      */
-    assessModRisk: function(pkg) {
+    assessPluginRisk: function(pkg) {
       if (!pkg || !pkg.manifest) {
         return 'HIGH';
       }

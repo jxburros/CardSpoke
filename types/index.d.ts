@@ -21,35 +21,35 @@ export interface Store {
   rootOrder: string[];
   bookmarks: string[];
   recentCards: string[];
-  mods: Record<string, ModPackage>;
+  plugins: Record<string, PluginPackage>;
   schemaVersion: number;
   metadata?: Record<string, any>;
 }
 
-export type ModLayer = 'theme' | 'feature' | 'app';
+export type PluginLayer = 'theme' | 'feature' | 'app';
 export type PermissionType = 'ui-override' | 'storage' | 'network' | 'filesystem' | 'core-override';
 
-export interface ModManifest {
+export interface PluginManifest {
   name: string;
   version: string;
   author: string;
   description?: string;
-  layer: ModLayer;
+  layer: PluginLayer;
   compatibility?: string;
   permissions?: PermissionType[];
 }
 
-export interface ModPackage {
+export interface PluginPackage {
   id: string;
-  manifest: ModManifest;
+  manifest: PluginManifest;
   config?: Record<string, any>;
   css?: string;
   js?: string;
-  overrides?: ModOverrides;
+  overrides?: PluginOverrides;
   enabled: boolean;
 }
 
-export interface ModOverrides {
+export interface PluginOverrides {
   appName?: string;
   hideMenuItems?: string[];
   customMenuItems?: Array<{
@@ -66,7 +66,7 @@ export interface ModOverrides {
 }
 
 export interface PluginContext {
-  modId: string;
+  pluginId: string;
   appVersion: string;
   schemaVersion: number;
   api: PluginAPI;
@@ -201,11 +201,11 @@ export interface PluginClass {
 }
 
 export interface PluginDefinition {
-  manifest: ModManifest;
+  manifest: PluginManifest;
   setup?(ctx: PluginContext): void | Promise<void>;
   teardown?(ctx: PluginContext): void | Promise<void>;
   css?: string;
-  overrides?: ModOverrides;
+  overrides?: PluginOverrides;
 }
 
 export interface PluginInstance {

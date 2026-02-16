@@ -2,31 +2,31 @@
 // Example of loading mods as ES modules with Vite/ESBuild
 
 /**
- * Load a mod from a URL as an ES module
+ * Load a plugin from a URL as an ES module
  * @param {string} url - URL to the mod module
  * @returns {Promise<Object>} Loaded mod
  */
-export async function loadModFromURL(url) {
+export async function loadPluginFromURL(url) {
   try {
     const module = await import(/* @vite-ignore */ url);
     return module.default || module;
   } catch (err) {
-    console.error('[ModLoader] Failed to load mod from URL:', url, err);
+    console.error('[PluginLoader] Failed to load mod from URL:', url, err);
     throw err;
   }
 }
 
 /**
- * Load a mod from local file (development)
+ * Load a plugin from local file (development)
  * @param {string} path - Path to the mod file
  * @returns {Promise<Object>} Loaded mod
  */
-export async function loadModFromFile(path) {
+export async function loadPluginFromFile(path) {
   try {
     const module = await import(/* @vite-ignore */ path);
     return module.default || module;
   } catch (err) {
-    console.error('[ModLoader] Failed to load mod from file:', path, err);
+    console.error('[PluginLoader] Failed to load mod from file:', path, err);
     throw err;
   }
 }
@@ -36,7 +36,7 @@ export async function loadModFromFile(path) {
  * @param {string} modId - Mod ID
  * @param {Object} modDefinition - Mod definition from ES module
  */
-export async function installDynamicMod(modId, modDefinition) {
+export async function installDynamicPlugin(modId, modDefinition) {
   if (!window.CardSpoke || !window.CardSpoke.Plugin) {
     throw new Error('Plugin system not available');
   }
@@ -60,33 +60,33 @@ export async function installDynamicMod(modId, modDefinition) {
   // Enable the plugin
   await window.CardSpoke.Plugin.enable(modId);
   
-  console.log('[ModLoader] Installed and enabled:', modId);
+  console.log('[PluginLoader] Installed and enabled:', modId);
 }
 
 /**
  * Load mods from a manifest file
  * @param {string} manifestUrl - URL to mods manifest JSON
  */
-export async function loadModsFromManifest(manifestUrl) {
+export async function loadPluginsFromManifest(manifestUrl) {
   try {
     const response = await fetch(manifestUrl);
     const manifest = await response.json();
     
     const results = [];
-    for (const mod of manifest.mods || []) {
+    for (const mod of manifest.plugins || []) {
       try {
-        const modDef = await loadModFromURL(mod.url);
-        await installDynamicMod(mod.id, modDef);
+        const modDef = await loadPluginFromURL(mod.url);
+        await installDynamicPlugin(mod.id, modDef);
         results.push({ id: mod.id, success: true });
       } catch (err) {
-        console.error('[ModLoader] Failed to load mod:', mod.id, err);
+        console.error('[PluginLoader] Failed to load mod:', mod.id, err);
         results.push({ id: mod.id, success: false, error: err.message });
       }
     }
     
     return results;
   } catch (err) {
-    console.error('[ModLoader] Failed to load manifest:', manifestUrl, err);
+    console.error('[PluginLoader] Failed to load manifest:', manifestUrl, err);
     throw err;
   }
 }
@@ -106,10 +106,10 @@ export async function loadModsFromManifest(manifestUrl) {
 // Export for use in app
 if (typeof window !== 'undefined') {
   if (!window.CardSpoke) window.CardSpoke = {};
-  window.CardSpoke.ModLoader = {
-    loadFromURL: loadModFromURL,
-    loadFromFile: loadModFromFile,
-    install: installDynamicMod,
-    loadManifest: loadModsFromManifest
+  window.CardSpoke.PluginLoader = {
+    loadFromURL: loadPluginFromURL,
+    loadFromFile: loadPluginFromFile,
+    install: installDynamicPlugin,
+    loadManifest: loadPluginsFromManifest
   };
 }

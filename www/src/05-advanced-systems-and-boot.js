@@ -645,10 +645,10 @@
       // =============================================================
       
       /**
-       * Show mod store modal (coming soon)
+       * Show plugin store modal (coming soon)
        */
-      function showModStore() {
-        showModManager('install');
+      function showPluginStore() {
+        showPluginManager('install');
       }
 
       // =============================================================
@@ -922,7 +922,7 @@
         'ctrl+f': { action: () => { searchInput.focus(); }, description: 'Focus search' },
         'ctrl+b': { action: () => { menu.bookmarks.click(); closeMenu(); }, description: 'Show bookmarks' },
         'ctrl+r': { action: () => { menu.recentCards.click(); closeMenu(); }, description: 'Show recent cards' },
-        'ctrl+e': { action: () => { showModManager('installed'); closeMenu(); }, description: 'Show mod manager' },
+        'ctrl+e': { action: () => { showPluginManager('installed'); closeMenu(); }, description: 'Show plugin manager' },
         'ctrl+u': { action: () => { menu.upload.click(); closeMenu(); }, description: 'Upload data' },
         'ctrl+/': { action: () => showKeyboardHelp(), description: 'Show this help' },
         'ctrl+z': { action: () => undo(), description: 'Undo last action' },
@@ -1440,7 +1440,7 @@
                       h('strong', {}, 'Backups'), ' — Create manual backups anytime from the Data & Export menu'
                     ),
                     h('div', {},
-                      h('strong', {}, 'Mods'), ' — Customize CardSpoke with themes and mods (Mod Manager)'
+                      h('strong', {}, 'Mods'), ' — Customize CardSpoke with themes and mods (Plugin Manager)'
                     ),
                     h('div', {},
                       h('strong', {}, 'Dark Mode'), ' — Toggle dark mode with the moon icon in the header'
@@ -1553,7 +1553,7 @@
                     h('li', {}, 'App mods: Full app transformations with overrides')
                   ),
                   h('p', { style: 'font-size: var(--text-sm); color: var(--text-secondary);' },
-                    'Access Mod Manager from the menu to install and manage mods.'
+                    'Access Plugin Manager from the menu to install and manage mods.'
                   )
                 ),
                 
@@ -1752,7 +1752,7 @@
           { label: 'Total Cards', value: Object.keys(store.cards).length },
           { label: 'Root Cards', value: store.rootOrder.length },
           { label: 'Total Tags', value: getAllTags().length },
-          { label: 'Active Mods', value: store.mods ? Object.keys(store.mods).length : 0 },
+          { label: 'Active Mods', value: store.plugins ? Object.keys(store.mods).length : 0 },
           { label: 'Developer Mode', value: isDeveloperMode() ? '✓ Enabled' : '✗ Disabled' }
         ];
         

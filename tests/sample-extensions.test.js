@@ -41,7 +41,7 @@ function createValidModPackage(overrides = {}) {
   };
 }
 
-function validateModPackage(pkg) {
+function validatePluginPackage(pkg) {
   const errors = [];
   if (!pkg || typeof pkg !== 'object') return { valid: false, errors: ['Not an object'] };
   if (!pkg.id || typeof pkg.id !== 'string') errors.push('Missing or invalid "id"');
@@ -218,10 +218,10 @@ test('app mod with overrides is highest risk', () => {
 // Sample Mod File Validation Tests
 // ==========================================================================
 
-const sampleModsDir = join(__dirname, '..', 'sample-mods');
+const samplePluginsDir = join(__dirname, '..', 'sample-plugins');
 
-function loadSampleMods(subdir) {
-  const dir = join(sampleModsDir, subdir);
+function loadSamplePlugins(subdir) {
+  const dir = join(samplePluginsDir, subdir);
   const files = readdirSync(dir).filter(f => f.endsWith('.json'));
   return files.map(f => {
     const raw = readFileSync(join(dir, f), 'utf8');
@@ -230,10 +230,10 @@ function loadSampleMods(subdir) {
 }
 
 test('all sample theme mods are valid JSON and pass validation', () => {
-  const mods = loadSampleMods('themes');
+  const mods = loadSamplePlugins('themes');
   assert.is(mods.length, 3, 'should have exactly 3 theme mods');
   mods.forEach(({ filename, pkg }) => {
-    const result = validateModPackage(pkg);
+    const result = validatePluginPackage(pkg);
     assert.ok(result.valid, `${filename}: ${result.errors.join(', ')}`);
     assert.is(pkg.manifest.layer, 'theme', `${filename} should be theme layer`);
     assert.is(pkg.js, '', `${filename} theme must have no JS`);
@@ -242,10 +242,10 @@ test('all sample theme mods are valid JSON and pass validation', () => {
 });
 
 test('all sample feature mods are valid JSON and pass validation', () => {
-  const mods = loadSampleMods('features');
+  const mods = loadSamplePlugins('features');
   assert.is(mods.length, 3, 'should have exactly 3 feature mods');
   mods.forEach(({ filename, pkg }) => {
-    const result = validateModPackage(pkg);
+    const result = validatePluginPackage(pkg);
     assert.ok(result.valid, `${filename}: ${result.errors.join(', ')}`);
     assert.is(pkg.manifest.layer, 'feature', `${filename} should be feature layer`);
     assert.ok(pkg.js.length > 0, `${filename} feature should have JS`);
@@ -253,10 +253,10 @@ test('all sample feature mods are valid JSON and pass validation', () => {
 });
 
 test('all sample app mods are valid JSON and pass validation', () => {
-  const mods = loadSampleMods('apps');
+  const mods = loadSamplePlugins('apps');
   assert.is(mods.length, 3, 'should have exactly 3 app mods');
   mods.forEach(({ filename, pkg }) => {
-    const result = validateModPackage(pkg);
+    const result = validatePluginPackage(pkg);
     assert.ok(result.valid, `${filename}: ${result.errors.join(', ')}`);
     assert.is(pkg.manifest.layer, 'app', `${filename} should be app layer`);
     assert.ok(pkg.overrides && Object.keys(pkg.overrides).length > 0, `${filename} app should have overrides`);
@@ -265,9 +265,9 @@ test('all sample app mods are valid JSON and pass validation', () => {
 
 test('all sample mods have unique IDs', () => {
   const allMods = [
-    ...loadSampleMods('themes'),
-    ...loadSampleMods('features'),
-    ...loadSampleMods('apps')
+    ...loadSamplePlugins('themes'),
+    ...loadSamplePlugins('features'),
+    ...loadSamplePlugins('apps')
   ];
   const ids = allMods.map(m => m.pkg.id);
   const uniqueIds = new Set(ids);
@@ -275,8 +275,8 @@ test('all sample mods have unique IDs', () => {
 });
 
 test('all sample mods register via window.CardSpoke.Plugin.register in their JS', () => {
-  const featureMods = loadSampleMods('features');
-  const appMods = loadSampleMods('apps');
+  const featureMods = loadSamplePlugins('features');
+  const appMods = loadSamplePlugins('apps');
   [...featureMods, ...appMods].forEach(({ filename, pkg }) => {
     if (pkg.js && pkg.js.trim().length > 0) {
       assert.ok(
@@ -288,8 +288,8 @@ test('all sample mods register via window.CardSpoke.Plugin.register in their JS'
 });
 
 test('all sample mods use their own ID in register calls', () => {
-  const featureMods = loadSampleMods('features');
-  const appMods = loadSampleMods('apps');
+  const featureMods = loadSamplePlugins('features');
+  const appMods = loadSamplePlugins('apps');
   [...featureMods, ...appMods].forEach(({ filename, pkg }) => {
     if (pkg.js && pkg.js.trim().length > 0) {
       assert.ok(
@@ -302,9 +302,9 @@ test('all sample mods use their own ID in register calls', () => {
 
 test('all sample mods start disabled', () => {
   const allMods = [
-    ...loadSampleMods('themes'),
-    ...loadSampleMods('features'),
-    ...loadSampleMods('apps')
+    ...loadSamplePlugins('themes'),
+    ...loadSamplePlugins('features'),
+    ...loadSamplePlugins('apps')
   ];
   allMods.forEach(({ filename, pkg }) => {
     assert.is(pkg.enabled, false, `${filename} should start disabled`);
@@ -312,8 +312,8 @@ test('all sample mods start disabled', () => {
 });
 
 test('feature and app mods implement teardown for clean resource cleanup', () => {
-  const featureMods = loadSampleMods('features');
-  const appMods = loadSampleMods('apps');
+  const featureMods = loadSamplePlugins('features');
+  const appMods = loadSamplePlugins('apps');
   [...featureMods, ...appMods].forEach(({ filename, pkg }) => {
     if (pkg.js && pkg.js.trim().length > 0) {
       assert.ok(

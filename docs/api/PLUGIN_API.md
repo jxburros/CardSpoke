@@ -2,7 +2,7 @@
 
 **Version:** 0.16.0
 
-The Plugin API provides a sandboxed, resource-managed environment for mod development with isolated contexts and automatic cleanup support.
+The Plugin API provides a sandboxed, resource-managed environment for plugin development with isolated contexts and automatic cleanup support.
 
 ## Overview
 
@@ -410,4 +410,4 @@ When a plugin is disabled, all resources are automatically cleaned up.
 
 - [Middleware Pipeline](./MIDDLEWARE_PIPELINE.md) - Intercept operations
 - [Component Registry](./COMPONENT_REGISTRY.md) - UI components
-- [Mod System Documentation](../MOD_SYSTEM.md) - Complete mod system guide including permissions
+- [Plugin System Documentation](../PLUGIN_SYSTEM.md) - Complete plugin system guide including permissions

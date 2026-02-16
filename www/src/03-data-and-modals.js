@@ -8,7 +8,7 @@
        * @param {string} body - Card content/body
        * @param {string|null} parentId - Parent card ID or null for root
        * @param {boolean} skipSave - Skip saving to localStorage
-       * @param {boolean} skipHooks - Skip running mod hooks
+       * @param {boolean} skipHooks - Skip running plugin hooks
        * @returns {string} New card ID
        */
       function createCard(title, body, parentId = null, skipSave = false, skipHooks = false) {
@@ -22,7 +22,7 @@
           children: [],
           createdAt: now,
           updatedAt: now,
-          modsData: {},
+          pluginsData: {},
           tags: [],
           isRichText: false
         };
@@ -35,7 +35,7 @@
           }
         }
         // Add to undo stack for undo support (v0.12.0 fix)
-        // Always track undo regardless of skipHooks - skipHooks only controls mod hooks
+        // Always track undo regardless of skipHooks - skipHooks only controls plugin hooks
         pushUndo('createCard', { cardId: id, card: cloneCard(store.cards[id]) });
         if (!skipSave) save();
         return id;
@@ -46,13 +46,13 @@
        * @param {string} id - Card ID to update
        * @param {Object} updates - Fields to update
        * @param {boolean} skipSave - Skip saving to localStorage
-       * @param {boolean} skipHooks - Skip running mod hooks
+       * @param {boolean} skipHooks - Skip running plugin hooks
        */
       function updateCard(id, updates, skipSave = false, skipHooks = false) {
         const card = store.cards[id];
         if (!card) return;
         // Store previous state for undo support (v0.12.0 fix)
-        // Always track undo regardless of skipHooks - skipHooks only controls mod hooks
+        // Always track undo regardless of skipHooks - skipHooks only controls plugin hooks
         const previousState = cloneCard(card);
         const updateTimestamp = Date.now();
         pushUndo('updateCard', { 
@@ -563,7 +563,7 @@
         }
 
         // Validate mods if present (and warn about security)
-        if (pkg.mods && pkg.exportType === 'instance') {
+        if (pkg.plugins && pkg.exportType === 'instance') {
           const modCount = Object.keys(pkg.mods).length;
           if (modCount > 0) {
             const confirmImportMods = confirm(
@@ -1073,7 +1073,7 @@
         
         if (store) {
           cardCount = Object.keys(store.cards || {}).length;
-          modCount = Object.keys(store.mods || {}).length;
+          modCount = Object.keys(store.plugins || {}).length;
           bookmarkCount = (store.bookmarks || []).length;
           recentCount = (store.recentCards || []).length;
         }
@@ -1170,7 +1170,7 @@
       // Unified interface for installing, managing, and creating mods
       // =============================================================
 
-      function showModManager(initialTab) {
+      function showPluginManager(initialTab) {
         initialTab = initialTab || 'installed';
         var overlay = h('div', { className: 'modal-overlay show' });
         var modal = h('div', { className: 'modal', style: 'max-width: 800px; max-height: 90vh;' });
@@ -1300,7 +1300,7 @@
           });
 
           // Legacy mods section (if any exist)
-          var modIds = Object.keys(store.mods || {});
+          var modIds = Object.keys(store.plugins || {});
           if (modIds.length > 0) {
             var legacySection = h('div', { style: 'margin-top: var(--space-xl); padding-top: var(--space-xl); border-top: 1px solid var(--border);' });
             legacySection.appendChild(h('h3', { style: 'margin-bottom: var(--space-md); color: var(--warning, #f59e0b);' }, 'Legacy Mods (Non-functional)'));
@@ -1744,7 +1744,7 @@
         }, 'Theme Mods'));
 
         // Custom themes from mods
-        const themeExtensions = Object.entries(store.mods || {}).filter(function([modId, mod]) {
+        const themeExtensions = Object.entries(store.plugins || {}).filter(function([modId, mod]) {
           var manifest = mod.manifest || mod.meta || {};
           return manifest.layer === 'theme' || (manifest.type && manifest.type === 'Theme');
         }).map(function([modId, mod]) {
@@ -1752,7 +1752,7 @@
           return { manifest: manifest, meta: manifest, enabled: mod.enabled, css: mod.css, id: modId };
         });
 
-        // Get active theme mod ID
+        // Get active theme plugin ID
         const activeThemeExtension = localStorage.getItem('cardspoke_activeThemeMod') || null;
         
         if (themeExtensions.length > 0) {
@@ -1814,7 +1814,7 @@
             style: 'padding: var(--space-lg); background: var(--bg-secondary); border-radius: 4px; text-align: center; color: var(--text-muted);'
           },
             h('div', { style: 'margin-bottom: var(--space-sm);' }, 'No custom themes installed'),
-            h('div', { style: 'font-size: var(--text-sm);' }, 'Install theme mods from the Mod Manager')
+            h('div', { style: 'font-size: var(--text-sm);' }, 'Install theme mods from the Plugin Manager')
           ));
         }
         

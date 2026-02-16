@@ -438,7 +438,7 @@ Operational advice:
 
 ---
 
-## 10) Risk Assessment (How Runtime Scores Mods)
+## 10) Risk Assessment (How Runtime Scores Plugins)
 
 The runtime computes a risk score based on layer and detected capability patterns.
 
@@ -485,11 +485,11 @@ In safe mode:
 
 ## Step 2: Start from examples
 
-Use `sample-mods/` closest to your target behavior:
+Use `sample-plugins/` closest to your target behavior:
 
-- themes: `sample-mods/themes/*.json`
-- feature-style mods: `sample-mods/features/*.json`
-- app-layer patterns: `sample-mods/apps/*.json`
+- themes: `sample-plugins/themes/*.json`
+- feature-style mods: `sample-plugins/features/*.json`
+- app-layer patterns: `sample-plugins/apps/*.json`
 
 ## Step 3: Build iteratively
 
@@ -624,6 +624,6 @@ npm test
 
 - `README.md` — top-level orientation and doc index
 - `docs/guides/DEVELOPER_GUIDE.md` — core development workflow
-- `docs/MOD_SYSTEM.md` — formal plugin system reference
+- `docs/PLUGIN_SYSTEM.md` — formal plugin system reference
 - `docs/api/API_REFERENCE.md` — API contract details
 - `docs/guides/TEST_GUIDE.md` — testing guidance

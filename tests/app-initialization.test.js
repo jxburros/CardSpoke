@@ -324,7 +324,7 @@ test('Plugin API has required methods', () => {
     'list:',
     'listAll:',
     'install:',
-    'assessModRisk:',
+    'assessPluginRisk:',
     'syncFromStore:'
   ];
   
@@ -349,11 +349,11 @@ test('Store includes plugins property', () => {
   assert.ok(content.includes('plugins:'), 'Store should have plugins property');
 });
 
-test('showModManager implements tabbed interface', () => {
+test('showPluginManager implements tabbed interface', () => {
   const appJsPath = join(__dirname, '..', 'www', 'app.js');
   const content = readFileSync(appJsPath, 'utf-8');
   
-  assert.ok(content.includes('function showModManager'), 'Should have showModManager function');
+  assert.ok(content.includes('function showPluginManager'), 'Should have showPluginManager function');
   assert.ok(content.includes('installed'), 'Should have installed tab');
   assert.ok(content.includes('install'), 'Should have install tab');
   assert.ok(content.includes('create'), 'Should have create tab');

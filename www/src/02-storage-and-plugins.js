@@ -1,4 +1,4 @@
-      // Source Part 2/5: Storage drivers, navigation, and mod runtime
+      // Source Part 2/5: Storage drivers, navigation, and plugin runtime
       // Concatenated via `npm run build` in lexical order of www/src/*.js
       // =============================================================
       // --- STORAGE DRIVER ARCHITECTURE (v0.9.4) ---
@@ -1525,7 +1525,7 @@
           store = {
             rootOrder: parsed.rootOrder || [],
             cards: parsed.cards || {},
-            mods: parsed.mods || {},
+            mods: parsed.plugins || {},
             plugins: parsed.plugins || {},
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
@@ -1586,7 +1586,7 @@
                 store = {
                   rootOrder: parsedMirror.rootOrder || [],
                   cards: parsedMirror.cards || {},
-                  mods: parsedMirror.mods || {},
+                  mods: parsedMirror.plugins || {},
                   plugins: parsedMirror.plugins || {},
                   bookmarks: parsedMirror.bookmarks || [],
                   recentCards: parsedMirror.recentCards || [],
@@ -1607,7 +1607,7 @@
                 store = {
                   rootOrder: parsedFile.rootOrder || [],
                   cards: parsedFile.cards || {},
-                  mods: parsedFile.mods || {},
+                  mods: parsedFile.plugins || {},
                   plugins: parsedFile.plugins || {},
                   bookmarks: parsedFile.bookmarks || [],
                   recentCards: parsedFile.recentCards || [],
@@ -1656,7 +1656,7 @@
 
       // =============================================================
       // --- MOD SYSTEM v2 ---
-      // JSON-driven mod loading system. Mods are JSON packages that
+      // JSON-driven mod loading system. Plugins are JSON packages that
       // can do anything from simple themes to full app transformations.
       //
       // Mod layers:
@@ -1717,7 +1717,7 @@
             rootCardCount: store.rootOrder.length,
             bookmarkCount: (store.bookmarks || []).length,
             recentCount: (store.recentCards || []).length,
-            modCount: Object.keys(store.mods || {}).length,
+            modCount: Object.keys(store.plugins || {}).length,
             schemaVersion: SCHEMA_VERSION,
             appVersion: APP_VERSION
           };

@@ -1,12 +1,12 @@
-# CardSpoke Mod System
+# CardSpoke Plugin System
 
-This document describes the modern plugin-based mod system that powers CardSpoke's extensibility. Mods can range from simple visual themes to full app-layer transformations.
+This document describes the modern plugin-based plugin system that powers CardSpoke's extensibility. Plugins can range from simple visual themes to full app-layer transformations.
 
 **Current Version:** 0.16.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
 
 ## Overview
 
-The mod system is built on a modern, powerful architecture featuring:
+The plugin system is built on a modern, powerful architecture featuring:
 
 - **Middleware Pipeline**: Priority-weighted interceptors for core operations
 - **Plugin API**: Sandboxed contexts with resource management and hot-unloading
@@ -22,7 +22,7 @@ The mod system is built on a modern, powerful architecture featuring:
 4. **Storage Drivers**: Pluggable storage backends (IndexedDB, cloud, git, etc.)
 5. **Permissions**: Explicit permission requests with user consent dialogs
 
-## Mod Package Format
+## Plugin Package Format
 
 ### Plugin Definition Format
 
@@ -40,7 +40,7 @@ export default {
     name: "My Mod",
     version: "1.0.0",
     author: "Author Name",
-    description: "What this mod does",
+    description: "What this plugin does",
     layer: "theme | feature | app",
     permissions: ["ui-override", "storage"]
   },
@@ -54,19 +54,19 @@ export default {
 };
 ```
 
-Used in: `sample-mods/new-api/` examples
+Used in: `sample-plugins/new-api/` examples
 
 #### Runtime Registration Format (for direct browser usage)
 
 This format works directly in the browser without any build step. Use this for quick prototyping or when bundlers are not available.
 
 ```javascript
-window.CardSpoke.Plugin.register('my-mod', {
+window.CardSpoke.Plugin.register('my-plugin', {
   manifest: {
     name: "My Mod",
     version: "1.0.0",
     author: "Author Name",
-    description: "What this mod does",
+    description: "What this plugin does",
     layer: "theme | feature | app",
     permissions: ["ui-override", "storage"]
   },
@@ -90,12 +90,12 @@ Used in: Direct browser `<script>` tags or inline code
 - **manifest.layer**: One of `theme`, `feature`, or `app`.
 
 ### Optional Fields
-- **manifest.description**: Short description of the mod.
+- **manifest.description**: Short description of the plugin.
 - **manifest.permissions**: Array of requested permissions.
 - **config**: Object of user-configurable settings (arbitrary key/value pairs).
-- **css**: CSS string injected into the page when the mod is enabled.
-- **setup**: Async function called when mod is enabled.
-- **teardown**: Async function called when mod is disabled or uninstalled.
+- **css**: CSS string injected into the page when the plugin is enabled.
+- **setup**: Async function called when plugin is enabled.
+- **teardown**: Async function called when plugin is disabled or uninstalled.
 - **overrides**: Object of app-level overrides (only meaningful for `app` layer).
 
 ## Three-Layer Architecture
@@ -179,30 +179,30 @@ The Plugin API automatically manages resources:
 - Middleware handlers are automatically unregistered on disable
 - Component registry overrides are reverted on disable
 
-## Mod Manager UI
+## Plugin Manager UI
 
-The Mod Manager is accessible from the main menu and has three tabs:
+The Plugin Manager is accessible from the main menu and has three tabs:
 
 1. **Installed**: Lists all installed mods with enable/disable toggles, risk badges, and uninstall buttons.
-2. **Install**: Upload a mod JSON file or load from URL.
-3. **Create**: Build a mod directly in the app by providing metadata, JavaScript, and CSS.
+2. **Install**: Upload a plugin JSON file or load from URL.
+3. **Create**: Build a plugin directly in the app by providing metadata, JavaScript, and CSS.
 
 ## Installation Methods
 
 ### File Upload
-Upload a plugin definition file through the Upload modal (Mods tab) or the Mod Manager's Install tab.
+Upload a plugin definition file through the Upload modal (Plugins tab) or the Plugin Manager's Install tab.
 
 ### Manual Creation
-Use the Create tab in the Mod Manager to define a plugin directly in the app by providing metadata, JavaScript code, and CSS.
+Use the Create tab in the Plugin Manager to define a plugin directly in the app by providing metadata, JavaScript code, and CSS.
 
 ### Programmatic
 ```javascript
-window.CardSpoke.Plugin.register('my-mod', pluginDefinition);
+window.CardSpoke.Plugin.register('my-plugin', pluginDefinition);
 ```
 
 ## Safe Mode
 
-Launch with `?safemode` in the URL to disable all plugins. This is useful for troubleshooting when a plugin causes issues. In safe mode, the app displays a "Mods Disabled" banner and no plugin code executes.
+Launch with `?safemode` in the URL to disable all plugins. This is useful for troubleshooting when a plugin causes issues. In safe mode, the app displays a "Plugins Disabled" banner and no plugin code executes.
 
 ## Validation Rules
 
@@ -454,7 +454,7 @@ Install type definitions:
 npm install @cardspoke/core
 ```
 
-Use in your mod:
+Use in your plugin:
 
 ```typescript
 import type { PluginDefinition, PluginContext } from '@cardspoke/core';
@@ -471,10 +471,10 @@ export default plugin;
 
 ## Examples and Resources
 
-Complete examples are available in `sample-mods/new-api/`:
+Complete examples are available in `sample-plugins/new-api/`:
 
-- **example-feature-mod.js**: Middleware, component registry, and data updates
-- **example-app-mod.js**: App-level customization with storage drivers
+- **example-feature-plugin.js**: Middleware, component registry, and data updates
+- **example-app-plugin.js**: App-level customization with storage drivers
 
 ## API Reference
 
@@ -506,7 +506,7 @@ Detailed documentation:
 ## Support
 
 - Check [API documentation](./api/)
-- See [examples](../sample-mods/new-api/)
+- See [examples](../sample-plugins/new-api/)
 - Ask in [GitHub Issues](https://github.com/jxburros/CardSpoke/issues)
 
 ---
