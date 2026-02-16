@@ -3518,7 +3518,7 @@ const header = {
         const key = instanceKey || 'nested_cards_store';
         const raw = localStorage.getItem(key);
         if (!raw) {
-          store = { rootOrder: [], cards: {}, plugins: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
+          store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
           save();
           return;
         }
@@ -3527,7 +3527,6 @@ const header = {
           store = {
             rootOrder: parsed.rootOrder || [],
             cards: parsed.cards || {},
-            plugins: parsed.plugins || {},
             plugins: parsed.plugins || {},
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
