@@ -321,8 +321,8 @@ test('empty store can still be navigated', () => {
 });
 
 test('store handles missing properties gracefully', () => {
-  // Simulate legacy data structure with missing properties
-  const legacyData = {
+  // Simulate incomplete data structure with missing properties
+  const incompleteData = {
     rootOrder: [],
     cards: {}
     // Missing: mods, bookmarks, recentCards, viewMode
@@ -330,12 +330,12 @@ test('store handles missing properties gracefully', () => {
   
   // Normalize to current structure (as the app would do)
   const normalized = {
-    rootOrder: legacyData.rootOrder || [],
-    cards: legacyData.cards || {},
-    mods: legacyData.mods || {},
-    bookmarks: legacyData.bookmarks || [],
-    recentCards: legacyData.recentCards || [],
-    viewMode: legacyData.viewMode || 'normal'
+    rootOrder: incompleteData.rootOrder || [],
+    cards: incompleteData.cards || {},
+    mods: incompleteData.mods || {},
+    bookmarks: incompleteData.bookmarks || [],
+    recentCards: incompleteData.recentCards || [],
+    viewMode: incompleteData.viewMode || 'normal'
   };
   
   assert.ok(Array.isArray(normalized.bookmarks), 'Should have bookmarks array');

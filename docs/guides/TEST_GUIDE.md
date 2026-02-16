@@ -19,8 +19,8 @@ CardSpoke uses `uvu` for automated tests. This guide covers how to run and write
 ## Writing Tests
 - Prefer small, deterministic tests with clear assertions.
 - Include fixture data for schema migrations and mod compatibility.
-- When testing mods, validate manifest correctness, toggle behavior, and fallback paths. Exercise hook registration via `CardSpoke_MODS`, event emissions, and dev tools (hook stats/error log) to ensure compatibility surfaces stay stable.
-- For UI-affecting mods, capture DOM/state expectations and accessibility behaviors where possible.
+- When testing plugins, validate manifest correctness, permission handling, and resource cleanup. Exercise Plugin API registration, event emissions, and middleware pipeline to ensure API stability.
+- For UI-affecting plugins, capture DOM/state expectations and accessibility behaviors where possible.
 - Cover dataset import/export formats (JSON/CSV/Markdown/TXT) and backup restoration to ensure regression-safe portability.
 
 ## Coverage Expectations

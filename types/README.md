@@ -68,7 +68,6 @@ export default plugin;
 - `Card` - Card data structure
 - `Store` - Application store
 - `ModManifest` - Plugin manifest
-- `ModPackage` - Legacy mod package
 - `PermissionType` - Available permissions
 
 ### Plugin Types

@@ -8,7 +8,7 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and mod authors
 - **Card-based knowledge system:** Presents information as hierarchical, tiered cards for lightweight knowledge organization.
 - **Intentionally minimal core:** Keeps the built-in experience ultra-light while delegating optional complexity to mods.
 - **Self-contained bundle:** The `www/app.js` file is self-contained for `file://` protocol compatibility, with all utilities inlined to avoid CORS issues when opening directly from the filesystem.
-- **Mod-ready foundation:** Built with a three-layer mod system so new behaviors can be added without bloating the core. The runtime exposes `CardSpoke_MODS` with hook dispatch, an event bus, and dev tools for inspecting hook stats and errors.
+- **Plugin-ready foundation:** Built with a three-layer plugin system so new behaviors can be added without bloating the core. The runtime exposes the Plugin API with middleware pipeline, event system, and dev tools.
 - **Mod layers:** Theme (CSS only), Feature (CSS+JS), and App (CSS+JS+overrides) cover cosmetic tweaks through full app transformations.
 - **Schema-aware:** Uses an explicit `schemaVersion` (currently 4) to gate features and mods.
 
@@ -94,7 +94,6 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and mod authors
 - **Safe Mode:** Launch with `?safemode` URL parameter to disable all mods for troubleshooting.
 - **Risk assessment:** Automatic risk scoring based on layer and code analysis (network access, DOM manipulation, storage usage).
 - **Metadata transparency:** Every mod declares name, version, author, description, layer, compatibility, and permissions in its manifest.
-- **Legacy compatibility:** Existing mods using `CardSpoke_MODS` hooks continue to work via automatic compatibility bridge.
 - **TypeScript support:** Full type definitions via `@cardspoke/core` package for type-safe mod development.
 - **Dev tools:** Inspect mods, view hook stats, access error logs, and manually test hooks.
 
@@ -142,9 +141,6 @@ CardSpoke uses LocalStorage for preferences and lightweight configuration. All k
 
 ### File System Integration
 - `cardspoke_file_handle_*` – Various: File handle references for local file storage (Capacitor)
-
-### Legacy Keys (Maintained for Backward Compatibility)
-- `cardspoke_activeThemeExtension` – String: Legacy theme extension reference (migrated to mods)
 
 ## Developer & Testing Experience
 - **Node/uvu toolchain:** Uses Node (18+) with `npm run build` for web assets and `npm test` (uvu) for automated checks.
