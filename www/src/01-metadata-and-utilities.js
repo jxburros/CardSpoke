@@ -200,7 +200,7 @@ function createDefaultStore() {
   return {
     rootOrder: [],
     cards: {},
-    mods: {},
+    plugins: {},
     bookmarks: [],
     recentCards: [],
     viewMode: 'normal',
@@ -224,14 +224,14 @@ function setRichTextEnabled(enabled) {
 }
 
 /**
- * Get the active theme mod ID (if any)
+ * Get the active theme plugin ID (if any)
  */
 function getActiveThemeMod() {
   return localStorage.getItem('cardspoke_activeThemeMod') || localStorage.getItem('cardspoke_activeThemeExtension') || null;
 }
 
 /**
- * Set the active theme mod
+ * Set the active theme plugin
  */
 function setActiveThemeMod(modId) {
   if (modId) {
@@ -353,8 +353,8 @@ function showToast(message, type = 'success', duration = 3000) {
 
 // Version History
 // Version 0.16.0: Split source into buildable chunks (see www/src/*, `npm run build`)
-// Version 1.0.0: Major refactor - ES Modules for maintainability, Rich Text toggle, Theme mod handler
-// Version 0.13.1: Accessibility & Theme Customization for Mods
+// Version 1.0.0: Major refactor - ES Modules for maintainability, Rich Text toggle, Theme plugin handler
+// Version 0.13.1: Accessibility & Theme Customization for Plugins
 // (see previous versions in git history)
 
 // --- CORE APP STATE ---
@@ -417,7 +417,7 @@ const header = {
         closeBtn: document.getElementById('menuClose'),
         newCard: document.getElementById('menuNewCard'),
         upload: document.getElementById('menuUpload'),
-        modManager: document.getElementById('menuModManager'),
+        pluginManager: document.getElementById('menuPluginManager'),
         appearance: document.getElementById('menuAppearance'),
         tagManager: document.getElementById('menuTagManager'),
         advancedSearch: document.getElementById('menuAdvancedSearch'),
@@ -457,7 +457,7 @@ const header = {
         importLocationSelectTXT: document.getElementById('importLocationSelectTXT'),
         fileUploadAreaMods: document.getElementById('fileUploadAreaMods'),
         fileInputMods: document.getElementById('fileInputMods'),
-        // Mod install fields
+        // Plugin install fields
         manualModName: document.getElementById('manualModName'),
         manualModCreator: document.getElementById('manualModCreator'),
         manualModVersion: document.getElementById('manualModVersion'),

@@ -1,14 +1,14 @@
 # CardSpoke Specification v1.0 (AI-Optimized Edition)
 **Purpose:** Define the philosophy, rules, structure, licensing, and ecosystem of **CardSpoke** for use by humans and AI systems.
-**Audience:** Developers, mod creators, Deviators (fork creators), community moderators, automated agents.
+**Audience:** Developers, plugin creators, Deviators (fork creators), community moderators, automated agents.
 
 ---
 
 ## 1. Summary
 - **CardSpoke** is a lightweight, card-based information system that presents knowledge in hierarchical, tiered structures.
-- It is **free to use**, owned by **JX Holdings, LLC**, and intentionally **malleable**, with a built-in **Mod System**.
+- It is **free to use**, owned by **JX Holdings, LLC**, and intentionally **malleable**, with a built-in **Plugin System**.
 - Users own their data; CardSpoke does **not** host or collect data except voluntary submissions.
-- The ecosystem allows **Mods**, **Deviations**, and **community contributions** with required credit, versioning, and transparency.
+- The ecosystem allows **Plugins**, **Deviations**, and **community contributions** with required credit, versioning, and transparency.
 
 ---
 
@@ -23,12 +23,12 @@
 - Optional cloud/file integrations are supported through user-configured storage drivers (e.g., WebDAV/Google Drive/OneDrive/Local File).
 - CardSpoke will not host or collect user data.
 
-### 2.3 Mod-Friendly Architecture
-- The app is intentionally built to support mods across three layers: Theme, Feature, and App.
+### 2.3 Plugin-Friendly Architecture
+- The app is intentionally built to support plugins across three layers: Theme, Feature, and App.
 - Low barriers for beginners; high ceilings for advanced developers.
 
 ### 2.4 Community Ecosystem
-- Community builds on the core through mods and Deviations.
+- Community builds on the core through plugins and Deviations.
 - CardSpoke remains free; community creators may monetize their work.
 
 ### 2.5 Accountability & Transparency
@@ -51,9 +51,9 @@ All Angled content requires:
 
 ### 3.2 Community Rights
 Creators may:
-- Make **Mods**
+- Make **Plugins**
 - Make **Deviations** (forks)
-- Monetize mods and Deviations
+- Monetize plugins and Deviations
 - Release them anywhere
 
 Creators must:
@@ -68,24 +68,24 @@ Creators must:
 ### 3.3 Liability
 JX Holdings is not responsible for:
 - Breakage caused by angled content
-- Data loss from third-party mods
+- Data loss from third-party plugins
 - Security issues introduced by community content
 
 Compatibility is attempted but not guaranteed.
 
 ---
 
-## 4. Mod System Specification
+## 4. Plugin System Specification
 
 ### 4.1 Overview
-**Mod** = Any modular add-on to CardSpoke.
-Mods must declare:
+**Plugin** = Any modular add-on to CardSpoke.
+Plugins must declare:
 - Layer (theme, feature, or app)
 - Version
 - Author metadata
 - Whether they modify logic, UI, or data structures
 
-### 4.2 Mod Layers
+### 4.2 Plugin Layers
 
 #### 1. Theme
 - Cosmetic only (CSS).
@@ -120,7 +120,7 @@ Rules:
 
 ### 6.1 Update Types
 - **Update** = Core app changes
-- **Mod** = Modular add-ons for extending functionality
+- **Plugin** = Modular add-ons for extending functionality
 
 ### 6.2 Backward Compatibility
 - CardSpoke *attempts* backward compatibility.
@@ -160,8 +160,8 @@ CardSpoke does *not*:
 
 - **Official** — Created by JX Holdings
 - **Angled** — Community-created
-- **Mod** — Any modular addition (theme, feature, or app layer)
-- **Theme / Feature / App** — Mod layers
+- **Plugin** — Any modular addition (theme, feature, or app layer)
+- **Theme / Feature / App** — Plugin layers
 - **Deviation** — Fork
 - **Schema Version** — Data model version
 - **Legacy** — Older maintained versions
@@ -173,7 +173,7 @@ CardSpoke does *not*:
 ## 9. Community Standards
 
 ### 9.1 Quality Expectations
-Mods should:
+Plugins should:
 - Fail safely
 - Avoid data corruption
 - Provide clear errors
@@ -189,17 +189,17 @@ Creators must:
 
 ---
 
-## 10. Mandatory Metadata for Mods & Deviations
-Every mod must include a manifest in the JSON package format:
+## 10. Mandatory Metadata for Plugins & Deviations
+Every plugin must include a manifest in the JSON package format:
 
 ```json
 {
-  "id": "my-mod",
+  "id": "my-plugin",
   "manifest": {
-    "name": "My Mod",
+    "name": "My Plugin",
     "version": "1.0.0",
     "author": "Creator Name",
-    "description": "What this mod does",
+    "description": "What this plugin does",
     "layer": "theme | feature | app",
     "compatibility": ">=0.16.0"
   },
@@ -219,9 +219,9 @@ Every mod must include a manifest in the JSON package format:
 CardSpoke aims to be:
 - A universal card-based knowledge system
 - Adaptable to writing, research, planning, worldbuilding, PKM, design, etc.
-- A foundation for community-driven mods and custom builds
+- A foundation for community-driven plugins and custom builds
 - A lightweight app with heavyweight potential
-- A durable ecosystem built through mods instead of core bloat
+- A durable ecosystem built through plugins instead of core bloat
 
 ---
 

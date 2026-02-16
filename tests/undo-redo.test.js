@@ -7,7 +7,7 @@ import { test } from 'uvu';
 import * as assert from 'uvu/assert';
 
 // Mock store and functions
-let store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [] };
+let store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [] };
 let undoStack = [];
 let redoStack = [];
 let trashBin = [];
@@ -87,7 +87,7 @@ function deleteCard(id) {
 
 // Reset before each test
 function resetStore() {
-  store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [] };
+  store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [] };
   undoStack = [];
   redoStack = [];
   trashBin = [];

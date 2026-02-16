@@ -38,7 +38,7 @@ export interface Store {
   rootOrder: string[];
   bookmarks: string[];
   recentCards: string[];
-  mods: Record<string, ModPackage>;
+  plugins: Record<string, ModPackage>;
   schemaVersion: number;
   metadata?: Record<string, any>;
 }

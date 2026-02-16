@@ -169,7 +169,7 @@ The app initializes/persists a store with these key top-level fields:
 
 - `rootOrder: string[]`
 - `cards: Record<string, Card>`
-- `mods: Record<string, ModPackage>`
+- `plugins: Record<string, ModPackage>`
 - `bookmarks: string[]`
 - `recentCards: string[]`
 - `viewMode: 'normal' | ...`
@@ -212,7 +212,7 @@ The dominant flow is:
 1. A user or plugin action mutates the store (card create/update/delete/tag ops)
 2. `save()` persists the current dataset
 3. `render()` updates the visible UI
-4. Hook dispatch notifies enabled mods (`runModHook(...)`)
+4. Hook dispatch notifies enabled plugins (`runModHook(...)`)
 
 Examples:
 
@@ -257,7 +257,7 @@ Canonical plugin package structure:
 3. `manifest` is required
 4. `manifest.name`, `manifest.version`, `manifest.author`, `manifest.layer` are required
 5. `manifest.layer` must be one of: `theme`, `feature`, `app`
-6. Theme-layer mods **cannot** include non-empty `js`
+6. Theme-layer plugins **cannot** include non-empty `js`
 7. Non-app layers cannot use `overrides`
 
 Recommended (not hard-enforced) for quality:
@@ -410,7 +410,7 @@ Use these APIs instead of directly mutating `store` unless you are contributing 
 
 ## 9) Override System (App Layer Only)
 
-App-layer mods can set `overrides` to alter high-level behavior.
+App-layer plugins can set `overrides` to alter high-level behavior.
 
 Supported practical fields:
 
@@ -434,11 +434,11 @@ Operational advice:
 
 - Keep override scope as narrow as possible
 - Document each override in your plugin description/changelog
-- Test for interactions with other app-layer mods
+- Test for interactions with other app-layer plugins
 
 ---
 
-## 10) Risk Assessment (How Runtime Scores Mods)
+## 10) Risk Assessment (How Runtime Scores Plugins)
 
 The runtime computes a risk score based on layer and detected capability patterns.
 
@@ -470,7 +470,7 @@ Practical use:
 
 In safe mode:
 - Runtime warns in console
-- A warning toast indicates mods are disabled
+- A warning toast indicates plugins are disabled
 - `CardSpoke.Plugin.syncFromStore()` and initial `onLoad` dispatch are skipped
 
 ---
@@ -485,11 +485,11 @@ In safe mode:
 
 ## Step 2: Start from examples
 
-Use `sample-mods/` closest to your target behavior:
+Use `sample-plugins/` closest to your target behavior:
 
-- themes: `sample-mods/themes/*.json`
-- feature-style mods: `sample-mods/features/*.json`
-- app-layer patterns: `sample-mods/apps/*.json`
+- themes: `sample-plugins/themes/*.json`
+- feature-style plugins: `sample-plugins/features/*.json`
+- app-layer patterns: `sample-plugins/apps/*.json`
 
 ## Step 3: Build iteratively
 
@@ -569,7 +569,7 @@ If distributing to a team/community:
 
 - Publish source alongside packaged JSON
 - Include checksum/version notes
-- Require review before enabling app-layer mods
+- Require review before enabling app-layer plugins
 
 ---
 
@@ -624,6 +624,6 @@ npm test
 
 - `README.md` — top-level orientation and doc index
 - `docs/guides/DEVELOPER_GUIDE.md` — core development workflow
-- `docs/MOD_SYSTEM.md` — formal plugin system reference
+- `docs/PLUGIN_SYSTEM.md` — formal plugin system reference
 - `docs/api/API_REFERENCE.md` — API contract details
 - `docs/guides/TEST_GUIDE.md` — testing guidance

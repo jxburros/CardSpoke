@@ -31,7 +31,7 @@
 // Include core systems
 // Middleware Pipeline System
 // Replaces the hook-based system with a priority-weighted pipeline
-// Allows mods to intercept and modify core operations
+// Allows plugins to intercept and modify core operations
 
 (function() {
   'use strict';
@@ -191,7 +191,7 @@
   console.log('[Middleware] Pipeline system initialized');
 })();
 // Component Registry System
-// Allows mods to register and override UI components
+// Allows plugins to register and override UI components
 // Provides a central registry for component resolution
 
 (function() {

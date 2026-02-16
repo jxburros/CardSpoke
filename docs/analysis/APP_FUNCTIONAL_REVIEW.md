@@ -4,11 +4,11 @@
 This review analyzes CardSpoke by reading core docs (`README.md`, `docs/guides/FEATURES.md`) and runtime slices in `www/src/` that define storage, navigation, rendering, and advanced systems.
 
 ## Product and architecture summary
-CardSpoke is a local-first, card-based knowledge app with a minimal core and built-in mod runtime. The architecture combines:
+CardSpoke is a local-first, card-based knowledge app with a minimal core and built-in plugin runtime. The architecture combines:
 - **Single-bundle runtime** (`www/app.js`) built from numbered slices in `www/src`.
 - **Stateful client store** (`store`) persisted by dataset key.
 - **Hierarchical card graph model** (`cards`, `rootOrder`, `parentId`, `children`).
-- **Hook-driven mod engine** (`onCardSave`, `onNavigate`, `onRender`, etc.).
+- **Hook-driven plugin engine** (`onCardSave`, `onNavigate`, `onRender`, etc.).
 - **Route-based UI composition** (`list`, `read`, `edit`, `search`) orchestrated by `render()`.
 
 This yields flexibility and extensibility, with most responsibilities currently concentrated in one shared runtime surface.
@@ -79,10 +79,10 @@ Findings:
 Risks/opportunities:
 - Multi-card operations need transaction-aware undo boundaries.
 
-### 5) Mod ecosystem
+### 5) Plugin ecosystem
 Key systems:
-- Mod package validation, layer model, risk assessment, hook dispatch.
-- Mod manager for install/create/manage.
+- Plugin package validation, layer model, risk assessment, hook dispatch.
+- Plugin manager for install/create/manage.
 
 Findings:
 - Layer model is clear and useful for risk communication.
@@ -106,8 +106,8 @@ Risks/opportunities:
 3. User manages data through Data Hub (backup/export/import) and tag tools.
 
 ### Power user / modder flow
-1. User opens Mod Manager.
-2. User installs or creates mod (JSON/JS/CSS).
+1. User opens Plugin Manager.
+2. User installs or creates plugin (JSON/JS/CSS).
 3. User iterates behavior through hooks/dev mode/safe mode.
 
 ### Flow quality summary
@@ -131,14 +131,14 @@ The following recommendations are now consolidated as an implementation package 
    - Group multi-card operations into one logical undo action.
    - Include bulk import, recursive duplicate, and tag merge.
 
-4. **Mod safety UX hardening**
+4. **Plugin safety UX hardening**
    - Add capability summaries pre-install.
    - Add first-run consent prompts for sensitive behaviors (network/storage/DOM overrides).
 
 ### Medium priority
 5. **Progressive onboarding for advanced features**
    - Keep default experience minimal.
-   - Contextually reveal datasets/mods/advanced search.
+   - Contextually reveal datasets/plugins/advanced search.
 
 6. **Performance budget + local-only diagnostics**
    - Track render time, save latency, listener counts in dev mode.
@@ -162,16 +162,16 @@ The following recommendations are now consolidated as an implementation package 
    - Include one-click migration workflow (copy + verify + switch + rollback option).
    - Keep preference/config metadata in LocalStorage even when dataset payload moves.
 
-10. **Expanded mod threat-model documentation**
+10. **Expanded plugin threat-model documentation**
    - Publish practical risk profiles and safe-mode troubleshooting runbooks.
 
 ## Suggested implementation sequence (6 weeks)
 - **Week 1:** render-lifecycle cleanup + listener leak tests.
 - **Week 2:** batched save boundaries for recursive operations + perf benchmark.
 - **Week 3:** undo transaction groups for bulk operations.
-- **Week 4:** mod capability disclosure + consent UX.
+- **Week 4:** plugin capability disclosure + consent UX.
 - **Week 5:** progressive onboarding and contextual feature education.
 - **Week 6:** dataset storage settings (default LocalStorage + post-creation on-device location migration), plus integrity checker rollout.
 
 ## Overall assessment
-CardSpoke’s core is strong for local-first, hierarchy-centric knowledge work with meaningful extensibility. The highest leverage is now operational hardening (lifecycle cleanup, save/undo semantics), safer mod ergonomics, and user-controlled storage evolution that preserves a LocalStorage-first default.
+CardSpoke’s core is strong for local-first, hierarchy-centric knowledge work with meaningful extensibility. The highest leverage is now operational hardening (lifecycle cleanup, save/undo semantics), safer plugin ergonomics, and user-controlled storage evolution that preserves a LocalStorage-first default.

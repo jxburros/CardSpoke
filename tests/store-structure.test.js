@@ -18,7 +18,7 @@ test('createTestStore creates valid store structure', () => {
   
   assert.ok(Array.isArray(store.rootOrder), 'rootOrder should be an array');
   assert.type(store.cards, 'object', 'cards should be an object');
-  assert.type(store.mods, 'object', 'mods should be an object');
+  assert.type(store.plugins, 'object', 'plugins should be an object');
   assert.ok(Array.isArray(store.bookmarks), 'bookmarks should be an array');
   assert.ok(Array.isArray(store.recentCards), 'recentCards should be an array');
   assert.is(store.viewMode, 'normal', 'viewMode should default to normal');

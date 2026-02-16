@@ -25,7 +25,7 @@
        * @param {string} body - Card content/body
        * @param {string|null} parentId - Parent card ID or null for root
        * @param {boolean} skipSave - Skip saving to localStorage
-       * @param {boolean} skipHooks - Skip running mod hooks
+       * @param {boolean} skipHooks - Skip running plugin hooks
        * @returns {string} New card ID
        */
       function createCard(title, body, parentId = null, skipSave = false, skipHooks = false) {
@@ -52,7 +52,7 @@
           }
         }
         // Add to undo stack for undo support (v0.12.0 fix)
-        // Always track undo regardless of skipHooks - skipHooks only controls mod hooks
+        // Always track undo regardless of skipHooks - skipHooks only controls plugin hooks
         pushUndo('createCard', { cardId: id, card: cloneCard(store.cards[id]) });
         if (!skipSave) save();
         return id;
@@ -63,13 +63,13 @@
        * @param {string} id - Card ID to update
        * @param {Object} updates - Fields to update
        * @param {boolean} skipSave - Skip saving to localStorage
-       * @param {boolean} skipHooks - Skip running mod hooks
+       * @param {boolean} skipHooks - Skip running plugin hooks
        */
       function updateCard(id, updates, skipSave = false, skipHooks = false) {
         const card = store.cards[id];
         if (!card) return;
         // Store previous state for undo support (v0.12.0 fix)
-        // Always track undo regardless of skipHooks - skipHooks only controls mod hooks
+        // Always track undo regardless of skipHooks - skipHooks only controls plugin hooks
         const previousState = cloneCard(card);
         const updateTimestamp = Date.now();
         pushUndo('updateCard', { 
@@ -373,14 +373,14 @@
             timestamp: Date.now(),
             cards: store.cards,
             rootIds: store.rootOrder,
-            mods: store.mods
+            plugins: store.plugins
           };
-        } else if (type === 'mods') {
+        } else if (type === 'plugins') {
           data = {
-            exportType: 'mods',
+            exportType: 'plugins',
             appVersion: APP_VERSION,
             timestamp: Date.now(),
-            mods: store.mods
+            plugins: store.plugins
           };
         }
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -534,7 +534,7 @@
       function handleExport(type) {
         if (type === 'instance-json') exportJSON('instance');
         else if (type === 'instance-txt') exportTXT();
-        else if (type === 'mods-json') exportJSON('mods');
+        else if (type === 'plugins-json') exportJSON('plugins');
       }
 
       function importJSON(data, mode = 'root') {
@@ -579,20 +579,20 @@
           throw new Error('Invalid rootIds structure');
         }
 
-        // Validate mods if present (and warn about security)
-        if (pkg.mods && pkg.exportType === 'instance') {
-          const modCount = Object.keys(pkg.mods).length;
+        // Validate plugins if present (and warn about security)
+        if (pkg.plugins && pkg.exportType === 'instance') {
+          const modCount = Object.keys(pkg.plugins).length;
           if (modCount > 0) {
             const confirmImportMods = confirm(
               `⚠️ SECURITY WARNING\n\n` +
-              `This import includes ${modCount} mod(s).\n\n` +
-              `Mods can execute code and access your data. ` +
-              `Only import mods from sources you trust.\n\n` +
-              `Do you want to import the mods?\n` +
-              `(Click Cancel to import only the cards without mods)`
+              `This import includes ${modCount} plugin(s).\n\n` +
+              `Plugins can execute code and access your data. ` +
+              `Only import plugins from sources you trust.\n\n` +
+              `Do you want to import the plugins?\n` +
+              `(Click Cancel to import only the cards without plugins)`
             );
             if (!confirmImportMods) {
-              delete pkg.mods;
+              delete pkg.plugins;
             }
           }
         }
@@ -644,14 +644,14 @@
           }
         }
         
-        if (pkg.exportType === 'instance' && pkg.mods) {
-          Object.entries(pkg.mods).forEach(([modId, mod]) => {
-            if (!store.mods[modId]) {
-              store.mods[modId] = {
-                enabled: !!mod.enabled,
-                js: mod.js || '',
-                css: mod.css || '',
-                meta: mod.meta ? { ...mod.meta } : {}
+        if (pkg.exportType === 'instance' && pkg.plugins) {
+          Object.entries(pkg.plugins).forEach(([modId, plugin]) => {
+            if (!store.plugins[modId]) {
+              store.plugins[modId] = {
+                enabled: !!plugin.enabled,
+                js: plugin.js || '',
+                css: plugin.css || '',
+                meta: plugin.meta ? { ...plugin.meta } : {}
               };
             }
           });
@@ -999,7 +999,7 @@
             const newStore = {
               rootOrder: [],
               cards: {},
-              mods: {},
+              plugins: {},
               bookmarks: [],
               recentCards: [],
               viewMode: 'normal',
@@ -1090,7 +1090,7 @@
         
         if (store) {
           cardCount = Object.keys(store.cards || {}).length;
-          modCount = Object.keys(store.mods || {}).length;
+          modCount = Object.keys(store.plugins || {}).length;
           bookmarkCount = (store.bookmarks || []).length;
           recentCount = (store.recentCards || []).length;
         }
@@ -1136,7 +1136,7 @@
           h('h3', { style: headingStyle }, 'Dataset Contents'),
           h('div', { style: sectionStyle },
             infoRow('Cards:', String(cardCount)),
-            infoRow('Mods:', String(modCount)),
+            infoRow('Plugins:', String(modCount)),
             infoRow('Bookmarks:', String(bookmarkCount)),
             infoRow('Recent Cards:', String(recentCount))
           )
@@ -1183,11 +1183,11 @@
 
 
       // =============================================================
-      // --- MOD MANAGER UI ---
-      // Unified interface for installing, managing, and creating mods
+      // --- PLUGIN MANAGER UI ---
+      // Unified interface for installing, managing, and creating plugins
       // =============================================================
 
-      function showModManager(initialTab) {
+      function showPluginManager(initialTab) {
         initialTab = initialTab || 'installed';
         var overlay = h('div', { className: 'modal-overlay show' });
         var modal = h('div', { className: 'modal', style: 'max-width: 800px; max-height: 90vh;' });
@@ -1316,16 +1316,16 @@
             container.appendChild(card);
           });
 
-          // Legacy mods section (if any exist)
-          var modIds = Object.keys(store.mods || {});
+          // Legacy plugins section (if any exist)
+          var modIds = Object.keys(store.plugins || {});
           if (modIds.length > 0) {
             var legacySection = h('div', { style: 'margin-top: var(--space-xl); padding-top: var(--space-xl); border-top: 1px solid var(--border);' });
-            legacySection.appendChild(h('h3', { style: 'margin-bottom: var(--space-md); color: var(--warning, #f59e0b);' }, 'Legacy Mods (Non-functional)'));
+            legacySection.appendChild(h('h3', { style: 'margin-bottom: var(--space-md); color: var(--warning, #f59e0b);' }, 'Legacy Plugins (Non-functional)'));
             legacySection.appendChild(h('p', { style: 'margin-bottom: var(--space-md); color: var(--text-muted);' },
-              'These legacy mods use the old system and are no longer functional:'));
+              'These legacy plugins use the old system and are no longer functional:'));
 
             modIds.forEach(function(modId) {
-              var pkg = store.mods[modId];
+              var pkg = store.plugins[modId];
               var manifest = pkg.manifest || {};
               
               var legacyCard = h('div', {
@@ -1342,7 +1342,7 @@
                 onclick: function() {
                   var json = JSON.stringify(pkg, null, 2);
                   downloadWithFeedback(json, modId + '.json', 'application/json');
-                  showToast('Legacy mod exported for migration');
+                  showToast('Legacy plugin exported for migration');
                 }
               }, 'Export');
               legacyCard.appendChild(exportBtn);
@@ -1754,22 +1754,22 @@
         
         modalBody.appendChild(modeSection);
         
-        // Theme Mods Section
+        // Theme Plugins Section
         const themeSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
         themeSection.appendChild(h('div', {
           style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
-        }, 'Theme Mods'));
+        }, 'Theme Plugins'));
 
-        // Custom themes from mods
-        const themeExtensions = Object.entries(store.mods || {}).filter(function([modId, mod]) {
-          var manifest = mod.manifest || mod.meta || {};
+        // Custom themes from plugins
+        const themeExtensions = Object.entries(store.plugins || {}).filter(function([modId, plugin]) {
+          var manifest = plugin.manifest || plugin.meta || {};
           return manifest.layer === 'theme' || (manifest.type && manifest.type === 'Theme');
-        }).map(function([modId, mod]) {
-          var manifest = mod.manifest || mod.meta || {};
-          return { manifest: manifest, meta: manifest, enabled: mod.enabled, css: mod.css, id: modId };
+        }).map(function([modId, plugin]) {
+          var manifest = plugin.manifest || plugin.meta || {};
+          return { manifest: manifest, meta: manifest, enabled: plugin.enabled, css: plugin.css, id: modId };
         });
 
-        // Get active theme mod ID
+        // Get active theme plugin ID
         const activeThemeExtension = localStorage.getItem('cardspoke_activeThemeMod') || null;
         
         if (themeExtensions.length > 0) {
@@ -1831,7 +1831,7 @@
             style: 'padding: var(--space-lg); background: var(--bg-secondary); border-radius: 4px; text-align: center; color: var(--text-muted);'
           },
             h('div', { style: 'margin-bottom: var(--space-sm);' }, 'No custom themes installed'),
-            h('div', { style: 'font-size: var(--text-sm);' }, 'Install theme mods from the Mod Manager')
+            h('div', { style: 'font-size: var(--text-sm);' }, 'Install theme plugins from the Plugin Manager')
           ));
         }
         

@@ -1118,9 +1118,9 @@
         uploadModal.overlay.classList.add('show');
       };
 
-      menu.modManager.onclick = () => {
+      menu.pluginManager.onclick = () => {
         menu.overlay.classList.remove('show');
-        showModManager('installed');
+        showPluginManager('installed');
       };
 
       if (menu.tagManager) {

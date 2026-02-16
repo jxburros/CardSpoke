@@ -29,7 +29,7 @@ test('store initializes with all required properties', () => {
   // Verify all required properties exist
   assert.ok('rootOrder' in store, 'store should have rootOrder');
   assert.ok('cards' in store, 'store should have cards');
-  assert.ok('mods' in store, 'store should have mods');
+  assert.ok('plugins' in store, 'store should have plugins');
   assert.ok('bookmarks' in store, 'store should have bookmarks');
   assert.ok('recentCards' in store, 'store should have recentCards');
   assert.ok('viewMode' in store, 'store should have viewMode');
@@ -47,7 +47,7 @@ test('store can be loaded from JSON string (simulating localStorage)', () => {
     cards: {
       'card1': { id: 'card1', title: 'Test', body: 'Content', children: [], tags: [] }
     },
-    mods: {},
+    plugins: {},
     bookmarks: [],
     recentCards: []
   });
@@ -349,11 +349,11 @@ test('Store includes plugins property', () => {
   assert.ok(content.includes('plugins:'), 'Store should have plugins property');
 });
 
-test('showModManager implements tabbed interface', () => {
+test('showPluginManager implements tabbed interface', () => {
   const appJsPath = join(__dirname, '..', 'www', 'app.js');
   const content = readFileSync(appJsPath, 'utf-8');
   
-  assert.ok(content.includes('function showModManager'), 'Should have showModManager function');
+  assert.ok(content.includes('function showPluginManager'), 'Should have showPluginManager function');
   assert.ok(content.includes('installed'), 'Should have installed tab');
   assert.ok(content.includes('install'), 'Should have install tab');
   assert.ok(content.includes('create'), 'Should have create tab');
@@ -398,14 +398,14 @@ test('store handles missing properties gracefully', () => {
   const incompleteData = {
     rootOrder: [],
     cards: {}
-    // Missing: mods, bookmarks, recentCards, viewMode
+    // Missing: plugins, bookmarks, recentCards, viewMode
   };
   
   // Normalize to current structure (as the app would do)
   const normalized = {
     rootOrder: incompleteData.rootOrder || [],
     cards: incompleteData.cards || {},
-    mods: incompleteData.mods || {},
+    plugins: incompleteData.plugins || {},
     bookmarks: incompleteData.bookmarks || [],
     recentCards: incompleteData.recentCards || [],
     viewMode: incompleteData.viewMode || 'normal'

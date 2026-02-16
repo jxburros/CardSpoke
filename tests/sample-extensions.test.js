@@ -1,9 +1,9 @@
 /**
- * Mod System Test Suite
+ * Plugin System Test Suite
  *
- * Validates the new JSON-based mod loading system including
- * package validation, risk assessment, mod format compliance,
- * and the actual sample mod files.
+ * Validates the new JSON-based plugin loading system including
+ * package validation, risk assessment, plugin format compliance,
+ * and the actual sample plugin files.
  */
 
 import { test } from 'uvu';
@@ -16,19 +16,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // ==========================================================================
-// Mod Package Format Tests
+// Plugin Package Format Tests
 // ==========================================================================
 
 const VALID_LAYERS = ['theme', 'feature', 'app'];
 
 function createValidModPackage(overrides = {}) {
   return {
-    id: 'test-mod',
+    id: 'test-plugin',
     manifest: {
-      name: 'Test Mod',
+      name: 'Test Plugin',
       version: '1.0.0',
       author: 'Test Author',
-      description: 'A test mod',
+      description: 'A test plugin',
       layer: 'feature',
       compatibility: '>=0.16.0',
       ...(overrides.manifest || {})
@@ -58,15 +58,15 @@ function validateModPackage(pkg) {
     }
   }
   if (pkg.manifest && pkg.manifest.layer === 'theme' && pkg.js && pkg.js.trim().length > 0) {
-    errors.push('Theme-layer mods cannot contain JavaScript');
+    errors.push('Theme-layer plugins cannot contain JavaScript');
   }
   if (pkg.overrides && Object.keys(pkg.overrides).length > 0 && pkg.manifest && pkg.manifest.layer !== 'app') {
-    errors.push('Only app-layer mods can use overrides');
+    errors.push('Only app-layer plugins can use overrides');
   }
   return { valid: errors.length === 0, errors };
 }
 
-test('valid mod package has all required fields', () => {
+test('valid plugin package has all required fields', () => {
   const pkg = createValidModPackage();
   assert.ok(pkg.id, 'id is required');
   assert.ok(pkg.manifest, 'manifest is required');
@@ -77,7 +77,7 @@ test('valid mod package has all required fields', () => {
   assert.ok(VALID_LAYERS.includes(pkg.manifest.layer), 'manifest.layer must be valid');
 });
 
-test('theme mod has no JavaScript', () => {
+test('theme plugin has no JavaScript', () => {
   const pkg = createValidModPackage({
     manifest: { layer: 'theme' },
     css: ':root { --bg: #fff; }',
@@ -87,17 +87,17 @@ test('theme mod has no JavaScript', () => {
   assert.is(pkg.js, '');
 });
 
-test('feature mod can have both CSS and JS', () => {
+test('feature plugin can have both CSS and JS', () => {
   const pkg = createValidModPackage({
     manifest: { layer: 'feature' },
     css: '.my-class { color: red; }',
     js: '(function() { console.log("hello"); })();'
   });
-  assert.ok(pkg.css.length > 0, 'feature mod can have CSS');
-  assert.ok(pkg.js.length > 0, 'feature mod can have JS');
+  assert.ok(pkg.css.length > 0, 'feature plugin can have CSS');
+  assert.ok(pkg.js.length > 0, 'feature plugin can have JS');
 });
 
-test('app mod can have overrides', () => {
+test('app plugin can have overrides', () => {
   const pkg = createValidModPackage({
     manifest: { layer: 'app' },
     overrides: {
@@ -106,17 +106,17 @@ test('app mod can have overrides', () => {
       customMenuItems: [{ id: 'myItem', label: 'My Item' }]
     }
   });
-  assert.ok(pkg.overrides.appName, 'app mod can have appName override');
-  assert.ok(Array.isArray(pkg.overrides.hideMenuItems), 'app mod can hide menu items');
-  assert.ok(Array.isArray(pkg.overrides.customMenuItems), 'app mod can add custom menu items');
+  assert.ok(pkg.overrides.appName, 'app plugin can have appName override');
+  assert.ok(Array.isArray(pkg.overrides.hideMenuItems), 'app plugin can hide menu items');
+  assert.ok(Array.isArray(pkg.overrides.customMenuItems), 'app plugin can add custom menu items');
 });
 
-test('mod packages are valid JSON', () => {
+test('plugin packages are valid JSON', () => {
   const pkg = createValidModPackage();
   const json = JSON.stringify(pkg);
   const parsed = JSON.parse(json);
-  assert.is(parsed.id, 'test-mod');
-  assert.is(parsed.manifest.name, 'Test Mod');
+  assert.is(parsed.id, 'test-plugin');
+  assert.is(parsed.manifest.name, 'Test Plugin');
 });
 
 test('all three layers are distinct capabilities', () => {
@@ -129,7 +129,7 @@ test('all three layers are distinct capabilities', () => {
   assert.is(app.manifest.layer, 'app');
 });
 
-test('mod config can hold user-configurable settings', () => {
+test('plugin config can hold user-configurable settings', () => {
   const pkg = createValidModPackage({
     config: {
       color: '#ff0000',
@@ -155,24 +155,24 @@ test('overrides only meaningful for app layer', () => {
   assert.ok(Object.keys(app.overrides).length > 0, 'app can have overrides');
 });
 
-test('mod ID follows naming conventions', () => {
-  const validIds = ['my-mod', 'theme-dark-v2', 'feature123', 'a'];
-  const invalidIds = ['My Mod', 'has spaces', '', null];
+test('plugin ID follows naming conventions', () => {
+  const validIds = ['my-plugin', 'theme-dark-v2', 'feature123', 'a'];
+  const invalidIds = ['My Plugin', 'has spaces', '', null];
 
   validIds.forEach(id => {
-    assert.ok(/^[a-z0-9-]+$/.test(id), `"${id}" should be a valid mod ID`);
+    assert.ok(/^[a-z0-9-]+$/.test(id), `"${id}" should be a valid plugin ID`);
   });
 
   invalidIds.forEach(id => {
     if (id === null || id === '') {
       assert.not.ok(id, 'null/empty should be invalid');
     } else {
-      assert.not.ok(/^[a-z0-9-]+$/.test(id), `"${id}" should be an invalid mod ID`);
+      assert.not.ok(/^[a-z0-9-]+$/.test(id), `"${id}" should be an invalid plugin ID`);
     }
   });
 });
 
-test('mod version follows semver format', () => {
+test('plugin version follows semver format', () => {
   const validVersions = ['1.0.0', '0.1.0', '2.3.4', '10.20.30'];
   validVersions.forEach(v => {
     assert.ok(/^\d+\.\d+\.\d+$/.test(v), `"${v}" should be valid semver`);
@@ -183,7 +183,7 @@ test('mod version follows semver format', () => {
 // Risk Assessment Logic Tests (simulated)
 // ==========================================================================
 
-test('theme mod is lowest risk', () => {
+test('theme plugin is lowest risk', () => {
   const pkg = createValidModPackage({
     manifest: { layer: 'theme' },
     css: ':root { --bg: blue; }',
@@ -193,7 +193,7 @@ test('theme mod is lowest risk', () => {
   assert.is(pkg.js, '');
 });
 
-test('feature mod with network access is higher risk', () => {
+test('feature plugin with network access is higher risk', () => {
   const pkg = createValidModPackage({
     manifest: { layer: 'feature' },
     js: '(function() { fetch("https://example.com"); })();'
@@ -201,7 +201,7 @@ test('feature mod with network access is higher risk', () => {
   assert.ok(pkg.js.includes('fetch('), 'JS contains network access');
 });
 
-test('app mod with overrides is highest risk', () => {
+test('app plugin with overrides is highest risk', () => {
   const pkg = createValidModPackage({
     manifest: { layer: 'app' },
     js: '(function() { console.log("loaded"); })();',
@@ -215,10 +215,10 @@ test('app mod with overrides is highest risk', () => {
 });
 
 // ==========================================================================
-// Sample Mod File Validation Tests
+// Sample Plugin File Validation Tests
 // ==========================================================================
 
-const sampleModsDir = join(__dirname, '..', 'sample-mods');
+const sampleModsDir = join(__dirname, '..', 'sample-plugins');
 
 function loadSampleMods(subdir) {
   const dir = join(sampleModsDir, subdir);
@@ -229,10 +229,10 @@ function loadSampleMods(subdir) {
   });
 }
 
-test('all sample theme mods are valid JSON and pass validation', () => {
-  const mods = loadSampleMods('themes');
-  assert.is(mods.length, 3, 'should have exactly 3 theme mods');
-  mods.forEach(({ filename, pkg }) => {
+test('all sample theme plugins are valid JSON and pass validation', () => {
+  const plugins = loadSampleMods('themes');
+  assert.is(plugins.length, 3, 'should have exactly 3 theme plugins');
+  plugins.forEach(({ filename, pkg }) => {
     const result = validateModPackage(pkg);
     assert.ok(result.valid, `${filename}: ${result.errors.join(', ')}`);
     assert.is(pkg.manifest.layer, 'theme', `${filename} should be theme layer`);
@@ -241,10 +241,10 @@ test('all sample theme mods are valid JSON and pass validation', () => {
   });
 });
 
-test('all sample feature mods are valid JSON and pass validation', () => {
-  const mods = loadSampleMods('features');
-  assert.is(mods.length, 3, 'should have exactly 3 feature mods');
-  mods.forEach(({ filename, pkg }) => {
+test('all sample feature plugins are valid JSON and pass validation', () => {
+  const plugins = loadSampleMods('features');
+  assert.is(plugins.length, 3, 'should have exactly 3 feature plugins');
+  plugins.forEach(({ filename, pkg }) => {
     const result = validateModPackage(pkg);
     assert.ok(result.valid, `${filename}: ${result.errors.join(', ')}`);
     assert.is(pkg.manifest.layer, 'feature', `${filename} should be feature layer`);
@@ -252,10 +252,10 @@ test('all sample feature mods are valid JSON and pass validation', () => {
   });
 });
 
-test('all sample app mods are valid JSON and pass validation', () => {
-  const mods = loadSampleMods('apps');
-  assert.is(mods.length, 3, 'should have exactly 3 app mods');
-  mods.forEach(({ filename, pkg }) => {
+test('all sample app plugins are valid JSON and pass validation', () => {
+  const plugins = loadSampleMods('apps');
+  assert.is(plugins.length, 3, 'should have exactly 3 app plugins');
+  plugins.forEach(({ filename, pkg }) => {
     const result = validateModPackage(pkg);
     assert.ok(result.valid, `${filename}: ${result.errors.join(', ')}`);
     assert.is(pkg.manifest.layer, 'app', `${filename} should be app layer`);
@@ -263,7 +263,7 @@ test('all sample app mods are valid JSON and pass validation', () => {
   });
 });
 
-test('all sample mods have unique IDs', () => {
+test('all sample plugins have unique IDs', () => {
   const allMods = [
     ...loadSampleMods('themes'),
     ...loadSampleMods('features'),
@@ -271,10 +271,10 @@ test('all sample mods have unique IDs', () => {
   ];
   const ids = allMods.map(m => m.pkg.id);
   const uniqueIds = new Set(ids);
-  assert.is(uniqueIds.size, ids.length, 'All mod IDs must be unique: ' + ids.join(', '));
+  assert.is(uniqueIds.size, ids.length, 'All plugin IDs must be unique: ' + ids.join(', '));
 });
 
-test('all sample mods register via window.CardSpoke.Plugin.register in their JS', () => {
+test('all sample plugins register via window.CardSpoke.Plugin.register in their JS', () => {
   const featureMods = loadSampleMods('features');
   const appMods = loadSampleMods('apps');
   [...featureMods, ...appMods].forEach(({ filename, pkg }) => {
@@ -287,7 +287,7 @@ test('all sample mods register via window.CardSpoke.Plugin.register in their JS'
   });
 });
 
-test('all sample mods use their own ID in register calls', () => {
+test('all sample plugins use their own ID in register calls', () => {
   const featureMods = loadSampleMods('features');
   const appMods = loadSampleMods('apps');
   [...featureMods, ...appMods].forEach(({ filename, pkg }) => {
@@ -300,7 +300,7 @@ test('all sample mods use their own ID in register calls', () => {
   });
 });
 
-test('all sample mods start disabled', () => {
+test('all sample plugins start disabled', () => {
   const allMods = [
     ...loadSampleMods('themes'),
     ...loadSampleMods('features'),
@@ -311,7 +311,7 @@ test('all sample mods start disabled', () => {
   });
 });
 
-test('feature and app mods implement teardown for clean resource cleanup', () => {
+test('feature and app plugins implement teardown for clean resource cleanup', () => {
   const featureMods = loadSampleMods('features');
   const appMods = loadSampleMods('apps');
   [...featureMods, ...appMods].forEach(({ filename, pkg }) => {
