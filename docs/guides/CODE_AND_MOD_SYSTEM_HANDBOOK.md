@@ -377,8 +377,6 @@ Supported practical fields:
 - `appName: string`
 - `hideMenuItems: string[]`
 - `customMenuItems: Array<{ id: string, label: string, section?: string }>`
-- `customPages: Array<{ id: string, title: string, render: string }>`
-- `disableFeatures: string[]`
 
 Example:
 
@@ -387,9 +385,7 @@ Example:
   "overrides": {
     "appName": "Research Console",
     "hideMenuItems": ["menuTrashBin"],
-    "customMenuItems": [{ "id": "openLabs", "label": "Labs", "section": "actions" }],
-    "customPages": [{ "id": "labs", "title": "Labs", "render": "renderLabsPage" }],
-    "disableFeatures": ["recentCards"]
+    "customMenuItems": [{ "id": "openLabs", "label": "Labs", "section": "actions" }]
   }
 }
 ```
