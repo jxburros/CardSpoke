@@ -459,30 +459,6 @@ The `metadata` field is preserved during:
 - Duplication
 - Search indexing
 
-## Dynamic Module Loading
-
-Load mods as ES modules with Vite/ESBuild:
-
-```javascript
-// Load from URL
-const mod = await window.CardSpoke.ModLoader.loadFromURL('https://example.com/my-mod.js');
-
-// Load from manifest
-await window.CardSpoke.ModLoader.loadManifest('https://example.com/mods/manifest.json');
-```
-
-Manifest format:
-```json
-{
-  "mods": [
-    {
-      "id": "my-mod",
-      "url": "https://example.com/mods/my-mod.js"
-    }
-  ]
-}
-```
-
 ## TypeScript Support
 
 Install type definitions:

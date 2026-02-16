@@ -10,11 +10,12 @@ It is intentionally specific: you’ll find concrete field names, hook signature
 
 CardSpoke’s runtime is a **single browser bundle** (`www/app.js`) produced by concatenating source slices in lexical order:
 
-1. `www/src/01-metadata-and-utilities.js`
-2. `www/src/02-storage-and-mods.js`
-3. `www/src/03-data-and-modals.js`
-4. `www/src/04-rendering-and-init.js`
-5. `www/src/05-advanced-systems-and-boot.js`
+1. `www/src/00-core-systems.js` **(NEW in v0.16.0)**
+2. `www/src/01-metadata-and-utilities.js`
+3. `www/src/02-storage-and-mods.js`
+4. `www/src/03-data-and-modals.js`
+5. `www/src/04-rendering-and-init.js`
+6. `www/src/05-advanced-systems-and-boot.js`
 
 Build command:
 
@@ -27,6 +28,46 @@ The bundle is designed to work in `file://` contexts, so many helpers are intent
 ---
 
 ## 2) Source Slice Responsibilities (Concrete)
+
+## `00-core-systems.js` **(NEW in v0.16.0)**
+
+Initializes the modern mod architecture before any other code runs:
+
+- **Middleware Pipeline** (`window.CardSpoke.Middleware`):
+  - `register(middleware)` - Register priority-weighted interceptors
+  - `unregister(name)` - Remove middleware by name
+  - `run(operation, args)` - Execute middleware pipeline for operation
+  - `list()` - List all registered middlewares
+  - Operations: `card.save`, `card.delete`, `card.render`, `navigation.change`, `search.execute`, `data.export`, `data.import`, `theme.change`, `typography.change`, `contrast.change`, `page.change`
+
+- **Component Registry** (`window.CardSpoke.ComponentRegistry`):
+  - `register(name, component, priority)` - Register UI components
+  - `unregister(name)` - Remove component by name
+  - `get(name)` - Retrieve registered component
+  - `resolve(name)` - Alias for get()
+  - `has(name)` - Check if component exists
+  - `list()` - List all components
+  - Standard components: `Card`, `CardEditor`, `Sidebar`, `SearchBar`, `SearchResults`, `TagList`, `Modal`, `Toast`, `Menu`
+
+- **Plugin API** (`window.CardSpoke.Plugin`):
+  - `register(id, plugin)` - Register plugin with manifest and setup/teardown
+  - `enable(id)` - Enable plugin and run setup
+  - `disable(id)` - Disable plugin and run teardown
+  - `get(id)` - Get plugin instance
+  - `list()` - List all plugins
+  - `isEnabled(id)` - Check plugin status
+  - Context APIs: `ctx.api.ui`, `ctx.api.data`, `ctx.api.storage`, `ctx.api.events`
+  - Resource tracking and automatic cleanup
+
+- **Storage Driver Registry** (`window.CardSpoke.StorageDriverRegistry`):
+  - `register(name, driver)` - Register storage backend
+  - `unregister(name)` - Remove storage driver
+  - `get(name)` - Get driver by name
+  - `setActive(name)` - Switch active storage driver
+  - `getActive()` - Get current active driver
+  - `list()` - List all registered drivers
+
+This file loads first to ensure the new architecture is available to all subsequent slices and provides the foundation for the modern plugin-based mod system.
 
 ## `01-metadata-and-utilities.js`
 
