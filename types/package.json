@@ -1,0 +1,16 @@
+{
+  "name": "@cardspoke/core",
+  "version": "0.16.0",
+  "description": "TypeScript type definitions for CardSpoke plugin development",
+  "main": "index.d.ts",
+  "types": "index.d.ts",
+  "keywords": [
+    "cardspoke",
+    "types",
+    "typescript",
+    "definitions",
+    "plugin"
+  ],
+  "author": "jxburros",
+  "license": "ISC"
+}

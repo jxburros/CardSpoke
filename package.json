@@ -7,6 +7,9 @@
     "test": "uvu tests",
     "test:watch": "uvu tests --watch",
     "build": "mkdir -p www && cat www/src/*.js > www/app.js",
+    "build:vite": "vite build",
+    "dev": "vite",
+    "preview": "vite preview",
     "sync": "npx cap sync",
     "sync:android": "npx cap sync android",
     "sync:ios": "npx cap sync ios",
@@ -33,7 +36,10 @@
     "@capacitor/preferences": "^7.0.2"
   },
   "devDependencies": {
-    "uvu": "^0.5.6"
+    "@types/node": "^25.2.3",
+    "typescript": "^5.9.3",
+    "uvu": "^0.5.6",
+    "vite": "^7.3.1"
   },
   "type": "module"
 }

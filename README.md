@@ -69,13 +69,47 @@ All documentation is organized in the `docs/` folder:
 
 ## Mod Framework Overview
 
-The mod system uses a three-layer architecture:
+CardSpoke features a modern, extensible mod system with three architectural layers:
 
 - **Theme Layer:** CSS only; cosmetic changes without logic modifications. Low risk.
-- **Feature Layer:** CSS and JavaScript; adds new features via hooks without core overrides. Medium risk.
-- **App Layer:** Full capabilities including CSS, JavaScript, and core overrides. Can fundamentally transform the app. High risk.
+- **Feature Layer:** CSS and JavaScript; adds new features using the Plugin API. Medium risk.
+- **App Layer:** Full capabilities including core overrides, custom storage drivers, and app rebranding. High risk.
 
-Each mod must include a manifest with required fields: `id`, `manifest.name`, `manifest.version`, `manifest.author`, and `manifest.layer`. See [Mod System Overview](./docs/MOD_SYSTEM.md) for complete documentation.
+### Modern Architecture (v0.16.0+)
+
+The mod system includes:
+
+- **Middleware Pipeline**: Priority-weighted interceptors for core operations (card save, delete, render, etc.)
+- **Plugin API**: Sandboxed contexts with `api.ui`, `api.data`, `api.storage`, and `api.events`
+- **Component Registry**: Type-safe UI component overrides with priority-based resolution
+- **Storage Driver Registry**: Pluggable storage backends (IndexedDB, cloud, git, etc.)
+- **Permission System**: User consent for sensitive operations with explicit permission requests
+- **TypeScript Support**: Full type definitions via `@cardspoke/core` package
+- **Dynamic Loading**: Load mods as ES modules with Vite/ESBuild
+
+### Quick Example
+
+```javascript
+// Modern Plugin API
+window.CardSpoke.Plugin.register('my-mod', {
+  manifest: {
+    name: "My Mod",
+    version: "1.0.0",
+    author: "Author",
+    layer: "feature",
+    permissions: ["ui-override"]
+  },
+  setup: async (ctx) => {
+    // Use sandboxed APIs
+    const cards = ctx.api.data.listCards();
+    ctx.api.ui.showToast(`Loaded ${cards.length} cards`, 'info');
+  }
+});
+```
+
+**Legacy Support:** Existing mods using `CardSpoke_MODS` continue to work via compatibility bridge.
+
+See [Mod System Documentation](./docs/MOD_SYSTEM.md) and [Migration Guide](./docs/guides/MIGRATION_GUIDE.md) for details.
 
 ## Deviation (Fork) Rules
 Deviations are forks/derivatives that must not use the "CardSpoke" name or branding. They must include mandatory metadata, clear credit to CardSpoke and JX Holdings, and avoid implying official endorsement.

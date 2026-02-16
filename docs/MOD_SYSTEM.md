@@ -1,14 +1,57 @@
 # CardSpoke Mod System
 
-This document describes the JSON-based mod loading system that powers CardSpoke's extensibility. Mods can range from simple visual themes to full app-layer transformations.
+This document describes the modern plugin-based mod system that powers CardSpoke's extensibility. Mods can range from simple visual themes to full app-layer transformations.
 
 **Current Version:** 0.16.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
 
 ## Overview
 
-The mod system replaces the previous extension framework with a streamlined three-layer architecture. Every mod is a self-contained JSON package that declares its capabilities through a `manifest.layer` field. The runtime validates, risk-assesses, and sandboxes mods according to their layer.
+The mod system has been modernized with a new architecture featuring:
+
+- **Middleware Pipeline**: Priority-weighted interceptors for core operations
+- **Plugin API**: Sandboxed contexts with resource management and hot-unloading
+- **Component Registry**: Type-safe UI component overrides
+- **Storage Driver Registry**: Pluggable storage backends
+- **Permissions System**: User consent for sensitive operations
+
+### Legacy Support
+
+**Existing mods continue to work!** A compatibility bridge ensures backward compatibility with the legacy `CardSpoke_MODS` system. See the [Migration Guide](./guides/MIGRATION_GUIDE.md) to adopt the new API.
+
+### Architecture Components
+
+1. **Middleware Pipeline**: Replace hooks with interceptors that can modify or cancel operations
+2. **Plugin API**: Isolated contexts with `api.ui`, `api.data`, `api.storage`, and `api.events`
+3. **Component Registry**: Register UI components with priority-based resolution
+4. **Storage Drivers**: Pluggable storage backends (IndexedDB, cloud, git, etc.)
+5. **Permissions**: Explicit permission requests with user consent dialogs
 
 ## Mod Package Format
+
+### Modern Plugin Format (Recommended)
+
+```javascript
+export default {
+  manifest: {
+    name: "My Mod",
+    version: "1.0.0",
+    author: "Author Name",
+    description: "What this mod does",
+    layer: "theme | feature | app",
+    compatibility: ">=0.16.0",
+    permissions: ["ui-override", "storage"]  // NEW
+  },
+  setup: async (ctx) => {
+    // Plugin initialization with ctx.api
+  },
+  teardown: async (ctx) => {
+    // Cleanup (resources auto-managed)
+  },
+  css: "/* Optional CSS */"
+};
+```
+
+### Legacy JSON Format (Still Supported)
 
 ```json
 {
@@ -217,3 +260,304 @@ Mods can communicate via `CardSpoke_MODS.events`:
 ## LocalStorage Keys
 - `cardspoke_activeThemeMod`: ID of the active theme mod.
 - Mod data is persisted in the `mods` field of the IndexedDB store.
+
+## Modern Plugin API
+
+The new Plugin API provides a sandboxed environment with automatic resource management.
+
+### Basic Usage
+
+```javascript
+window.CardSpoke.Plugin.register('my-plugin', {
+  manifest: {
+    name: "My Plugin",
+    version: "1.0.0",
+    author: "Author",
+    layer: "feature",
+    permissions: ["ui-override"]
+  },
+  
+  setup: async (ctx) => {
+    // Access APIs
+    const cards = ctx.api.data.listCards();
+    
+    // Inject UI
+    const element = document.createElement('div');
+    element.textContent = `Total cards: ${cards.length}`;
+    ctx.api.ui.inject('#sidebar', element, 'append');
+    
+    // Listen for changes
+    ctx.api.data.onUpdate((event) => {
+      console.log('Data updated:', event);
+    });
+  },
+  
+  teardown: async (ctx) => {
+    // Automatic cleanup of resources
+  }
+});
+
+// Enable the plugin
+await window.CardSpoke.Plugin.enable('my-plugin');
+```
+
+### Plugin Context APIs
+
+Every plugin receives a context object with:
+
+- **`ctx.api.ui`**: DOM manipulation (`inject`, `replace`, `registerComponent`, `showToast`)
+- **`ctx.api.data`**: Data access (`getCard`, `listCards`, `createCard`, `updateCard`, `deleteCard`, `onUpdate`)
+- **`ctx.api.storage`**: Namespaced storage (`get`, `set`, `remove`, `list`)
+- **`ctx.api.events`**: Event system (`on`, `emit`, `once`)
+- **`ctx.utils`**: Utility functions (`uid`, `debounce`, `escapeHtml`, etc.)
+- **`ctx.logger`**: Scoped logger (`log`, `info`, `warn`, `error`)
+
+See [Plugin API Documentation](./api/PLUGIN_API.md) for complete reference.
+
+## Middleware Pipeline
+
+The Middleware Pipeline replaces hooks with a more powerful interceptor pattern.
+
+### Basic Usage
+
+```javascript
+window.CardSpoke.Middleware.register({
+  name: 'my-interceptor',
+  priority: 10,  // Higher runs first
+  operations: ['card.save', 'card.delete'],
+  handler: async (ctx, next) => {
+    console.log('Before:', ctx.operation);
+    
+    // Modify arguments
+    if (ctx.operation === 'card.save') {
+      const card = ctx.args[0];
+      card.metadata = card.metadata || {};
+      card.metadata.intercepted = true;
+    }
+    
+    // Call next middleware
+    await next();
+    
+    console.log('After:', ctx.operation);
+  }
+});
+```
+
+### Standard Operations
+
+- `card.save` - Card create/update
+- `card.delete` - Card deletion
+- `card.render` - Card rendering
+- `navigation.change` - Navigation change
+- `search.execute` - Search execution
+- `data.export` / `data.import` - Data export/import
+- `theme.change` - Theme change
+- `typography.change` - Typography change
+
+See [Middleware Pipeline Documentation](./api/MIDDLEWARE_PIPELINE.md) for details.
+
+## Component Registry
+
+Override UI components with priority-based resolution.
+
+### Basic Usage
+
+```javascript
+// Get original component
+const OriginalCard = window.CardSpoke.ComponentRegistry.get('Card');
+
+// Register enhanced version
+window.CardSpoke.ComponentRegistry.register('Card', {
+  render: (props) => {
+    const cardEl = OriginalCard ? OriginalCard.render(props) : document.createElement('div');
+    
+    // Add enhancements
+    const badge = document.createElement('span');
+    badge.textContent = '✨ Enhanced';
+    cardEl.appendChild(badge);
+    
+    return cardEl;
+  },
+  priority: 50
+}, 50);
+```
+
+### Standard Components
+
+- `Card` - Card display
+- `CardEditor` - Card editing form
+- `Sidebar` - Left sidebar
+- `SearchBar` - Search input
+- `SearchResults` - Search results list
+- `TagList` - Tag display
+- `Modal` - Modal dialog
+- `Toast` - Notification
+
+See [Component Registry Documentation](./api/COMPONENT_REGISTRY.md) for details.
+
+## Storage Driver Registry
+
+Register custom storage backends.
+
+### Basic Usage
+
+```javascript
+class CustomStorageDriver {
+  async init(config) { /* ... */ }
+  async get(key) { /* ... */ }
+  async set(key, value) { /* ... */ }
+  async remove(key) { /* ... */ }
+  async list(prefix) { /* ... */ }
+  async getSize() { /* ... */ }
+  getKind() { return 'custom'; }
+}
+
+window.CardSpoke.StorageDriverRegistry.register('custom', new CustomStorageDriver());
+await window.CardSpoke.StorageDriverRegistry.setActive('custom');
+```
+
+## Permission System
+
+Plugins must request permissions for sensitive operations.
+
+### Available Permissions
+
+- **`ui-override`**: Modify UI and inject elements
+- **`storage`**: Access local storage
+- **`network`**: Make network requests
+- **`filesystem`**: Access filesystem (mobile)
+- **`core-override`**: Override core functions (high risk)
+
+### Requesting Permissions
+
+```javascript
+manifest: {
+  permissions: ["ui-override", "storage"]
+}
+```
+
+Users are prompted to approve permissions on first install.
+
+## Schema and Metadata
+
+Cards now support a `metadata` field for plugin-specific data:
+
+```javascript
+card.metadata = {
+  pluginData: {
+    'my-plugin': {
+      customField: 'value',
+      timestamp: Date.now()
+    }
+  }
+};
+```
+
+The `metadata` field is preserved during:
+- Card save/load
+- Export/import
+- Duplication
+- Search indexing
+
+## Dynamic Module Loading
+
+Load mods as ES modules with Vite/ESBuild:
+
+```javascript
+// Load from URL
+const mod = await window.CardSpoke.ModLoader.loadFromURL('https://example.com/my-mod.js');
+
+// Load from manifest
+await window.CardSpoke.ModLoader.loadManifest('https://example.com/mods/manifest.json');
+```
+
+Manifest format:
+```json
+{
+  "mods": [
+    {
+      "id": "my-mod",
+      "url": "https://example.com/mods/my-mod.js"
+    }
+  ]
+}
+```
+
+## TypeScript Support
+
+Install type definitions:
+
+```bash
+npm install @cardspoke/core
+```
+
+Use in your mod:
+
+```typescript
+import type { PluginDefinition, PluginContext } from '@cardspoke/core';
+
+const plugin: PluginDefinition = {
+  manifest: { /* ... */ },
+  setup: async (ctx: PluginContext) => {
+    // TypeScript knows the API shape
+  }
+};
+
+export default plugin;
+```
+
+## Migration from Legacy System
+
+See the [Migration Guide](./guides/MIGRATION_GUIDE.md) for step-by-step instructions on converting legacy mods to the new API.
+
+**Key changes:**
+- `CardSpoke_MODS.register()` → `CardSpoke.Plugin.register()`
+- Hooks → Middleware or Plugin API
+- Direct DOM access → Component Registry
+- Global storage → Namespaced plugin storage
+
+## Examples
+
+Complete examples are available in `sample-mods/new-api/`:
+
+- **example-feature-mod.js**: Middleware, component registry, and data updates
+- **example-app-mod.js**: App-level customization with storage drivers
+
+## API Reference
+
+Detailed documentation:
+
+- [Plugin API](./api/PLUGIN_API.md)
+- [Middleware Pipeline](./api/MIDDLEWARE_PIPELINE.md)
+- [Component Registry](./api/COMPONENT_REGISTRY.md)
+- [Migration Guide](./guides/MIGRATION_GUIDE.md)
+- [TypeScript Definitions](../types/index.d.ts)
+
+## Security Considerations
+
+1. **Permissions**: Always request minimal permissions
+2. **Validation**: Validate user input in middleware
+3. **Sandboxing**: Use Plugin API instead of global access
+4. **Review**: Review third-party mods before installation
+5. **Testing**: Test hot-reload and cleanup thoroughly
+
+## Best Practices
+
+1. **Use Plugin API**: Prefer `ctx.api` over direct access
+2. **Register components**: Use Component Registry instead of DOM manipulation
+3. **Add metadata**: Use `card.metadata` for plugin data
+4. **Handle errors**: Wrap async operations in try/catch
+5. **Document permissions**: Explain why permissions are needed
+6. **Test cleanup**: Ensure resources are freed on disable
+7. **Version appropriately**: Follow semver for updates
+
+## Support
+
+- Check [API documentation](./api/)
+- See [examples](../sample-mods/new-api/)
+- Ask in [GitHub Issues](https://github.com/jxburros/CardSpoke/issues)
+- Read [Migration Guide](./guides/MIGRATION_GUIDE.md)
+
+---
+
+**Note:** The legacy hook-based system remains supported for backward compatibility but new mods should use the modern Plugin API for better resource management and security.
