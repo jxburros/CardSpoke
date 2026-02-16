@@ -1411,7 +1411,7 @@
               
               try {
                 var response = await fetch(url);
-                if (!response.ok) throw new Error('Failed to fetch plugin');
+                if (!response.ok) throw new Error('Failed to fetch plugin: ' + response.status + ' ' + response.statusText);
                 var pkg = await response.json();
                 
                 // Convert to plugin format if needed

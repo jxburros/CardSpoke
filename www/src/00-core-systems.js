@@ -628,6 +628,15 @@
         plugins.delete(id);
         pluginResources.delete(id);
         dataUpdateListeners.delete(id);
+        
+        // Remove from store
+        if (window.store && window.store.plugins) {
+          delete window.store.plugins[id];
+          if (window.save) {
+            window.save();
+          }
+        }
+        
         console.log('[Plugin] Unregistered:', id);
       }
     },
@@ -787,20 +796,46 @@
         throw new Error('Invalid plugin package: manifest is required');
       }
 
-      const id = pkg.manifest.id || pkg.manifest.name.toLowerCase().replace(/\s+/g, '-');
+      // Generate unique ID
+      let id = pkg.manifest.id || pkg.manifest.name.toLowerCase().replace(/\s+/g, '-');
+      
+      // Ensure uniqueness
+      let counter = 1;
+      let uniqueId = id;
+      while (plugins.has(uniqueId)) {
+        uniqueId = id + '-' + counter;
+        counter++;
+      }
+      id = uniqueId;
       
       // Register the plugin
-      this.register(id, {
+      const definition = {
         manifest: pkg.manifest,
         setup: pkg.setup,
         teardown: pkg.teardown,
         css: pkg.css
-      });
+      };
+      
+      this.register(id, definition);
 
-      // Auto-enable if not dangerous
+      // Auto-enable based on risk (only LOW and SAFE)
       const risk = this.assessModRisk(pkg);
-      if (risk !== 'HIGH') {
+      if (risk === 'SAFE' || risk === 'LOW') {
         await this.enable(id);
+      }
+
+      // Persist to store
+      if (window.store) {
+        if (!window.store.plugins) {
+          window.store.plugins = {};
+        }
+        window.store.plugins[id] = {
+          definition: definition,
+          enabled: risk === 'SAFE' || risk === 'LOW'
+        };
+        if (window.save) {
+          window.save();
+        }
       }
 
       console.log('[Plugin] Installed:', id);
