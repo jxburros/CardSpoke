@@ -43,6 +43,7 @@ All documentation is organized in the `docs/` folder:
 
 ### Guides
 - [Developer Guide](./docs/guides/DEVELOPER_GUIDE.md) – Core app development workflow and conventions
+- [Code & Mod System Handbook](./docs/guides/CODE_AND_MOD_SYSTEM_HANDBOOK.md) – End-to-end architecture and mod development deep dive
 - [Test Guide](./docs/guides/TEST_GUIDE.md) – Testing practices and commands
 - [Capacitor Guide](./docs/guides/README.CAPACITOR.md) – Mobile platform workflows
 - [Deviation Guide](./docs/guides/DEVIATION_GUIDE.md) – Rules for forks and derivatives
