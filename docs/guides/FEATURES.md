@@ -8,7 +8,7 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and mod authors
 - **Card-based knowledge system:** Presents information as hierarchical, tiered cards for lightweight knowledge organization.
 - **Intentionally minimal core:** Keeps the built-in experience ultra-light while delegating optional complexity to mods.
 - **Self-contained bundle:** The `www/app.js` file is self-contained for `file://` protocol compatibility, with all utilities inlined to avoid CORS issues when opening directly from the filesystem.
-- **Mod-ready foundation:** Built with a three-layer mod system so new behaviors can be added without bloating the core. The runtime exposes `CardSpoke_MODS` with hook dispatch, an event bus, and dev tools for inspecting hook stats and errors.
+- **Plugin-ready foundation:** Built with a three-layer plugin system so new behaviors can be added without bloating the core. The runtime exposes the Plugin API with middleware pipeline, event system, and dev tools.
 - **Mod layers:** Theme (CSS only), Feature (CSS+JS), and App (CSS+JS+overrides) cover cosmetic tweaks through full app transformations.
 - **Schema-aware:** Uses an explicit `schemaVersion` (currently 4) to gate features and mods.
 

@@ -1,6 +1,6 @@
 // Plugin API System
-// Replaces global window.CardSpoke_MODS with sandboxed Plugin API
-// Provides isolated contexts and resource management for hot-unloading
+// Provides sandboxed contexts and resource management for plugins
+// with isolated contexts and automatic cleanup support
 
 (function() {
   'use strict';
