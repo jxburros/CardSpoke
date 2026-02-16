@@ -1669,9 +1669,9 @@
 
       // =============================================================
       // --- Modern Plugin System ---
-      // Note: Legacy CardSpoke_MODS system has been removed.
-      // The mod management system is now disabled. Existing mods are
-      // retained in storage but no longer initialized or processed.
+      // The legacy CardSpoke_MODS hook system has been removed.
+      // Use the modern Plugin API (window.CardSpoke.Plugin) for all extensions.
+      // See docs/MOD_SYSTEM.md for complete plugin development documentation.
       // =============================================================
 
       // =============================================================

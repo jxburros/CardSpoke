@@ -1347,7 +1347,7 @@
               // Extract mod ID from JS code if not provided
               let modId = modData.id;
               if (!modId && modData.js) {
-                // Try to extract ID from legacy mod format (for backward compatibility)
+                // Try to extract ID from JS code (legacy mod data may still exist in storage)
                 const registerMatch = modData.js.match(/CardSpoke_MODS\.register\s*\(\s*['"]([^'"]+)['"]/);
                 if (registerMatch) {
                   modId = registerMatch[1];

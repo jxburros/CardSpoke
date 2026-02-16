@@ -1915,12 +1915,7 @@
         showToast('Safe Mode Active - Mods Disabled', 'warning');
       }
 
-      if (!safeMode) {
-        // Legacy mod system removed
-      }
-      if (!safeMode) {
-        // Legacy mod system removed
-      }
+      // Legacy mod system has been removed - plugins use modern Plugin API
       render();                        // Initial render
       populateFooter();                // Re-populate footer to ensure it displays
 

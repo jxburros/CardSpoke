@@ -3475,9 +3475,9 @@ const header = {
 
       // =============================================================
       // --- Modern Plugin System ---
-      // Note: Legacy CardSpoke_MODS system has been removed.
-      // The mod management system is now disabled. Existing mods are
-      // retained in storage but no longer initialized or processed.
+      // The legacy CardSpoke_MODS hook system has been removed.
+      // Use the modern Plugin API (window.CardSpoke.Plugin) for all extensions.
+      // See docs/MOD_SYSTEM.md for complete plugin development documentation.
       // =============================================================
 
       // =============================================================
@@ -4834,8 +4834,6 @@ const header = {
           modIds.forEach(function(modId) {
             var pkg = store.mods[modId];
             var manifest = pkg.manifest || {};
-            // Legacy mod system removed - assessModRisk no longer needed
-            var risk = { riskLevel: 'UNKNOWN', color: '#999', icon: '?' };
             var layer = manifest.layer || 'feature';
 
             var card = h('div', {
@@ -4850,9 +4848,9 @@ const header = {
               className: 'btn ' + (pkg.enabled ? 'btn-primary' : ''),
               style: 'font-size: var(--text-sm); padding: var(--space-xs) var(--space-md);',
               disabled: true,
-              title: 'Legacy mod system - functionality removed',
+              title: 'Legacy mod system - use Plugin API for new extensions',
               onclick: function() {
-                showToast('Mod management disabled - legacy system removed', 'info');
+                showToast('Legacy mod system removed - use Plugin API for new extensions', 'info');
               }
             }, pkg.enabled ? 'Enabled' : 'Disabled');
             headerRow.appendChild(toggleBtn);
@@ -7251,7 +7249,7 @@ const header = {
               // Extract mod ID from JS code if not provided
               let modId = modData.id;
               if (!modId && modData.js) {
-                // Try to extract ID from legacy mod format (for backward compatibility)
+                // Try to extract ID from JS code (legacy mod data may still exist in storage)
                 const registerMatch = modData.js.match(/CardSpoke_MODS\.register\s*\(\s*['"]([^'"]+)['"]/);
                 if (registerMatch) {
                   modId = registerMatch[1];
@@ -9253,12 +9251,7 @@ const header = {
         showToast('Safe Mode Active - Mods Disabled', 'warning');
       }
 
-      if (!safeMode) {
-        // Legacy mod system removed
-      }
-      if (!safeMode) {
-        // Legacy mod system removed
-      }
+      // Legacy mod system has been removed - plugins use modern Plugin API
       render();                        // Initial render
       populateFooter();                // Re-populate footer to ensure it displays
 

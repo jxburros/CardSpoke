@@ -1236,8 +1236,6 @@
           modIds.forEach(function(modId) {
             var pkg = store.mods[modId];
             var manifest = pkg.manifest || {};
-            // Legacy mod system removed - assessModRisk no longer needed
-            var risk = { riskLevel: 'UNKNOWN', color: '#999', icon: '?' };
             var layer = manifest.layer || 'feature';
 
             var card = h('div', {
@@ -1252,9 +1250,9 @@
               className: 'btn ' + (pkg.enabled ? 'btn-primary' : ''),
               style: 'font-size: var(--text-sm); padding: var(--space-xs) var(--space-md);',
               disabled: true,
-              title: 'Legacy mod system - functionality removed',
+              title: 'Legacy mod system - use Plugin API for new extensions',
               onclick: function() {
-                showToast('Mod management disabled - legacy system removed', 'info');
+                showToast('Legacy mod system removed - use Plugin API for new extensions', 'info');
               }
             }, pkg.enabled ? 'Enabled' : 'Disabled');
             headerRow.appendChild(toggleBtn);
