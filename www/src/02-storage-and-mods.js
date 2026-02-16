@@ -2537,6 +2537,14 @@
 
       function runModHook(hookName) {
         var args = Array.prototype.slice.call(arguments, 1);
+        
+        // Use enhanced hook if available (includes middleware)
+        if (window.runModHookEnhanced) {
+          window.runModHookEnhanced.apply(null, [hookName].concat(args));
+          return;
+        }
+        
+        // Fallback to original implementation
         try {
           var start = performance.now();
           CardSpoke_MODS.runHook.apply(CardSpoke_MODS, [hookName].concat(args));
