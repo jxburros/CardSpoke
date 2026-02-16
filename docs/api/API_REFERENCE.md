@@ -91,10 +91,11 @@ The context object passed to setup and teardown functions contains:
 
 The storage API provides plugin-namespaced storage using localStorage:
 
-- **`get(key)`**: Retrieves a value from storage. The key is automatically namespaced to the plugin.
-- **`set(key, value)`**: Stores a value. The key is automatically namespaced to the plugin.
+- **`get(key)`**: Retrieves a value from storage. The key is automatically namespaced to the plugin. Returns the stored value or null.
+- **`set(key, value)`**: Stores a value. The key is automatically namespaced to the plugin. Value is JSON serialized.
 - **`remove(key)`**: Removes a value from storage.
-- **`clear()`**: Clears all storage for this plugin.
+- **`list(prefix)`**: Lists all keys in the plugin's namespace, optionally filtered by prefix. Returns an array of key names.
+- **`getNamespace()`**: Returns the plugin's storage namespace string (e.g., "plugin_my-plugin_").
 
 #### Events API (ctx.api.events)
 
@@ -102,7 +103,8 @@ The events API provides an event bus for inter-plugin communication. Note: This 
 
 - **`on(eventName, callback)`**: Subscribes to an event. Returns a cleanup function.
 - **`off(eventName, callback)`**: Unsubscribes from an event.
-- **`emit(eventName, data)`**: Emits an event with optional data.
+- **`emit(eventName, ...args)`**: Emits an event with optional arguments (variadic).
+- **`once(eventName, callback)`**: Subscribes to an event that fires only once.
 - **`clear(eventName)`**: Clears all listeners for the specified event (or all events if no name provided).
 
 ### Resource Management

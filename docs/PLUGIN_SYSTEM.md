@@ -259,6 +259,7 @@ Plugin data is persisted in localStorage under plugin-namespaced keys. Each plug
 - `ctx.api.storage.set(key, value)`: Stores a value (automatically namespaced)
 - `ctx.api.storage.remove(key)`: Removes a value
 - `ctx.api.storage.list(prefix)`: Lists all keys matching the prefix
+- `ctx.api.storage.getNamespace()`: Returns the plugin's storage namespace string
 
 Plugin metadata and enabled state are stored in `window.store.plugins` and persisted via localStorage.
 
