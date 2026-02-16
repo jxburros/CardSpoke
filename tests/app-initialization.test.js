@@ -299,6 +299,79 @@ test('app.js contains boot sequence', () => {
 });
 
 // =====================================================================
+// Core Systems Tests (v0.16.0)
+// =====================================================================
+
+test('app.js initializes Middleware, ComponentRegistry, and Plugin globals', () => {
+  const appJsPath = join(__dirname, '..', 'www', 'app.js');
+  const content = readFileSync(appJsPath, 'utf-8');
+  
+  // Check for core system initialization
+  assert.ok(content.includes('window.CardSpoke.Middleware'), 'Should initialize Middleware system');
+  assert.ok(content.includes('window.CardSpoke.ComponentRegistry'), 'Should initialize ComponentRegistry');
+  assert.ok(content.includes('window.CardSpoke.Plugin'), 'Should initialize Plugin API');
+});
+
+test('Plugin API has required methods', () => {
+  const appJsPath = join(__dirname, '..', 'www', 'app.js');
+  const content = readFileSync(appJsPath, 'utf-8');
+  
+  const pluginMethods = [
+    'register:',
+    'unregister:',
+    'enable:',
+    'disable:',
+    'list:',
+    'listAll:',
+    'install:',
+    'assessModRisk:',
+    'syncFromStore:'
+  ];
+  
+  for (const method of pluginMethods) {
+    assert.ok(content.includes(method), `Plugin API should have ${method} method`);
+  }
+});
+
+test('Plugin.syncFromStore is called in boot sequence', () => {
+  const appJsPath = join(__dirname, '..', 'www', 'app.js');
+  const content = readFileSync(appJsPath, 'utf-8');
+  
+  assert.ok(content.includes('Plugin.syncFromStore'), 'Boot sequence should call Plugin.syncFromStore');
+  assert.ok(content.includes('safeMode'), 'Boot sequence should check for safeMode parameter');
+});
+
+test('Store includes plugins property', () => {
+  const appJsPath = join(__dirname, '..', 'www', 'app.js');
+  const content = readFileSync(appJsPath, 'utf-8');
+  
+  // Store initialization should include plugins property
+  assert.ok(content.includes('plugins:'), 'Store should have plugins property');
+});
+
+test('showModManager implements tabbed interface', () => {
+  const appJsPath = join(__dirname, '..', 'www', 'app.js');
+  const content = readFileSync(appJsPath, 'utf-8');
+  
+  assert.ok(content.includes('function showModManager'), 'Should have showModManager function');
+  assert.ok(content.includes('installed'), 'Should have installed tab');
+  assert.ok(content.includes('install'), 'Should have install tab');
+  assert.ok(content.includes('create'), 'Should have create tab');
+  assert.ok(content.includes('switchTab'), 'Should have tab switching logic');
+});
+
+test('Plugin risk assessment has correct levels', () => {
+  const appJsPath = join(__dirname, '..', 'www', 'app.js');
+  const content = readFileSync(appJsPath, 'utf-8');
+  
+  const riskLevels = ['SAFE', 'LOW', 'MEDIUM', 'HIGH'];
+  
+  for (const level of riskLevels) {
+    assert.ok(content.includes(`'${level}'`), `Should define ${level} risk level`);
+  }
+});
+
+// =====================================================================
 // Error Handling Tests
 // =====================================================================
 
