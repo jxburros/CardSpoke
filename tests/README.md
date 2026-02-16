@@ -140,10 +140,10 @@ Current test coverage focuses on:
 
 Not yet covered:
 - ❌ Import/Export operations (partial)
-- ❌ Mod system hooks
+- ❌ Plugin system hooks
 - ❌ UI rendering
 - ❌ Capacitor integrations
-- ❌ Mod system hooks
+- ❌ Plugin system hooks
 - ❌ UI rendering
 - ❌ Capacitor integrations
 

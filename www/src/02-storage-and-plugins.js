@@ -15,7 +15,7 @@
  */
 
 
-      // Source Part 2/5: Storage drivers, navigation, and mod runtime
+      // Source Part 2/5: Storage drivers, navigation, and plugin runtime
       // Concatenated via `npm run build` in lexical order of www/src/*.js
       // =============================================================
       // --- STORAGE DRIVER ARCHITECTURE (v0.9.4) ---
@@ -1533,7 +1533,7 @@
         const key = instanceKey || 'nested_cards_store';
         const raw = localStorage.getItem(key);
         if (!raw) {
-          store = { rootOrder: [], cards: {}, mods: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
+          store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
           save();
           return;
         }
@@ -1542,7 +1542,6 @@
           store = {
             rootOrder: parsed.rootOrder || [],
             cards: parsed.cards || {},
-            mods: parsed.mods || {},
             plugins: parsed.plugins || {},
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
@@ -1603,7 +1602,7 @@
                 store = {
                   rootOrder: parsedMirror.rootOrder || [],
                   cards: parsedMirror.cards || {},
-                  mods: parsedMirror.mods || {},
+                  plugins: parsedMirror.plugins || {},
                   plugins: parsedMirror.plugins || {},
                   bookmarks: parsedMirror.bookmarks || [],
                   recentCards: parsedMirror.recentCards || [],
@@ -1624,7 +1623,7 @@
                 store = {
                   rootOrder: parsedFile.rootOrder || [],
                   cards: parsedFile.cards || {},
-                  mods: parsedFile.mods || {},
+                  plugins: parsedFile.plugins || {},
                   plugins: parsedFile.plugins || {},
                   bookmarks: parsedFile.bookmarks || [],
                   recentCards: parsedFile.recentCards || [],
@@ -1669,14 +1668,14 @@
         }
       }
       
-      // --- MODS API ---
+      // --- PLUGINS API ---
 
       // =============================================================
-      // --- MOD SYSTEM v2 ---
-      // JSON-driven mod loading system. Mods are JSON packages that
+      // --- PLUGIN SYSTEM v2 ---
+      // JSON-driven plugin loading system. Plugins are JSON packages that
       // can do anything from simple themes to full app transformations.
       //
-      // Mod layers:
+      // Plugin layers:
       //   theme   - CSS only. No JS execution. Safest.
       //   feature - CSS + JS. Hooks, DOM manipulation, card behavior.
       //   app     - CSS + JS + overrides. Can rename app, add pages,
@@ -1734,7 +1733,7 @@
             rootCardCount: store.rootOrder.length,
             bookmarkCount: (store.bookmarks || []).length,
             recentCount: (store.recentCards || []).length,
-            modCount: Object.keys(store.mods || {}).length,
+            modCount: Object.keys(store.plugins || {}).length,
             schemaVersion: SCHEMA_VERSION,
             appVersion: APP_VERSION
           };

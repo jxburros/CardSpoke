@@ -17,7 +17,7 @@ test('menu handlers are correctly scoped (not nested)', () => {
     'menu.recentCards.onclick',
     'menu.dataHub.onclick',
     'menu.clearAll.onclick',
-    'menu.modManager.onclick',
+    'menu.pluginManager.onclick',
     'menu.appearance.onclick'
   ];
   

@@ -202,7 +202,7 @@ Component Request: "Card"
 - **Bridge Layer**: Translates legacy calls
 - **Dual Support**: Both systems coexist
 - **Gradual Migration**: No forced upgrades
-- **Zero Breaking**: All existing mods work
+- **Zero Breaking**: All existing plugins work
 
 ## Technology Stack
 

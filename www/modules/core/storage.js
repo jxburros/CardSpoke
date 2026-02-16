@@ -1328,7 +1328,7 @@ export function load() {
     state.store = {
       rootOrder: parsed.rootOrder || [],
       cards: parsed.cards || {},
-      mods: parsed.mods || {},
+      plugins: parsed.plugins || {},
       bookmarks: parsed.bookmarks || [],
       recentCards: parsed.recentCards || [],
       viewMode: parsed.viewMode || 'normal',

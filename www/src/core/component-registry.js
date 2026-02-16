@@ -16,7 +16,7 @@
 
 
 // Component Registry System
-// Allows mods to register and override UI components
+// Allows plugins to register and override UI components
 // Provides a central registry for component resolution
 
 (function() {

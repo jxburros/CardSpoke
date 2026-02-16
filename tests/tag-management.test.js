@@ -7,7 +7,7 @@ import { test } from 'uvu';
 import * as assert from 'uvu/assert';
 
 // Mock store and functions
-let store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [] };
+let store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [] };
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
@@ -85,7 +85,7 @@ function getTagStats() {
 
 // Reset before each test
 function resetStore() {
-  store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [] };
+  store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [] };
 }
 
 test('renameTag renames tag across all cards', () => {

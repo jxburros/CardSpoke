@@ -7,7 +7,7 @@ A Deviation is any fork or derivative build of CardSpoke. Use this guide to stay
 - Provide prominent credit to CardSpoke and JX Holdings, LLC in your README and about screens.
 
 ## Mandatory Metadata
-Include the required metadata block for Deviations (see [Mod System](../MOD_SYSTEM.md)) with the appropriate manifest fields.
+Include the required metadata block for Deviations (see [Plugin System](../PLUGIN_SYSTEM.md)) with the appropriate manifest fields.
 
 ## Licenses & Attribution
 - CardSpoke core is licensed under an ISC-style license with branding restrictions (see [LICENSE](../../LICENSE)).
@@ -36,6 +36,6 @@ Use this (or stricter) notice in your README/about screen/splash:
 ## Compatibility Checklist
 - Declare supported `schemaVersion` and tested CardSpoke baseline version.
 - Validate import/export compatibility for JSON/CSV/Markdown/TXT backup formats.
-- Test with at least one theme-layer, one feature-layer, and one app-layer mod (or clearly document unsupported layers).
+- Test with at least one theme-layer, one feature-layer, and one app-layer plugin (or clearly document unsupported layers).
 - Document any changed hooks, storage behavior, or removed APIs before release.
 

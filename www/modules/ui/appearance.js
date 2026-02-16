@@ -51,7 +51,7 @@ export function applyTheme(theme) {
     setActiveThemeExtension(null);
   } else {
     // Custom theme from extension
-    const themeExt = store.mods && store.mods[theme];
+    const themeExt = store.plugins && store.plugins[theme];
     if (themeExt && themeExt.enabled && themeExt.meta && themeExt.meta.type === 'Theme') {
       document.documentElement.classList.add('theme-' + theme);
       setActiveThemeExtension(theme);
@@ -96,10 +96,10 @@ export function toggleTheme() {
  */
 export function getInstalledThemes() {
   const store = getStore();
-  if (!store.mods) return [];
+  if (!store.plugins) return [];
   
-  return Object.values(store.mods).filter(mod => {
-    return mod.meta && mod.meta.type === 'Theme';
+  return Object.values(store.plugins).filter(plugin => {
+    return plugin.meta && plugin.meta.type === 'Theme';
   });
 }
 

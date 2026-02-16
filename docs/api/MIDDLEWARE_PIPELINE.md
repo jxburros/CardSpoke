@@ -2,7 +2,7 @@
 
 **Version:** 0.16.0
 
-The Middleware Pipeline provides a priority-weighted, interceptor-style architecture that allows mods to wrap core operations, modify data, or cancel operations before they complete.
+The Middleware Pipeline provides a priority-weighted, interceptor-style architecture that allows plugins to wrap core operations, modify data, or cancel operations before they complete.
 
 ## Overview
 

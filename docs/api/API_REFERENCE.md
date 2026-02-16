@@ -1,12 +1,12 @@
 # CardSpoke API Reference
 
-This reference documents the surfaces plugin developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke.Plugin` plugin runtime (also exposed as `window.CardSpoke.mods`). It consolidates the runtime contracts that ship in `www/app.js`.
+This reference documents the surfaces plugin developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke.Plugin` plugin runtime (also exposed as `window.CardSpoke.plugins`). It consolidates the runtime contracts that ship in `www/app.js`.
 
 **Current Version:** 0.16.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
 
 ## Global objects
 - **`window.CardSpoke.utils`**: async helpers for card CRUD, tagging, search, accessibility, dataset metadata, and toast UI helpers.
-- **`window.CardSpoke.Plugin` / `window.CardSpoke.mods`**: the plugin system that registers hooks, dispatches lifecycle events, offers an event bus, and exposes developer tooling.
+- **`window.CardSpoke.Plugin` / `window.CardSpoke.plugins`**: the plugin system that registers hooks, dispatches lifecycle events, offers an event bus, and exposes developer tooling.
 
 ## plugin runtime (`CardSpoke.Plugin`)
 
@@ -34,11 +34,11 @@ Implemented hooks are enforced by runtime validation. Unknown hook names log war
 
 ### Registration and lifecycle
 - **`register(modId, definition)`**: Validates hook names, stores metadata, and resets error counters on success. Called once inside your IIFE.
-- **`enable(modId)` / `disable(modId)`**: Toggle mods persisted in the store; enabling reapplies CSS, runs `onEnable`, then `onLoad`. Disabling calls `onDisable` before removing styles.
+- **`enable(modId)` / `disable(modId)`**: Toggle plugins persisted in the store; enabling reapplies CSS, runs `onEnable`, then `onLoad`. Disabling calls `onDisable` before removing styles.
 - **`unregister(modId)`**: Runs `onUninstall`, clears registry entry, removes styles, and evicts persisted plugin state.
-- **`syncFromStore()`**: Loads enabled mods from the persisted store, applies CSS, and prunes stale registry entries.
+- **`syncFromStore()`**: Loads enabled plugins from the persisted store, applies CSS, and prunes stale registry entries.
 - **`reload(modId)`**: Executes `onDisable`, clears styles/hooks/error counts, re-runs registration from persisted code+CSS, and then replays `onEnable`/`onLoad`.
-- **Hook dispatch**: `runHook(hookName, ...args)` fans out to enabled mods, honoring one-time semantics for `onLoad`. Use `runHookForMod` to target a single plugin.
+- **Hook dispatch**: `runHook(hookName, ...args)` fans out to enabled plugins, honoring one-time semantics for `onLoad`. Use `runHookForMod` to target a single plugin.
 
 ### Context passed to hooks
 The runtime builds a context object per invocation:
@@ -58,7 +58,7 @@ The runtime builds a context object per invocation:
 - **Logging**: `logger` plus `log/warn/error/info` wrappers.
 
 ### Event bus
-Use `CardSpoke.Plugin.events` to coordinate between mods:
+Use `CardSpoke.Plugin.events` to coordinate between plugins:
 - `on(event, cb)`: subscribe.
 - `off(event, cb)`: unsubscribe.
 - `emit(event, data)`: broadcast.
@@ -82,7 +82,7 @@ Use `CardSpoke.Plugin.events` to coordinate between mods:
 - Tag helpers: `getTags`, `addTag`, `removeTag`, `setTags`, `getAllTags`.
 
 ### Dataset metadata
-`getDatasetMeta()` returns dataset name, counts (cards, roots, bookmarks, recent, mods), and schema/app versions.
+`getDatasetMeta()` returns dataset name, counts (cards, roots, bookmarks, recent, plugins), and schema/app versions.
 
 ### UI feedback
 `showToast(message, type = 'info', duration = 3000)` surfaces notifications.

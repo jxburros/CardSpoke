@@ -662,10 +662,10 @@
       // =============================================================
       
       /**
-       * Show mod store modal (coming soon)
+       * Show plugin store modal (coming soon)
        */
-      function showModStore() {
-        showModManager('install');
+      function showPluginStore() {
+        showPluginManager('install');
       }
 
       // =============================================================
@@ -939,7 +939,7 @@
         'ctrl+f': { action: () => { searchInput.focus(); }, description: 'Focus search' },
         'ctrl+b': { action: () => { menu.bookmarks.click(); closeMenu(); }, description: 'Show bookmarks' },
         'ctrl+r': { action: () => { menu.recentCards.click(); closeMenu(); }, description: 'Show recent cards' },
-        'ctrl+e': { action: () => { showModManager('installed'); closeMenu(); }, description: 'Show mod manager' },
+        'ctrl+e': { action: () => { showPluginManager('installed'); closeMenu(); }, description: 'Show plugin manager' },
         'ctrl+u': { action: () => { menu.upload.click(); closeMenu(); }, description: 'Upload data' },
         'ctrl+/': { action: () => showKeyboardHelp(), description: 'Show this help' },
         'ctrl+z': { action: () => undo(), description: 'Undo last action' },
@@ -1457,7 +1457,7 @@
                       h('strong', {}, 'Backups'), ' — Create manual backups anytime from the Data & Export menu'
                     ),
                     h('div', {},
-                      h('strong', {}, 'Mods'), ' — Customize CardSpoke with themes and mods (Mod Manager)'
+                      h('strong', {}, 'Plugins'), ' — Customize CardSpoke with themes and plugins (Plugin Manager)'
                     ),
                     h('div', {},
                       h('strong', {}, 'Dark Mode'), ' — Toggle dark mode with the moon icon in the header'
@@ -1539,7 +1539,7 @@
                     h('div', {}, h('strong', {}, 'Bookmarks'), ' — Star important cards for quick access'),
                     h('div', {}, h('strong', {}, 'Undo/Redo'), ' — Ctrl+Z / Ctrl+Y for changes'),
                     h('div', {}, h('strong', {}, 'Trash Bin'), ' — Recover deleted cards'),
-                    h('div', {}, h('strong', {}, 'Mods'), ' — Customize with themes and mods')
+                    h('div', {}, h('strong', {}, 'Plugins'), ' — Customize with themes and plugins')
                   )
                 ),
                 
@@ -1560,17 +1560,17 @@
                   )
                 ),
                 
-                // Mods Section
+                // Plugins Section
                 h('div', { style: 'margin-bottom: var(--space-lg);' },
-                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Mods'),
-                  h('p', { style: 'margin-bottom: var(--space-xs);' }, 'CardSpoke supports JSON-based mods in three layers:'),
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Plugins'),
+                  h('p', { style: 'margin-bottom: var(--space-xs);' }, 'CardSpoke supports JSON-based plugins in three layers:'),
                   h('ul', { style: 'margin-left: var(--space-md); margin-bottom: var(--space-sm);' },
-                    h('li', {}, 'Theme mods: CSS-only visual changes'),
-                    h('li', {}, 'Feature mods: Add new functionality with JS hooks'),
-                    h('li', {}, 'App mods: Full app transformations with overrides')
+                    h('li', {}, 'Theme plugins: CSS-only visual changes'),
+                    h('li', {}, 'Feature plugins: Add new functionality with JS hooks'),
+                    h('li', {}, 'App plugins: Full app transformations with overrides')
                   ),
                   h('p', { style: 'font-size: var(--text-sm); color: var(--text-secondary);' },
-                    'Access Mod Manager from the menu to install and manage mods.'
+                    'Access Plugin Manager from the menu to install and manage plugins.'
                   )
                 ),
                 
@@ -1769,7 +1769,7 @@
           { label: 'Total Cards', value: Object.keys(store.cards).length },
           { label: 'Root Cards', value: store.rootOrder.length },
           { label: 'Total Tags', value: getAllTags().length },
-          { label: 'Active Mods', value: store.mods ? Object.keys(store.mods).length : 0 },
+          { label: 'Active Plugins', value: store.plugins ? Object.keys(store.plugins).length : 0 },
           { label: 'Developer Mode', value: isDeveloperMode() ? '✓ Enabled' : '✗ Disabled' }
         ];
         
@@ -1929,8 +1929,8 @@
         let safeMode = urlParams.has('safemode');
 
         if (safeMode) {
-          console.warn('[Safe Mode] Mods disabled via ?safemode parameter');
-          showToast('Safe Mode Active - Mods Disabled', 'warning');
+          console.warn('[Safe Mode] Plugins disabled via ?safemode parameter');
+          showToast('Safe Mode Active - Plugins Disabled', 'warning');
         }
 
         // Sync plugins from store after load() but before render()

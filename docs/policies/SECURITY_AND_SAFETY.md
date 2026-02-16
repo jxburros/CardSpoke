@@ -1,6 +1,6 @@
 # Security & Safety Considerations
 
-This guide outlines expectations for secure, transparent, and user-respecting behavior in the core app, mods, and Deviations.
+This guide outlines expectations for secure, transparent, and user-respecting behavior in the core app, plugins, and Deviations.
 
 ## Principles
 - **User ownership:** Do not collect or transmit data without explicit consent.
@@ -9,11 +9,11 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 
 ## Core App Expectations
 - Keep dependencies minimal and vetted; avoid unnecessary network services.
-- Validate inputs for card content, mod manifests, and file imports. Import flows accept JSON/CSV/Markdown/TXT backups from the UI—validate schema version and card IDs before merging into the active dataset.
+- Validate inputs for card content, plugin manifests, and file imports. Import flows accept JSON/CSV/Markdown/TXT backups from the UI—validate schema version and card IDs before merging into the active dataset.
 - Treat migrations as critical operations; validate results and avoid silent drops.
 - Surface errors with actionable guidance.
 
-## Mod/Deviation Expectations
+## Plugin/Deviation Expectations
 - Do not obfuscate code or hide network calls.
 - Provide uninstall/rollback instructions and cleanup routines.
 - Avoid privileged operations unless required; document all side effects. If you toggle preferences stored in `cardspoke_*` keys (rich text, grid view, high contrast, typography, active theme), note the defaults and how to revert.
@@ -33,21 +33,21 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 - Security disclosures should be reported via GitHub Issues: https://github.com/jxburros/CardSpoke/issues
   - Mark issues as "Security" and they will be prioritized
   - For critical vulnerabilities, contact the repository owner directly via GitHub
-- Version advisories and clearly mark impacted versions/mods.
-- Provide remediation steps, including how to disable mods causing risk.
+- Version advisories and clearly mark impacted versions/plugins.
+- Provide remediation steps, including how to disable plugins causing risk.
 
 ## Testing & Verification
 - Add tests for permission boundaries, schema compatibility checks, and error handling.
-- For mods introducing network access, include mockable clients and offline fallbacks.
+- For plugins introducing network access, include mockable clients and offline fallbacks.
 - Audit dependencies for known CVEs before releases.
 
 ## Security Improvements Implemented (v0.15.1+)
-- **Mod Risk Assessment**: Mods are automatically analyzed and categorized by risk level (LOW/MEDIUM/HIGH)
-  - Theme-layer mods with CSS-only are marked as LOW RISK
-  - Feature-layer mods with JavaScript are marked MEDIUM RISK
-  - App-layer mods with overrides are marked HIGH RISK
+- **Plugin Risk Assessment**: Plugins are automatically analyzed and categorized by risk level (LOW/MEDIUM/HIGH)
+  - Theme-layer plugins with CSS-only are marked as LOW RISK
+  - Feature-layer plugins with JavaScript are marked MEDIUM RISK
+  - App-layer plugins with overrides are marked HIGH RISK
   - Security warnings shown during installation based on risk level
-  - Visual risk badges displayed in the Mod Manager
+  - Visual risk badges displayed in the Plugin Manager
 - **HTTPS Enforcement**: WebDAV connections require HTTPS (warnings for HTTP)
 - **JSON Import Validation**: Schema validation for imported data to prevent corruption
 - **Content Security Policy**: CSP headers added to limit attack surface
@@ -74,4 +74,4 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 - Testing: `npm test` runs 227+ tests using uvu framework
 - Linting: Consider adding ESLint for code quality
 - Security scanning: Run `npm audit` before each release
-- Code review: All mods should be reviewed before publication
+- Code review: All plugins should be reviewed before publication

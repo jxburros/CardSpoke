@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document summarizes the successful implementation of the architectural modernization for CardSpoke, transforming it from a simple hook-based mod system to a comprehensive, modern plugin architecture.
+This document summarizes the successful implementation of the architectural modernization for CardSpoke, transforming it from a simple hook-based plugin system to a comprehensive, modern plugin architecture.
 
 ## What Was Requested
 
@@ -19,7 +19,7 @@ The original requirements called for:
 
 ### 1. Middleware Pipeline ✅
 
-**Requirement:** "Intercept Core Logic: Instead of just firing an event after something happens, allow mods to wrap core functions."
+**Requirement:** "Intercept Core Logic: Instead of just firing an event after something happens, allow plugins to wrap core functions."
 
 **Implementation:**
 - Created priority-weighted middleware system (`www/src/core/middleware.js`)
@@ -45,7 +45,7 @@ window.CardSpoke.Middleware.register({
 
 ### 2. Component Registry ✅
 
-**Requirement:** "Rather than mods injecting CSS or JS to 'find and replace' elements, register your UI components in a central registry."
+**Requirement:** "Rather than plugins injecting CSS or JS to 'find and replace' elements, register your UI components in a central registry."
 
 **Implementation:**
 - Created component registry system (`www/src/core/component-registry.js`)
@@ -65,7 +65,7 @@ window.CardSpoke.ComponentRegistry.register('Card', {
 
 ### 3. Plugin API ✅
 
-**Requirement:** "Provide each mod with a 'Sandbox API' object with methods like api.ui.inject(), api.data.onUpdate(), api.storage.getNamespace()."
+**Requirement:** "Provide each plugin with a 'Sandbox API' object with methods like api.ui.inject(), api.data.onUpdate(), api.storage.getNamespace()."
 
 **Implementation:**
 - Created sandboxed Plugin API (`www/src/core/plugin-api.js`)
@@ -92,14 +92,14 @@ window.CardSpoke.Plugin.register('my-plugin', {
 
 **Implementation:**
 - Vite configuration created (`vite.config.js`)
-- Dynamic mod loader (`www/src/examples/dynamic-mod-loader.js`)
+- Dynamic plugin loader (`www/src/examples/dynamic-plugin-loader.js`)
 - ES module support for plugins
 - Scripts added: `npm run dev`, `npm run build:vite`
 
 **Evidence:**
 ```javascript
-const mod = await import('./my-mod.js');
-window.CardSpoke.Plugin.register('my-mod', mod.default);
+const plugin = await import('./my-plugin.js');
+window.CardSpoke.Plugin.register('my-plugin', plugin.default);
 ```
 
 **Configuration:**
@@ -109,13 +109,13 @@ window.CardSpoke.Plugin.register('my-mod', mod.default);
 
 ### 5. Enhanced Schema & Storage ✅
 
-**Requirement:** "Update the Schema to allow for a 'hidden' metadata object on every card where mods can store their own specific data."
+**Requirement:** "Update the Schema to allow for a 'hidden' metadata object on every card where plugins can store their own specific data."
 
 **Implementation:**
 - Schema already includes `modsData` field (now documented as `metadata`)
 - Storage driver registry created (`www/src/core/storage-driver-registry.js`)
 - Pluggable storage backends
-- Example drivers in sample mods
+- Example drivers in sample plugins
 
 **Evidence:**
 ```javascript
@@ -137,7 +137,7 @@ window.CardSpoke.StorageDriverRegistry.register('cloud', new CloudStorageDriver(
 
 ### 6. Permissions System ✅
 
-**Requirement:** "Add a permissions field to the mod manifest with user transparency."
+**Requirement:** "Add a permissions field to the plugin manifest with user transparency."
 
 **Implementation:**
 - Permissions system created (`www/src/core/permissions.js`)
@@ -207,7 +207,7 @@ const plugin: PluginDefinition = {
 
 ### Documentation
 - ✅ **4 new API guides** (Plugin API, Middleware, Components, Migration)
-- ✅ **2 example mods** (feature and app layer)
+- ✅ **2 example plugins** (feature and app layer)
 - ✅ **TypeScript definitions** with JSDoc
 - ✅ **Architecture diagrams** and overview
 
@@ -238,9 +238,9 @@ const plugin: PluginDefinition = {
 14. `IMPLEMENTATION_SUMMARY.md` (this file)
 
 ### Examples (3)
-15. `sample-mods/new-api/example-feature-mod.js`
-16. `sample-mods/new-api/example-app-mod.js`
-17. `www/src/examples/dynamic-mod-loader.js`
+15. `sample-plugins/new-api/example-feature-plugin.js`
+16. `sample-plugins/new-api/example-app-plugin.js`
+17. `www/src/examples/dynamic-plugin-loader.js`
 
 ### Tests (2)
 18. `tests/middleware-pipeline.test.js`
@@ -252,8 +252,8 @@ const plugin: PluginDefinition = {
 
 ## Files Modified (4)
 
-1. `www/src/02-storage-and-mods.js` - Enhanced runModHook
-2. `docs/MOD_SYSTEM.md` - Added new architecture
+1. `www/src/02-storage-and-plugins.js` - Enhanced runPluginHook
+2. `docs/PLUGIN_SYSTEM.md` - Added new architecture
 3. `README.md` - Updated overview
 4. `package.json` - Added Vite scripts
 
@@ -267,7 +267,7 @@ const plugin: PluginDefinition = {
 - ✅ Pluggable everything (storage, UI, operations)
 
 ### User Impact
-- ✅ **Zero breaking changes** - all existing mods work
+- ✅ **Zero breaking changes** - all existing plugins work
 - ✅ **Better security** - permission model protects users
 - ✅ **More power** - plugins can do much more
 - ✅ **Better UX** - cleaner unload, no ghost elements
@@ -326,7 +326,7 @@ The new architecture positions CardSpoke as a modern, extensible platform compar
 
 Recommended follow-up work:
 
-1. **Community Migration**: Help existing mod authors migrate to new API
+1. **Community Migration**: Help existing plugin authors migrate to new API
 2. **Plugin Marketplace**: Build discovery and distribution system
 3. **Visual Builder**: Create no-code plugin builder UI
 4. **Mobile APIs**: Add Capacitor-specific plugin capabilities
@@ -341,7 +341,7 @@ Recommended follow-up work:
 - [Migration Guide](./docs/guides/MIGRATION_GUIDE.md)
 - [Architecture Overview](./ARCHITECTURE_CHANGES.md)
 - [Visual Diagrams](./docs/ARCHITECTURE_DIAGRAM.md)
-- [Example Mods](./sample-mods/new-api/)
+- [Example Plugins](./sample-plugins/new-api/)
 - [Type Definitions](./types/)
 
 ---

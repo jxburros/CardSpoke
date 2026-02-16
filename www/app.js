@@ -31,7 +31,7 @@
 // Include core systems
 // Middleware Pipeline System
 // Replaces the hook-based system with a priority-weighted pipeline
-// Allows mods to intercept and modify core operations
+// Allows plugins to intercept and modify core operations
 
 (function() {
   'use strict';
@@ -191,7 +191,7 @@
   console.log('[Middleware] Pipeline system initialized');
 })();
 // Component Registry System
-// Allows mods to register and override UI components
+// Allows plugins to register and override UI components
 // Provides a central registry for component resolution
 
 (function() {
@@ -1304,6 +1304,23 @@
 
   console.log('[Permissions] System initialized');
 })();
+/*
+ * Copyright 2026 Jeffrey Guntly (JX Holdings, LLC)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
 // =============================================================
 // CardSpoke JavaScript Application (Source)
 // Version: 0.16.0
@@ -1489,7 +1506,7 @@ function createDefaultStore() {
   return {
     rootOrder: [],
     cards: {},
-    mods: {},
+    plugins: {},
     bookmarks: [],
     recentCards: [],
     viewMode: 'normal',
@@ -1513,14 +1530,14 @@ function setRichTextEnabled(enabled) {
 }
 
 /**
- * Get the active theme mod ID (if any)
+ * Get the active theme plugin ID (if any)
  */
 function getActiveThemeMod() {
   return localStorage.getItem('cardspoke_activeThemeMod') || localStorage.getItem('cardspoke_activeThemeExtension') || null;
 }
 
 /**
- * Set the active theme mod
+ * Set the active theme plugin
  */
 function setActiveThemeMod(modId) {
   if (modId) {
@@ -1642,8 +1659,8 @@ function showToast(message, type = 'success', duration = 3000) {
 
 // Version History
 // Version 0.16.0: Split source into buildable chunks (see www/src/*, `npm run build`)
-// Version 1.0.0: Major refactor - ES Modules for maintainability, Rich Text toggle, Theme mod handler
-// Version 0.13.1: Accessibility & Theme Customization for Mods
+// Version 1.0.0: Major refactor - ES Modules for maintainability, Rich Text toggle, Theme plugin handler
+// Version 0.13.1: Accessibility & Theme Customization for Plugins
 // (see previous versions in git history)
 
 // --- CORE APP STATE ---
@@ -1706,7 +1723,7 @@ const header = {
         closeBtn: document.getElementById('menuClose'),
         newCard: document.getElementById('menuNewCard'),
         upload: document.getElementById('menuUpload'),
-        modManager: document.getElementById('menuModManager'),
+        pluginManager: document.getElementById('menuPluginManager'),
         appearance: document.getElementById('menuAppearance'),
         tagManager: document.getElementById('menuTagManager'),
         advancedSearch: document.getElementById('menuAdvancedSearch'),
@@ -1746,7 +1763,7 @@ const header = {
         importLocationSelectTXT: document.getElementById('importLocationSelectTXT'),
         fileUploadAreaMods: document.getElementById('fileUploadAreaMods'),
         fileInputMods: document.getElementById('fileInputMods'),
-        // Mod install fields
+        // Plugin install fields
         manualModName: document.getElementById('manualModName'),
         manualModCreator: document.getElementById('manualModCreator'),
         manualModVersion: document.getElementById('manualModVersion'),
@@ -1966,7 +1983,24 @@ const header = {
         const MAX_RESULTS = 100;
         return allResults.slice(0, MAX_RESULTS);
       }
-      // Source Part 2/5: Storage drivers, navigation, and mod runtime
+/*
+ * Copyright 2026 Jeffrey Guntly (JX Holdings, LLC)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+      // Source Part 2/5: Storage drivers, navigation, and plugin runtime
       // Concatenated via `npm run build` in lexical order of www/src/*.js
       // =============================================================
       // --- STORAGE DRIVER ARCHITECTURE (v0.9.4) ---
@@ -3484,7 +3518,7 @@ const header = {
         const key = instanceKey || 'nested_cards_store';
         const raw = localStorage.getItem(key);
         if (!raw) {
-          store = { rootOrder: [], cards: {}, mods: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
+          store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
           save();
           return;
         }
@@ -3493,7 +3527,6 @@ const header = {
           store = {
             rootOrder: parsed.rootOrder || [],
             cards: parsed.cards || {},
-            mods: parsed.mods || {},
             plugins: parsed.plugins || {},
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
@@ -3554,7 +3587,7 @@ const header = {
                 store = {
                   rootOrder: parsedMirror.rootOrder || [],
                   cards: parsedMirror.cards || {},
-                  mods: parsedMirror.mods || {},
+                  plugins: parsedMirror.plugins || {},
                   plugins: parsedMirror.plugins || {},
                   bookmarks: parsedMirror.bookmarks || [],
                   recentCards: parsedMirror.recentCards || [],
@@ -3575,7 +3608,7 @@ const header = {
                 store = {
                   rootOrder: parsedFile.rootOrder || [],
                   cards: parsedFile.cards || {},
-                  mods: parsedFile.mods || {},
+                  plugins: parsedFile.plugins || {},
                   plugins: parsedFile.plugins || {},
                   bookmarks: parsedFile.bookmarks || [],
                   recentCards: parsedFile.recentCards || [],
@@ -3620,14 +3653,14 @@ const header = {
         }
       }
       
-      // --- MODS API ---
+      // --- PLUGINS API ---
 
       // =============================================================
-      // --- MOD SYSTEM v2 ---
-      // JSON-driven mod loading system. Mods are JSON packages that
+      // --- PLUGIN SYSTEM v2 ---
+      // JSON-driven plugin loading system. Plugins are JSON packages that
       // can do anything from simple themes to full app transformations.
       //
-      // Mod layers:
+      // Plugin layers:
       //   theme   - CSS only. No JS execution. Safest.
       //   feature - CSS + JS. Hooks, DOM manipulation, card behavior.
       //   app     - CSS + JS + overrides. Can rename app, add pages,
@@ -3685,7 +3718,7 @@ const header = {
             rootCardCount: store.rootOrder.length,
             bookmarkCount: (store.bookmarks || []).length,
             recentCount: (store.recentCards || []).length,
-            modCount: Object.keys(store.mods || {}).length,
+            modCount: Object.keys(store.plugins || {}).length,
             schemaVersion: SCHEMA_VERSION,
             appVersion: APP_VERSION
           };
@@ -3756,6 +3789,23 @@ const header = {
         console.log('[CardSpoke.utils] API initialized and available at window.CardSpoke.utils');
       }
 
+/*
+ * Copyright 2026 Jeffrey Guntly (JX Holdings, LLC)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
       // Source Part 3/5: Data CRUD, imports/exports, dataset modals
       // Concatenated via `npm run build` in lexical order of www/src/*.js
       // --- DATA (CRUD) ---
@@ -3766,7 +3816,7 @@ const header = {
        * @param {string} body - Card content/body
        * @param {string|null} parentId - Parent card ID or null for root
        * @param {boolean} skipSave - Skip saving to localStorage
-       * @param {boolean} skipHooks - Skip running mod hooks
+       * @param {boolean} skipHooks - Skip running plugin hooks
        * @returns {string} New card ID
        */
       function createCard(title, body, parentId = null, skipSave = false, skipHooks = false) {
@@ -3793,7 +3843,7 @@ const header = {
           }
         }
         // Add to undo stack for undo support (v0.12.0 fix)
-        // Always track undo regardless of skipHooks - skipHooks only controls mod hooks
+        // Always track undo regardless of skipHooks - skipHooks only controls plugin hooks
         pushUndo('createCard', { cardId: id, card: cloneCard(store.cards[id]) });
         if (!skipSave) save();
         return id;
@@ -3804,13 +3854,13 @@ const header = {
        * @param {string} id - Card ID to update
        * @param {Object} updates - Fields to update
        * @param {boolean} skipSave - Skip saving to localStorage
-       * @param {boolean} skipHooks - Skip running mod hooks
+       * @param {boolean} skipHooks - Skip running plugin hooks
        */
       function updateCard(id, updates, skipSave = false, skipHooks = false) {
         const card = store.cards[id];
         if (!card) return;
         // Store previous state for undo support (v0.12.0 fix)
-        // Always track undo regardless of skipHooks - skipHooks only controls mod hooks
+        // Always track undo regardless of skipHooks - skipHooks only controls plugin hooks
         const previousState = cloneCard(card);
         const updateTimestamp = Date.now();
         pushUndo('updateCard', { 
@@ -4114,14 +4164,14 @@ const header = {
             timestamp: Date.now(),
             cards: store.cards,
             rootIds: store.rootOrder,
-            mods: store.mods
+            plugins: store.plugins
           };
-        } else if (type === 'mods') {
+        } else if (type === 'plugins') {
           data = {
-            exportType: 'mods',
+            exportType: 'plugins',
             appVersion: APP_VERSION,
             timestamp: Date.now(),
-            mods: store.mods
+            plugins: store.plugins
           };
         }
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -4275,7 +4325,7 @@ const header = {
       function handleExport(type) {
         if (type === 'instance-json') exportJSON('instance');
         else if (type === 'instance-txt') exportTXT();
-        else if (type === 'mods-json') exportJSON('mods');
+        else if (type === 'plugins-json') exportJSON('plugins');
       }
 
       function importJSON(data, mode = 'root') {
@@ -4320,20 +4370,20 @@ const header = {
           throw new Error('Invalid rootIds structure');
         }
 
-        // Validate mods if present (and warn about security)
-        if (pkg.mods && pkg.exportType === 'instance') {
-          const modCount = Object.keys(pkg.mods).length;
+        // Validate plugins if present (and warn about security)
+        if (pkg.plugins && pkg.exportType === 'instance') {
+          const modCount = Object.keys(pkg.plugins).length;
           if (modCount > 0) {
             const confirmImportMods = confirm(
               `⚠️ SECURITY WARNING\n\n` +
-              `This import includes ${modCount} mod(s).\n\n` +
-              `Mods can execute code and access your data. ` +
-              `Only import mods from sources you trust.\n\n` +
-              `Do you want to import the mods?\n` +
-              `(Click Cancel to import only the cards without mods)`
+              `This import includes ${modCount} plugin(s).\n\n` +
+              `Plugins can execute code and access your data. ` +
+              `Only import plugins from sources you trust.\n\n` +
+              `Do you want to import the plugins?\n` +
+              `(Click Cancel to import only the cards without plugins)`
             );
             if (!confirmImportMods) {
-              delete pkg.mods;
+              delete pkg.plugins;
             }
           }
         }
@@ -4385,14 +4435,14 @@ const header = {
           }
         }
         
-        if (pkg.exportType === 'instance' && pkg.mods) {
-          Object.entries(pkg.mods).forEach(([modId, mod]) => {
-            if (!store.mods[modId]) {
-              store.mods[modId] = {
-                enabled: !!mod.enabled,
-                js: mod.js || '',
-                css: mod.css || '',
-                meta: mod.meta ? { ...mod.meta } : {}
+        if (pkg.exportType === 'instance' && pkg.plugins) {
+          Object.entries(pkg.plugins).forEach(([modId, plugin]) => {
+            if (!store.plugins[modId]) {
+              store.plugins[modId] = {
+                enabled: !!plugin.enabled,
+                js: plugin.js || '',
+                css: plugin.css || '',
+                meta: plugin.meta ? { ...plugin.meta } : {}
               };
             }
           });
@@ -4740,7 +4790,7 @@ const header = {
             const newStore = {
               rootOrder: [],
               cards: {},
-              mods: {},
+              plugins: {},
               bookmarks: [],
               recentCards: [],
               viewMode: 'normal',
@@ -4831,7 +4881,7 @@ const header = {
         
         if (store) {
           cardCount = Object.keys(store.cards || {}).length;
-          modCount = Object.keys(store.mods || {}).length;
+          modCount = Object.keys(store.plugins || {}).length;
           bookmarkCount = (store.bookmarks || []).length;
           recentCount = (store.recentCards || []).length;
         }
@@ -4877,7 +4927,7 @@ const header = {
           h('h3', { style: headingStyle }, 'Dataset Contents'),
           h('div', { style: sectionStyle },
             infoRow('Cards:', String(cardCount)),
-            infoRow('Mods:', String(modCount)),
+            infoRow('Plugins:', String(modCount)),
             infoRow('Bookmarks:', String(bookmarkCount)),
             infoRow('Recent Cards:', String(recentCount))
           )
@@ -4924,11 +4974,11 @@ const header = {
 
 
       // =============================================================
-      // --- MOD MANAGER UI ---
-      // Unified interface for installing, managing, and creating mods
+      // --- PLUGIN MANAGER UI ---
+      // Unified interface for installing, managing, and creating plugins
       // =============================================================
 
-      function showModManager(initialTab) {
+      function showPluginManager(initialTab) {
         initialTab = initialTab || 'installed';
         var overlay = h('div', { className: 'modal-overlay show' });
         var modal = h('div', { className: 'modal', style: 'max-width: 800px; max-height: 90vh;' });
@@ -5057,16 +5107,16 @@ const header = {
             container.appendChild(card);
           });
 
-          // Legacy mods section (if any exist)
-          var modIds = Object.keys(store.mods || {});
+          // Legacy plugins section (if any exist)
+          var modIds = Object.keys(store.plugins || {});
           if (modIds.length > 0) {
             var legacySection = h('div', { style: 'margin-top: var(--space-xl); padding-top: var(--space-xl); border-top: 1px solid var(--border);' });
-            legacySection.appendChild(h('h3', { style: 'margin-bottom: var(--space-md); color: var(--warning, #f59e0b);' }, 'Legacy Mods (Non-functional)'));
+            legacySection.appendChild(h('h3', { style: 'margin-bottom: var(--space-md); color: var(--warning, #f59e0b);' }, 'Legacy Plugins (Non-functional)'));
             legacySection.appendChild(h('p', { style: 'margin-bottom: var(--space-md); color: var(--text-muted);' },
-              'These legacy mods use the old system and are no longer functional:'));
+              'These legacy plugins use the old system and are no longer functional:'));
 
             modIds.forEach(function(modId) {
-              var pkg = store.mods[modId];
+              var pkg = store.plugins[modId];
               var manifest = pkg.manifest || {};
               
               var legacyCard = h('div', {
@@ -5083,7 +5133,7 @@ const header = {
                 onclick: function() {
                   var json = JSON.stringify(pkg, null, 2);
                   downloadWithFeedback(json, modId + '.json', 'application/json');
-                  showToast('Legacy mod exported for migration');
+                  showToast('Legacy plugin exported for migration');
                 }
               }, 'Export');
               legacyCard.appendChild(exportBtn);
@@ -5495,22 +5545,22 @@ const header = {
         
         modalBody.appendChild(modeSection);
         
-        // Theme Mods Section
+        // Theme Plugins Section
         const themeSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
         themeSection.appendChild(h('div', {
           style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
-        }, 'Theme Mods'));
+        }, 'Theme Plugins'));
 
-        // Custom themes from mods
-        const themeExtensions = Object.entries(store.mods || {}).filter(function([modId, mod]) {
-          var manifest = mod.manifest || mod.meta || {};
+        // Custom themes from plugins
+        const themeExtensions = Object.entries(store.plugins || {}).filter(function([modId, plugin]) {
+          var manifest = plugin.manifest || plugin.meta || {};
           return manifest.layer === 'theme' || (manifest.type && manifest.type === 'Theme');
-        }).map(function([modId, mod]) {
-          var manifest = mod.manifest || mod.meta || {};
-          return { manifest: manifest, meta: manifest, enabled: mod.enabled, css: mod.css, id: modId };
+        }).map(function([modId, plugin]) {
+          var manifest = plugin.manifest || plugin.meta || {};
+          return { manifest: manifest, meta: manifest, enabled: plugin.enabled, css: plugin.css, id: modId };
         });
 
-        // Get active theme mod ID
+        // Get active theme plugin ID
         const activeThemeExtension = localStorage.getItem('cardspoke_activeThemeMod') || null;
         
         if (themeExtensions.length > 0) {
@@ -5572,7 +5622,7 @@ const header = {
             style: 'padding: var(--space-lg); background: var(--bg-secondary); border-radius: 4px; text-align: center; color: var(--text-muted);'
           },
             h('div', { style: 'margin-bottom: var(--space-sm);' }, 'No custom themes installed'),
-            h('div', { style: 'font-size: var(--text-sm);' }, 'Install theme mods from the Mod Manager')
+            h('div', { style: 'font-size: var(--text-sm);' }, 'Install theme plugins from the Plugin Manager')
           ));
         }
         
@@ -6120,6 +6170,23 @@ const header = {
         
         return related.slice(0, limit);
       }
+
+
+/*
+ * Copyright 2026 Jeffrey Guntly (JX Holdings, LLC)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 
       // Source Part 4/5: Rendering, themes, footer, and initialization
@@ -7225,9 +7292,9 @@ const header = {
         uploadModal.overlay.classList.add('show');
       };
 
-      menu.modManager.onclick = () => {
+      menu.pluginManager.onclick = () => {
         menu.overlay.classList.remove('show');
-        showModManager('installed');
+        showPluginManager('installed');
       };
 
       if (menu.tagManager) {
@@ -7438,6 +7505,23 @@ const header = {
 
 
       // =============================================================
+/*
+ * Copyright 2026 Jeffrey Guntly (JX Holdings, LLC)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
       // Source Part 5/5: Advanced systems (undo/redo, tags, search) and boot
       // Concatenated via `npm run build` in lexical order of www/src/*.js
       // --- UNDO/REDO SYSTEM (v0.12.0) ---
@@ -8085,10 +8169,10 @@ const header = {
       // =============================================================
       
       /**
-       * Show mod store modal (coming soon)
+       * Show plugin store modal (coming soon)
        */
-      function showModStore() {
-        showModManager('install');
+      function showPluginStore() {
+        showPluginManager('install');
       }
 
       // =============================================================
@@ -8362,7 +8446,7 @@ const header = {
         'ctrl+f': { action: () => { searchInput.focus(); }, description: 'Focus search' },
         'ctrl+b': { action: () => { menu.bookmarks.click(); closeMenu(); }, description: 'Show bookmarks' },
         'ctrl+r': { action: () => { menu.recentCards.click(); closeMenu(); }, description: 'Show recent cards' },
-        'ctrl+e': { action: () => { showModManager('installed'); closeMenu(); }, description: 'Show mod manager' },
+        'ctrl+e': { action: () => { showPluginManager('installed'); closeMenu(); }, description: 'Show plugin manager' },
         'ctrl+u': { action: () => { menu.upload.click(); closeMenu(); }, description: 'Upload data' },
         'ctrl+/': { action: () => showKeyboardHelp(), description: 'Show this help' },
         'ctrl+z': { action: () => undo(), description: 'Undo last action' },
@@ -8880,7 +8964,7 @@ const header = {
                       h('strong', {}, 'Backups'), ' — Create manual backups anytime from the Data & Export menu'
                     ),
                     h('div', {},
-                      h('strong', {}, 'Mods'), ' — Customize CardSpoke with themes and mods (Mod Manager)'
+                      h('strong', {}, 'Plugins'), ' — Customize CardSpoke with themes and plugins (Plugin Manager)'
                     ),
                     h('div', {},
                       h('strong', {}, 'Dark Mode'), ' — Toggle dark mode with the moon icon in the header'
@@ -8962,7 +9046,7 @@ const header = {
                     h('div', {}, h('strong', {}, 'Bookmarks'), ' — Star important cards for quick access'),
                     h('div', {}, h('strong', {}, 'Undo/Redo'), ' — Ctrl+Z / Ctrl+Y for changes'),
                     h('div', {}, h('strong', {}, 'Trash Bin'), ' — Recover deleted cards'),
-                    h('div', {}, h('strong', {}, 'Mods'), ' — Customize with themes and mods')
+                    h('div', {}, h('strong', {}, 'Plugins'), ' — Customize with themes and plugins')
                   )
                 ),
                 
@@ -8983,17 +9067,17 @@ const header = {
                   )
                 ),
                 
-                // Mods Section
+                // Plugins Section
                 h('div', { style: 'margin-bottom: var(--space-lg);' },
-                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Mods'),
-                  h('p', { style: 'margin-bottom: var(--space-xs);' }, 'CardSpoke supports JSON-based mods in three layers:'),
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Plugins'),
+                  h('p', { style: 'margin-bottom: var(--space-xs);' }, 'CardSpoke supports JSON-based plugins in three layers:'),
                   h('ul', { style: 'margin-left: var(--space-md); margin-bottom: var(--space-sm);' },
-                    h('li', {}, 'Theme mods: CSS-only visual changes'),
-                    h('li', {}, 'Feature mods: Add new functionality with JS hooks'),
-                    h('li', {}, 'App mods: Full app transformations with overrides')
+                    h('li', {}, 'Theme plugins: CSS-only visual changes'),
+                    h('li', {}, 'Feature plugins: Add new functionality with JS hooks'),
+                    h('li', {}, 'App plugins: Full app transformations with overrides')
                   ),
                   h('p', { style: 'font-size: var(--text-sm); color: var(--text-secondary);' },
-                    'Access Mod Manager from the menu to install and manage mods.'
+                    'Access Plugin Manager from the menu to install and manage plugins.'
                   )
                 ),
                 
@@ -9192,7 +9276,7 @@ const header = {
           { label: 'Total Cards', value: Object.keys(store.cards).length },
           { label: 'Root Cards', value: store.rootOrder.length },
           { label: 'Total Tags', value: getAllTags().length },
-          { label: 'Active Mods', value: store.mods ? Object.keys(store.mods).length : 0 },
+          { label: 'Active Plugins', value: store.plugins ? Object.keys(store.plugins).length : 0 },
           { label: 'Developer Mode', value: isDeveloperMode() ? '✓ Enabled' : '✗ Disabled' }
         ];
         
@@ -9352,8 +9436,8 @@ const header = {
         let safeMode = urlParams.has('safemode');
 
         if (safeMode) {
-          console.warn('[Safe Mode] Mods disabled via ?safemode parameter');
-          showToast('Safe Mode Active - Mods Disabled', 'warning');
+          console.warn('[Safe Mode] Plugins disabled via ?safemode parameter');
+          showToast('Safe Mode Active - Plugins Disabled', 'warning');
         }
 
         // Sync plugins from store after load() but before render()

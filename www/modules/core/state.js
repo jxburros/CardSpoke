@@ -37,7 +37,7 @@ export function createDefaultStore() {
   return {
     rootOrder: [],
     cards: {},
-    mods: {},
+    plugins: {},
     bookmarks: [],
     recentCards: [],
     viewMode: 'normal',

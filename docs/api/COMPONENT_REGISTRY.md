@@ -2,7 +2,7 @@
 
 **Version:** 0.16.0
 
-The Component Registry provides a centralized system for registering and overriding UI components. Instead of using CSS/JS to "find and replace" elements, mods register their versions of components with priority-based resolution.
+The Component Registry provides a centralized system for registering and overriding UI components. Instead of using CSS/JS to "find and replace" elements, plugins register their versions of components with priority-based resolution.
 
 ## Overview
 
