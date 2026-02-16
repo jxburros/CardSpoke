@@ -431,4 +431,4 @@ window.CardSpoke.Plugin.register('my-mod', {
 
 - [Middleware Pipeline](./MIDDLEWARE_PIPELINE.md) - Intercept operations
 - [Component Registry](./COMPONENT_REGISTRY.md) - UI components
-- [Permissions](./PERMISSIONS.md) - Security model
+- [Mod System Documentation](../MOD_SYSTEM.md) - Complete mod system guide including permissions

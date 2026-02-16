@@ -83,11 +83,19 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and mod authors
 ## Mod Ecosystem
 - **Mod Manager:** Central UI for managing installed mods with tabs for viewing installed mods, installing new ones, and creating mods directly in-app.
 - **Three-layer system:** Theme (CSS only, lowest risk), Feature (CSS+JS, medium risk), and App (CSS+JS+overrides, highest risk) layers cover the full spectrum from visual tweaks to full app transformations.
+- **Modern Plugin API:** Sandboxed plugin contexts with `api.ui`, `api.data`, `api.storage`, and `api.events` for resource-managed mod development.
+- **Middleware Pipeline:** Priority-weighted interceptors that can wrap and modify core operations (card save, delete, render, etc.) with `ctx.preventDefault()` and `ctx.stopPropagation()` control.
+- **Component Registry:** Register and override UI components (`Card`, `CardEditor`, `Sidebar`, `SearchBar`, etc.) with priority-based resolution instead of fragile DOM manipulation.
+- **Storage Driver Registry:** Pluggable storage backends (IndexedDB, LocalStorage, LocalFile, Google Drive, OneDrive, WebDAV) with custom driver registration support.
+- **Permission System:** User consent dialogs for sensitive operations (ui-override, storage, network, filesystem, core-override) with explicit permission declarations.
+- **Resource Management:** Automatic tracking and cleanup of DOM elements, event listeners, and components when plugins are disabled.
 - **Override system:** App-layer mods can rename the app, hide/add menu items, inject custom pages, and disable built-in features.
-- **Hot reload:** Reload mods without restarting the app via `CardSpoke_MODS.reload()`.
+- **Hot reload:** Enable/disable mods without page refresh with full resource cleanup.
 - **Safe Mode:** Launch with `?safemode` URL parameter to disable all mods for troubleshooting.
 - **Risk assessment:** Automatic risk scoring based on layer and code analysis (network access, DOM manipulation, storage usage).
-- **Metadata transparency:** Every mod declares name, version, author, description, layer, and compatibility in its manifest.
+- **Metadata transparency:** Every mod declares name, version, author, description, layer, compatibility, and permissions in its manifest.
+- **Legacy compatibility:** Existing mods using `CardSpoke_MODS` hooks continue to work via automatic compatibility bridge.
+- **TypeScript support:** Full type definitions via `@cardspoke/core` package for type-safe mod development.
 - **Dev tools:** Inspect mods, view hook stats, access error logs, and manually test hooks.
 
 ## Accessibility Features

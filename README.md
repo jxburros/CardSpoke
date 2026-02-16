@@ -85,7 +85,6 @@ The mod system includes:
 - **Storage Driver Registry**: Pluggable storage backends (IndexedDB, cloud, git, etc.)
 - **Permission System**: User consent for sensitive operations with explicit permission requests
 - **TypeScript Support**: Full type definitions via `@cardspoke/core` package
-- **Dynamic Loading**: Load mods as ES modules with Vite/ESBuild
 
 ### Quick Example
 

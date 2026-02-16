@@ -30,6 +30,14 @@ The mod system has been modernized with a new architecture featuring:
 
 ### Modern Plugin Format (Recommended)
 
+**Choose your format based on your use case:**
+- **ES6 Module Format**: For development with bundlers (Vite/ESBuild) and modern JavaScript workflows
+- **Runtime Registration Format**: For direct browser usage without a build step
+
+#### ES6 Module Format (for development with Vite/ESBuild)
+
+This format is ideal for TypeScript projects and modern JavaScript development. It requires a build step to bundle into the runtime registration format.
+
 ```javascript
 export default {
   manifest: {
@@ -50,6 +58,35 @@ export default {
   css: "/* Optional CSS */"
 };
 ```
+
+Used in: `sample-mods/new-api/` examples
+
+#### Runtime Registration Format (for direct browser usage)
+
+This format works directly in the browser without any build step. Use this for quick prototyping or when bundlers are not available.
+
+```javascript
+window.CardSpoke.Plugin.register('my-mod', {
+  manifest: {
+    name: "My Mod",
+    version: "1.0.0",
+    author: "Author Name",
+    description: "What this mod does",
+    layer: "theme | feature | app",
+    compatibility: ">=0.16.0",
+    permissions: ["ui-override", "storage"]
+  },
+  setup: async (ctx) => {
+    // Plugin initialization with ctx.api
+  },
+  teardown: async (ctx) => {
+    // Cleanup (resources auto-managed)
+  },
+  css: "/* Optional CSS */"
+});
+```
+
+Used in: Direct browser `<script>` tags or inline code
 
 ### Legacy JSON Format (Still Supported)
 
@@ -458,30 +495,6 @@ The `metadata` field is preserved during:
 - Export/import
 - Duplication
 - Search indexing
-
-## Dynamic Module Loading
-
-Load mods as ES modules with Vite/ESBuild:
-
-```javascript
-// Load from URL
-const mod = await window.CardSpoke.ModLoader.loadFromURL('https://example.com/my-mod.js');
-
-// Load from manifest
-await window.CardSpoke.ModLoader.loadManifest('https://example.com/mods/manifest.json');
-```
-
-Manifest format:
-```json
-{
-  "mods": [
-    {
-      "id": "my-mod",
-      "url": "https://example.com/mods/my-mod.js"
-    }
-  ]
-}
-```
 
 ## TypeScript Support
 
