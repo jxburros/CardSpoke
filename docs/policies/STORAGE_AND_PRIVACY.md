@@ -20,14 +20,15 @@ CardSpoke is local-first. Users own their data, and the app does not silently sy
 
 ## Security Considerations
 - Validate file types and sizes before writing to disk.
-- Avoid storing secrets in LocalStorage; prefer secure platform stores where available ([PLACEHOLDER] platform secret-store guidance).
+- Avoid storing secrets in LocalStorage; prefer secure platform stores where available (Capacitor Preferences for non-sensitive app prefs, and OS-level secure stores/Keychain/Keystore for credentials when added).
 - Document any encryption used for local caches or exports.
 
 ## Incident Response
 - If a mod or Deviation corrupts data, guide users to restore from backups or exports.
 - Provide steps for clearing caches (LocalStorage/IndexedDB) without losing user backups.
 
-## Open Items
-- [PLACEHOLDER] Recommended backup cadence and storage formats.
-- [PLACEHOLDER] Preferred encrypted export format if adopted.
+## Backup & Export Guidance
+- Recommended backup cadence: before major edits/imports/mod installs, and at regular intervals for active datasets.
+- Supported backup/export formats in current app flows: JSON, CSV, Markdown, TXT.
+- Encryption-at-export is not built in yet; users handling sensitive data should encrypt exported files using trusted external tools before sharing or cloud sync.
 

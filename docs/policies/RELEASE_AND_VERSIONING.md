@@ -32,7 +32,8 @@ CardSpoke differentiates between core updates and mod-driven changes. Use these 
 - When merging mods into a baked build, document exactly which versions are included.
 - Provide a reproducible manifest so users can rebuild or unbake if needed.
 
-## Open Items
-- [PLACEHOLDER] Preferred changelog format (e.g., Keep a Changelog).
-- [PLACEHOLDER] Distribution channels for official releases and how to submit release candidates.
+## Changelog & Distribution
+- Changelog format: keep entries grouped by Added / Changed / Fixed / Removed, and explicitly call out schema-impacting changes.
+- Official release/distribution channel for source and issues: the main GitHub repository.
+- Release candidates should be shared as tagged pre-releases (or clearly marked branch builds) with test notes and rollback guidance.
 

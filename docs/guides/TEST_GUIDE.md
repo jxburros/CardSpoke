@@ -32,7 +32,8 @@ CardSpoke uses `uvu` for automated tests. This guide covers how to run and write
 - Document failing tests with repro steps and environment info (Node version, active mods, schemaVersion).
 - Include logs from Capacitor platforms when failures are platform-specific.
 
-## Open Items
-- [PLACEHOLDER] Coverage targets and thresholds.
-- [PLACEHOLDER] Guidance for snapshot/DOM testing setup (if adopted).
+## Coverage & Scope
+- Current baseline is the `npm test` uvu suite in `tests/`, which covers core data model behavior, navigation/search flows, storage drivers, tags, links/backlinks, and mod samples.
+- Add regression tests for every bug fix that changes card state, schema behavior, storage behavior, or mod/runtime APIs.
+- Snapshot/DOM test tooling is not currently configured; prefer deterministic unit/behavior tests unless a future test runner is introduced.
 
