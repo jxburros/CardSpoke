@@ -545,8 +545,6 @@
           dirty = true;
         };
         const addBlockPrefix = (prefix) => {
-          const lines = bodyTextarea.value.split(/\n/);
-          lines.push();
           const cursor = bodyTextarea.selectionStart;
           const value = bodyTextarea.value;
           const before = value.slice(0, cursor);
@@ -1109,7 +1107,7 @@
 
       menu.dataHub.onclick = () => {
         menu.overlay.classList.remove('show');
-        showDataHub();
+        showDatasetInfo();
       };
 
       menu.clearAll.onclick = () => {

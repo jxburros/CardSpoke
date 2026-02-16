@@ -123,6 +123,7 @@ function cloneCard(card) {
   return {
     ...card,
     children: Array.isArray(card.children) ? card.children.slice() : [],
+    tags: Array.isArray(card.tags) ? card.tags.slice() : [],
     modsData
   };
 }
