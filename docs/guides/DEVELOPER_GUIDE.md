@@ -46,9 +46,9 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 - Keep the code ultra-light; avoid unnecessary dependencies and heavy abstractions.
 - Do not silently collect or transmit user data; any remote integration must be explicit and opt-in.
 - Prefer pure, deterministic functions; make side effects explicit.
-- Add hooks/events instead of baking in narrow features; plugins should be able to compose behavior. Use the existing event bus and hook runner exposed via `CardSpoke.Plugin` instead of ad-hoc globals.
+- Use middleware pipeline and event bus for extensibility; plugins should be able to compose behavior. Use the existing event bus and middleware system exposed via `CardSpoke.Plugin` and `CardSpoke.Middleware` instead of ad-hoc globals.
 - Avoid try/catch around imports; let module resolution fail loudly.
-- Maintain clear separation between core logic and angled content (plugins).
+- Maintain clear separation between core logic and plugin content.
 
 ## Testing
 - Use `uvu` (`npm test`) for fast unit/behavioral coverage.

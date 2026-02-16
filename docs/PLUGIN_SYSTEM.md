@@ -54,7 +54,7 @@ export default {
 };
 ```
 
-Used in: `sample-plugins/new-api/` examples
+**Note:** See `sample-plugins/` for working examples
 
 #### Runtime Registration Format (for direct browser usage)
 
