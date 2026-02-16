@@ -30,7 +30,14 @@ The mod system has been modernized with a new architecture featuring:
 
 ### Modern Plugin Format (Recommended)
 
-**ES6 Module Format (for development with Vite/ESBuild):**
+**Choose your format based on your use case:**
+- **ES6 Module Format**: For development with bundlers (Vite/ESBuild) and modern JavaScript workflows
+- **Runtime Registration Format**: For direct browser usage without a build step
+
+#### ES6 Module Format (for development with Vite/ESBuild)
+
+This format is ideal for TypeScript projects and modern JavaScript development. It requires a build step to bundle into the runtime registration format.
+
 ```javascript
 export default {
   manifest: {
@@ -52,7 +59,12 @@ export default {
 };
 ```
 
-**Runtime Registration Format:**
+Used in: `sample-mods/new-api/` examples
+
+#### Runtime Registration Format (for direct browser usage)
+
+This format works directly in the browser without any build step. Use this for quick prototyping or when bundlers are not available.
+
 ```javascript
 window.CardSpoke.Plugin.register('my-mod', {
   manifest: {
@@ -74,7 +86,7 @@ window.CardSpoke.Plugin.register('my-mod', {
 });
 ```
 
-**Note:** The ES6 module format is used in the `sample-mods/new-api/` examples and requires a build step with Vite/ESBuild. For direct browser usage, use the runtime registration format with `window.CardSpoke.Plugin.register()`.
+Used in: Direct browser `<script>` tags or inline code
 
 ### Legacy JSON Format (Still Supported)
 
