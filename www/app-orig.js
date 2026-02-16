@@ -46,20 +46,20 @@
       const APP_RELEASE_DATE = '2025-12-01'; // <-- AI: UPDATE THIS
       const APP_UPDATER = 'GPT-5.1-Codex-Max'; // <-- AI: UPDATE THIS
       // Version 0.8.2: Responsive layout, fully migrated to Capacitor, Navigator Suite integrated
-      // Version 0.9.1: Added user-facing error notifications for mod execution failures
+      // Version 0.9.1: Added user-facing error notifications for plugin execution failures
       // Version 0.9.2: Added comprehensive keyboard shortcuts system (Ctrl+/ for help)
       // Version 0.9.3: Previous updates
       // Version 0.9.4: Added StorageDriver architecture, Dataset Info Panel, storage analytics
       // Version 0.10.5: Implemented Tags API (getTags, addTag, removeTag, setTags, getAllTags) with comprehensive tests
       // Version 0.10.6: Multi-Dataset Search - search across multiple datasets simultaneously
       // Version 0.11.0: Mega Showrunner - Backlinks, Related Cards, Enhanced Exports, and many more features
-      // Version 0.11.1: Exposed CardSpoke.utils API for mod developers with comprehensive utility functions
-      // Version 0.11.2: Added Extension Wizard and Playground for mod developers
+      // Version 0.11.1: Exposed CardSpoke.utils API for plugin developers with comprehensive utility functions
+      // Version 0.11.2: Added Extension Wizard and Playground for plugin developers
       
       // --- CORE APP STATE ---
       const SCHEMA_VERSION = 4; // Schema version (updated for v0.7+)
       let instanceKey = localStorage.getItem('activeInstance') || 'nested_cards_store';
-      let store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' }; // Main data store
+      let store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' }; // Main data store
       let navState = { page: 'list', cardId: null, parentId: null, searchQuery: '' }; // Navigation state
       let navHistory = []; // Navigation history for back button
       let dirty = false; // Tracks unsaved changes
@@ -123,7 +123,7 @@
         importLocationSelectDOCX: document.getElementById('importLocationSelectDOCX'),
         fileUploadAreaMods: document.getElementById('fileUploadAreaMods'),
         fileInputMods: document.getElementById('fileInputMods'),
-        // Mod install fields
+        // Plugin install fields
         manualModName: document.getElementById('manualModName'),
         manualModCreator: document.getElementById('manualModCreator'),
         manualModVersion: document.getElementById('manualModVersion'),
@@ -1038,7 +1038,7 @@
         const key = instanceKey || 'nested_cards_store';
         const raw = localStorage.getItem(key);
         if (!raw) {
-          store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
+          store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
           save();
           return;
         }
@@ -1047,7 +1047,7 @@
           store = {
             rootOrder: parsed.rootOrder || [],
             cards: parsed.cards || {},
-            mods: parsed.mods || {},
+            plugins: parsed.plugins || {},
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
             viewMode: parsed.viewMode || 'normal',
@@ -1125,11 +1125,11 @@
         }
       }
       
-      // --- MODS API ---
+      // --- PLUGINS API ---
       
       // =============================================================
-      // --- MOD SYSTEM ---
-      // CardSpoke's extension/mod system allows users to add custom
+      // --- PLUGIN SYSTEM ---
+      // CardSpoke's extension/plugin system allows users to add custom
       // functionality through JavaScript hooks and CSS styles.
       // =============================================================
       
@@ -1139,29 +1139,29 @@
         * =============================================================
         * 
         * Extensions can register hooks to execute custom code at key points
-        * in the application lifecycle. Use CardSpoke_MODS.register() to add hooks.
+        * in the application lifecycle. Use CardSpoke_PLUGINS.register() to add hooks.
         * 
         * IMPLEMENTED HOOKS:
         * ------------------
         * @hook onAppInit(context)
-        *   Called once when app initializes or when a mod is first loaded.
+        *   Called once when app initializes or when a plugin is first loaded.
         *   Use for setup, initialization, or registering global handlers.
-        *   @param {Object} context - Mod execution context
+        *   @param {Object} context - Plugin execution context
         * 
         * @hook onCardSave(context, card, saveInfo)
         *   Called whenever a card is created or updated.
-        *   @param {Object} context - Mod execution context
+        *   @param {Object} context - Plugin execution context
         *   @param {Object} card - Card data (cloned, read-only)
         *   @param {Object} saveInfo - { isNew: boolean, source: string }
         * 
         * @hook onCardDelete(context, card)
         *   Called when a card is deleted.
-        *   @param {Object} context - Mod execution context
+        *   @param {Object} context - Plugin execution context
         *   @param {Object} card - Card data before deletion (cloned)
         * 
         * @hook onCardRender(context, card, element)
         *   Called after a card is rendered to the DOM.
-        *   @param {Object} context - Mod execution context
+        *   @param {Object} context - Plugin execution context
         *   @param {Object} card - Card data (cloned)
         *   @param {HTMLElement} element - Card DOM element
         * 
@@ -1169,43 +1169,43 @@
         * -----------------------
         * @hook onNavigate(context, navState)
         *   Called when navigation state changes (planned for v0.10.1)
-        *   @param {Object} context - Mod execution context
+        *   @param {Object} context - Plugin execution context
         *   @param {Object} navState - { page, cardId, parentId, searchQuery }
         * 
         * @hook onSearch(context, query, results)
         *   Called when search is performed (planned for v0.10.2)
-        *   @param {Object} context - Mod execution context
+        *   @param {Object} context - Plugin execution context
         *   @param {string} query - Search query
         *   @param {Array} results - Array of matching cards
         * 
         * @hook onThemeChange(context, themeName)
         *   Called when theme is changed (planned for v0.10.2)
-        *   @param {Object} context - Mod execution context
+        *   @param {Object} context - Plugin execution context
         *   @param {string} themeName - Name of activated theme
         * 
         * @hook onExport(context, exportData)
         *   Called before data export (planned for v0.10.3)
-        *   @param {Object} context - Mod execution context
+        *   @param {Object} context - Plugin execution context
         *   @param {Object} exportData - Data being exported
         * 
         * @hook onImport(context, importData)
         *   Called after data import (planned for v0.10.3)
-        *   @param {Object} context - Mod execution context
+        *   @param {Object} context - Plugin execution context
         *   @param {Object} importData - Imported data structure
         */
 
-      const CardSpoke_MODS = (() => {
-        // Registry of loaded mods
+      const CardSpoke_PLUGINS = (() => {
+        // Registry of loaded plugins
         const registry = {};
-        // Map of mod IDs to their <style> tags
+        // Map of plugin IDs to their <style> tags
         const styleTags = {};
-        // Set of mods that have run onAppInit
+        // Set of plugins that have run onAppInit
         const initializedMods = new Set();
 
         /**
-         * Ensure a mod is registered and executed
-         * @param {string} modId - Unique mod identifier
-         * @param {Object} modData - Mod data (js, css, meta)
+         * Ensure a plugin is registered and executed
+         * @param {string} modId - Unique plugin identifier
+         * @param {Object} modData - Plugin data (js, css, meta)
          * @returns {Object|null} Registry entry or null on failure
          */
         function ensureRegistered(modId, modData) {
@@ -1219,10 +1219,10 @@
           }
           try {
             registry[modId] = registry[modId] || { id: modId, hooks: {}, meta: {} };
-            const sourceURL = `\n//# sourceURL=${modId}.mod.js`;
+            const sourceURL = `\n//# sourceURL=${modId}.plugin.js`;
             const storeAPI = createStoreAPI(modId);
-            const runner = new Function('window', 'document', 'CardSpoke_MODS', 'storeAPI', 'console', modData.js + sourceURL);
-            runner(window, document, CardSpoke_MODS, storeAPI, console);
+            const runner = new Function('window', 'document', 'CardSpoke_PLUGINS', 'storeAPI', 'console', modData.js + sourceURL);
+            runner(window, document, CardSpoke_PLUGINS, storeAPI, console);
             if (modData.meta) registry[modId].meta = { ...modData.meta };
             registry[modId].__loaded = true;
             console.log(`[Extensions] Loaded: ${modId}`, modData.meta || {});
@@ -1237,14 +1237,14 @@
         }
 
         /**
-         * Inject mod CSS into the document
-         * @param {string} modId - Mod identifier
+         * Inject plugin CSS into the document
+         * @param {string} modId - Plugin identifier
          * @param {string} css - CSS code to inject
          */
         function ensureStyle(modId, css) {
           if (!css || styleTags[modId]) return;
           const tag = document.createElement('style');
-          tag.setAttribute('data-mod-style', modId);
+          tag.setAttribute('data-plugin-style', modId);
           tag.textContent = css;
           document.head.appendChild(tag);
           styleTags[modId] = tag;
@@ -1252,8 +1252,8 @@
         }
 
         /**
-         * Remove mod CSS from the document
-         * @param {string} modId - Mod identifier
+         * Remove plugin CSS from the document
+         * @param {string} modId - Plugin identifier
          */
         function removeStyle(modId) {
           const tag = styleTags[modId];
@@ -1265,8 +1265,8 @@
         }
 
         /**
-         * Create API object for mod to interact with app
-         * @param {string} modId - Mod identifier
+         * Create API object for plugin to interact with app
+         * @param {string} modId - Plugin identifier
          * @returns {Object} API object with safe methods
          */
         function createStoreAPI(modId) {
@@ -1315,8 +1315,8 @@
         }
 
         /**
-         * Build context object passed to mod hooks
-         * @param {string} modId - Mod identifier
+         * Build context object passed to plugin hooks
+         * @param {string} modId - Plugin identifier
          * @returns {Object} Context with modId, versions, and API
          */
         function buildContext(modId) {
@@ -1329,26 +1329,26 @@
         }
 
         // --- PUBLIC MOD API ---
-        // The following methods are exposed for mod management
+        // The following methods are exposed for plugin management
         
         return {
           registry,
           _registry: registry,
           
           /**
-           * Register a mod with hooks
+           * Register a plugin with hooks
            * Available hooks:
            * - onAppInit(ctx): Called when app initializes
            * - onCardRender(ctx, cardId, element): Called when card is rendered
            * - onCardSave(ctx, card, changes): Called when card is saved
            * - onCardDelete(ctx, cardId): Called when card is deleted
            * 
-           * @param {string} modId - Unique mod identifier
-           * @param {Object} definition - Mod definition with hooks and meta
+           * @param {string} modId - Unique plugin identifier
+           * @param {Object} definition - Plugin definition with hooks and meta
            * @returns {Object} Registry entry
            */
           register(modId, definition = {}) {
-            if (!modId) throw new Error('CardSpoke_MODS.register requires a mod id');
+            if (!modId) throw new Error('CardSpoke_PLUGINS.register requires a plugin id');
             const entry = registry[modId] || { id: modId, hooks: {}, meta: {} };
             entry.hooks = {
               onAppInit: typeof definition.onAppInit === 'function' ? definition.onAppInit : entry.hooks.onAppInit,
@@ -1362,7 +1362,7 @@
             return entry;
           },
           enable(modId) {
-            const modData = store.mods[modId];
+            const modData = store.plugins[modId];
             if (!modData) return false;
             modData.enabled = true;
             ensureStyle(modId, modData.css);
@@ -1374,7 +1374,7 @@
             return true;
           },
           disable(modId) {
-            const modData = store.mods[modId];
+            const modData = store.plugins[modId];
             if (!modData) return false;
             modData.enabled = false;
             removeStyle(modId);
@@ -1384,21 +1384,21 @@
           },
           syncFromStore() {
             Object.keys(registry).forEach(modId => {
-              if (!store.mods[modId]) {
+              if (!store.plugins[modId]) {
                 removeStyle(modId);
                 initializedMods.delete(modId);
                 delete registry[modId];
               }
             });
-            Object.entries(store.mods).forEach(([modId, modData]) => {
+            Object.entries(store.plugins).forEach(([modId, modData]) => {
               if (!modData.enabled) return;
               ensureStyle(modId, modData.css);
               ensureRegistered(modId, modData);
             });
           },
           runHook(hookName, ...args) {
-            Object.keys(store.mods).forEach(modId => {
-              const modData = store.mods[modId];
+            Object.keys(store.plugins).forEach(modId => {
+              const modData = store.plugins[modId];
               if (!modData.enabled) return;
               const entry = registry[modId];
               if (!entry || !entry.__loaded || !entry.hooks[hookName]) return;
@@ -1407,38 +1407,38 @@
                 entry.hooks[hookName](buildContext(modId), ...args);
                 if (hookName === 'onAppInit') initializedMods.add(modId);
               } catch (err) {
-                console.error(`[Mods] Error in ${modId}.${hookName}:`, err);
+                console.error(`[Plugins] Error in ${modId}.${hookName}:`, err);
                 showToast(`Extension error: ${modId} (${hookName})`, 'error');
               }
             });
           },
           listMods() {
-            return Object.keys(store.mods).map(id => ({
+            return Object.keys(store.plugins).map(id => ({
               id,
-              enabled: !!store.mods[id]?.enabled,
-              meta: store.mods[id]?.meta || {}
+              enabled: !!store.plugins[id]?.enabled,
+              meta: store.plugins[id]?.meta || {}
             }));
           }
         };
       })();
 
-      window.CardSpoke_MODS = CardSpoke_MODS;
+      window.CardSpoke_PLUGINS = CardSpoke_PLUGINS;
       window.CardSpoke = window.CardSpoke || {};
-      window.CardSpoke.mods = CardSpoke_MODS;
+      window.CardSpoke.plugins = CardSpoke_PLUGINS;
       // Backwards compatibility for legacy CIB-based extensions and tooling
       window.CIB = window.CIB || window.CardSpoke;
-      window.CIB_MODS = CardSpoke_MODS;
+      window.CIB_MODS = CardSpoke_PLUGINS;
 
       // =============================================================
       // --- CardSpoke.utils API ---
-      // Public utility API for mod developers
+      // Public utility API for plugin developers
       // Exposed as window.CardSpoke.utils
       // =============================================================
       
       /**
        * CardSpoke.utils - Public utility API for extension developers
        * 
-       * Provides a safe, documented API for mods to interact with CardSpoke data and UI.
+       * Provides a safe, documented API for plugins to interact with CardSpoke data and UI.
        * All functions handle errors gracefully and maintain data integrity.
        * 
        * @namespace CardSpoke.utils
@@ -1646,7 +1646,7 @@
               rootCardCount: store.rootOrder.length,
               bookmarkCount: (store.bookmarks || []).length,
               recentCount: (store.recentCards || []).length,
-              modCount: Object.keys(store.mods || {}).length,
+              modCount: Object.keys(store.plugins || {}).length,
               schemaVersion: SCHEMA_VERSION,
               appVersion: APP_VERSION
             };
@@ -1715,11 +1715,11 @@
       // Legacy compatibility for extensions targeting the former CIB namespace
       window.CIB = window.CIB || {};
       window.CIB.utils = window.CardSpoke.utils;
-      window.CIB.mods = window.CardSpoke_MODS || CardSpoke_MODS;
+      window.CIB.plugins = window.CardSpoke_PLUGINS || CardSpoke_PLUGINS;
 
 
       function runModHook(hookName, ...args) {
-        CardSpoke_MODS.runHook(hookName, ...args);
+        CardSpoke_PLUGINS.runHook(hookName, ...args);
       }
 
       // --- DATA (CRUD) ---
@@ -1730,7 +1730,7 @@
        * @param {string} body - Card content/body
        * @param {string|null} parentId - Parent card ID or null for root
        * @param {boolean} skipSave - Skip saving to localStorage
-       * @param {boolean} skipHooks - Skip running mod hooks
+       * @param {boolean} skipHooks - Skip running plugin hooks
        * @returns {string} New card ID
        */
       function createCard(title, body, parentId = null, skipSave = false, skipHooks = false) {
@@ -1765,7 +1765,7 @@
        * @param {string} id - Card ID to update
        * @param {Object} updates - Fields to update
        * @param {boolean} skipSave - Skip saving to localStorage
-       * @param {boolean} skipHooks - Skip running mod hooks
+       * @param {boolean} skipHooks - Skip running plugin hooks
        */
       function updateCard(id, updates, skipSave = false, skipHooks = false) {
         const card = store.cards[id];
@@ -1943,14 +1943,14 @@
             timestamp: Date.now(),
             cards: store.cards,
             rootIds: store.rootOrder,
-            mods: store.mods
+            plugins: store.plugins
           };
-        } else if (type === 'mods') {
+        } else if (type === 'plugins') {
           data = {
-            exportType: 'mods',
+            exportType: 'plugins',
             appVersion: APP_VERSION,
             timestamp: Date.now(),
-            mods: store.mods
+            plugins: store.plugins
           };
         }
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2057,7 +2057,7 @@
       function handleExport(type) {
         if (type === 'instance-json') exportJSON('instance');
         else if (type === 'instance-txt') exportTXT();
-        else if (type === 'mods-json') exportJSON('mods');
+        else if (type === 'plugins-json') exportJSON('plugins');
       }
 
       function importJSON(data, mode = 'root') {
@@ -2109,23 +2109,23 @@
           }
         }
         
-        if (pkg.exportType === 'instance' && pkg.mods) {
-          Object.entries(pkg.mods).forEach(([modId, mod]) => {
-            if (!store.mods[modId]) {
-              store.mods[modId] = {
-                enabled: !!mod.enabled,
-                js: mod.js || '',
-                css: mod.css || '',
-                meta: mod.meta ? { ...mod.meta } : {}
+        if (pkg.exportType === 'instance' && pkg.plugins) {
+          Object.entries(pkg.plugins).forEach(([modId, plugin]) => {
+            if (!store.plugins[modId]) {
+              store.plugins[modId] = {
+                enabled: !!plugin.enabled,
+                js: plugin.js || '',
+                css: plugin.css || '',
+                meta: plugin.meta ? { ...plugin.meta } : {}
               };
             }
           });
         }
         
         save();
-        if (window.CardSpoke_MODS && !safeMode) {
-          window.CardSpoke_MODS.syncFromStore();
-          window.CardSpoke_MODS.runHook('onAppInit');
+        if (window.CardSpoke_PLUGINS && !safeMode) {
+          window.CardSpoke_PLUGINS.syncFromStore();
+          window.CardSpoke_PLUGINS.runHook('onAppInit');
         }
         
         importedIds.forEach(cardId => {
@@ -2275,8 +2275,8 @@
                   instanceKey = key;
                   load();
                   if (!safeMode) {
-                    CardSpoke_MODS.syncFromStore();
-                    CardSpoke_MODS.runHook('onAppInit');
+                    CardSpoke_PLUGINS.syncFromStore();
+                    CardSpoke_PLUGINS.runHook('onAppInit');
                   }
                   render();
                   overlay.remove();
@@ -2301,8 +2301,8 @@
                     localStorage.setItem('activeInstance', otherKey);
                     instanceKey = otherKey;
                     load();
-                    CardSpoke_MODS.syncFromStore();
-                    CardSpoke_MODS.runHook('onAppInit');
+                    CardSpoke_PLUGINS.syncFromStore();
+                    CardSpoke_PLUGINS.runHook('onAppInit');
                     render();
                   }
                   overlay.remove();
@@ -2428,7 +2428,7 @@
             // The DatasetManager classes are in place for future enhancement
             localStorage.setItem('activeInstance', newKey);
             instanceKey = newKey;
-            store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
+            store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
             save();
             render();
             overlay.remove();
@@ -2503,7 +2503,7 @@
         
         if (store) {
           cardCount = Object.keys(store.cards || {}).length;
-          modCount = Object.keys(store.mods || {}).length;
+          modCount = Object.keys(store.plugins || {}).length;
           bookmarkCount = (store.bookmarks || []).length;
           recentCount = (store.recentCards || []).length;
         }
@@ -2588,7 +2588,7 @@
         modal.appendChild(modalHeader);
         const modalBody = h('div', { className: 'modal-body' });
         
-        const modList = Object.entries(store.mods).map(([modId, modData]) => {
+        const modList = Object.entries(store.plugins).map(([modId, modData]) => {
           const meta = modData.meta || {};
           const modItem = h('div', { style: 'padding: var(--space-lg); border: 1px solid var(--border); margin-bottom: var(--space-md);' });
           const modHeader = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
@@ -2604,8 +2604,8 @@
           const toggleBtn = h('button', {
             className: modData.enabled ? 'btn btn-danger' : 'btn btn-primary',
             onclick: () => {
-              if (modData.enabled) CardSpoke_MODS.disable(modId);
-              else CardSpoke_MODS.enable(modId);
+              if (modData.enabled) CardSpoke_PLUGINS.disable(modId);
+              else CardSpoke_PLUGINS.enable(modId);
               overlay.remove();
               showModsManager();
             }
@@ -2613,7 +2613,7 @@
           modHeader.appendChild(toggleBtn);
           modItem.appendChild(modHeader);
           
-          // *** ADDED: Display new mod metadata ***
+          // *** ADDED: Display new plugin metadata ***
           if (meta.version) {
             modItem.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, `Version: ${meta.version}`));
           }
@@ -2632,8 +2632,8 @@
             style: 'font-size: var(--text-sm); margin-top: var(--space-md);',
             onclick: () => {
               if (confirm(`Delete extension "${meta.name || modId}"?`)) {
-                CardSpoke_MODS.disable(modId);
-                delete store.mods[modId];
+                CardSpoke_PLUGINS.disable(modId);
+                delete store.plugins[modId];
                 save();
                 overlay.remove();
                 showModsManager();
@@ -2684,7 +2684,7 @@
           { value: 'theme', label: 'Theme', desc: 'Custom CSS styling for CardSpoke UI', icon: '' },
           { value: 'patch', label: 'Patch', desc: 'Small modifications or enhancements', icon: '' },
           { value: 'plugin', label: 'Plugin', desc: 'Add new functionality with JavaScript hooks', icon: '' },
-          { value: 'mod', label: 'Mod', desc: 'Comprehensive modifications (CSS + JS)', icon: '' },
+          { value: 'plugin', label: 'Plugin', desc: 'Comprehensive modifications (CSS + JS)', icon: '' },
           { value: 'expansion', label: 'Expansion', desc: 'Major feature additions and overhauls', icon: '' }
         ];
         
@@ -2847,7 +2847,7 @@
               showToast('Extension ID must be lowercase letters, numbers, and hyphens only', 'error');
               return;
             }
-            if (store.mods[id]) {
+            if (store.plugins[id]) {
               showToast('An extension with this ID already exists', 'error');
               return;
             }
@@ -2884,7 +2884,7 @@
   // Theme extensions primarily use CSS
   // This file can be left minimal or used for dynamic theme switching
   
-  CardSpoke_MODS.register('${id}', {
+  CardSpoke_PLUGINS.register('${id}', {
     meta: {
       name: '${name}',
       type: 'Theme',
@@ -2905,7 +2905,7 @@
 (function() {
   'use strict';
   
-  CardSpoke_MODS.register('${id}', {
+  CardSpoke_PLUGINS.register('${id}', {
     meta: {
       name: '${name}',
       type: 'Patch',
@@ -2925,14 +2925,14 @@
   });
 })();`;
         } else {
-          // Plugin, Mod, or Expansion
+          // Plugin, Plugin, or Expansion
           jsTemplate = `// ${name} - ${type.charAt(0).toUpperCase() + type.slice(1)} Extension
 // Created: ${today}
 
 (function() {
   'use strict';
   
-  CardSpoke_MODS.register('${id}', {
+  CardSpoke_PLUGINS.register('${id}', {
     meta: {
       name: '${name}',
       type: '${type.charAt(0).toUpperCase() + type.slice(1)}',
@@ -3070,7 +3070,7 @@
         const installBtn = h('button', {
           className: 'btn btn-primary',
           onclick: () => {
-            store.mods[id] = {
+            store.plugins[id] = {
               meta: {
                 name,
                 type: type.charAt(0).toUpperCase() + type.slice(1),
@@ -4573,7 +4573,7 @@ console.log('✓ All examples completed!');
         const sunIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
         if (header.themeToggle) header.themeToggle.innerHTML = theme === 'dark' ? sunIcon : moonIcon;
         
-        // Run mod hook
+        // Run plugin hook
         runModHook('onThemeChange', theme);
       }
       
@@ -4820,7 +4820,7 @@ console.log('✓ All examples completed!');
 
       menu.downloadMods.onclick = () => {
         menu.overlay.classList.remove('show');
-        handleExport('mods-json');
+        handleExport('plugins-json');
       };
 
       menu.clearAll.onclick = () => {
@@ -4945,7 +4945,7 @@ console.log('✓ All examples completed!');
             if (file.name.endsWith('.json')) {
               modData = JSON.parse(reader.result);
             } else if (file.name.endsWith('.js')) {
-              const modId = prompt('Enter mod ID:', file.name.replace('.js', ''));
+              const modId = prompt('Enter plugin ID:', file.name.replace('.js', ''));
               if (!modId) return;
               modData = {
                 id: modId,
@@ -4956,18 +4956,18 @@ console.log('✓ All examples completed!');
             }
             if (modData) {
               const modId = modData.id || uid();
-              store.mods[modId] = {
+              store.plugins[modId] = {
                 enabled: false,
                 js: modData.js || '',
                 css: modData.css || '',
                 meta: modData.meta || { name: modId } // Ensure meta exists
               };
               save();
-              showToast('Mod installed: ' + (modData.meta.name || modId));
+              showToast('Plugin installed: ' + (modData.meta.name || modId));
               uploadModal.overlay.classList.remove('show');
             }
           } catch (err) {
-            showToast('Failed to install mod: ' + err.message, 'error');
+            showToast('Failed to install plugin: ' + err.message, 'error');
           }
         };
         reader.readAsText(file);
@@ -4984,11 +4984,11 @@ console.log('✓ All examples completed!');
         const modReleaseDate = uploadModal.manualModReleaseDate.value.trim();
 
         if (!modName || !modJS) {
-          showToast('Please provide mod name and JS code', 'error');
+          showToast('Please provide plugin name and JS code', 'error');
           return;
         }
         const modId = modName.replace(/\s+/g, '-').toLowerCase();
-        store.mods[modId] = {
+        store.plugins[modId] = {
           enabled: false,
           js: modJS,
           css: modCSS,
@@ -5000,7 +5000,7 @@ console.log('✓ All examples completed!');
           }
         };
         save();
-        showToast('Mod installed: ' + modName);
+        showToast('Plugin installed: ' + modName);
         uploadModal.overlay.classList.remove('show');
         
         // *** ADDED: Clear new fields ***
@@ -5388,8 +5388,8 @@ console.log('✓ All examples completed!');
         showToast('Safe Mode Active - Extensions Disabled', 'warning');
       }
       
-      if (!safeMode) CardSpoke_MODS.syncFromStore();        // Initialize mods from store (skip in safe mode)
-      if (!safeMode) CardSpoke_MODS.runHook('onAppInit');   // Run mod initialization hooks (skip in safe mode)
+      if (!safeMode) CardSpoke_PLUGINS.syncFromStore();        // Initialize plugins from store (skip in safe mode)
+      if (!safeMode) CardSpoke_PLUGINS.runHook('onAppInit');   // Run plugin initialization hooks (skip in safe mode)
       render();                        // Initial render
 
       // Warn user about unsaved changes before leaving

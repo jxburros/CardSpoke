@@ -42,7 +42,7 @@ All documentation is organized in the `docs/` folder:
 
 ### Guides
 - [Developer Guide](./docs/guides/DEVELOPER_GUIDE.md) – Core app development workflow and conventions
-- [Code & Plugin System Handbook](./docs/guides/CODE_AND_MOD_SYSTEM_HANDBOOK.md) – End-to-end architecture and plugin development deep dive
+- [Code & Plugin System Handbook](./docs/guides/CODE_AND_PLUGIN_SYSTEM_HANDBOOK.md) – End-to-end architecture and plugin development deep dive
 - [Test Guide](./docs/guides/TEST_GUIDE.md) – Testing practices and commands
 - [Capacitor Guide](./docs/guides/README.CAPACITOR.md) – Mobile platform workflows
 - [Deviation Guide](./docs/guides/DEVIATION_GUIDE.md) – Rules for forks and derivatives
@@ -55,7 +55,7 @@ All documentation is organized in the `docs/` folder:
 - [Storage Driver Interface](./docs/api/STORAGE_DRIVER_INTERFACE.md) – Storage abstraction contracts
 
 ### Plugin System
-- [Plugin System Overview](./docs/MOD_SYSTEM.md) – Complete plugin system documentation
+- [Plugin System Overview](./docs/PLUGIN_SYSTEM.md) – Complete plugin system documentation
 
 ### Policies
 - [Code of Conduct](./docs/policies/CODE_OF_CONDUCT.md) – Community standards
@@ -105,7 +105,7 @@ window.CardSpoke.Plugin.register('my-plugin', {
 });
 ```
 
-See [Plugin System Documentation](./docs/MOD_SYSTEM.md) for complete details.
+See [Plugin System Documentation](./docs/PLUGIN_SYSTEM.md) for complete details.
 
 ## Deviation (Fork) Rules
 Deviations are forks/derivatives that must not use the "CardSpoke" name or branding. They must include mandatory metadata, clear credit to CardSpoke and JX Holdings, and avoid implying official endorsement.
@@ -114,7 +114,7 @@ Deviations are forks/derivatives that must not use the "CardSpoke" name or brand
 CardSpoke is local-first (LocalStorage/IndexedDB). Preferences (rich text, grid view, typography, high-contrast, dev mode) live under `cardspoke_*` keys in LocalStorage. Datasets are namespaced to allow multiple vaults with their own metadata, and backups are exported as JSON/CSV/Markdown/TXT directly from the UI. Optional off-device storage may be wired through integrations chosen by the user; no automatic sync or hosted data.
 
 ## Contributing
-- Follow plugin development practices in [Plugin System Overview](./docs/MOD_SYSTEM.md).
+- Follow plugin development practices in [Plugin System Overview](./docs/PLUGIN_SYSTEM.md).
 - Adhere to safety expectations in [Security & Safety Considerations](./docs/policies/SECURITY_AND_SAFETY.md).
 - Submit issues/PRs with clear metadata and changelog entries.
 - Respect branding restrictions (CardSpoke name/branding cannot be used in forks).

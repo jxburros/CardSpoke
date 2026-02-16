@@ -252,8 +252,8 @@ const plugin: PluginDefinition = {
 
 ## Files Modified (4)
 
-1. `www/src/02-storage-and-plugins.js` - Enhanced runModHook
-2. `docs/MOD_SYSTEM.md` - Added new architecture
+1. `www/src/02-storage-and-plugins.js` - Enhanced runPluginHook
+2. `docs/PLUGIN_SYSTEM.md` - Added new architecture
 3. `README.md` - Updated overview
 4. `package.json` - Added Vite scripts
 
