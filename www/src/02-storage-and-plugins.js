@@ -1516,7 +1516,7 @@
         const key = instanceKey || 'nested_cards_store';
         const raw = localStorage.getItem(key);
         if (!raw) {
-          store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
+          store = { rootOrder: [], cards: {}, mods: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
           save();
           return;
         }
@@ -1526,6 +1526,7 @@
             rootOrder: parsed.rootOrder || [],
             cards: parsed.cards || {},
             mods: parsed.mods || {},
+            plugins: parsed.plugins || {},
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
             viewMode: parsed.viewMode || 'normal',
@@ -1586,6 +1587,7 @@
                   rootOrder: parsedMirror.rootOrder || [],
                   cards: parsedMirror.cards || {},
                   mods: parsedMirror.mods || {},
+                  plugins: parsedMirror.plugins || {},
                   bookmarks: parsedMirror.bookmarks || [],
                   recentCards: parsedMirror.recentCards || [],
                   viewMode: parsedMirror.viewMode || 'normal',
@@ -1606,6 +1608,7 @@
                   rootOrder: parsedFile.rootOrder || [],
                   cards: parsedFile.cards || {},
                   mods: parsedFile.mods || {},
+                  plugins: parsedFile.plugins || {},
                   bookmarks: parsedFile.bookmarks || [],
                   recentCards: parsedFile.recentCards || [],
                   viewMode: parsedFile.viewMode || 'normal',

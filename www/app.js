@@ -840,6 +840,44 @@
 
       // Default to medium risk
       return 'MEDIUM';
+    },
+
+    /**
+     * Sync plugins from store during boot
+     * Loads registered plugins from store and enables them if not in safe mode
+     * @param {boolean} safeMode - If true, plugins are loaded but not enabled
+     */
+    syncFromStore: async function(safeMode) {
+      if (!window.store || !window.store.plugins) {
+        return;
+      }
+
+      const storedPlugins = window.store.plugins || {};
+      const pluginIds = Object.keys(storedPlugins);
+
+      if (pluginIds.length === 0) {
+        return;
+      }
+
+      console.log('[Plugin] Syncing', pluginIds.length, 'plugins from store');
+
+      for (const id of pluginIds) {
+        const pluginData = storedPlugins[id];
+        
+        try {
+          // Register the plugin
+          if (pluginData.definition) {
+            this.register(id, pluginData.definition);
+            
+            // Enable if not in safe mode and plugin was previously enabled
+            if (!safeMode && pluginData.enabled) {
+              await this.enable(id);
+            }
+          }
+        } catch (err) {
+          console.error('[Plugin] Failed to sync plugin', id, ':', err);
+        }
+      }
     }
   };
 
@@ -3394,7 +3432,7 @@ const header = {
         const key = instanceKey || 'nested_cards_store';
         const raw = localStorage.getItem(key);
         if (!raw) {
-          store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
+          store = { rootOrder: [], cards: {}, mods: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
           save();
           return;
         }
@@ -3404,6 +3442,7 @@ const header = {
             rootOrder: parsed.rootOrder || [],
             cards: parsed.cards || {},
             mods: parsed.mods || {},
+            plugins: parsed.plugins || {},
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
             viewMode: parsed.viewMode || 'normal',
@@ -3464,6 +3503,7 @@ const header = {
                   rootOrder: parsedMirror.rootOrder || [],
                   cards: parsedMirror.cards || {},
                   mods: parsedMirror.mods || {},
+                  plugins: parsedMirror.plugins || {},
                   bookmarks: parsedMirror.bookmarks || [],
                   recentCards: parsedMirror.recentCards || [],
                   viewMode: parsedMirror.viewMode || 'normal',
@@ -3484,6 +3524,7 @@ const header = {
                   rootOrder: parsedFile.rootOrder || [],
                   cards: parsedFile.cards || {},
                   mods: parsedFile.mods || {},
+                  plugins: parsedFile.plugins || {},
                   bookmarks: parsedFile.bookmarks || [],
                   recentCards: parsedFile.recentCards || [],
                   viewMode: parsedFile.viewMode || 'normal',
@@ -9244,41 +9285,48 @@ const header = {
       // Initialize and start the application
       // =============================================================
       
-      initToast();                       // Initialize toast container
-      load();                          // Load data from localStorage
-      populateFooter();                // Populate footer with metadata
-      updateDatasetSelector();         // Update dataset selector options
+      (async function() {
+        initToast();                       // Initialize toast container
+        load();                          // Load data from localStorage
+        populateFooter();                // Populate footer with metadata
+        updateDatasetSelector();         // Update dataset selector options
 
-      // Apply saved typography preset
-      const savedTypography = localStorage.getItem('cardspoke_typography') || 'default';
-      document.documentElement.setAttribute('data-typography', savedTypography);
+        // Apply saved typography preset
+        const savedTypography = localStorage.getItem('cardspoke_typography') || 'default';
+        document.documentElement.setAttribute('data-typography', savedTypography);
 
-      // Check for safe mode URL parameter (global for import/reset functions)
-      const urlParams = new URLSearchParams(window.location.search);
-      let safeMode = urlParams.has('safemode');
+        // Check for safe mode URL parameter (global for import/reset functions)
+        const urlParams = new URLSearchParams(window.location.search);
+        let safeMode = urlParams.has('safemode');
 
-      if (safeMode) {
-        console.warn('[Safe Mode] Mods disabled via ?safemode parameter');
-        showToast('Safe Mode Active - Mods Disabled', 'warning');
-      }
-
-      render();                        // Initial render
-      populateFooter();                // Re-populate footer to ensure it displays
-
-      // First-run detection (v1.0.0) - Show Getting Started guide if no cards exist
-      setTimeout(() => {
-        const hasSeenGettingStarted = localStorage.getItem('cardspoke_hasSeenGettingStarted');
-        const hasCards = Object.keys(store.cards || {}).length > 0;
-
-        if (!hasSeenGettingStarted && !hasCards) {
-          showGettingStarted();
+        if (safeMode) {
+          console.warn('[Safe Mode] Mods disabled via ?safemode parameter');
+          showToast('Safe Mode Active - Mods Disabled', 'warning');
         }
-      }, 500);
 
-      // Warn user about unsaved changes before leaving
-      window.addEventListener('beforeunload', (e) => {
-        if (dirty) {
-          e.preventDefault();
-          e.returnValue = '';
+        // Sync plugins from store after load() but before render()
+        if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
+          await window.CardSpoke.Plugin.syncFromStore(safeMode);
         }
-      });
+
+        render();                        // Initial render
+        populateFooter();                // Re-populate footer to ensure it displays
+
+        // First-run detection (v1.0.0) - Show Getting Started guide if no cards exist
+        setTimeout(() => {
+          const hasSeenGettingStarted = localStorage.getItem('cardspoke_hasSeenGettingStarted');
+          const hasCards = Object.keys(store.cards || {}).length > 0;
+
+          if (!hasSeenGettingStarted && !hasCards) {
+            showGettingStarted();
+          }
+        }, 500);
+
+        // Warn user about unsaved changes before leaving
+        window.addEventListener('beforeunload', (e) => {
+          if (dirty) {
+            e.preventDefault();
+            e.returnValue = '';
+          }
+        });
+      })();

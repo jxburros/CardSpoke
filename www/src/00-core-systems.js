@@ -840,6 +840,44 @@
 
       // Default to medium risk
       return 'MEDIUM';
+    },
+
+    /**
+     * Sync plugins from store during boot
+     * Loads registered plugins from store and enables them if not in safe mode
+     * @param {boolean} safeMode - If true, plugins are loaded but not enabled
+     */
+    syncFromStore: async function(safeMode) {
+      if (!window.store || !window.store.plugins) {
+        return;
+      }
+
+      const storedPlugins = window.store.plugins || {};
+      const pluginIds = Object.keys(storedPlugins);
+
+      if (pluginIds.length === 0) {
+        return;
+      }
+
+      console.log('[Plugin] Syncing', pluginIds.length, 'plugins from store');
+
+      for (const id of pluginIds) {
+        const pluginData = storedPlugins[id];
+        
+        try {
+          // Register the plugin
+          if (pluginData.definition) {
+            this.register(id, pluginData.definition);
+            
+            // Enable if not in safe mode and plugin was previously enabled
+            if (!safeMode && pluginData.enabled) {
+              await this.enable(id);
+            }
+          }
+        } catch (err) {
+          console.error('[Plugin] Failed to sync plugin', id, ':', err);
+        }
+      }
     }
   };
 
