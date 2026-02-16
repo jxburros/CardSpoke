@@ -159,7 +159,6 @@
       <div class="modal-tabs" role="tablist">
         <button class="modal-tab active" data-tab="json" role="tab" aria-selected="true" aria-controls="tab-json">JSON</button>
         <button class="modal-tab" data-tab="txt" role="tab" aria-selected="false" aria-controls="tab-txt">TXT</button>
-        <button class="modal-tab" data-tab="mods" role="tab" aria-selected="false" aria-controls="tab-mods">Mods</button>
       </div>
       
       <div class="modal-body">
@@ -211,45 +210,6 @@
               <option value="root">Add as Root Cards (Outline Mode)</option>
             </select>
           </div>
-        </div>
-        
-        <div class="tab-content" id="tab-mods" role="tabpanel" aria-labelledby="tab-mods">
-          <div class="file-upload-area" id="fileUploadAreaMods">
-            <div class="upload-text">Install Mod (.json)</div>
-            <div class="upload-hint">Load a packaged mod file or a standalone script</div>
-          </div>
-          <input type="file" id="fileInputMods" accept=".json,.js" style="display: none;" />
-          
-          <p style="margin: var(--space-md) 0; color: var(--text-muted); font-size: var(--text-sm);">Or paste code below to create a mod directly.</p>
-          
-          <div class="form-group">
-            <label class="form-label">Mod Name</label>
-            <input type="text" id="manualModName" class="form-input" placeholder="my-custom-mod" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Creator</label>
-            <input type="text" id="manualModCreator" class="form-input" placeholder="Your Name" />
-          </div>
-          <div style="display: flex; gap: var(--space-md); width: 100%;">
-            <div class="form-group" style="flex: 1;">
-              <label class="form-label">Version</label>
-              <input type="text" id="manualModVersion" class="form-input" placeholder="1.0.0" />
-            </div>
-            <div class="form-group" style="flex: 1;">
-              <label class="form-label">Release Date</label>
-              <input type="text" id="manualModReleaseDate" class="form-input" placeholder="YYYY-MM-DD" />
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label">JavaScript Code</label>
-            <textarea id="manualModJS" class="form-textarea" placeholder="CardSpoke_MODS.register('my-mod', { ... });"></textarea>
-          </div>
-          <div class="form-group">
-            <label class="form-label">CSS (Optional)</label>
-            <textarea id="manualModCSS" class="form-textarea" placeholder=".my-class { ... }"></textarea>
-          </div>
-          <button class="btn btn-primary" id="installManualMod">Install Mod</button>
         </div>
       </div>
     </div>

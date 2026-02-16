@@ -1175,281 +1175,106 @@
       // =============================================================
 
       function showModManager(initialTab) {
-        initialTab = initialTab || 'installed';
-
         var overlay = h('div', { className: 'modal-overlay show' });
         var modal = h('div', { className: 'modal', style: 'max-width: 700px; max-height: 85vh;' });
         var modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Mod Manager'));
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Plugin API - Modern Extension System'));
         modalHeader.appendChild(h('button', {
           className: 'modal-close',
           onclick: function() { overlay.remove(); }
         }, '\u2715'));
         modal.appendChild(modalHeader);
 
-        var tabs = [
-          { id: 'installed', label: 'Installed' },
-          { id: 'install', label: 'Install' },
-          { id: 'create', label: 'Create' }
-        ];
+        var bodyContent = h('div', { className: 'modal-body', style: 'overflow-y: auto; max-height: 60vh; padding: var(--space-lg);' });
 
-        var tabBar = h('div', { className: 'modal-tabs', role: 'tablist' });
-        var tabContentArea = h('div', { className: 'modal-body', style: 'overflow-y: auto; max-height: 60vh; padding: var(--space-lg);' });
-
-        tabs.forEach(function(tab) {
-          var btn = h('button', {
-            className: 'modal-tab' + (tab.id === initialTab ? ' active' : ''),
-            'data-tab': tab.id,
-            role: 'tab',
-            onclick: function() {
-              tabBar.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
-              btn.classList.add('active');
-              renderTab(tab.id);
-            }
-          }, tab.label);
-          tabBar.appendChild(btn);
+        // Migration notice
+        var notice = h('div', {
+          style: 'background: var(--bg-warning, #fef3c7); border: 1px solid var(--warning, #f59e0b); border-radius: var(--radius); padding: var(--space-lg); margin-bottom: var(--space-lg);'
         });
+        notice.appendChild(h('h3', { style: 'margin: 0 0 var(--space-sm) 0; color: var(--warning-dark, #d97706);' }, '\u26a0\ufe0f Legacy Mod System Removed'));
+        notice.appendChild(h('p', { style: 'margin: 0 0 var(--space-sm) 0;' },
+          'The legacy CardSpoke_MODS hook-based system has been removed. Please use the modern Plugin API for all extensions.'));
+        bodyContent.appendChild(notice);
 
-        modal.appendChild(tabBar);
-        modal.appendChild(tabContentArea);
-        overlay.appendChild(modal);
-        overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
-        document.body.appendChild(overlay);
+        // Plugin API documentation
+        var docSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
+        docSection.appendChild(h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Modern Plugin API'));
+        docSection.appendChild(h('p', { style: 'margin-bottom: var(--space-md);' },
+          'The Plugin API provides sandboxed contexts, resource management, and automatic cleanup. Create plugins using:'));
 
-        function renderTab(tabId) {
-          tabContentArea.innerHTML = '';
-          if (tabId === 'installed') renderInstalledTab();
-          else if (tabId === 'install') renderInstallTab();
-          else if (tabId === 'create') renderCreateTab();
-        }
+        var codeExample = h('pre', {
+          style: 'background: var(--bg-code, #1e293b); color: var(--text-code, #e2e8f0); padding: var(--space-md); border-radius: var(--radius); overflow-x: auto; font-family: monospace; font-size: var(--text-sm); margin-bottom: var(--space-md);'
+        });
+        codeExample.textContent = 'window.CardSpoke.Plugin.register(\'my-plugin\', {\n  manifest: {\n    name: \'My Plugin\',\n    version: \'1.0.0\',\n    author: \'Your Name\',\n    layer: \'feature\',\n    permissions: [\'ui-override\']\n  },\n  \n  setup: async (ctx) => {\n    // Access APIs via ctx.api\n    const cards = ctx.api.data.listCards();\n    ctx.api.ui.showToast(`Loaded ${cards.length} cards`, \'info\');\n    \n    // UI injection with automatic cleanup\n    const button = document.createElement(\'button\');\n    button.textContent = \'My Feature\';\n    ctx.api.ui.inject(\'#sidebar\', button, \'append\');\n  },\n  \n  teardown: async (ctx) => {\n    // Automatic resource cleanup\n  }\n});';
+        docSection.appendChild(codeExample);
 
-        function renderInstalledTab() {
-          var modIds = Object.keys(store.mods || {});
-          if (modIds.length === 0) {
-            tabContentArea.appendChild(h('div', { className: 'empty', style: 'padding: var(--space-xl);' },
-              'No mods installed. Use the Install tab to add mods.'));
-            return;
-          }
+        docSection.appendChild(h('h4', { style: 'margin-bottom: var(--space-sm);' }, 'Available APIs'));
+        var apiList = h('ul', { style: 'margin-bottom: var(--space-md);' });
+        [
+          'ctx.api.ui - UI injection, component registry, toast notifications',
+          'ctx.api.data - Card operations, tag management, data updates',
+          'ctx.api.storage - Namespaced persistent storage',
+          'ctx.api.events - Event pub/sub system'
+        ].forEach(function(item) {
+          apiList.appendChild(h('li', {}, item));
+        });
+        docSection.appendChild(apiList);
+
+        docSection.appendChild(h('h4', { style: 'margin-bottom: var(--space-sm);' }, 'Documentation'));
+        var docLinks = h('ul', {});
+        docLinks.appendChild(h('li', {}, 'See docs/MOD_SYSTEM.md for complete Plugin API documentation'));
+        docLinks.appendChild(h('li', {}, 'See docs/api/PLUGIN_API.md for API reference'));
+        docLinks.appendChild(h('li', {}, 'See sample-mods/ directory for example plugins'));
+        docSection.appendChild(docLinks);
+
+        bodyContent.appendChild(docSection);
+
+        // Legacy mods section (if any exist)
+        var modIds = Object.keys(store.mods || {});
+        if (modIds.length > 0) {
+          var legacySection = h('div', { style: 'margin-top: var(--space-xl); padding-top: var(--space-xl); border-top: 1px solid var(--border);' });
+          legacySection.appendChild(h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Legacy Mods Detected'));
+          legacySection.appendChild(h('p', { style: 'margin-bottom: var(--space-md); color: var(--text-muted);' },
+            'The following legacy mods are present but non-functional. Export them and migrate to the Plugin API:'));
 
           modIds.forEach(function(modId) {
             var pkg = store.mods[modId];
             var manifest = pkg.manifest || {};
-            var layer = manifest.layer || 'feature';
-
+            
             var card = h('div', {
-              style: 'border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md); margin-bottom: var(--space-md);'
+              style: 'border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md); margin-bottom: var(--space-md); opacity: 0.7;'
             });
 
-            // Header row with name and toggle
             var headerRow = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
-            headerRow.appendChild(h('div', { style: 'font-weight: 700; font-size: var(--text-lg);' }, manifest.name || modId));
-
-            var toggleBtn = h('button', {
-              className: 'btn ' + (pkg.enabled ? 'btn-primary' : ''),
-              style: 'font-size: var(--text-sm); padding: var(--space-xs) var(--space-md);',
-              disabled: true,
-              title: 'Legacy mod system - use Plugin API for new extensions',
-              onclick: function() {
-                showToast('Legacy mod system removed - use Plugin API for new extensions', 'info');
-              }
-            }, pkg.enabled ? 'Enabled' : 'Disabled');
-            headerRow.appendChild(toggleBtn);
+            headerRow.appendChild(h('div', { style: 'font-weight: 700;' }, manifest.name || modId));
+            headerRow.appendChild(h('span', { style: 'color: var(--danger, #ef4444); font-size: var(--text-sm);' }, 'Legacy - Non-functional'));
             card.appendChild(headerRow);
 
-            // Info row
-            var infoRow = h('div', { style: 'display: flex; gap: var(--space-md); font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-sm); flex-wrap: wrap;' });
-            infoRow.appendChild(h('span', {}, 'v' + (manifest.version || '?')));
-            infoRow.appendChild(h('span', {}, 'by ' + (manifest.author || 'Unknown')));
-            infoRow.appendChild(h('span', { style: 'background: var(--bg-secondary, var(--surface)); padding: 2px 8px; border-radius: 10px; text-transform: uppercase; font-size: var(--text-xs); font-weight: 600;' }, layer));
-            infoRow.appendChild(h('span', { style: 'color: ' + risk.color + '; font-weight: 600;' }, risk.icon + ' ' + risk.riskLevel));
-            card.appendChild(infoRow);
+            var info = h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-sm);' });
+            info.textContent = 'v' + (manifest.version || '?') + ' by ' + (manifest.author || 'Unknown');
+            card.appendChild(info);
 
-            if (manifest.description) {
-              card.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-medium); margin-bottom: var(--space-sm);' }, manifest.description));
-            }
-
-            // Action buttons
-            var actions = h('div', { style: 'display: flex; gap: var(--space-sm); flex-wrap: wrap;' });
-
-            actions.appendChild(h('button', {
+            var exportBtn = h('button', {
               className: 'btn',
               style: 'font-size: var(--text-xs);',
               onclick: function() {
                 var json = JSON.stringify(pkg, null, 2);
                 downloadWithFeedback(json, modId + '.json', 'application/json');
-                showToast('Mod exported');
+                showToast('Legacy mod exported - please migrate to Plugin API');
               }
-            }, 'Export'));
+            }, 'Export for Migration');
+            card.appendChild(exportBtn);
 
-            actions.appendChild(h('button', {
-              className: 'btn',
-              style: 'font-size: var(--text-xs);',
-              disabled: true,
-              title: 'Legacy mod system - functionality removed',
-              onclick: function() {
-                showToast('Mod reload disabled - legacy system removed', 'info');
-              }
-            }, 'Reload'));
-
-            actions.appendChild(h('button', {
-              className: 'btn',
-              style: 'font-size: var(--text-xs); color: var(--danger, #ef4444);',
-              disabled: true,
-              title: 'Legacy mod system - functionality removed',
-              onclick: function() {
-                showToast('Mod uninstall disabled - legacy system removed', 'info');
-              }
-            }, 'Uninstall'));
-
-            card.appendChild(actions);
-            tabContentArea.appendChild(card);
+            legacySection.appendChild(card);
           });
+
+          bodyContent.appendChild(legacySection);
         }
 
-        function renderInstallTab() {
-          // File upload
-          var uploadSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
-          uploadSection.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md);' }, 'Install from File'));
-
-          var fileInput = h('input', { type: 'file', accept: '.json', style: 'display: none;' });
-          var uploadArea = h('div', {
-            className: 'file-upload-area',
-            style: 'cursor: pointer; padding: var(--space-xl); text-align: center; border: 2px dashed var(--border); border-radius: var(--radius);',
-            onclick: function() { fileInput.click(); }
-          });
-          uploadArea.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, 'Click to select a mod JSON file'));
-          uploadArea.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm);' }, 'Or drag & drop a .json mod package'));
-
-          fileInput.onchange = function(e) {
-            var file = e.target.files[0];
-            if (!file) return;
-            var reader = new FileReader();
-            reader.onload = function(ev) {
-              try {
-                var pkg = JSON.parse(ev.target.result);
-                showToast('Mod upload: Legacy mod system removed', 'error');
-              } catch (err) {
-                showToast('Failed to parse mod file: ' + err.message, 'error');
-              }
-            };
-            reader.readAsText(file);
-          };
-
-          uploadSection.appendChild(uploadArea);
-          uploadSection.appendChild(fileInput);
-          tabContentArea.appendChild(uploadSection);
-
-          // Paste JSON
-          var pasteSection = h('div', {});
-          pasteSection.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md);' }, 'Install from JSON'));
-          pasteSection.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); margin-bottom: var(--space-sm);' },
-            'Paste a complete mod JSON package below:'));
-
-          var textarea = h('textarea', {
-            className: 'form-textarea',
-            style: 'width: 100%; min-height: 200px; font-family: monospace; font-size: var(--text-sm);',
-            placeholder: '{\n  "id": "my-mod",\n  "manifest": {\n    "name": "My Mod",\n    "version": "1.0.0",\n    "author": "You",\n    "layer": "theme"\n  },\n  "css": "",\n  "js": "",\n  "enabled": false\n}'
-          });
-          pasteSection.appendChild(textarea);
-
-          pasteSection.appendChild(h('button', {
-            className: 'btn btn-primary',
-            style: 'margin-top: var(--space-md);',
-            onclick: function() {
-              try {
-                var pkg = JSON.parse(textarea.value);
-                showToast('Mod paste: Legacy mod system removed', 'error');
-              } catch (err) {
-                showToast('Invalid JSON: ' + err.message, 'error');
-              }
-            }
-          }, 'Install Mod'));
-          tabContentArea.appendChild(pasteSection);
-        }
-
-        function renderCreateTab() {
-          var form = h('div', {});
-          form.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md);' }, 'Create a New Mod'));
-          form.appendChild(h('div', { style: 'color: var(--text-muted); font-size: var(--text-sm); margin-bottom: var(--space-lg);' },
-            'Fill in the details below to create a new mod package.'));
-
-          function createField(label, type, id, placeholder, required) {
-            var group = h('div', { className: 'form-group', style: 'margin-bottom: var(--space-md);' });
-            group.appendChild(h('label', { className: 'form-label' }, label + (required ? ' *' : '')));
-            var input = h('input', { type: type, id: 'create-mod-' + id, className: 'form-input', placeholder: placeholder || '' });
-            group.appendChild(input);
-            return group;
-          }
-
-          form.appendChild(createField('Mod ID', 'text', 'id', 'my-custom-mod', true));
-          form.appendChild(createField('Name', 'text', 'name', 'My Custom Mod', true));
-          form.appendChild(createField('Author', 'text', 'author', 'Your Name', true));
-          form.appendChild(createField('Version', 'text', 'version', '1.0.0', false));
-          form.appendChild(createField('Description', 'text', 'description', 'What does this mod do?', false));
-
-          // Layer selection
-          var layerGroup = h('div', { className: 'form-group', style: 'margin-bottom: var(--space-md);' });
-          layerGroup.appendChild(h('label', { className: 'form-label' }, 'Layer *'));
-          var layerSelect = h('select', { id: 'create-mod-layer', className: 'form-select' });
-          layerSelect.appendChild(h('option', { value: 'theme' }, 'Theme - CSS only, visual changes'));
-          layerSelect.appendChild(h('option', { value: 'feature', selected: true }, 'Feature - CSS + JS, adds functionality'));
-          layerSelect.appendChild(h('option', { value: 'app' }, 'App - Full app transformation'));
-          layerGroup.appendChild(layerSelect);
-          form.appendChild(layerGroup);
-
-          // CSS textarea
-          var cssGroup = h('div', { className: 'form-group', style: 'margin-bottom: var(--space-md);' });
-          cssGroup.appendChild(h('label', { className: 'form-label' }, 'CSS'));
-          cssGroup.appendChild(h('textarea', {
-            id: 'create-mod-css',
-            className: 'form-textarea',
-            style: 'width: 100%; min-height: 100px; font-family: monospace; font-size: var(--text-sm);',
-            placeholder: '/* Custom styles */\n.my-class { color: red; }'
-          }));
-          form.appendChild(cssGroup);
-
-          // JS textarea
-          var jsGroup = h('div', { className: 'form-group', style: 'margin-bottom: var(--space-md);' });
-          jsGroup.appendChild(h('label', { className: 'form-label' }, 'JavaScript'));
-          jsGroup.appendChild(h('textarea', {
-            id: 'create-mod-js',
-            className: 'form-textarea',
-            style: 'width: 100%; min-height: 150px; font-family: monospace; font-size: var(--text-sm);',
-            placeholder: '// Legacy mod system removed - use Plugin API instead'
-          }));
-          form.appendChild(jsGroup);
-
-          // Create button
-          form.appendChild(h('button', {
-            className: 'btn btn-primary',
-            onclick: function() {
-              var id = (document.getElementById('create-mod-id').value || '').trim();
-              var name = (document.getElementById('create-mod-name').value || '').trim();
-              var author = (document.getElementById('create-mod-author').value || '').trim();
-              var version = (document.getElementById('create-mod-version').value || '1.0.0').trim();
-              var description = (document.getElementById('create-mod-description').value || '').trim();
-              var layer = document.getElementById('create-mod-layer').value;
-              var css = (document.getElementById('create-mod-css').value || '').trim();
-              var js = (document.getElementById('create-mod-js').value || '').trim();
-
-              if (!id) { showToast('Mod ID is required', 'error'); return; }
-              if (!name) { showToast('Mod name is required', 'error'); return; }
-              if (!author) { showToast('Author is required', 'error'); return; }
-              if (!/^[a-z0-9-]+$/.test(id)) { showToast('ID must be lowercase letters, numbers, and hyphens', 'error'); return; }
-              if (store.mods[id]) { showToast('A mod with this ID already exists', 'error'); return; }
-              if (layer === 'theme' && js) { showToast('Theme mods cannot contain JavaScript', 'error'); return; }
-
-              showToast('Mod creation: Legacy mod system removed', 'error');
-              renderTab('installed');
-              tabBar.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
-              tabBar.querySelector('[data-tab="installed"]').classList.add('active');
-            }
-          }, 'Create Mod'));
-
-          tabContentArea.appendChild(form);
-        }
-
-        renderTab(initialTab);
+        modal.appendChild(bodyContent);
+        overlay.appendChild(modal);
+        overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+        document.body.appendChild(overlay);
       }
 
       function showAppearanceSettings() {
