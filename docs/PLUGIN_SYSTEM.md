@@ -216,11 +216,12 @@ Launch with `?safemode` in the URL to disable all plugins. This is useful for tr
 ## Event Bus
 
 Plugins can communicate via the Plugin API event system:
-- `ctx.api.events.on(event, callback)`: Subscribe to an event.
-- `ctx.api.events.off(event, callback)`: Unsubscribe.
-- `ctx.api.events.emit(event, data)`: Broadcast an event.
+- `ctx.api.events.on(event, callback)`: Subscribe to an event. Returns a cleanup function.
+- `ctx.api.events.off(event, callback)`: Unsubscribe from an event.
+- `ctx.api.events.emit(event, ...args)`: Broadcast an event with optional arguments.
+- `ctx.api.events.once(event, callback)`: Subscribe to an event that fires only once.
 
-This is scoped to your plugin and automatically cleaned up on disable.
+**Note:** Events are plugin-scoped and automatically cleaned up when the plugin is disabled. Event handlers are isolated to each plugin's context.
 
 ## Developer Tools
 
@@ -228,25 +229,47 @@ Use the browser console to debug plugins:
 
 ```javascript
 // List all registered plugins
-window.CardSpoke.Plugin.listAll();
+window.CardSpoke.Plugin.list();
 
 // Get plugin info
-window.CardSpoke.Plugin.inspect('plugin-id');
+window.CardSpoke.Plugin.get('plugin-id');
 
 // Manually trigger enable/disable
 await window.CardSpoke.Plugin.enable('plugin-id');
 await window.CardSpoke.Plugin.disable('plugin-id');
 
-// Monitor middleware performance
+// Install a plugin package
+const pluginId = await window.CardSpoke.Plugin.install(pluginPackage);
+
+// Assess plugin risk
+const risk = window.CardSpoke.Plugin.assessModRisk(pluginPackage);
+
+// Monitor middleware performance (if available)
 window.CardSpoke.Middleware.getStats();
 
-// Check component registry
+// Check component registry (if available)
 window.CardSpoke.ComponentRegistry.list();
 ```
 
 ## LocalStorage Keys
 
-Plugin data is persisted in IndexedDB under the `plugins` namespace. Each plugin has its own isolated storage accessed via `ctx.api.storage`.
+Plugin data is persisted in localStorage under plugin-namespaced keys. Each plugin has its own isolated storage accessed via `ctx.api.storage`:
+
+- `ctx.api.storage.get(key)`: Retrieves a value (automatically namespaced)
+- `ctx.api.storage.set(key, value)`: Stores a value (automatically namespaced)
+- `ctx.api.storage.remove(key)`: Removes a value
+- `ctx.api.storage.list(prefix)`: Lists all keys matching the prefix
+
+Plugin metadata and enabled state are stored in `window.store.plugins` and persisted via localStorage.
+
+**Core app keys:**
+- `cardspoke_dataset`: Current dataset name
+- `cardspoke_theme`: Theme preference (light/dark)
+- `cardspoke_typography`: Typography preset
+- `cardspoke_highContrast`: High contrast mode setting
+- `cardspoke_devMode`: Developer mode flag
+- `cardspoke_richText`: Rich text mode setting
+- `cardspoke_gridView`: Grid view preference
 
 ## Modern Plugin API
 
@@ -292,14 +315,16 @@ await window.CardSpoke.Plugin.enable('my-plugin');
 
 Every plugin receives a context object with:
 
-- **`ctx.api.ui`**: DOM manipulation (`inject`, `replace`, `registerComponent`, `showToast`)
-- **`ctx.api.data`**: Data access (`getCard`, `listCards`, `createCard`, `updateCard`, `deleteCard`, `onUpdate`)
-- **`ctx.api.storage`**: Namespaced storage (`get`, `set`, `remove`, `list`)
-- **`ctx.api.events`**: Event system (`on`, `emit`, `once`)
-- **`ctx.utils`**: Utility functions (`uid`, `debounce`, `escapeHtml`, etc.)
+- **`ctx.pluginId`**: The plugin's unique identifier
+- **`ctx.appVersion`**: Current app version (0.16.0)
+- **`ctx.schemaVersion`**: Current schema version (4)
+- **`ctx.api.ui`**: DOM manipulation (`inject`, `replace`, `registerComponent`, `unregisterComponent`, `showToast`)
+- **`ctx.api.data`**: Data access (`getCard`, `listCards`, `createCard`, `updateCard`, `deleteCard`, `getTags`, `addTag`, `removeTag`, `setTags`, `getAllTags`, `onUpdate`)
+- **`ctx.api.storage`**: Namespaced storage (`get`, `set`, `remove`, `list`, `getNamespace`)
+- **`ctx.api.events`**: Event system (`on`, `off`, `emit`, `once`)
 - **`ctx.logger`**: Scoped logger (`log`, `info`, `warn`, `error`)
 
-See [Plugin API Documentation](./api/PLUGIN_API.md) for complete reference.
+See [Plugin API Documentation](./api/PLUGIN_API.md) and [API Reference](./api/API_REFERENCE.md) for complete details.
 
 ## Middleware Pipeline
 
@@ -471,10 +496,13 @@ export default plugin;
 
 ## Examples and Resources
 
-Complete examples are available in `sample-plugins/new-api/`:
+Complete examples are available in the `sample-plugins/` directory:
 
-- **example-feature-plugin.js**: Middleware, component registry, and data updates
-- **example-app-plugin.js**: App-level customization with storage drivers
+- **`sample-plugins/themes/`**: Theme-layer plugins (CSS only)
+- **`sample-plugins/features/`**: Feature-layer plugins (JavaScript + CSS)
+- **`sample-plugins/apps/`**: App-layer plugins (full customization)
+
+Each directory contains working examples demonstrating the Plugin API, middleware, and component registry.
 
 ## API Reference
 
@@ -483,30 +511,33 @@ Detailed documentation:
 - [Plugin API](./api/PLUGIN_API.md)
 - [Middleware Pipeline](./api/MIDDLEWARE_PIPELINE.md)
 - [Component Registry](./api/COMPONENT_REGISTRY.md)
+- [API Reference](./api/API_REFERENCE.md)
 - [TypeScript Definitions](../types/index.d.ts)
 
 ## Security Considerations
 
-1. **Permissions**: Always request minimal permissions
-2. **Validation**: Validate user input in middleware
-3. **Sandboxing**: Use Plugin API instead of global access
+1. **Permissions**: Always request minimal permissions needed for functionality
+2. **Validation**: Validate user input in middleware handlers
+3. **Sandboxing**: Use Plugin API instead of direct global access
 4. **Review**: Review third-party plugins before installation
 5. **Testing**: Test hot-reload and cleanup thoroughly
+6. **Risk Assessment**: Understand the risk level of each plugin layer
 
 ## Best Practices
 
-1. **Use Plugin API**: Prefer `ctx.api` over direct access
-2. **Register components**: Use Component Registry instead of DOM manipulation
-3. **Add metadata**: Use `card.metadata` for plugin data
-4. **Handle errors**: Wrap async operations in try/catch
-5. **Document permissions**: Explain why permissions are needed
-6. **Test cleanup**: Ensure resources are freed on disable
-7. **Version appropriately**: Follow semver for updates
+1. **Use Plugin API**: Prefer `ctx.api` over direct window/global access
+2. **Register components**: Use Component Registry instead of direct DOM manipulation
+3. **Add metadata**: Use `card.metadata` or `card.modsData` for plugin-specific data
+4. **Handle errors**: Wrap async operations in try/catch blocks
+5. **Document permissions**: Clearly explain why each permission is needed
+6. **Test cleanup**: Ensure all resources are freed when plugin is disabled
+7. **Version appropriately**: Follow semantic versioning for updates
+8. **Minimize scope**: Only request permissions you actually need
 
 ## Support
 
 - Check [API documentation](./api/)
-- See [examples](../sample-plugins/new-api/)
+- See [examples](../sample-plugins/)
 - Ask in [GitHub Issues](https://github.com/jxburros/CardSpoke/issues)
 
 ---
