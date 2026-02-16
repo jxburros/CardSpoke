@@ -6317,9 +6317,10 @@ const header = {
               
               // Filter by tag
               if (filters.tagFilter) {
+                const tagFilterLower = filters.tagFilter.toLowerCase();
                 fuzzyResults = fuzzyResults.filter(result => {
                   const card = result.card;
-                  return card.tags && card.tags.some(tag => tag.toLowerCase() === filters.tagFilter.toLowerCase());
+                  return card.tags && card.tags.some(tag => tag.toLowerCase() === tagFilterLower);
                 });
               }
               
@@ -8812,7 +8813,7 @@ const header = {
         if (recentCards.length > 0) {
           recentCards.forEach(card => {
             const row = h('div', { 
-              style: 'padding: var(--space-sm); border-bottom: 1px solid var(--border); cursor: pointer; hover: background-color: var(--bg-hover);',
+              style: 'padding: var(--space-sm); border-bottom: 1px solid var(--border); cursor: pointer;',
               onclick: () => {
                 overlay.remove();
                 goTo('read', { cardId: card.id });

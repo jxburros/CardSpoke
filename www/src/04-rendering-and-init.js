@@ -737,9 +737,10 @@
               
               // Filter by tag
               if (filters.tagFilter) {
+                const tagFilterLower = filters.tagFilter.toLowerCase();
                 fuzzyResults = fuzzyResults.filter(result => {
                   const card = result.card;
-                  return card.tags && card.tags.some(tag => tag.toLowerCase() === filters.tagFilter.toLowerCase());
+                  return card.tags && card.tags.some(tag => tag.toLowerCase() === tagFilterLower);
                 });
               }
               

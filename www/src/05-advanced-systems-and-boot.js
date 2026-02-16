@@ -1798,7 +1798,7 @@
         if (recentCards.length > 0) {
           recentCards.forEach(card => {
             const row = h('div', { 
-              style: 'padding: var(--space-sm); border-bottom: 1px solid var(--border); cursor: pointer; hover: background-color: var(--bg-hover);',
+              style: 'padding: var(--space-sm); border-bottom: 1px solid var(--border); cursor: pointer;',
               onclick: () => {
                 overlay.remove();
                 goTo('read', { cardId: card.id });
