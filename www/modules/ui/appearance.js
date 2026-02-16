@@ -58,7 +58,8 @@ export function applyTheme(theme) {
     themeToggle.innerHTML = theme === 'dark' ? sunIcon : moonIcon;
   }
   
-  // Notify plugins of theme change via event system
+  // Notify plugins of theme change
+  // Note: notifyDataUpdate is the Plugin API's generic event notification method
   if (window.CardSpoke && window.CardSpoke.Plugin) {
     window.CardSpoke.Plugin.notifyDataUpdate({ type: 'themeChange', theme: theme });
   }

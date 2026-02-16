@@ -1187,7 +1187,10 @@
         var notice = h('div', {
           style: 'background: var(--bg-warning, #fef3c7); border: 1px solid var(--warning, #f59e0b); border-radius: var(--radius); padding: var(--space-lg); margin-bottom: var(--space-lg);'
         });
-        notice.appendChild(h('h3', { style: 'margin: 0 0 var(--space-sm) 0; color: var(--warning-dark, #d97706);' }, '\u26a0\ufe0f Legacy Mod System Removed'));
+        notice.appendChild(h('h3', { 
+          style: 'margin: 0 0 var(--space-sm) 0; color: var(--warning-dark, #d97706);',
+          'aria-label': 'Warning: Legacy Mod System Removed'
+        }, 'Legacy Mod System Removed'));
         notice.appendChild(h('p', { style: 'margin: 0 0 var(--space-sm) 0;' },
           'The legacy CardSpoke_MODS hook-based system has been removed. Please use the modern Plugin API for all extensions.'));
         bodyContent.appendChild(notice);
