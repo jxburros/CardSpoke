@@ -222,7 +222,6 @@ function setActiveThemeMod(modId) {
   } else {
     localStorage.removeItem('cardspoke_activeThemeMod');
   }
-  // Clean up legacy key
   localStorage.removeItem('cardspoke_activeThemeExtension');
 }
 

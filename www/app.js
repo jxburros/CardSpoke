@@ -1365,7 +1365,6 @@ function setActiveThemeMod(modId) {
   } else {
     localStorage.removeItem('cardspoke_activeThemeMod');
   }
-  // Clean up legacy key
   localStorage.removeItem('cardspoke_activeThemeExtension');
 }
 
@@ -3445,14 +3444,12 @@ const header = {
           addToRecentCards(opts.cardId);
         }
 
-        // Legacy hook system removed
         render();
       }
 
       function goBack() {
         if (navHistory.length) {
           navState = navHistory.pop();
-          // Legacy hook system removed
           render();
         }
       }
@@ -3475,7 +3472,6 @@ const header = {
 
       // =============================================================
       // --- Modern Plugin System ---
-      // The legacy CardSpoke_MODS hook system has been removed.
       // Use the modern Plugin API (window.CardSpoke.Plugin) for all extensions.
       // See docs/MOD_SYSTEM.md for complete plugin development documentation.
       // =============================================================
@@ -3566,7 +3562,6 @@ const header = {
           if (!valid.includes(preset)) throw new Error('Preset must be one of: ' + valid.join(', '));
           localStorage.setItem('cardspoke_typography', preset);
           document.documentElement.setAttribute('data-typography', preset);
-          // Legacy hook system removed - use Plugin API for extensions
           return true;
         },
         getTypography: async function() { return localStorage.getItem('cardspoke_typography') || 'default'; },
@@ -3574,7 +3569,6 @@ const header = {
           if (enabled) document.documentElement.classList.add('high-contrast');
           else document.documentElement.classList.remove('high-contrast');
           localStorage.setItem('cardspoke_highcontrast', enabled.toString());
-          // Legacy hook system removed - use Plugin API for extensions
           return true;
         },
         isHighContrast: async function() { return document.documentElement.classList.contains('high-contrast'); },
@@ -4379,7 +4373,6 @@ const header = {
                   instanceKey = key;
                   load();
                   if (!safeMode) {
-                    // Legacy mod system removed
                   }
                   render();
                   overlay.remove();
@@ -4415,7 +4408,6 @@ const header = {
                     localStorage.setItem('activeInstance', otherKey);
                     instanceKey = otherKey;
                     load();
-                    // Legacy mod system removed
                     render();
                   }
                   overlay.remove();
@@ -4927,7 +4919,6 @@ const header = {
             reader.onload = function(ev) {
               try {
                 var pkg = JSON.parse(ev.target.result);
-                // Legacy mod system removed - validation and installation no longer available
                 showToast('Mod upload: Legacy mod system removed', 'error');
               } catch (err) {
                 showToast('Failed to parse mod file: ' + err.message, 'error');
@@ -4959,7 +4950,6 @@ const header = {
             onclick: function() {
               try {
                 var pkg = JSON.parse(textarea.value);
-                // Legacy mod system removed - validation and installation no longer available
                 showToast('Mod paste: Legacy mod system removed', 'error');
               } catch (err) {
                 showToast('Invalid JSON: ' + err.message, 'error');
@@ -5041,7 +5031,6 @@ const header = {
               if (store.mods[id]) { showToast('A mod with this ID already exists', 'error'); return; }
               if (layer === 'theme' && js) { showToast('Theme mods cannot contain JavaScript', 'error'); return; }
 
-              // Legacy mod system removed - mod creation no longer available
               showToast('Mod creation: Legacy mod system removed', 'error');
               renderTab('installed');
               tabBar.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
@@ -5314,7 +5303,6 @@ const header = {
             const themeOption = h('div', {
               style: 'padding: var(--space-md); border: 2px solid ' + (isActive ? 'var(--text)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer; display: flex; justify-content: space-between; align-items: center;',
               onclick: function() {
-                // Legacy mod system removed - auto-enable removed
                 // Apply the theme extension (preserves current Light/Dark mode)
                 localStorage.setItem('cardspoke_activeThemeMod', theme.id);
                 // Remove all other theme extension classes and add this one
@@ -5981,7 +5969,6 @@ const header = {
               const card = kids[i];
               const cardEl = renderCardTile(card, { lazyBody: true });
               frag.appendChild(cardEl);
-              // Legacy hook system removed
             }
             grid.appendChild(frag);
             renderIndex += batchSize;
@@ -6261,7 +6248,6 @@ const header = {
             if (childCard) {
               const childEl = renderCardTile(childCard);
               childrenGrid.appendChild(childEl);
-              // Legacy hook system removed
             }
           });
           childrenSection.appendChild(childrenGrid);
@@ -6310,7 +6296,6 @@ const header = {
           detail.appendChild(relatedSection);
         }
         main.appendChild(detail);
-        // Legacy hook system removed
       }
 
       /**
@@ -6365,7 +6350,6 @@ const header = {
                 if (t) createCard(t, '', card.id, true, true);
               });
               save();
-              // Legacy hook system removed
               goTo('read', { cardId: card.id });
             } else {
               const newId = createCard(titleVal, bodyVal, parentVal, true, true);
@@ -6376,7 +6360,6 @@ const header = {
                 if (t) createCard(t, '', newId, true, true);
               });
               save();
-              // Legacy hook system removed
               goTo('read', { cardId: newId });
             }
           }
@@ -6684,7 +6667,6 @@ const header = {
             ...result,
             card: cloneCard(result.card)
           }));
-          // Legacy hook system removed
 
           if (fuzzyResults.length === 0) {
             main.appendChild(h('div', { className: 'empty' }, 'No results found. Try different keywords.'));
@@ -6753,7 +6735,6 @@ const header = {
 
                 frag.appendChild(cardEl);
                 searchResultsState.elements.push(cardEl);
-                // Legacy hook system removed
               }
               grid.appendChild(frag);
               renderIndex += batchSize;
@@ -6836,7 +6817,6 @@ const header = {
         const sunIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
         if (header.themeToggle) header.themeToggle.innerHTML = theme === 'dark' ? sunIcon : moonIcon;
         
-        // Legacy hook system removed
       }
       
       // =============================================================
@@ -7249,7 +7229,6 @@ const header = {
               // Extract mod ID from JS code if not provided
               let modId = modData.id;
               if (!modId && modData.js) {
-                // Try to extract ID from JS code (legacy mod data may still exist in storage)
                 const registerMatch = modData.js.match(/CardSpoke_MODS\.register\s*\(\s*['"]([^'"]+)['"]/);
                 if (registerMatch) {
                   modId = registerMatch[1];
@@ -9251,7 +9230,6 @@ const header = {
         showToast('Safe Mode Active - Mods Disabled', 'warning');
       }
 
-      // Legacy mod system has been removed - plugins use modern Plugin API
       render();                        // Initial render
       populateFooter();                // Re-populate footer to ensure it displays
 

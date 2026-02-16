@@ -781,7 +781,6 @@
                   instanceKey = key;
                   load();
                   if (!safeMode) {
-                    // Legacy mod system removed
                   }
                   render();
                   overlay.remove();
@@ -817,7 +816,6 @@
                     localStorage.setItem('activeInstance', otherKey);
                     instanceKey = otherKey;
                     load();
-                    // Legacy mod system removed
                     render();
                   }
                   overlay.remove();
@@ -1329,7 +1327,6 @@
             reader.onload = function(ev) {
               try {
                 var pkg = JSON.parse(ev.target.result);
-                // Legacy mod system removed - validation and installation no longer available
                 showToast('Mod upload: Legacy mod system removed', 'error');
               } catch (err) {
                 showToast('Failed to parse mod file: ' + err.message, 'error');
@@ -1361,7 +1358,6 @@
             onclick: function() {
               try {
                 var pkg = JSON.parse(textarea.value);
-                // Legacy mod system removed - validation and installation no longer available
                 showToast('Mod paste: Legacy mod system removed', 'error');
               } catch (err) {
                 showToast('Invalid JSON: ' + err.message, 'error');
@@ -1443,7 +1439,6 @@
               if (store.mods[id]) { showToast('A mod with this ID already exists', 'error'); return; }
               if (layer === 'theme' && js) { showToast('Theme mods cannot contain JavaScript', 'error'); return; }
 
-              // Legacy mod system removed - mod creation no longer available
               showToast('Mod creation: Legacy mod system removed', 'error');
               renderTab('installed');
               tabBar.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
@@ -1716,7 +1711,6 @@
             const themeOption = h('div', {
               style: 'padding: var(--space-md); border: 2px solid ' + (isActive ? 'var(--text)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer; display: flex; justify-content: space-between; align-items: center;',
               onclick: function() {
-                // Legacy mod system removed - auto-enable removed
                 // Apply the theme extension (preserves current Light/Dark mode)
                 localStorage.setItem('cardspoke_activeThemeMod', theme.id);
                 // Remove all other theme extension classes and add this one

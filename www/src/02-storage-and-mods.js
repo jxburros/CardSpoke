@@ -1639,14 +1639,12 @@
           addToRecentCards(opts.cardId);
         }
 
-        // Legacy hook system removed
         render();
       }
 
       function goBack() {
         if (navHistory.length) {
           navState = navHistory.pop();
-          // Legacy hook system removed
           render();
         }
       }
@@ -1669,7 +1667,6 @@
 
       // =============================================================
       // --- Modern Plugin System ---
-      // The legacy CardSpoke_MODS hook system has been removed.
       // Use the modern Plugin API (window.CardSpoke.Plugin) for all extensions.
       // See docs/MOD_SYSTEM.md for complete plugin development documentation.
       // =============================================================
@@ -1760,7 +1757,6 @@
           if (!valid.includes(preset)) throw new Error('Preset must be one of: ' + valid.join(', '));
           localStorage.setItem('cardspoke_typography', preset);
           document.documentElement.setAttribute('data-typography', preset);
-          // Legacy hook system removed - use Plugin API for extensions
           return true;
         },
         getTypography: async function() { return localStorage.getItem('cardspoke_typography') || 'default'; },
@@ -1768,7 +1764,6 @@
           if (enabled) document.documentElement.classList.add('high-contrast');
           else document.documentElement.classList.remove('high-contrast');
           localStorage.setItem('cardspoke_highcontrast', enabled.toString());
-          // Legacy hook system removed - use Plugin API for extensions
           return true;
         },
         isHighContrast: async function() { return document.documentElement.classList.contains('high-contrast'); },

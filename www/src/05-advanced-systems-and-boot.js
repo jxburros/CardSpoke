@@ -1915,7 +1915,6 @@
         showToast('Safe Mode Active - Mods Disabled', 'warning');
       }
 
-      // Legacy mod system has been removed - plugins use modern Plugin API
       render();                        // Initial render
       populateFooter();                // Re-populate footer to ensure it displays
 
