@@ -274,14 +274,14 @@ test('all sample mods have unique IDs', () => {
   assert.is(uniqueIds.size, ids.length, 'All mod IDs must be unique: ' + ids.join(', '));
 });
 
-test('all sample mods register hooks via CardSpoke_MODS.register in their JS', () => {
+test('all sample mods register via window.CardSpoke.Plugin.register in their JS', () => {
   const featureMods = loadSampleMods('features');
   const appMods = loadSampleMods('apps');
   [...featureMods, ...appMods].forEach(({ filename, pkg }) => {
     if (pkg.js && pkg.js.trim().length > 0) {
       assert.ok(
-        pkg.js.includes('CardSpoke_MODS.register('),
-        `${filename} JS should register via CardSpoke_MODS.register()`
+        pkg.js.includes('window.CardSpoke.Plugin.register('),
+        `${filename} JS should register via window.CardSpoke.Plugin.register()`
       );
     }
   });
@@ -311,14 +311,14 @@ test('all sample mods start disabled', () => {
   });
 });
 
-test('feature and app mods implement onDisable for clean teardown', () => {
+test('feature and app mods implement teardown for clean resource cleanup', () => {
   const featureMods = loadSampleMods('features');
   const appMods = loadSampleMods('apps');
   [...featureMods, ...appMods].forEach(({ filename, pkg }) => {
     if (pkg.js && pkg.js.trim().length > 0) {
       assert.ok(
-        pkg.js.includes('onDisable'),
-        `${filename} should implement onDisable hook for clean teardown`
+        pkg.js.includes('teardown'),
+        `${filename} should implement teardown function for clean resource cleanup`
       );
     }
   });
