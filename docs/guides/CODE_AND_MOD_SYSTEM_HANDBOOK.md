@@ -1,6 +1,6 @@
-# CardSpoke Code & Mod System Handbook
+# CardSpoke Code & Plugin System Handbook
 
-This handbook is the implementation-level guide to how CardSpoke works and how to build mods for it safely.
+This handbook is the implementation-level guide to how CardSpoke works and how to build plugins for it safely.
 
 It is intentionally specific: you’ll find concrete field names, hook signatures, storage keys, runtime APIs, and practical examples tied to the current architecture.
 
@@ -12,7 +12,7 @@ CardSpoke’s runtime is a **single browser bundle** (`www/app.js`) produced by 
 
 1. `www/src/00-core-systems.js` **(NEW in v0.16.0)**
 2. `www/src/01-metadata-and-utilities.js`
-3. `www/src/02-storage-and-mods.js`
+3. `www/src/02-storage-and-plugins.js`
 4. `www/src/03-data-and-modals.js`
 5. `www/src/04-rendering-and-init.js`
 6. `www/src/05-advanced-systems-and-boot.js`
@@ -31,7 +31,7 @@ The bundle is designed to work in `file://` contexts, so many helpers are intent
 
 ## `00-core-systems.js` **(NEW in v0.16.0)**
 
-Initializes the modern mod architecture before any other code runs:
+Initializes the modern plugin architecture before any other code runs:
 
 - **Middleware Pipeline** (`window.CardSpoke.Middleware`):
   - `register(middleware)` - Register priority-weighted interceptors
@@ -67,7 +67,7 @@ Initializes the modern mod architecture before any other code runs:
   - `getActive()` - Get current active driver
   - `list()` - List all registered drivers
 
-This file loads first to ensure the new architecture is available to all subsequent slices and provides the foundation for the modern plugin-based mod system.
+This file loads first to ensure the new architecture is available to all subsequent slices and provides the foundation for the modern plugin-based plugin system.
 
 ## `01-metadata-and-utilities.js`
 
@@ -91,7 +91,7 @@ Defines metadata constants and shared primitives used by all later slices:
   - `isDeveloperMode()`
 - Toast system: `initToast()` / `showToast(message, type, duration)`
 
-## `02-storage-and-mods.js`
+## `02-storage-and-plugins.js`
 
 Defines persistence architecture and extension runtime:
 
@@ -106,25 +106,25 @@ Defines persistence architecture and extension runtime:
 - Navigation:
   - `goTo(page, opts)`
   - `goBack()`
-- Mod validation/risking:
+- plugin validation/risking:
   - `validateModPackage(pkg)`
   - `assessModRisk(pkg)`
-- Mod runtime singleton:
-  - `window.CardSpoke_MODS`
-  - `window.CardSpoke.mods` (alias)
-- Mod developer API:
+- plugin runtime singleton:
+  - `window.CardSpoke.Plugin`
+  - `window.CardSpoke.Plugin` (alias)
+- plugin developer API:
   - `window.CardSpoke.utils`
 
 ## `03-data-and-modals.js`
 
-Owns app workflows and mod manager UI actions:
+Owns app workflows and plugin manager UI actions:
 
 - Data-centric UI flows: import/export, settings, bookmarks/recent dialogs
-- Mod Manager UI tabs:
+- plugin Manager UI tabs:
   - Installed
   - Install
   - Create
-- Utility flows frequently used by mod users (install, export, toggle, etc.)
+- Utility flows frequently used by plugin users (install, export, toggle, etc.)
 
 ## `04-rendering-and-init.js`
 
@@ -155,8 +155,8 @@ Owns advanced behavior and startup:
   4. `updateDatasetSelector()`
   5. Apply saved typography
   6. Parse URL safe mode (`?safemode`)
-  7. If not safe mode: `CardSpoke_MODS.syncFromStore()`
-  8. If not safe mode: `CardSpoke_MODS.runHook('onLoad')`
+  7. If not safe mode: `CardSpoke.Plugin.syncFromStore()`
+  8. If not safe mode: `CardSpoke.Plugin.runHook('onLoad')`
   9. `render()`
 
 ---
@@ -187,7 +187,7 @@ A card commonly includes:
 - `parentId: string | null`
 - `children: string[]`
 - `tags: string[]`
-- `modsData: Record<string, any>` (optional, mod-owned payloads)
+- `modsData: Record<string, any>` (optional, plugin-owned payloads)
 
 ## Preference/storage keys used in LocalStorage
 
@@ -202,7 +202,6 @@ Common keys you will interact with:
 - `cardspoke_activeThemeMod`
 - `cardspoke_dataset_metadata` (dataset registry metadata)
 
-Safe migration detail: legacy `cardspoke_activeThemeExtension` is cleaned up when setting active theme mod.
 
 ---
 
@@ -210,7 +209,7 @@ Safe migration detail: legacy `cardspoke_activeThemeExtension` is cleaned up whe
 
 The dominant flow is:
 
-1. A user or mod action mutates the store (card create/update/delete/tag ops)
+1. A user or plugin action mutates the store (card create/update/delete/tag ops)
 2. `save()` persists the current dataset
 3. `render()` updates the visible UI
 4. Hook dispatch notifies enabled mods (`runModHook(...)`)
@@ -222,19 +221,19 @@ Examples:
 - Navigation change triggers `onNavigate`
 - Search results trigger `onSearch`
 
-Practical takeaway: if your mod mutates card data, prefer `window.CardSpoke.utils` methods so persistence and rendering stay coherent.
+Practical takeaway: if your plugin mutates card data, prefer `window.CardSpoke.utils` methods so persistence and rendering stay coherent.
 
 ---
 
-## 5) Mod Package Contract (Exact Fields)
+## 5) plugin Package Contract (Exact Fields)
 
-Canonical package structure:
+Canonical plugin package structure:
 
 ```json
 {
-  "id": "my-mod",
+  "id": "my-plugin",
   "manifest": {
-    "name": "My Mod",
+    "name": "My plugin",
     "version": "1.2.3",
     "author": "Your Name",
     "description": "Optional summary",
@@ -263,7 +262,7 @@ Canonical package structure:
 
 Recommended (not hard-enforced) for quality:
 
-- ID format: lowercase letters/numbers/hyphens (`my-mod-1`)
+- ID format: lowercase letters/numbers/hyphens (`my-plugin-1`)
 - Semantic versioning in `manifest.version`
 - Clear `compatibility` range
 
@@ -317,17 +316,17 @@ These are recognized hook names in runtime:
 
 ## Hook context (`ctx`) includes
 
-- `modId`
+- `pluginId`
 - `appVersion`
 - `schemaVersion`
 - `api` (store/runtime API bindings)
 - `utils` (`window.CardSpoke.utils`)
-- `logger` (`log/info/warn/error` scoped to mod)
+- `logger` (`log/info/warn/error` scoped to plugin)
 
 ## Registration pattern
 
 ```js
-CardSpoke_MODS.register('word-counter', {
+CardSpoke.Plugin.register('word-counter', {
   onLoad(ctx) {
     ctx.logger.info('loaded');
   },
@@ -349,9 +348,9 @@ Idempotency rule: `onCardRender` may run many times. Guard against duplicate inj
 
 ---
 
-## 8) Runtime APIs: `CardSpoke_MODS` and `window.CardSpoke.utils`
+## 8) Runtime APIs: `CardSpoke.Plugin` and `window.CardSpoke.utils`
 
-## `CardSpoke_MODS` (runtime manager)
+## `CardSpoke.Plugin` (runtime manager)
 
 Common operations:
 
@@ -376,12 +375,12 @@ Diagnostics:
 
 Event bus:
 
-- `CardSpoke_MODS.events.on(event, cb)`
-- `CardSpoke_MODS.events.off(event, cb)`
-- `CardSpoke_MODS.events.emit(event, data)`
-- `CardSpoke_MODS.events.clear(event?)`
+- `CardSpoke.Plugin.events.on(event, cb)`
+- `CardSpoke.Plugin.events.off(event, cb)`
+- `CardSpoke.Plugin.events.emit(event, data)`
+- `CardSpoke.Plugin.events.clear(event?)`
 
-## `window.CardSpoke.utils` (mod-facing helper API)
+## `window.CardSpoke.utils` (plugin-facing helper API)
 
 Commonly used methods include:
 
@@ -434,7 +433,7 @@ Example:
 Operational advice:
 
 - Keep override scope as narrow as possible
-- Document each override in your mod description/changelog
+- Document each override in your plugin description/changelog
 - Test for interactions with other app-layer mods
 
 ---
@@ -461,22 +460,22 @@ Interpretation guidance:
 
 ## 11) Safe Mode and Recovery
 
-Launching with `?safemode` disables mod sync and startup execution.
+Launching with `?safemode` disables plugin sync and startup execution.
 
 Practical use:
 
 1. Open app with `?safemode`
-2. Disable/uninstall problematic mod(s)
+2. Disable/uninstall problematic plugin(s)
 3. Reload normally
 
 In safe mode:
 - Runtime warns in console
 - A warning toast indicates mods are disabled
-- `CardSpoke_MODS.syncFromStore()` and initial `onLoad` dispatch are skipped
+- `CardSpoke.Plugin.syncFromStore()` and initial `onLoad` dispatch are skipped
 
 ---
 
-## 12) Concrete Mod Development Workflow
+## 12) Concrete plugin Development Workflow
 
 ## Step 1: Pick minimal layer
 
@@ -504,14 +503,14 @@ Use `sample-mods/` closest to your target behavior:
 In console:
 
 ```js
-CardSpoke_MODS.devTools.inspectMod('my-mod');
-CardSpoke_MODS.devTools.getHookStats('my-mod');
-CardSpoke_MODS.devTools.getErrorLog();
+CardSpoke.Plugin.devTools.inspectMod('my-plugin');
+CardSpoke.Plugin.devTools.getHookStats('my-plugin');
+CardSpoke.Plugin.devTools.getErrorLog();
 ```
 
 ## Step 5: Test safe mode fallback
 
-Ensure app remains functional with your mod fully bypassed.
+Ensure app remains functional with your plugin fully bypassed.
 
 ---
 
@@ -526,7 +525,7 @@ Ensure app remains functional with your mod fully bypassed.
    ```bash
    npm test
    ```
-4. Verify mod compatibility assumptions:
+4. Verify plugin compatibility assumptions:
    - hooks still fire
    - `window.CardSpoke.utils` contract remains intact
    - override behavior unchanged unless intentionally modified
@@ -545,18 +544,18 @@ For core updates:
   - search and keyboard navigation
   - undo/redo
 
-For mod updates:
+For plugin updates:
 
-- Install mod from JSON
+- Install plugin from JSON
 - Enable/disable repeatedly
-- Reload mod and verify no duplicate listeners/dom nodes
+- Reload plugin and verify no duplicate listeners/dom nodes
 - Uninstall and verify cleanup
 - Validate with/without safe mode
 - Run with mixed layers enabled (theme + feature + app)
 
 ---
 
-## 15) Security & Safety Rules for Mod Authors
+## 15) Security & Safety Rules for plugin Authors
 
 Non-negotiable best practices:
 
@@ -581,10 +580,10 @@ If distributing to a team/community:
   - Fix: check for existing marker node/class before append
 
 - **Broken state after direct mutation**
-  - Cause: mod edits internals without save/render flow
+  - Cause: plugin edits internals without save/render flow
   - Fix: use `window.CardSpoke.utils` methods
 
-- **Theme mod rejected**
+- **Theme plugin rejected**
   - Cause: non-empty `js` present in theme layer
   - Fix: move logic to feature/app layer
 
@@ -594,7 +593,7 @@ If distributing to a team/community:
 
 - **Hard-to-debug lifecycle errors**
   - Cause: missing diagnostics
-  - Fix: rely on `ctx.logger` and `CardSpoke_MODS.devTools.getErrorLog()`
+  - Fix: rely on `ctx.logger` and `CardSpoke.Plugin.devTools.getErrorLog()`
 
 ---
 
@@ -610,14 +609,14 @@ npm test
 
 ## Runtime globals
 
-- `window.CardSpoke_MODS`
-- `window.CardSpoke.mods`
+- `window.CardSpoke.Plugin`
+- `window.CardSpoke.Plugin`
 - `window.CardSpoke.utils`
 
 ## Troubleshooting
 
-- Launch with `?safemode` when a mod breaks startup
-- Inspect hook stats/errors in `CardSpoke_MODS.devTools`
+- Launch with `?safemode` when a plugin breaks startup
+- Inspect hook stats/errors in `CardSpoke.Plugin.devTools`
 
 ---
 
@@ -625,7 +624,6 @@ npm test
 
 - `README.md` — top-level orientation and doc index
 - `docs/guides/DEVELOPER_GUIDE.md` — core development workflow
-- `docs/MOD_SYSTEM.md` — formal mod system reference
+- `docs/MOD_SYSTEM.md` — formal plugin system reference
 - `docs/api/API_REFERENCE.md` — API contract details
-- `docs/api/SCHEMA.md` / `docs/api/SCHEMA_REFERENCE.md` — schema and migration
 - `docs/guides/TEST_GUIDE.md` — testing guidance

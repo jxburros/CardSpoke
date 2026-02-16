@@ -6,7 +6,7 @@ CardSpoke is a lightweight, card-based knowledge system built for extensibility.
 
 ## Why CardSpoke
 - **Ultra-lightweight core:** The shipped bundle (`www/app.js`) is self-contained for `file://` usage and keeps helpers inlined to minimize dependencies.
-- **Mod-first architecture:** A three-layer mod system (theme, feature, app) lets the community expand the product without bloating the core. The runtime exposes `window.CardSpoke_MODS` for hook dispatch and dev tooling.
+- **Plugin-first architecture:** A three-layer plugin system (theme, feature, app) lets the community expand the product without bloating the core. The runtime exposes modern Plugin API and Middleware Pipeline for extensions.
 - **User ownership:** Data stays local by default; no hosted data or silent syncs. LocalStorage is used for preferences and datasets, while IndexedDB stores the graph of cards.
 - **Transparent ecosystem:** Clear metadata, authorship, and changelog expectations for all angled (community) content.
 
@@ -106,9 +106,7 @@ window.CardSpoke.Plugin.register('my-mod', {
 });
 ```
 
-**Legacy Support:** Existing mods using `CardSpoke_MODS` continue to work via compatibility bridge.
-
-See [Mod System Documentation](./docs/MOD_SYSTEM.md) and [Migration Guide](./docs/guides/MIGRATION_GUIDE.md) for details.
+See [Plugin System Documentation](./docs/MOD_SYSTEM.md) for complete details.
 
 ## Deviation (Fork) Rules
 Deviations are forks/derivatives that must not use the "CardSpoke" name or branding. They must include mandatory metadata, clear credit to CardSpoke and JX Holdings, and avoid implying official endorsement.
@@ -117,7 +115,7 @@ Deviations are forks/derivatives that must not use the "CardSpoke" name or brand
 CardSpoke is local-first (LocalStorage/IndexedDB). Preferences (rich text, grid view, typography, high-contrast, dev mode) live under `cardspoke_*` keys in LocalStorage. Datasets are namespaced to allow multiple vaults with their own metadata, and backups are exported as JSON/CSV/Markdown/TXT directly from the UI. Optional off-device storage may be wired through integrations chosen by the user; no automatic sync or hosted data.
 
 ## Contributing
-- Follow mod development practices in [Mod System Overview](./docs/MOD_SYSTEM.md).
+- Follow plugin development practices in [Plugin System Overview](./docs/MOD_SYSTEM.md).
 - Adhere to safety expectations in [Security & Safety Considerations](./docs/policies/SECURITY_AND_SAFETY.md).
 - Submit issues/PRs with clear metadata and changelog entries.
 - Respect branding restrictions (CardSpoke name/branding cannot be used in forks).

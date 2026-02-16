@@ -31,8 +31,8 @@ test('Accessibility API methods exist in app.js', () => {
     'setHighContrast',
     'isHighContrast',
     'prefersReducedMotion',
-    'getThemeVariables',
-    'onThemeChange'
+    'getThemeVariables'
+    // Note: onThemeChange removed with legacy hook system
   ];
   
   requiredMethods.forEach(method => {
@@ -136,29 +136,7 @@ test('High contrast mode uses customizable variables', () => {
   );
 });
 
-// Test: Theme change hook is implemented
-test('onThemeChange hook is implemented', () => {
-  assert.ok(
-    appJsContent.includes("runModHook('onThemeChange'"),
-    'onThemeChange hook should be called when theme changes'
-  );
-});
-
-// Test: Typography change hook is implemented
-test('onTypographyChange hook is called', () => {
-  assert.ok(
-    appJsContent.includes("runModHook('onTypographyChange'"),
-    'onTypographyChange hook should be called in setTypography'
-  );
-});
-
-// Test: High contrast change hook is implemented
-test('onHighContrastChange hook is called', () => {
-  assert.ok(
-    appJsContent.includes("runModHook('onHighContrastChange'"),
-    'onHighContrastChange hook should be called in setHighContrast'
-  );
-});
+// Legacy hook tests removed - hooks have been deprecated in favor of Plugin API
 
 // Test: Focus styles use customizable variables
 test('Focus styles use customizable variables', () => {

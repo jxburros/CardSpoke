@@ -38,7 +38,6 @@
         // Always track undo regardless of skipHooks - skipHooks only controls mod hooks
         pushUndo('createCard', { cardId: id, card: cloneCard(store.cards[id]) });
         if (!skipSave) save();
-        if (!skipHooks) runModHook('onCardSave', cloneCard(store.cards[id]), { isNew: true, source: 'create' });
         return id;
       }
 
@@ -63,7 +62,6 @@
         });
         Object.assign(card, updates, { updatedAt: updateTimestamp });
         if (!skipSave) save();
-        if (!skipHooks) runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'update' });
       }
 
       /**
@@ -85,7 +83,6 @@
         });
         if (trashBin.length > MAX_TRASH_SIZE) trashBin.pop();
         
-        runModHook('onCardDelete', cloneCard(card));
         (card.children || []).forEach(cid => deleteCard(cid, { skipSave: true }));
         if (card.parentId) {
           const parent = store.cards[card.parentId];
@@ -252,7 +249,6 @@
         }
         
         save();
-        runModHook('onCardSave', cloneCard(store.cards[newId]), { isNew: true, source: 'duplicate' });
         return newId;
       }
 
@@ -370,7 +366,6 @@
             mods: store.mods
           };
         }
-        runModHook('onExport', { type, payload: data });
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const filename = `cardspoke-${type}-${Date.now()}.json`;
         downloadWithFeedback(blob, filename, 'JSON');
@@ -457,7 +452,6 @@
           (card.children || []).forEach(cid => writeCard(cid, depth + 1));
         }
         store.rootOrder.forEach(id => writeCard(id));
-        runModHook('onExport', { type: 'txt', payloadLength: text.length });
         const blob = new Blob([text], { type: 'text/plain' });
         const filename = `cardspoke-${new Date().toISOString().slice(0,10)}.txt`;
         downloadWithFeedback(blob, filename, 'TXT');
@@ -492,7 +486,6 @@
         
         store.rootOrder.forEach(id => writeCardMD(id));
 
-        runModHook('onExport', { type: 'markdown', payloadLength: markdown.length });
         const blob = new Blob([markdown], { type: 'text/markdown' });
         const filename = `cardspoke-${new Date().toISOString().slice(0,10)}.md`;
         downloadWithFeedback(blob, filename, 'Markdown');
@@ -517,7 +510,6 @@
           csv += `"${id}","${title}","${body}","${parentId}","${tags}",${childrenCount},"${created}","${updated}"\n`;
         });
 
-        runModHook('onExport', { type: 'csv', payloadLength: csv.length });
         const blob = new Blob([csv], { type: 'text/csv' });
         const filename = `cardspoke-${new Date().toISOString().slice(0,10)}.csv`;
         downloadWithFeedback(blob, filename, 'CSV');
@@ -654,11 +646,9 @@
           window.CardSpoke.mods.runHook('onAppInit');
         }
 
-        runModHook('onImport', { type: pkg.exportType || 'unknown', cards: importedIds.slice(), mods: Object.keys(pkg.mods || {}) });
         importedIds.forEach(cardId => {
           const storedCard = store.cards[cardId];
           if (storedCard) {
-            runModHook('onCardSave', cloneCard(storedCard), { isNew: true, source: 'importJSON', exportType: pkg.exportType });
           }
         });
         
@@ -697,7 +687,6 @@
           }
         }
 
-        runModHook('onImport', { type: 'text', mode, location, cards: createdIds });
       }
 
       // --- INSTANCE & MODALS ---
@@ -792,8 +781,7 @@
                   instanceKey = key;
                   load();
                   if (!safeMode) {
-                    CardSpoke_MODS.syncFromStore();
-                    CardSpoke_MODS.runHook('onAppInit');
+                    // Legacy mod system removed
                   }
                   render();
                   overlay.remove();
@@ -829,8 +817,7 @@
                     localStorage.setItem('activeInstance', otherKey);
                     instanceKey = otherKey;
                     load();
-                    CardSpoke_MODS.syncFromStore();
-                    CardSpoke_MODS.runHook('onAppInit');
+                    // Legacy mod system removed
                     render();
                   }
                   overlay.remove();
@@ -1249,7 +1236,6 @@
           modIds.forEach(function(modId) {
             var pkg = store.mods[modId];
             var manifest = pkg.manifest || {};
-            var risk = assessModRisk(pkg);
             var layer = manifest.layer || 'feature';
 
             var card = h('div', {
@@ -1263,10 +1249,10 @@
             var toggleBtn = h('button', {
               className: 'btn ' + (pkg.enabled ? 'btn-primary' : ''),
               style: 'font-size: var(--text-sm); padding: var(--space-xs) var(--space-md);',
+              disabled: true,
+              title: 'Legacy mod system - use Plugin API for new extensions',
               onclick: function() {
-                if (pkg.enabled) CardSpoke_MODS.disable(modId);
-                else CardSpoke_MODS.enable(modId);
-                renderTab('installed');
+                showToast('Legacy mod system removed - use Plugin API for new extensions', 'info');
               }
             }, pkg.enabled ? 'Enabled' : 'Disabled');
             headerRow.appendChild(toggleBtn);
@@ -1300,21 +1286,20 @@
             actions.appendChild(h('button', {
               className: 'btn',
               style: 'font-size: var(--text-xs);',
+              disabled: true,
+              title: 'Legacy mod system - functionality removed',
               onclick: function() {
-                CardSpoke_MODS.reload(modId);
-                renderTab('installed');
+                showToast('Mod reload disabled - legacy system removed', 'info');
               }
             }, 'Reload'));
 
             actions.appendChild(h('button', {
               className: 'btn',
               style: 'font-size: var(--text-xs); color: var(--danger, #ef4444);',
+              disabled: true,
+              title: 'Legacy mod system - functionality removed',
               onclick: function() {
-                if (confirm('Uninstall mod "' + (manifest.name || modId) + '"?')) {
-                  CardSpoke_MODS.uninstall(modId);
-                  showToast('Mod uninstalled');
-                  renderTab('installed');
-                }
+                showToast('Mod uninstall disabled - legacy system removed', 'info');
               }
             }, 'Uninstall'));
 
@@ -1344,24 +1329,8 @@
             reader.onload = function(ev) {
               try {
                 var pkg = JSON.parse(ev.target.result);
-                var validation = validateModPackage(pkg);
-                if (!validation.valid) {
-                  showToast('Invalid mod: ' + validation.errors.join(', '), 'error');
-                  return;
-                }
-                var risk = assessModRisk(pkg);
-                var msg = 'Install mod "' + (pkg.manifest.name || pkg.id) + '"?\n\n';
-                msg += 'Layer: ' + pkg.manifest.layer + '\n';
-                msg += 'Risk: ' + risk.riskLevel + '\n';
-                if (risk.permissions.length) msg += '\nPermissions:\n- ' + risk.permissions.join('\n- ');
-                if (risk.risks.length) msg += '\n\nWarnings:\n- ' + risk.risks.join('\n- ');
-                if (confirm(msg)) {
-                  CardSpoke_MODS.install(pkg, true);
-                  renderTab('installed');
-                  // Switch to installed tab
-                  tabBar.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
-                  tabBar.querySelector('[data-tab="installed"]').classList.add('active');
-                }
+                // Legacy mod system removed - validation and installation no longer available
+                showToast('Mod upload: Legacy mod system removed', 'error');
               } catch (err) {
                 showToast('Failed to parse mod file: ' + err.message, 'error');
               }
@@ -1392,15 +1361,8 @@
             onclick: function() {
               try {
                 var pkg = JSON.parse(textarea.value);
-                var validation = validateModPackage(pkg);
-                if (!validation.valid) {
-                  showToast('Invalid mod: ' + validation.errors.join(', '), 'error');
-                  return;
-                }
-                CardSpoke_MODS.install(pkg, true);
-                renderTab('installed');
-                tabBar.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
-                tabBar.querySelector('[data-tab="installed"]').classList.add('active');
+                // Legacy mod system removed - validation and installation no longer available
+                showToast('Mod paste: Legacy mod system removed', 'error');
               } catch (err) {
                 showToast('Invalid JSON: ' + err.message, 'error');
               }
@@ -1457,7 +1419,7 @@
             id: 'create-mod-js',
             className: 'form-textarea',
             style: 'width: 100%; min-height: 150px; font-family: monospace; font-size: var(--text-sm);',
-            placeholder: '(function() {\n  CardSpoke_MODS.register(\'my-mod\', {\n    onLoad: function(ctx) {\n      ctx.logger.log(\'Mod loaded!\');\n    }\n  });\n})();'
+            placeholder: '// Legacy mod system removed - use Plugin API instead'
           }));
           form.appendChild(jsGroup);
 
@@ -1481,25 +1443,8 @@
               if (store.mods[id]) { showToast('A mod with this ID already exists', 'error'); return; }
               if (layer === 'theme' && js) { showToast('Theme mods cannot contain JavaScript', 'error'); return; }
 
-              var pkg = {
-                id: id,
-                manifest: {
-                  name: name,
-                  version: version,
-                  author: author,
-                  description: description,
-                  layer: layer,
-                  compatibility: '>=' + APP_VERSION
-                },
-                config: {},
-                css: css,
-                js: js,
-                overrides: {},
-                enabled: false
-              };
-
-              CardSpoke_MODS.install(pkg, false);
-              showToast('Mod created: ' + name);
+              // Legacy mod system removed - mod creation no longer available
+              showToast('Mod creation: Legacy mod system removed', 'error');
               renderTab('installed');
               tabBar.querySelectorAll('.modal-tab').forEach(function(t) { t.classList.remove('active'); });
               tabBar.querySelector('[data-tab="installed"]').classList.add('active');
@@ -1771,10 +1716,7 @@
             const themeOption = h('div', {
               style: 'padding: var(--space-md); border: 2px solid ' + (isActive ? 'var(--text)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer; display: flex; justify-content: space-between; align-items: center;',
               onclick: function() {
-                if (!theme.enabled) {
-                  // Enable the theme extension first
-                  CardSpoke_MODS.enable(theme.id);
-                }
+                // Legacy mod system removed - auto-enable removed
                 // Apply the theme extension (preserves current Light/Dark mode)
                 localStorage.setItem('cardspoke_activeThemeMod', theme.id);
                 // Remove all other theme extension classes and add this one
@@ -2154,7 +2096,6 @@
         card.updatedAt = Date.now();
         
         if (!skipSave) save();
-        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'addTag' });
         
         return true;
       }
@@ -2185,7 +2126,6 @@
         card.updatedAt = Date.now();
         
         if (!skipSave) save();
-        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'removeTag' });
         
         return true;
       }
@@ -2211,7 +2151,6 @@
         card.updatedAt = Date.now();
         
         if (!skipSave) save();
-        runModHook('onCardSave', cloneCard(card), { isNew: false, source: 'setTags' });
         
         return true;
       }

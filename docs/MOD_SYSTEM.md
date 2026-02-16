@@ -6,7 +6,7 @@ This document describes the modern plugin-based mod system that powers CardSpoke
 
 ## Overview
 
-The mod system has been modernized with a new architecture featuring:
+The mod system is built on a modern, powerful architecture featuring:
 
 - **Middleware Pipeline**: Priority-weighted interceptors for core operations
 - **Plugin API**: Sandboxed contexts with resource management and hot-unloading
@@ -14,13 +14,9 @@ The mod system has been modernized with a new architecture featuring:
 - **Storage Driver Registry**: Pluggable storage backends
 - **Permissions System**: User consent for sensitive operations
 
-### Legacy Support
-
-**Existing mods continue to work!** A compatibility bridge ensures backward compatibility with the legacy `CardSpoke_MODS` system. See the [Migration Guide](./guides/MIGRATION_GUIDE.md) to adopt the new API.
-
 ### Architecture Components
 
-1. **Middleware Pipeline**: Replace hooks with interceptors that can modify or cancel operations
+1. **Middleware Pipeline**: Interceptors that can modify or cancel operations
 2. **Plugin API**: Isolated contexts with `api.ui`, `api.data`, `api.storage`, and `api.events`
 3. **Component Registry**: Register UI components with priority-based resolution
 4. **Storage Drivers**: Pluggable storage backends (IndexedDB, cloud, git, etc.)
@@ -28,9 +24,9 @@ The mod system has been modernized with a new architecture featuring:
 
 ## Mod Package Format
 
-### Modern Plugin Format (Recommended)
+### Plugin Definition Format
 
-**Choose your format based on your use case:**
+**All mods use one of two formats:**
 - **ES6 Module Format**: For development with bundlers (Vite/ESBuild) and modern JavaScript workflows
 - **Runtime Registration Format**: For direct browser usage without a build step
 
@@ -46,8 +42,7 @@ export default {
     author: "Author Name",
     description: "What this mod does",
     layer: "theme | feature | app",
-    compatibility: ">=0.16.0",
-    permissions: ["ui-override", "storage"]  // NEW
+    permissions: ["ui-override", "storage"]
   },
   setup: async (ctx) => {
     // Plugin initialization with ctx.api
@@ -73,7 +68,6 @@ window.CardSpoke.Plugin.register('my-mod', {
     author: "Author Name",
     description: "What this mod does",
     layer: "theme | feature | app",
-    compatibility: ">=0.16.0",
     permissions: ["ui-override", "storage"]
   },
   setup: async (ctx) => {
@@ -88,29 +82,8 @@ window.CardSpoke.Plugin.register('my-mod', {
 
 Used in: Direct browser `<script>` tags or inline code
 
-### Legacy JSON Format (Still Supported)
-
-```json
-{
-  "id": "my-mod",
-  "manifest": {
-    "name": "My Mod",
-    "version": "1.0.0",
-    "author": "Author Name",
-    "description": "What this mod does",
-    "layer": "theme | feature | app",
-    "compatibility": ">=0.16.0"
-  },
-  "config": {},
-  "css": "",
-  "js": "",
-  "overrides": {},
-  "enabled": false
-}
-```
-
 ### Required Fields
-- **id**: Lowercase alphanumeric with hyphens (`/^[a-z0-9-]+$/`).
+- **id**: Lowercase alphanumeric with hyphens (`/^[a-z0-9-]+$/`). Must be unique within your plugin context.
 - **manifest.name**: Human-readable display name.
 - **manifest.version**: Semver string (`X.Y.Z`).
 - **manifest.author**: Creator name.
@@ -118,10 +91,11 @@ Used in: Direct browser `<script>` tags or inline code
 
 ### Optional Fields
 - **manifest.description**: Short description of the mod.
-- **manifest.compatibility**: Semver range for app version compatibility.
+- **manifest.permissions**: Array of requested permissions.
 - **config**: Object of user-configurable settings (arbitrary key/value pairs).
 - **css**: CSS string injected into the page when the mod is enabled.
-- **js**: JavaScript string executed when the mod is enabled (not allowed for `theme` layer).
+- **setup**: Async function called when mod is enabled.
+- **teardown**: Async function called when mod is disabled or uninstalled.
 - **overrides**: Object of app-level overrides (only meaningful for `app` layer).
 
 ## Three-Layer Architecture
@@ -186,55 +160,24 @@ Risk indicators checked in JavaScript:
 - DOM manipulation: `document.write`, `innerHTML`, `eval(`
 - Storage access: `localStorage`, `indexedDB`
 
-## Lifecycle Hooks
+## Lifecycle and Hooks
 
-Mods register hooks via `CardSpoke_MODS.register()`. The runtime dispatches hooks to enabled mods.
+The modern plugin system uses setup/teardown functions for initialization and cleanup. For fine-grained control over app operations, use the Middleware Pipeline (see below).
 
-| Hook | When it fires | Common uses |
-|------|---------------|-------------|
-| `onLoad(ctx)` | On enable or after sync at startup | Allocate resources, register listeners, seed state. |
-| `onEnable(ctx)` | After a mod is enabled | Re-attach DOM, rebind hotkeys. |
-| `onDisable(ctx)` | Before disabling a mod | Tear down DOM/listeners, flush timers. |
-| `onUninstall(ctx)` | Before removal from registry | Purge storage, remove injected styles. |
-| `onCardSave(ctx, card, saveInfo)` | After create/update/duplicate | Derive fields, enforce validation. |
-| `onCardDelete(ctx, card)` | Before a card is removed | Guard deletes, cascade clean-up. |
-| `onCardRender(ctx, card, element)` | After a card's DOM renders | Inject UI, annotate content. |
-| `onThemeChange(ctx, theme)` | When the app theme toggles | Sync theme variables. |
-| `onTypographyChange(ctx, preset)` | When typography preset changes | Recalculate sizes/spacing. |
-| `onHighContrastChange(ctx, enabled)` | When high-contrast flips | Adjust palette for accessibility. |
-| `onNavigate(ctx, navState)` | When navigation state changes | Mirror router state, lazy-load. |
-| `onSearch(ctx, query, results)` | After search completes | Rank boosters, filter results. |
-| `onExport(ctx, data)` | Before data export | Append metadata, transform payloads. |
-| `onImport(ctx, info)` | After data import | Normalize incoming data. |
-| `onRender(ctx)` | After app UI re-renders | Update custom UI components, refresh visualizations. |
-| `onPageChange(ctx, page)` | When the active page/view changes | Load page-specific data, initialize page components. |
-| `onAppInit(ctx)` | Once at app initialization after boot | Initialize global state, register app-wide services. |
+### Setup and Teardown
 
-### Hook Context Object
-Each hook receives a context with:
-- `modId`: The current mod's ID.
-- `appVersion` / `schemaVersion`: App release and schema numbers.
-- `api`: Store API for card CRUD, navigation, UI feedback.
-- `utils`: Reference to `CardSpoke.utils`.
-- `logger`: Mod-scoped logger (`log`, `info`, `warn`, `error`).
+Every plugin defines these lifecycle functions:
 
-## Registration Example
+- **`setup(ctx)`**: Called when the plugin is enabled. Use this to initialize resources, register middleware, or inject UI.
+- **`teardown(ctx)`**: Called when the plugin is disabled or uninstalled. Use this to clean up resources (automatic for most cases).
 
-```javascript
-CardSpoke_MODS.register('my-feature', {
-  onLoad(ctx) {
-    ctx.logger.info('My feature loaded');
-  },
-  onCardRender(ctx, card, element) {
-    const badge = document.createElement('span');
-    badge.textContent = card.tags.length + ' tags';
-    element.appendChild(badge);
-  },
-  onDisable(ctx) {
-    ctx.logger.info('My feature disabled');
-  }
-});
-```
+### Resource Management
+
+The Plugin API automatically manages resources:
+- Injected DOM elements are tracked
+- Event listeners are scoped to the plugin
+- Middleware handlers are automatically unregistered on disable
+- Component registry overrides are reverted on disable
 
 ## Mod Manager UI
 
@@ -247,56 +190,75 @@ The Mod Manager is accessible from the main menu and has three tabs:
 ## Installation Methods
 
 ### File Upload
-Upload a `.json` file through the Upload modal (Mods tab) or the Mod Manager's Install tab.
+Upload a plugin definition file through the Upload modal (Mods tab) or the Mod Manager's Install tab.
 
 ### Manual Creation
-Use the Create tab in the Mod Manager or the Upload modal's Mods tab to enter mod metadata, JavaScript code, and CSS directly.
+Use the Create tab in the Mod Manager to define a plugin directly in the app by providing metadata, JavaScript code, and CSS.
 
 ### Programmatic
 ```javascript
-CardSpoke_MODS.install(modPackage);
+window.CardSpoke.Plugin.register('my-mod', pluginDefinition);
 ```
 
 ## Safe Mode
 
-Launch with `?safemode` in the URL to disable all mods. This is useful for troubleshooting when a mod causes issues. In safe mode, the app displays a "Mods Disabled" banner and no mod code executes.
+Launch with `?safemode` in the URL to disable all plugins. This is useful for troubleshooting when a plugin causes issues. In safe mode, the app displays a "Mods Disabled" banner and no plugin code executes.
 
-## Legacy Migration
+## Migration from Legacy System
 
-Mods using the old `meta.type` format (Theme, Patch, Plugin, Mod, Kit, Expansion) are automatically migrated to the new `manifest.layer` format on load:
-- `Theme` → `theme`
-- `Patch`, `Plugin` → `feature`
-- `Mod`, `Kit`, `Expansion` → `app`
+**The legacy hook-based system is no longer supported.** All development should use the modern Plugin API.
+
+If you have existing plugins using the old format, contact the development team for assistance. New features and improvements are only available in the modern Plugin API.
+
+**Key modern equivalents:**
+- `setup(ctx)` → Replaces hook registration
+- Middleware Pipeline → Replaces hook-based interceptors
+- Component Registry → Replaces direct DOM manipulation
+- Namespaced plugin storage → Replaces global storage access
 
 ## Validation Rules
 
 `validateModPackage()` enforces:
-1. `id` must be a non-empty string matching `/^[a-z0-9-]+$/`.
-2. `manifest` must exist with `name`, `version`, `author`, and `layer`.
-3. `manifest.layer` must be one of `theme`, `feature`, or `app`.
-4. Theme-layer mods must have empty or no `js` field.
-5. `overrides` are only meaningful for `app`-layer mods.
+1. `manifest` must exist with `name`, `version`, `author`, and `layer`.
+2. `manifest.layer` must be one of `theme`, `feature`, or `app`.
+3. Theme-layer plugins must have no `setup`/`teardown` functions (CSS only).
+4. `overrides` are only meaningful for `app`-layer plugins.
+5. `permissions` must be from the allowed set.
 
 ## Event Bus
 
-Mods can communicate via `CardSpoke_MODS.events`:
-- `on(event, callback)`: Subscribe to an event.
-- `off(event, callback)`: Unsubscribe.
-- `emit(event, data)`: Broadcast an event.
-- `clear(event?)`: Remove listeners.
+Plugins can communicate via the Plugin API event system:
+- `ctx.api.events.on(event, callback)`: Subscribe to an event.
+- `ctx.api.events.off(event, callback)`: Unsubscribe.
+- `ctx.api.events.emit(event, data)`: Broadcast an event.
+
+This is scoped to your plugin and automatically cleaned up on disable.
 
 ## Developer Tools
 
-`CardSpoke_MODS.devTools` provides:
-- `inspectMod(id)` / `listAllMods()`: View hooks, metadata, and state.
-- `getHookStats(modId?)`: Timing and failure counters.
-- `getErrorLog()` / `clearErrorLog()`: Global mod error buffer.
-- `testHook(modId, hookName, ...args)`: Invoke a hook manually.
-- `getEventListeners()`: Per-event subscription counts.
+Use the browser console to debug plugins:
+
+```javascript
+// List all registered plugins
+window.CardSpoke.Plugin.listAll();
+
+// Get plugin info
+window.CardSpoke.Plugin.inspect('plugin-id');
+
+// Manually trigger enable/disable
+await window.CardSpoke.Plugin.enable('plugin-id');
+await window.CardSpoke.Plugin.disable('plugin-id');
+
+// Monitor middleware performance
+window.CardSpoke.Middleware.getStats();
+
+// Check component registry
+window.CardSpoke.ComponentRegistry.list();
+```
 
 ## LocalStorage Keys
-- `cardspoke_activeThemeMod`: ID of the active theme mod.
-- Mod data is persisted in the `mods` field of the IndexedDB store.
+
+Plugin data is persisted in IndexedDB under the `plugins` namespace. Each plugin has its own isolated storage accessed via `ctx.api.storage`.
 
 ## Modern Plugin API
 
@@ -519,17 +481,7 @@ const plugin: PluginDefinition = {
 export default plugin;
 ```
 
-## Migration from Legacy System
-
-See the [Migration Guide](./guides/MIGRATION_GUIDE.md) for step-by-step instructions on converting legacy mods to the new API.
-
-**Key changes:**
-- `CardSpoke_MODS.register()` → `CardSpoke.Plugin.register()`
-- Hooks → Middleware or Plugin API
-- Direct DOM access → Component Registry
-- Global storage → Namespaced plugin storage
-
-## Examples
+## Examples and Resources
 
 Complete examples are available in `sample-mods/new-api/`:
 
@@ -543,7 +495,6 @@ Detailed documentation:
 - [Plugin API](./api/PLUGIN_API.md)
 - [Middleware Pipeline](./api/MIDDLEWARE_PIPELINE.md)
 - [Component Registry](./api/COMPONENT_REGISTRY.md)
-- [Migration Guide](./guides/MIGRATION_GUIDE.md)
 - [TypeScript Definitions](../types/index.d.ts)
 
 ## Security Considerations
@@ -569,8 +520,7 @@ Detailed documentation:
 - Check [API documentation](./api/)
 - See [examples](../sample-mods/new-api/)
 - Ask in [GitHub Issues](https://github.com/jxburros/CardSpoke/issues)
-- Read [Migration Guide](./guides/MIGRATION_GUIDE.md)
 
 ---
 
-**Note:** The legacy hook-based system remains supported for backward compatibility but new mods should use the modern Plugin API for better resource management and security.
+**Current Plugin System:** This is the only supported plugin API. The modern Plugin API, Middleware Pipeline, and Component Registry provide powerful extensibility with better resource management and security.

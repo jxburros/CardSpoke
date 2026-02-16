@@ -1915,8 +1915,7 @@
         showToast('Safe Mode Active - Mods Disabled', 'warning');
       }
 
-      if (!safeMode) CardSpoke_MODS.syncFromStore();        // Initialize mods from store (skip in safe mode)
-      if (!safeMode) CardSpoke_MODS.runHook('onLoad');      // Run mod initialization hooks (skip in safe mode)
+      // Legacy mod system has been removed - plugins use modern Plugin API
       render();                        // Initial render
       populateFooter();                // Re-populate footer to ensure it displays
 
