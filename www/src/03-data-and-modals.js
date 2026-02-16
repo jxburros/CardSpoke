@@ -372,13 +372,8 @@
         }
         runModHook('onExport', { type, payload: data });
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `cardspoke-${type}-${Date.now()}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast(`Exported ${type} successfully`);
+        const filename = `cardspoke-${type}-${Date.now()}.json`;
+        downloadWithFeedback(blob, filename, 'JSON');
       }
 
       /**
@@ -1647,7 +1642,11 @@
           checked: devModeEnabled,
           onchange: function(e) {
             localStorage.setItem('cardspoke_devmode', e.target.checked.toString());
-            showToast(e.target.checked ? 'Developer mode enabled' : 'Developer mode disabled');
+            if (e.target.checked) {
+              showToast('Developer mode enabled - Open menu to access Developer Console', 'success');
+            } else {
+              showToast('Developer mode disabled', 'info');
+            }
           }
         });
         const devSlider = h('span', { className: 'switch-slider' });
