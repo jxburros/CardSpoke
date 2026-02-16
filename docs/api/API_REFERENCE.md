@@ -1,14 +1,14 @@
 # CardSpoke API Reference
 
-This reference documents the surfaces mod developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke_MODS` mod runtime (also exposed as `window.CardSpoke.mods`). It consolidates the runtime contracts that ship in `www/app.js`.
+This reference documents the surfaces plugin developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke.Plugin` plugin runtime (also exposed as `window.CardSpoke.mods`). It consolidates the runtime contracts that ship in `www/app.js`.
 
 **Current Version:** 0.16.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
 
 ## Global objects
 - **`window.CardSpoke.utils`**: async helpers for card CRUD, tagging, search, accessibility, dataset metadata, and toast UI helpers.
-- **`window.CardSpoke_MODS` / `window.CardSpoke.mods`**: the mod system that registers hooks, dispatches lifecycle events, offers an event bus, and exposes developer tooling.
+- **`window.CardSpoke.Plugin` / `window.CardSpoke.mods`**: the plugin system that registers hooks, dispatches lifecycle events, offers an event bus, and exposes developer tooling.
 
-## Mod runtime (`CardSpoke_MODS`)
+## plugin runtime (`CardSpoke.Plugin`)
 
 ### Supported hook names
 Implemented hooks are enforced by runtime validation. Unknown hook names log warnings but still register. Hooks may be async.
@@ -16,19 +16,18 @@ Implemented hooks are enforced by runtime validation. Unknown hook names log war
 | Hook | When it fires | Common uses |
 | --- | --- | --- |
 | `onLoad(ctx)` | First enable or after sync on load | Allocate resources, register listeners, seed state. |
-| `onEnable(ctx)` | After a mod is enabled | Re-attach DOM, rebind hotkeys, reopen sockets. |
-| `onDisable(ctx)` | Before disabling a mod | Tear down DOM/listeners, flush timers. |
+| `onEnable(ctx)` | After a plugin is enabled | Re-attach DOM, rebind hotkeys, reopen sockets. |
+| `onDisable(ctx)` | Before disabling a plugin | Tear down DOM/listeners, flush timers. |
 | `onUninstall(ctx)` | Before removal from registry | Purge storage, remove injected styles. |
 | `onCardSave(ctx, card, saveInfo)` | After create/update/duplicate | Derive fields, enforce validation, emit events. |
 | `onCardDelete(ctx, card)` | Before a card is fully removed | Guard deletes, cascade clean-up. |
 | `onCardRender(ctx, card, element)` | After a card's DOM renders | Inject UI, annotate content, attach buttons. |
 | `onThemeChange(ctx, theme)` | When the app theme toggles | Sync theme variables, re-compute contrast. |
-| `onTypographyChange(ctx, preset)` | When typography preset changes | Recalculate sizes/spacing your mod introduced. |
+| `onTypographyChange(ctx, preset)` | When typography preset changes | Recalculate sizes/spacing your plugin introduced. |
 | `onHighContrastChange(ctx, enabled)` | When high-contrast mode flips | Adjust palette for accessibility. |
 | `onNavigate(ctx, navState)` | When navigation state changes | Mirror router state, lazy-load resources. |
 | `onSearch(ctx, query, results)` | After search completes | Rank boosters, log queries, filter results. |
 | `onExport(ctx, data)` | Before data export | Append metadata, transform payloads. |
-| `onImport(ctx, info)` | After data import | Normalize incoming data, map legacy fields. |
 | `onRender(ctx)` | After app UI re-renders | Update custom UI components, refresh visualizations. |
 | `onPageChange(ctx, page)` | When the active page/view changes | Load page-specific data, initialize page components. |
 | `onAppInit(ctx)` | Once at app initialization after boot | Initialize global state, register app-wide services. |
@@ -36,18 +35,18 @@ Implemented hooks are enforced by runtime validation. Unknown hook names log war
 ### Registration and lifecycle
 - **`register(modId, definition)`**: Validates hook names, stores metadata, and resets error counters on success. Called once inside your IIFE.
 - **`enable(modId)` / `disable(modId)`**: Toggle mods persisted in the store; enabling reapplies CSS, runs `onEnable`, then `onLoad`. Disabling calls `onDisable` before removing styles.
-- **`unregister(modId)`**: Runs `onUninstall`, clears registry entry, removes styles, and evicts persisted mod state.
+- **`unregister(modId)`**: Runs `onUninstall`, clears registry entry, removes styles, and evicts persisted plugin state.
 - **`syncFromStore()`**: Loads enabled mods from the persisted store, applies CSS, and prunes stale registry entries.
 - **`reload(modId)`**: Executes `onDisable`, clears styles/hooks/error counts, re-runs registration from persisted code+CSS, and then replays `onEnable`/`onLoad`.
-- **Hook dispatch**: `runHook(hookName, ...args)` fans out to enabled mods, honoring one-time semantics for `onLoad`. Use `runHookForMod` to target a single mod.
+- **Hook dispatch**: `runHook(hookName, ...args)` fans out to enabled mods, honoring one-time semantics for `onLoad`. Use `runHookForMod` to target a single plugin.
 
 ### Context passed to hooks
 The runtime builds a context object per invocation:
-- `modId`: current mod id.
+- `pluginId`: current plugin id.
 - `appVersion` / `schemaVersion`: release + schema numbers (currently 0.16.0 / 4).
 - `api`: see "Store API" below.
 - `utils`: reference to `CardSpoke.utils`.
-- `logger`: mod-scoped logger with `log/info/warn/error` prefixes.
+- `logger`: plugin-scoped logger with `log/info/warn/error` prefixes.
 
 ### Store API
 `createStoreAPI(modId)` exposes safe, synchronous helpers for hooks:
@@ -59,17 +58,17 @@ The runtime builds a context object per invocation:
 - **Logging**: `logger` plus `log/warn/error/info` wrappers.
 
 ### Event bus
-Use `CardSpoke_MODS.events` to coordinate between mods:
+Use `CardSpoke.Plugin.events` to coordinate between mods:
 - `on(event, cb)`: subscribe.
 - `off(event, cb)`: unsubscribe.
 - `emit(event, data)`: broadcast.
 - `clear(event?)`: remove listeners for one or all events.
 
 ### Developer tools
-`CardSpoke_MODS.devTools` exposes debugging aids:
+`CardSpoke.Plugin.devTools` exposes debugging aids:
 - `inspectMod(id)` and `listAllMods()` for visibility into hooks, metadata, load state, and enablement.
 - `getHookStats(modId?)`: timing and failure counters per hook call.
-- `getErrorLog()` / `clearErrorLog()`: global mod error buffer.
+- `getErrorLog()` / `clearErrorLog()`: global plugin error buffer.
 - `testHook(modId, hookName, ...args)`: invoke a hook manually.
 - `getEventListeners()`: per-event subscription counts.
 
