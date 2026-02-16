@@ -413,7 +413,9 @@ const header = {
         clearAll: document.getElementById('menuClearAll'),
         gettingStarted: document.getElementById('menuGettingStarted'),
         help: document.getElementById('menuHelp'),
-        keyboardShortcuts: document.getElementById('menuKeyboardShortcuts')
+        keyboardShortcuts: document.getElementById('menuKeyboardShortcuts'),
+        developerSection: document.getElementById('menuDeveloperSection'),
+        developerConsole: document.getElementById('menuDeveloperConsole')
       };
       
       const searchContainer = document.getElementById('searchContainer');

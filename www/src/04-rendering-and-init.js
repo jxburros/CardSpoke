@@ -729,6 +729,54 @@
           // Remove loading indicator
           loadingDiv.remove();
 
+          // Apply advanced search filters if present
+          try {
+            const filtersStr = sessionStorage.getItem('searchFilters');
+            if (filtersStr) {
+              const filters = JSON.parse(filtersStr);
+              
+              // Filter by tag
+              if (filters.tagFilter) {
+                fuzzyResults = fuzzyResults.filter(result => {
+                  const card = result.card;
+                  return card.tags && card.tags.some(tag => tag.toLowerCase() === filters.tagFilter.toLowerCase());
+                });
+              }
+              
+              // Filter by bookmark status
+              if (filters.bookmarkOnly) {
+                fuzzyResults = fuzzyResults.filter(result => result.card.bookmarked === true);
+              }
+              
+              // Filter by date
+              if (filters.dateFilter) {
+                const now = Date.now();
+                let startTime = 0;
+                
+                if (filters.dateFilter === 'today') {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  startTime = today.getTime();
+                } else if (filters.dateFilter === 'week') {
+                  startTime = now - (7 * 24 * 60 * 60 * 1000);
+                } else if (filters.dateFilter === 'month') {
+                  startTime = now - (30 * 24 * 60 * 60 * 1000);
+                }
+                
+                fuzzyResults = fuzzyResults.filter(result => {
+                  const card = result.card;
+                  return (card.createdAt && card.createdAt >= startTime) || 
+                         (card.updatedAt && card.updatedAt >= startTime);
+                });
+              }
+              
+              // Clear filters after use
+              sessionStorage.removeItem('searchFilters');
+            }
+          } catch (err) {
+            console.error('Error applying search filters:', err);
+          }
+
           const hookResults = fuzzyResults.map(result => ({
             ...result,
             card: cloneCard(result.card)
@@ -1001,6 +1049,10 @@
       
       header.menuBtn.onclick = () => {
         menu.overlay.classList.add('show');
+        // Show/hide developer section based on developer mode
+        if (menu.developerSection) {
+          menu.developerSection.style.display = isDeveloperMode() ? 'block' : 'none';
+        }
         // Set up focus trap for accessibility
         menuFocusTrapCleanup = trapFocus(menu.overlay.querySelector('.menu-panel'));
       };
@@ -1129,6 +1181,13 @@
         menu.overlay.classList.remove('show');
         showKeyboardHelp();
       };
+
+      if (menu.developerConsole) {
+        menu.developerConsole.onclick = () => {
+          menu.overlay.classList.remove('show');
+          showDeveloperConsole();
+        };
+      }
 
       const debouncedNavigateSearch = debounce((query) => {
         if (query) {

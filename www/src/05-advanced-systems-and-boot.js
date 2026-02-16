@@ -381,7 +381,11 @@
         const modal = h('div', { className: 'modal', style: 'max-width: 700px;' });
         const modalHeader = h('div', { className: 'modal-header' });
         modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Tag Manager'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, 'X');
+        const closeBtn = h('button', { 
+          className: 'modal-close', 
+          'aria-label': 'Close tag manager',
+          onclick: () => overlay.remove() 
+        }, 'X');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
         
@@ -497,11 +501,21 @@
         const modal = h('div', { className: 'modal', style: 'max-width: 600px;' });
         const modalHeader = h('div', { className: 'modal-header' });
         modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Advanced Search'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, 'X');
+        const closeBtn = h('button', { 
+          className: 'modal-close', 
+          'aria-label': 'Close advanced search',
+          onclick: () => overlay.remove() 
+        }, 'X');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
         
         const modalBody = h('div', { className: 'modal-body' });
+        
+        // Add help text at the top
+        const helpText = h('div', { 
+          style: 'background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius); margin-bottom: var(--space-lg); font-size: 14px; color: var(--text-secondary);'
+        }, '💡 Tip: Use advanced filters to narrow down your search results by tag, bookmark status, or date.');
+        modalBody.appendChild(helpText);
         
         // Search query
         const queryGroup = h('div', { style: 'margin-bottom: var(--space-lg);' });
@@ -509,6 +523,7 @@
         const queryInput = h('input', {
           type: 'text',
           placeholder: 'Search in titles and content...',
+          'aria-label': 'Search text input',
           style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-primary); color: var(--text-primary); font-size: 1rem;'
         });
         queryGroup.appendChild(queryInput);
@@ -518,6 +533,7 @@
         const tagGroup = h('div', { style: 'margin-bottom: var(--space-lg);' });
         tagGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Filter by Tag'));
         const tagSelect = h('select', {
+          'aria-label': 'Filter by tag',
           style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: 1rem;'
         });
         tagSelect.appendChild(h('option', { value: '' }, 'Any tag'));
@@ -530,7 +546,7 @@
         // Filter by bookmarked
         const bookmarkGroup = h('div', { style: 'margin-bottom: var(--space-lg);' });
         const bookmarkCheck = h('label', { style: 'display: flex; align-items: center; gap: var(--space-sm); cursor: pointer;' });
-        const bookmarkInput = h('input', { type: 'checkbox' });
+        const bookmarkInput = h('input', { type: 'checkbox', 'aria-label': 'Only show bookmarked cards' });
         bookmarkCheck.appendChild(bookmarkInput);
         bookmarkCheck.appendChild(document.createTextNode('Only show bookmarked cards'));
         bookmarkGroup.appendChild(bookmarkCheck);
@@ -540,6 +556,7 @@
         const dateGroup = h('div', { style: 'margin-bottom: var(--space-lg);' });
         dateGroup.appendChild(h('label', { style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' }, 'Created/Modified'));
         const dateSelect = h('select', {
+          'aria-label': 'Filter by date',
           style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: 1rem;'
         });
         dateSelect.appendChild(h('option', { value: '' }, 'Any time'));
@@ -1534,6 +1551,32 @@
                     h('li', {}, 'Theme mods: CSS-only visual changes'),
                     h('li', {}, 'Feature mods: Add new functionality with JS hooks'),
                     h('li', {}, 'App mods: Full app transformations with overrides')
+                  ),
+                  h('p', { style: 'font-size: var(--text-sm); color: var(--text-secondary);' },
+                    'Access Mod Manager from the menu to install and manage mods.'
+                  )
+                ),
+                
+                // Advanced Features Section
+                h('div', { style: 'margin-bottom: var(--space-lg);' },
+                  h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Advanced Features'),
+                  h('div', { style: 'display: grid; gap: var(--space-sm);' },
+                    h('div', {}, 
+                      h('strong', {}, 'Tag Manager'), 
+                      ' — Rename, merge, or delete tags across all cards. Access from the menu.'
+                    ),
+                    h('div', {}, 
+                      h('strong', {}, 'Advanced Search'), 
+                      ' — Filter cards by tag, bookmark status, or date range. Access from the menu.'
+                    ),
+                    h('div', {}, 
+                      h('strong', {}, 'Datasets'), 
+                      ' — Create multiple isolated data vaults. Access from Data & Export menu.'
+                    ),
+                    h('div', {}, 
+                      h('strong', {}, 'Developer Mode'), 
+                      ' — Enable in Appearance settings to access debugging tools and system information.'
+                    )
                   )
                 ),
                 
@@ -1674,6 +1717,180 @@
           }
         }
       });
+
+      // =============================================================
+      // --- DEVELOPER CONSOLE (v0.16.1) ---
+      // Show debugging information when developer mode is enabled
+      // =============================================================
+      
+      /**
+       * Show developer console with debugging information
+       */
+      function showDeveloperConsole() {
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', { className: 'modal', style: 'max-width: 800px;' });
+        const modalHeader = h('div', { className: 'modal-header' });
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, '🔧 Developer Console'));
+        const closeBtn = h('button', { 
+          className: 'modal-close', 
+          'aria-label': 'Close developer console',
+          onclick: () => overlay.remove() 
+        }, 'X');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+        
+        const modalBody = h('div', { className: 'modal-body', style: 'max-height: 70vh; overflow-y: auto;' });
+        
+        // System Information
+        const sysSection = h('div', { style: 'margin-bottom: var(--space-xl); padding: var(--space-lg); background: var(--bg-secondary); border-radius: var(--radius);' });
+        sysSection.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);' }, '📊 System Information'));
+        
+        const sysInfo = [
+          { label: 'App Version', value: APP_VERSION },
+          { label: 'Schema Version', value: store.schemaVersion || 'N/A' },
+          { label: 'Active Dataset', value: datasetManager ? datasetManager.getActiveDataset().name : 'Default' },
+          { label: 'Total Cards', value: Object.keys(store.cards).length },
+          { label: 'Root Cards', value: store.rootOrder.length },
+          { label: 'Total Tags', value: getAllTags().length },
+          { label: 'Active Mods', value: store.mods ? Object.keys(store.mods).length : 0 },
+          { label: 'Developer Mode', value: isDeveloperMode() ? '✓ Enabled' : '✗ Disabled' }
+        ];
+        
+        sysInfo.forEach(info => {
+          const row = h('div', { style: 'display: flex; justify-content: space-between; padding: var(--space-sm) 0; border-bottom: 1px solid var(--border);' });
+          row.appendChild(h('span', { style: 'font-weight: 600;' }, info.label + ':'));
+          row.appendChild(h('span', { style: 'font-family: monospace; color: var(--text-secondary);' }, String(info.value)));
+          sysSection.appendChild(row);
+        });
+        modalBody.appendChild(sysSection);
+        
+        // Card Statistics
+        const statsSection = h('div', { style: 'margin-bottom: var(--space-xl); padding: var(--space-lg); background: var(--bg-secondary); border-radius: var(--radius);' });
+        statsSection.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);' }, '📈 Card Statistics'));
+        
+        const bookmarkedCount = Object.values(store.cards).filter(c => c.bookmarked).length;
+        const withTagsCount = Object.values(store.cards).filter(c => c.tags && c.tags.length > 0).length;
+        const withChildrenCount = Object.values(store.cards).filter(c => c.children && c.children.length > 0).length;
+        
+        const stats = [
+          { label: 'Bookmarked Cards', value: bookmarkedCount },
+          { label: 'Cards with Tags', value: withTagsCount },
+          { label: 'Cards with Children', value: withChildrenCount },
+          { label: 'Orphaned Cards', value: Object.values(store.cards).filter(c => !c.parentId && !store.rootOrder.includes(c.id)).length }
+        ];
+        
+        stats.forEach(stat => {
+          const row = h('div', { style: 'display: flex; justify-content: space-between; padding: var(--space-sm) 0; border-bottom: 1px solid var(--border);' });
+          row.appendChild(h('span', { style: 'font-weight: 600;' }, stat.label + ':'));
+          row.appendChild(h('span', { style: 'font-family: monospace; color: var(--text-secondary);' }, String(stat.value)));
+          statsSection.appendChild(row);
+        });
+        modalBody.appendChild(statsSection);
+        
+        // Recent Activity
+        const activitySection = h('div', { style: 'margin-bottom: var(--space-xl); padding: var(--space-lg); background: var(--bg-secondary); border-radius: var(--radius);' });
+        activitySection.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);' }, '🕐 Recent Activity'));
+        
+        const recentCards = Object.values(store.cards)
+          .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))
+          .slice(0, 5);
+        
+        if (recentCards.length > 0) {
+          recentCards.forEach(card => {
+            const row = h('div', { 
+              style: 'padding: var(--space-sm); border-bottom: 1px solid var(--border); cursor: pointer; hover: background-color: var(--bg-hover);',
+              onclick: () => {
+                overlay.remove();
+                goTo('read', { cardId: card.id });
+              }
+            });
+            row.appendChild(h('div', { style: 'font-weight: 600; margin-bottom: var(--space-xs);' }, card.title || '(Untitled)'));
+            const timestamp = new Date(card.updatedAt || card.createdAt).toLocaleString();
+            row.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-secondary); font-family: monospace;' }, 
+              `ID: ${card.id.slice(0, 8)}... • Updated: ${timestamp}`));
+            activitySection.appendChild(row);
+          });
+        } else {
+          activitySection.appendChild(h('div', { style: 'color: var(--text-secondary); font-style: italic;' }, 'No recent activity'));
+        }
+        modalBody.appendChild(activitySection);
+        
+        // Storage Information
+        const storageSection = h('div', { style: 'margin-bottom: var(--space-xl); padding: var(--space-lg); background: var(--bg-secondary); border-radius: var(--radius);' });
+        storageSection.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);' }, '💾 Storage Information'));
+        
+        let storageUsed = 0;
+        try {
+          // Estimate localStorage usage
+          let total = 0;
+          for (let key in localStorage) {
+            if (localStorage.hasOwnProperty(key)) {
+              total += localStorage[key].length + key.length;
+            }
+          }
+          storageUsed = (total / 1024).toFixed(2);
+        } catch (e) {
+          storageUsed = 'N/A';
+        }
+        
+        const storageInfo = [
+          { label: 'LocalStorage Used', value: storageUsed + ' KB' },
+          { label: 'Storage Keys', value: Object.keys(localStorage).filter(k => k.startsWith('cardspoke_')).length }
+        ];
+        
+        storageInfo.forEach(info => {
+          const row = h('div', { style: 'display: flex; justify-content: space-between; padding: var(--space-sm) 0; border-bottom: 1px solid var(--border);' });
+          row.appendChild(h('span', { style: 'font-weight: 600;' }, info.label + ':'));
+          row.appendChild(h('span', { style: 'font-family: monospace; color: var(--text-secondary);' }, String(info.value)));
+          storageSection.appendChild(row);
+        });
+        modalBody.appendChild(storageSection);
+        
+        // Actions
+        const actionsSection = h('div', { style: 'padding: var(--space-lg); background: var(--bg-secondary); border-radius: var(--radius);' });
+        actionsSection.appendChild(h('div', { style: 'font-weight: 700; margin-bottom: var(--space-md); font-size: var(--text-lg);' }, '⚡ Quick Actions'));
+        
+        const actionsRow = h('div', { style: 'display: flex; gap: var(--space-sm); flex-wrap: wrap;' });
+        
+        const exportBtn = h('button', { 
+          className: 'btn btn-primary',
+          onclick: () => {
+            overlay.remove();
+            exportJSON('instance');
+          }
+        }, 'Export Data');
+        actionsRow.appendChild(exportBtn);
+        
+        const consoleBtn = h('button', { 
+          className: 'btn',
+          onclick: () => {
+            console.log('[Developer Console] Store:', store);
+            console.log('[Developer Console] NavState:', navState);
+            showToast('Store logged to browser console', 'info');
+          }
+        }, 'Log to Console');
+        actionsRow.appendChild(consoleBtn);
+        
+        const refreshBtn = h('button', { 
+          className: 'btn',
+          onclick: () => {
+            overlay.remove();
+            showDeveloperConsole();
+          }
+        }, 'Refresh');
+        actionsRow.appendChild(refreshBtn);
+        
+        actionsSection.appendChild(actionsRow);
+        modalBody.appendChild(actionsSection);
+        
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        overlay.onclick = function(e) {
+          if (e.target === overlay) overlay.remove();
+        };
+      }
 
       // =============================================================
       // --- APPLICATION BOOT ---
