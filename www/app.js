@@ -628,6 +628,15 @@
         plugins.delete(id);
         pluginResources.delete(id);
         dataUpdateListeners.delete(id);
+        
+        // Remove from store
+        if (window.store && window.store.plugins) {
+          delete window.store.plugins[id];
+          if (window.save) {
+            window.save();
+          }
+        }
+        
         console.log('[Plugin] Unregistered:', id);
       }
     },
@@ -767,6 +776,143 @@
           }
         });
       });
+    },
+
+    /**
+     * List all registered plugins
+     * @returns {Array} Array of plugin instances
+     */
+    listAll: function() {
+      return this.list();
+    },
+
+    /**
+     * Install a plugin from a package definition
+     * @param {Object} pkg - Plugin package with manifest, setup, teardown, css
+     * @returns {Promise<string>} Plugin ID
+     */
+    install: async function(pkg) {
+      if (!pkg || !pkg.manifest) {
+        throw new Error('Invalid plugin package: manifest is required');
+      }
+
+      // Generate unique ID
+      let id = pkg.manifest.id || pkg.manifest.name.toLowerCase().replace(/\s+/g, '-');
+      
+      // Ensure uniqueness
+      let counter = 1;
+      let uniqueId = id;
+      while (plugins.has(uniqueId)) {
+        uniqueId = id + '-' + counter;
+        counter++;
+      }
+      id = uniqueId;
+      
+      // Register the plugin
+      const definition = {
+        manifest: pkg.manifest,
+        setup: pkg.setup,
+        teardown: pkg.teardown,
+        css: pkg.css
+      };
+      
+      this.register(id, definition);
+
+      // Auto-enable based on risk (only LOW and SAFE)
+      const risk = this.assessModRisk(pkg);
+      if (risk === 'SAFE' || risk === 'LOW') {
+        await this.enable(id);
+      }
+
+      // Persist to store
+      if (window.store) {
+        if (!window.store.plugins) {
+          window.store.plugins = {};
+        }
+        window.store.plugins[id] = {
+          definition: definition,
+          enabled: risk === 'SAFE' || risk === 'LOW'
+        };
+        if (window.save) {
+          window.save();
+        }
+      }
+
+      console.log('[Plugin] Installed:', id);
+      return id;
+    },
+
+    /**
+     * Assess the risk level of a plugin package
+     * @param {Object} pkg - Plugin package
+     * @returns {string} Risk level: SAFE, LOW, MEDIUM, HIGH
+     */
+    assessModRisk: function(pkg) {
+      if (!pkg || !pkg.manifest) {
+        return 'HIGH';
+      }
+
+      const manifest = pkg.manifest;
+      const layer = manifest.layer || 'feature';
+      const hasJS = !!pkg.setup || !!pkg.teardown;
+      const hasCSS = !!pkg.css;
+      const hasOverrides = !!pkg.overrides || !!(manifest.overrides);
+
+      // Theme layer - CSS only
+      if (layer === 'theme' && !hasJS && hasCSS) {
+        return 'SAFE';
+      }
+
+      // Feature layer - CSS and JS, no overrides
+      if (layer === 'feature' && !hasOverrides) {
+        return 'LOW';
+      }
+
+      // App layer or has overrides
+      if (layer === 'app' || hasOverrides) {
+        return 'HIGH';
+      }
+
+      // Default to medium risk
+      return 'MEDIUM';
+    },
+
+    /**
+     * Sync plugins from store during boot
+     * Loads registered plugins from store and enables them if not in safe mode
+     * @param {boolean} safeMode - If true, plugins are loaded but not enabled
+     */
+    syncFromStore: async function(safeMode) {
+      if (!window.store || !window.store.plugins) {
+        return;
+      }
+
+      const storedPlugins = window.store.plugins || {};
+      const pluginIds = Object.keys(storedPlugins);
+
+      if (pluginIds.length === 0) {
+        return;
+      }
+
+      console.log('[Plugin] Syncing', pluginIds.length, 'plugins from store');
+
+      for (const id of pluginIds) {
+        const pluginData = storedPlugins[id];
+        
+        try {
+          // Register the plugin
+          if (pluginData.definition) {
+            this.register(id, pluginData.definition);
+            
+            // Enable if not in safe mode and plugin was previously enabled
+            if (!safeMode && pluginData.enabled) {
+              await this.enable(id);
+            }
+          }
+        } catch (err) {
+          console.error('[Plugin] Failed to sync plugin', id, ':', err);
+        }
+      }
     }
   };
 
@@ -3321,7 +3467,7 @@ const header = {
         const key = instanceKey || 'nested_cards_store';
         const raw = localStorage.getItem(key);
         if (!raw) {
-          store = { rootOrder: [], cards: {}, mods: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
+          store = { rootOrder: [], cards: {}, mods: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
           save();
           return;
         }
@@ -3331,6 +3477,7 @@ const header = {
             rootOrder: parsed.rootOrder || [],
             cards: parsed.cards || {},
             mods: parsed.mods || {},
+            plugins: parsed.plugins || {},
             bookmarks: parsed.bookmarks || [],
             recentCards: parsed.recentCards || [],
             viewMode: parsed.viewMode || 'normal',
@@ -3391,6 +3538,7 @@ const header = {
                   rootOrder: parsedMirror.rootOrder || [],
                   cards: parsedMirror.cards || {},
                   mods: parsedMirror.mods || {},
+                  plugins: parsedMirror.plugins || {},
                   bookmarks: parsedMirror.bookmarks || [],
                   recentCards: parsedMirror.recentCards || [],
                   viewMode: parsedMirror.viewMode || 'normal',
@@ -3411,6 +3559,7 @@ const header = {
                   rootOrder: parsedFile.rootOrder || [],
                   cards: parsedFile.cards || {},
                   mods: parsedFile.mods || {},
+                  plugins: parsedFile.plugins || {},
                   bookmarks: parsedFile.bookmarks || [],
                   recentCards: parsedFile.recentCards || [],
                   viewMode: parsedFile.viewMode || 'normal',
@@ -4763,104 +4912,348 @@ const header = {
       // =============================================================
 
       function showModManager(initialTab) {
+        initialTab = initialTab || 'installed';
         var overlay = h('div', { className: 'modal-overlay show' });
-        var modal = h('div', { className: 'modal', style: 'max-width: 700px; max-height: 85vh;' });
+        var modal = h('div', { className: 'modal', style: 'max-width: 800px; max-height: 90vh;' });
+        
         var modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Plugin API - Modern Extension System'));
+        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Plugin Manager'));
         modalHeader.appendChild(h('button', {
           className: 'modal-close',
           onclick: function() { overlay.remove(); }
         }, '\u2715'));
         modal.appendChild(modalHeader);
 
-        var bodyContent = h('div', { className: 'modal-body', style: 'overflow-y: auto; max-height: 60vh; padding: var(--space-lg);' });
+        // Tab buttons
+        var tabBar = h('div', { style: 'display: flex; border-bottom: 2px solid var(--border); padding: 0 var(--space-lg);' });
+        var tabs = ['installed', 'install', 'create'];
+        var tabButtons = {};
+        var tabContents = {};
 
-        // Migration notice
-        var notice = h('div', {
-          style: 'background: var(--bg-warning, #fef3c7); border: 1px solid var(--warning, #f59e0b); border-radius: var(--radius); padding: var(--space-lg); margin-bottom: var(--space-lg);'
+        tabs.forEach(function(tabName) {
+          var btn = h('button', {
+            className: 'tab-btn',
+            style: 'padding: var(--space-md) var(--space-lg); border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 500;',
+            onclick: function() { switchTab(tabName); }
+          }, tabName.charAt(0).toUpperCase() + tabName.slice(1));
+          tabButtons[tabName] = btn;
+          tabBar.appendChild(btn);
         });
-        notice.appendChild(h('h3', { 
-          style: 'margin: 0 0 var(--space-sm) 0; color: var(--warning-dark, #d97706);',
-          'aria-label': 'Warning: Legacy Mod System Removed'
-        }, 'Legacy Mod System Removed'));
-        notice.appendChild(h('p', { style: 'margin: 0 0 var(--space-sm) 0;' },
-          'The legacy CardSpoke_MODS hook-based system has been removed. Please use the modern Plugin API for all extensions.'));
-        bodyContent.appendChild(notice);
+        modal.appendChild(tabBar);
 
-        // Plugin API documentation
-        var docSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
-        docSection.appendChild(h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Modern Plugin API'));
-        docSection.appendChild(h('p', { style: 'margin-bottom: var(--space-md);' },
-          'The Plugin API provides sandboxed contexts, resource management, and automatic cleanup. Create plugins using:'));
+        var bodyContent = h('div', { className: 'modal-body', style: 'overflow-y: auto; max-height: 65vh; padding: var(--space-lg);' });
 
-        var codeExample = h('pre', {
-          style: 'background: var(--bg-code, #1e293b); color: var(--text-code, #e2e8f0); padding: var(--space-md); border-radius: var(--radius); overflow-x: auto; font-family: monospace; font-size: var(--text-sm); margin-bottom: var(--space-md);'
+        // Tab content containers
+        tabs.forEach(function(tabName) {
+          var container = h('div', { 
+            className: 'tab-content',
+            style: 'display: none;'
+          });
+          tabContents[tabName] = container;
+          bodyContent.appendChild(container);
         });
-        codeExample.textContent = 'window.CardSpoke.Plugin.register(\'my-plugin\', {\n  manifest: {\n    name: \'My Plugin\',\n    version: \'1.0.0\',\n    author: \'Your Name\',\n    layer: \'feature\',\n    permissions: [\'ui-override\']\n  },\n  \n  setup: async (ctx) => {\n    // Access APIs via ctx.api\n    const cards = ctx.api.data.listCards();\n    ctx.api.ui.showToast(`Loaded ${cards.length} cards`, \'info\');\n    \n    // UI injection with automatic cleanup\n    const button = document.createElement(\'button\');\n    button.textContent = \'My Feature\';\n    ctx.api.ui.inject(\'#sidebar\', button, \'append\');\n  },\n  \n  teardown: async (ctx) => {\n    // Automatic resource cleanup\n  }\n});';
-        docSection.appendChild(codeExample);
 
-        docSection.appendChild(h('h4', { style: 'margin-bottom: var(--space-sm);' }, 'Available APIs'));
-        var apiList = h('ul', { style: 'margin-bottom: var(--space-md);' });
-        [
-          'ctx.api.ui - UI injection, component registry, toast notifications',
-          'ctx.api.data - Card operations, tag management, data updates',
-          'ctx.api.storage - Namespaced persistent storage',
-          'ctx.api.events - Event pub/sub system'
-        ].forEach(function(item) {
-          apiList.appendChild(h('li', {}, item));
-        });
-        docSection.appendChild(apiList);
+        function switchTab(tabName) {
+          tabs.forEach(function(t) {
+            tabButtons[t].style.borderBottom = t === tabName ? '3px solid var(--primary, #3b82f6)' : '3px solid transparent';
+            tabButtons[t].style.color = t === tabName ? 'var(--primary, #3b82f6)' : 'inherit';
+            tabContents[t].style.display = t === tabName ? 'block' : 'none';
+          });
+        }
 
-        docSection.appendChild(h('h4', { style: 'margin-bottom: var(--space-sm);' }, 'Documentation'));
-        var docLinks = h('ul', {});
-        docLinks.appendChild(h('li', {}, 'See docs/MOD_SYSTEM.md for complete Plugin API documentation'));
-        docLinks.appendChild(h('li', {}, 'See docs/api/PLUGIN_API.md for API reference'));
-        docLinks.appendChild(h('li', {}, 'See sample-mods/ directory for example plugins'));
-        docSection.appendChild(docLinks);
+        // ===== INSTALLED TAB =====
+        function renderInstalledTab() {
+          var container = tabContents['installed'];
+          container.innerHTML = '';
 
-        bodyContent.appendChild(docSection);
+          var plugins = window.CardSpoke && window.CardSpoke.Plugin ? window.CardSpoke.Plugin.listAll() : [];
+          
+          if (plugins.length === 0) {
+            container.appendChild(h('div', { className: 'empty', style: 'padding: var(--space-xl); text-align: center; color: var(--text-muted);' }, 
+              'No plugins installed. Use the Install or Create tabs to add plugins.'));
+            return;
+          }
 
-        // Legacy mods section (if any exist)
-        var modIds = Object.keys(store.mods || {});
-        if (modIds.length > 0) {
-          var legacySection = h('div', { style: 'margin-top: var(--space-xl); padding-top: var(--space-xl); border-top: 1px solid var(--border);' });
-          legacySection.appendChild(h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Legacy Mods Detected'));
-          legacySection.appendChild(h('p', { style: 'margin-bottom: var(--space-md); color: var(--text-muted);' },
-            'The following legacy mods are present but non-functional. Export them and migrate to the Plugin API:'));
-
-          modIds.forEach(function(modId) {
-            var pkg = store.mods[modId];
-            var manifest = pkg.manifest || {};
+          plugins.forEach(function(plugin) {
+            var manifest = plugin.definition.manifest || {};
+            var pkg = { manifest: manifest, setup: plugin.definition.setup, teardown: plugin.definition.teardown, css: plugin.definition.css };
+            var risk = window.CardSpoke.Plugin.assessModRisk(pkg);
             
             var card = h('div', {
-              style: 'border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md); margin-bottom: var(--space-md); opacity: 0.7;'
+              style: 'border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md); margin-bottom: var(--space-md);'
             });
 
             var headerRow = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
-            headerRow.appendChild(h('div', { style: 'font-weight: 700;' }, manifest.name || modId));
-            headerRow.appendChild(h('span', { style: 'color: var(--danger, #ef4444); font-size: var(--text-sm);' }, 'Legacy - Non-functional'));
+            headerRow.appendChild(h('div', { style: 'font-weight: 700; font-size: var(--text-lg);' }, manifest.name || plugin.id));
+            
+            var riskBadge = h('span', {
+              style: 'font-size: var(--text-xs); padding: 2px 8px; border-radius: 4px; font-weight: 600; ' +
+                (risk === 'SAFE' ? 'background: #d1fae5; color: #065f46;' :
+                 risk === 'LOW' ? 'background: #dbeafe; color: #1e40af;' :
+                 risk === 'MEDIUM' ? 'background: #fef3c7; color: #92400e;' :
+                 'background: #fee2e2; color: #991b1b;')
+            }, risk);
+            headerRow.appendChild(riskBadge);
             card.appendChild(headerRow);
 
             var info = h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-sm);' });
-            info.textContent = 'v' + (manifest.version || '?') + ' by ' + (manifest.author || 'Unknown');
+            info.textContent = 'v' + (manifest.version || '1.0.0') + ' by ' + (manifest.author || 'Unknown') + 
+              (manifest.description ? ' — ' + manifest.description : '');
             card.appendChild(info);
 
-            var exportBtn = h('button', {
-              className: 'btn',
-              style: 'font-size: var(--text-xs);',
-              onclick: function() {
-                var json = JSON.stringify(pkg, null, 2);
-                downloadWithFeedback(json, modId + '.json', 'application/json');
-                showToast('Legacy mod exported - please migrate to Plugin API');
+            var actions = h('div', { style: 'display: flex; gap: var(--space-sm); margin-top: var(--space-md);' });
+            
+            var toggleBtn = h('button', {
+              className: 'btn btn-sm',
+              style: 'font-size: var(--text-sm);',
+              onclick: async function() {
+                try {
+                  if (plugin.enabled) {
+                    await window.CardSpoke.Plugin.disable(plugin.id);
+                    showToast('Plugin disabled: ' + manifest.name);
+                  } else {
+                    await window.CardSpoke.Plugin.enable(plugin.id);
+                    showToast('Plugin enabled: ' + manifest.name);
+                  }
+                  renderInstalledTab();
+                } catch (err) {
+                  showToast('Error: ' + err.message, 'error');
+                }
               }
-            }, 'Export for Migration');
-            card.appendChild(exportBtn);
+            }, plugin.enabled ? 'Disable' : 'Enable');
+            actions.appendChild(toggleBtn);
 
-            legacySection.appendChild(card);
+            var removeBtn = h('button', {
+              className: 'btn btn-sm',
+              style: 'font-size: var(--text-sm); background: var(--danger, #ef4444); color: white;',
+              onclick: function() {
+                if (confirm('Remove plugin "' + manifest.name + '"?')) {
+                  window.CardSpoke.Plugin.unregister(plugin.id);
+                  showToast('Plugin removed: ' + manifest.name);
+                  renderInstalledTab();
+                }
+              }
+            }, 'Remove');
+            actions.appendChild(removeBtn);
+            
+            card.appendChild(actions);
+            container.appendChild(card);
           });
 
-          bodyContent.appendChild(legacySection);
+          // Legacy mods section (if any exist)
+          var modIds = Object.keys(store.mods || {});
+          if (modIds.length > 0) {
+            var legacySection = h('div', { style: 'margin-top: var(--space-xl); padding-top: var(--space-xl); border-top: 1px solid var(--border);' });
+            legacySection.appendChild(h('h3', { style: 'margin-bottom: var(--space-md); color: var(--warning, #f59e0b);' }, 'Legacy Mods (Non-functional)'));
+            legacySection.appendChild(h('p', { style: 'margin-bottom: var(--space-md); color: var(--text-muted);' },
+              'These legacy mods use the old system and are no longer functional:'));
+
+            modIds.forEach(function(modId) {
+              var pkg = store.mods[modId];
+              var manifest = pkg.manifest || {};
+              
+              var legacyCard = h('div', {
+                style: 'border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md); margin-bottom: var(--space-md); opacity: 0.6;'
+              });
+
+              legacyCard.appendChild(h('div', { style: 'font-weight: 700;' }, manifest.name || modId));
+              legacyCard.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, 
+                'v' + (manifest.version || '?') + ' by ' + (manifest.author || 'Unknown')));
+              
+              var exportBtn = h('button', {
+                className: 'btn btn-sm',
+                style: 'font-size: var(--text-xs); margin-top: var(--space-sm);',
+                onclick: function() {
+                  var json = JSON.stringify(pkg, null, 2);
+                  downloadWithFeedback(json, modId + '.json', 'application/json');
+                  showToast('Legacy mod exported for migration');
+                }
+              }, 'Export');
+              legacyCard.appendChild(exportBtn);
+              
+              legacySection.appendChild(legacyCard);
+            });
+
+            container.appendChild(legacySection);
+          }
         }
+
+        // ===== INSTALL TAB =====
+        function renderInstallTab() {
+          var container = tabContents['install'];
+          container.innerHTML = '';
+
+          container.appendChild(h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Install Plugin'));
+          
+          // File upload section
+          var uploadSection = h('div', { style: 'margin-bottom: var(--space-xl);' });
+          uploadSection.appendChild(h('h4', { style: 'margin-bottom: var(--space-sm);' }, 'Upload Plugin File'));
+          uploadSection.appendChild(h('p', { style: 'margin-bottom: var(--space-md); color: var(--text-muted);' }, 
+            'Upload a JSON file containing a plugin definition.'));
+          
+          var fileInput = h('input', { 
+            type: 'file', 
+            accept: '.json',
+            style: 'margin-bottom: var(--space-sm);'
+          });
+          
+          var uploadBtn = h('button', {
+            className: 'btn',
+            onclick: async function() {
+              var file = fileInput.files[0];
+              if (!file) {
+                showToast('Please select a file', 'error');
+                return;
+              }
+              
+              try {
+                var text = await file.text();
+                var pkg = JSON.parse(text);
+                
+                // Convert to plugin format if needed
+                if (pkg.javascript && typeof pkg.javascript === 'string') {
+                  pkg.setup = new Function('ctx', pkg.javascript);
+                }
+                
+                var id = await window.CardSpoke.Plugin.install(pkg);
+                showToast('Plugin installed: ' + (pkg.manifest.name || id), 'success');
+                renderInstalledTab();
+                switchTab('installed');
+              } catch (err) {
+                showToast('Installation failed: ' + err.message, 'error');
+              }
+            }
+          }, 'Install from File');
+          
+          uploadSection.appendChild(fileInput);
+          uploadSection.appendChild(uploadBtn);
+          container.appendChild(uploadSection);
+
+          // URL section
+          var urlSection = h('div', {});
+          urlSection.appendChild(h('h4', { style: 'margin-bottom: var(--space-sm);' }, 'Install from URL'));
+          urlSection.appendChild(h('p', { style: 'margin-bottom: var(--space-md); color: var(--text-muted);' }, 
+            'Load a plugin from a remote URL.'));
+          
+          var urlInput = h('input', {
+            type: 'url',
+            placeholder: 'https://example.com/plugin.json',
+            style: 'width: 100%; padding: var(--space-sm); margin-bottom: var(--space-sm); border: 1px solid var(--border); border-radius: 4px;'
+          });
+          
+          var urlBtn = h('button', {
+            className: 'btn',
+            onclick: async function() {
+              var url = urlInput.value.trim();
+              if (!url) {
+                showToast('Please enter a URL', 'error');
+                return;
+              }
+              
+              try {
+                var response = await fetch(url);
+                if (!response.ok) throw new Error('Failed to fetch plugin: ' + response.status + ' ' + response.statusText);
+                var pkg = await response.json();
+                
+                // Convert to plugin format if needed
+                if (pkg.javascript && typeof pkg.javascript === 'string') {
+                  pkg.setup = new Function('ctx', pkg.javascript);
+                }
+                
+                var id = await window.CardSpoke.Plugin.install(pkg);
+                showToast('Plugin installed: ' + (pkg.manifest.name || id), 'success');
+                renderInstalledTab();
+                switchTab('installed');
+              } catch (err) {
+                showToast('Installation failed: ' + err.message, 'error');
+              }
+            }
+          }, 'Install from URL');
+          
+          urlSection.appendChild(urlInput);
+          urlSection.appendChild(urlBtn);
+          container.appendChild(urlSection);
+        }
+
+        // ===== CREATE TAB =====
+        function renderCreateTab() {
+          var container = tabContents['create'];
+          container.innerHTML = '';
+
+          container.appendChild(h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Create Plugin'));
+          container.appendChild(h('p', { style: 'margin-bottom: var(--space-lg); color: var(--text-muted);' }, 
+            'Build a plugin directly in the app by providing metadata, JavaScript, and CSS.'));
+
+          var form = h('div', {});
+
+          // Manifest section
+          form.appendChild(h('h4', { style: 'margin-bottom: var(--space-sm);' }, 'Manifest (JSON)'));
+          var manifestInput = h('textarea', {
+            placeholder: '{\n  "name": "My Plugin",\n  "version": "1.0.0",\n  "author": "Your Name",\n  "layer": "feature",\n  "permissions": []\n}',
+            style: 'width: 100%; min-height: 120px; padding: var(--space-sm); margin-bottom: var(--space-md); font-family: monospace; border: 1px solid var(--border); border-radius: 4px;'
+          });
+          form.appendChild(manifestInput);
+
+          // JavaScript section
+          form.appendChild(h('h4', { style: 'margin-bottom: var(--space-sm);' }, 'JavaScript (setup function)'));
+          var jsInput = h('textarea', {
+            placeholder: '// Access APIs via ctx parameter\nconst cards = ctx.api.data.listCards();\nctx.api.ui.showToast(`Loaded ${cards.length} cards`, \'info\');',
+            style: 'width: 100%; min-height: 150px; padding: var(--space-sm); margin-bottom: var(--space-md); font-family: monospace; border: 1px solid var(--border); border-radius: 4px;'
+          });
+          form.appendChild(jsInput);
+
+          // CSS section
+          form.appendChild(h('h4', { style: 'margin-bottom: var(--space-sm);' }, 'CSS (optional)'));
+          var cssInput = h('textarea', {
+            placeholder: '/* Custom styles */\n.my-element {\n  color: var(--primary);\n}',
+            style: 'width: 100%; min-height: 100px; padding: var(--space-sm); margin-bottom: var(--space-md); font-family: monospace; border: 1px solid var(--border); border-radius: 4px;'
+          });
+          form.appendChild(cssInput);
+
+          // Save button
+          var saveBtn = h('button', {
+            className: 'btn',
+            onclick: async function() {
+              try {
+                var manifest = JSON.parse(manifestInput.value || '{}');
+                if (!manifest.name) {
+                  showToast('Plugin name is required', 'error');
+                  return;
+                }
+
+                var jsCode = jsInput.value.trim();
+                var css = cssInput.value.trim();
+
+                var pkg = {
+                  manifest: manifest,
+                  css: css || undefined
+                };
+
+                if (jsCode) {
+                  pkg.setup = new Function('ctx', jsCode);
+                }
+
+                var id = await window.CardSpoke.Plugin.install(pkg);
+                showToast('Plugin created and registered: ' + manifest.name, 'success');
+                renderInstalledTab();
+                switchTab('installed');
+              } catch (err) {
+                showToast('Failed to create plugin: ' + err.message, 'error');
+              }
+            }
+          }, 'Save & Register');
+          form.appendChild(saveBtn);
+
+          container.appendChild(form);
+        }
+
+        // Render all tabs
+        renderInstalledTab();
+        renderInstallTab();
+        renderCreateTab();
+
+        // Switch to initial tab
+        switchTab(initialTab);
 
         modal.appendChild(bodyContent);
         overlay.appendChild(modal);
@@ -8927,41 +9320,48 @@ const header = {
       // Initialize and start the application
       // =============================================================
       
-      initToast();                       // Initialize toast container
-      load();                          // Load data from localStorage
-      populateFooter();                // Populate footer with metadata
-      updateDatasetSelector();         // Update dataset selector options
+      (async function() {
+        initToast();                       // Initialize toast container
+        load();                          // Load data from localStorage
+        populateFooter();                // Populate footer with metadata
+        updateDatasetSelector();         // Update dataset selector options
 
-      // Apply saved typography preset
-      const savedTypography = localStorage.getItem('cardspoke_typography') || 'default';
-      document.documentElement.setAttribute('data-typography', savedTypography);
+        // Apply saved typography preset
+        const savedTypography = localStorage.getItem('cardspoke_typography') || 'default';
+        document.documentElement.setAttribute('data-typography', savedTypography);
 
-      // Check for safe mode URL parameter (global for import/reset functions)
-      const urlParams = new URLSearchParams(window.location.search);
-      let safeMode = urlParams.has('safemode');
+        // Check for safe mode URL parameter (global for import/reset functions)
+        const urlParams = new URLSearchParams(window.location.search);
+        let safeMode = urlParams.has('safemode');
 
-      if (safeMode) {
-        console.warn('[Safe Mode] Mods disabled via ?safemode parameter');
-        showToast('Safe Mode Active - Mods Disabled', 'warning');
-      }
-
-      render();                        // Initial render
-      populateFooter();                // Re-populate footer to ensure it displays
-
-      // First-run detection (v1.0.0) - Show Getting Started guide if no cards exist
-      setTimeout(() => {
-        const hasSeenGettingStarted = localStorage.getItem('cardspoke_hasSeenGettingStarted');
-        const hasCards = Object.keys(store.cards || {}).length > 0;
-
-        if (!hasSeenGettingStarted && !hasCards) {
-          showGettingStarted();
+        if (safeMode) {
+          console.warn('[Safe Mode] Mods disabled via ?safemode parameter');
+          showToast('Safe Mode Active - Mods Disabled', 'warning');
         }
-      }, 500);
 
-      // Warn user about unsaved changes before leaving
-      window.addEventListener('beforeunload', (e) => {
-        if (dirty) {
-          e.preventDefault();
-          e.returnValue = '';
+        // Sync plugins from store after load() but before render()
+        if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
+          await window.CardSpoke.Plugin.syncFromStore(safeMode);
         }
-      });
+
+        render();                        // Initial render
+        populateFooter();                // Re-populate footer to ensure it displays
+
+        // First-run detection (v1.0.0) - Show Getting Started guide if no cards exist
+        setTimeout(() => {
+          const hasSeenGettingStarted = localStorage.getItem('cardspoke_hasSeenGettingStarted');
+          const hasCards = Object.keys(store.cards || {}).length > 0;
+
+          if (!hasSeenGettingStarted && !hasCards) {
+            showGettingStarted();
+          }
+        }, 500);
+
+        // Warn user about unsaved changes before leaving
+        window.addEventListener('beforeunload', (e) => {
+          if (dirty) {
+            e.preventDefault();
+            e.returnValue = '';
+          }
+        });
+      })();

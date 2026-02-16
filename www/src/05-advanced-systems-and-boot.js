@@ -1897,41 +1897,48 @@
       // Initialize and start the application
       // =============================================================
       
-      initToast();                       // Initialize toast container
-      load();                          // Load data from localStorage
-      populateFooter();                // Populate footer with metadata
-      updateDatasetSelector();         // Update dataset selector options
+      (async function() {
+        initToast();                       // Initialize toast container
+        load();                          // Load data from localStorage
+        populateFooter();                // Populate footer with metadata
+        updateDatasetSelector();         // Update dataset selector options
 
-      // Apply saved typography preset
-      const savedTypography = localStorage.getItem('cardspoke_typography') || 'default';
-      document.documentElement.setAttribute('data-typography', savedTypography);
+        // Apply saved typography preset
+        const savedTypography = localStorage.getItem('cardspoke_typography') || 'default';
+        document.documentElement.setAttribute('data-typography', savedTypography);
 
-      // Check for safe mode URL parameter (global for import/reset functions)
-      const urlParams = new URLSearchParams(window.location.search);
-      let safeMode = urlParams.has('safemode');
+        // Check for safe mode URL parameter (global for import/reset functions)
+        const urlParams = new URLSearchParams(window.location.search);
+        let safeMode = urlParams.has('safemode');
 
-      if (safeMode) {
-        console.warn('[Safe Mode] Mods disabled via ?safemode parameter');
-        showToast('Safe Mode Active - Mods Disabled', 'warning');
-      }
-
-      render();                        // Initial render
-      populateFooter();                // Re-populate footer to ensure it displays
-
-      // First-run detection (v1.0.0) - Show Getting Started guide if no cards exist
-      setTimeout(() => {
-        const hasSeenGettingStarted = localStorage.getItem('cardspoke_hasSeenGettingStarted');
-        const hasCards = Object.keys(store.cards || {}).length > 0;
-
-        if (!hasSeenGettingStarted && !hasCards) {
-          showGettingStarted();
+        if (safeMode) {
+          console.warn('[Safe Mode] Mods disabled via ?safemode parameter');
+          showToast('Safe Mode Active - Mods Disabled', 'warning');
         }
-      }, 500);
 
-      // Warn user about unsaved changes before leaving
-      window.addEventListener('beforeunload', (e) => {
-        if (dirty) {
-          e.preventDefault();
-          e.returnValue = '';
+        // Sync plugins from store after load() but before render()
+        if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
+          await window.CardSpoke.Plugin.syncFromStore(safeMode);
         }
-      });
+
+        render();                        // Initial render
+        populateFooter();                // Re-populate footer to ensure it displays
+
+        // First-run detection (v1.0.0) - Show Getting Started guide if no cards exist
+        setTimeout(() => {
+          const hasSeenGettingStarted = localStorage.getItem('cardspoke_hasSeenGettingStarted');
+          const hasCards = Object.keys(store.cards || {}).length > 0;
+
+          if (!hasSeenGettingStarted && !hasCards) {
+            showGettingStarted();
+          }
+        }, 500);
+
+        // Warn user about unsaved changes before leaving
+        window.addEventListener('beforeunload', (e) => {
+          if (dirty) {
+            e.preventDefault();
+            e.returnValue = '';
+          }
+        });
+      })();

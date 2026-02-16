@@ -628,6 +628,15 @@
         plugins.delete(id);
         pluginResources.delete(id);
         dataUpdateListeners.delete(id);
+        
+        // Remove from store
+        if (window.store && window.store.plugins) {
+          delete window.store.plugins[id];
+          if (window.save) {
+            window.save();
+          }
+        }
+        
         console.log('[Plugin] Unregistered:', id);
       }
     },
@@ -767,6 +776,143 @@
           }
         });
       });
+    },
+
+    /**
+     * List all registered plugins
+     * @returns {Array} Array of plugin instances
+     */
+    listAll: function() {
+      return this.list();
+    },
+
+    /**
+     * Install a plugin from a package definition
+     * @param {Object} pkg - Plugin package with manifest, setup, teardown, css
+     * @returns {Promise<string>} Plugin ID
+     */
+    install: async function(pkg) {
+      if (!pkg || !pkg.manifest) {
+        throw new Error('Invalid plugin package: manifest is required');
+      }
+
+      // Generate unique ID
+      let id = pkg.manifest.id || pkg.manifest.name.toLowerCase().replace(/\s+/g, '-');
+      
+      // Ensure uniqueness
+      let counter = 1;
+      let uniqueId = id;
+      while (plugins.has(uniqueId)) {
+        uniqueId = id + '-' + counter;
+        counter++;
+      }
+      id = uniqueId;
+      
+      // Register the plugin
+      const definition = {
+        manifest: pkg.manifest,
+        setup: pkg.setup,
+        teardown: pkg.teardown,
+        css: pkg.css
+      };
+      
+      this.register(id, definition);
+
+      // Auto-enable based on risk (only LOW and SAFE)
+      const risk = this.assessModRisk(pkg);
+      if (risk === 'SAFE' || risk === 'LOW') {
+        await this.enable(id);
+      }
+
+      // Persist to store
+      if (window.store) {
+        if (!window.store.plugins) {
+          window.store.plugins = {};
+        }
+        window.store.plugins[id] = {
+          definition: definition,
+          enabled: risk === 'SAFE' || risk === 'LOW'
+        };
+        if (window.save) {
+          window.save();
+        }
+      }
+
+      console.log('[Plugin] Installed:', id);
+      return id;
+    },
+
+    /**
+     * Assess the risk level of a plugin package
+     * @param {Object} pkg - Plugin package
+     * @returns {string} Risk level: SAFE, LOW, MEDIUM, HIGH
+     */
+    assessModRisk: function(pkg) {
+      if (!pkg || !pkg.manifest) {
+        return 'HIGH';
+      }
+
+      const manifest = pkg.manifest;
+      const layer = manifest.layer || 'feature';
+      const hasJS = !!pkg.setup || !!pkg.teardown;
+      const hasCSS = !!pkg.css;
+      const hasOverrides = !!pkg.overrides || !!(manifest.overrides);
+
+      // Theme layer - CSS only
+      if (layer === 'theme' && !hasJS && hasCSS) {
+        return 'SAFE';
+      }
+
+      // Feature layer - CSS and JS, no overrides
+      if (layer === 'feature' && !hasOverrides) {
+        return 'LOW';
+      }
+
+      // App layer or has overrides
+      if (layer === 'app' || hasOverrides) {
+        return 'HIGH';
+      }
+
+      // Default to medium risk
+      return 'MEDIUM';
+    },
+
+    /**
+     * Sync plugins from store during boot
+     * Loads registered plugins from store and enables them if not in safe mode
+     * @param {boolean} safeMode - If true, plugins are loaded but not enabled
+     */
+    syncFromStore: async function(safeMode) {
+      if (!window.store || !window.store.plugins) {
+        return;
+      }
+
+      const storedPlugins = window.store.plugins || {};
+      const pluginIds = Object.keys(storedPlugins);
+
+      if (pluginIds.length === 0) {
+        return;
+      }
+
+      console.log('[Plugin] Syncing', pluginIds.length, 'plugins from store');
+
+      for (const id of pluginIds) {
+        const pluginData = storedPlugins[id];
+        
+        try {
+          // Register the plugin
+          if (pluginData.definition) {
+            this.register(id, pluginData.definition);
+            
+            // Enable if not in safe mode and plugin was previously enabled
+            if (!safeMode && pluginData.enabled) {
+              await this.enable(id);
+            }
+          }
+        } catch (err) {
+          console.error('[Plugin] Failed to sync plugin', id, ':', err);
+        }
+      }
     }
   };
 
