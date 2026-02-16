@@ -6,7 +6,7 @@ This file summarizes the persisted data model and schema versioning rules used b
 
 ## Versioning
 - **Current schema version:** 4.
-- Runtime constant `SCHEMA_VERSION` is defined in `www/app.js` (line 23) and surfaced to mods via both `CardSpoke.utils.getDatasetMeta()` and the hook context.
+- Runtime constant `SCHEMA_VERSION` is defined in `www/src/01-metadata-and-utilities.js` (bundled into `www/app.js`) and surfaced to mods via both `CardSpoke.utils.getDatasetMeta()` and the hook context.
 - Bump the schema version on any backward-incompatible change and ship an accompanying migration plan.
 
 ## Core domains

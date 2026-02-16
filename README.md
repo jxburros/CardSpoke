@@ -91,6 +91,7 @@ CardSpoke is local-first (LocalStorage/IndexedDB). Preferences (rich text, grid 
 ## Support & Questions
 Please open an issue with details about your environment, mods in use, and schema version. For licensing or branding questions, include your planned distribution channel and whether the work is official or angled.
 
-## Open Items
-- [PLACEHOLDER] Preferred channels for user support and security disclosures.
-- [PLACEHOLDER] Any official branding assets and usage guidelines for community themes.
+## Support & Disclosure Channels
+- General support, bug reports, and feature requests: GitHub Issues at <https://github.com/jxburros/CardSpoke/issues>.
+- Security disclosures: open a GitHub Issue and label it `Security`; include impact, repro steps, and affected versions.
+- Branding usage for community themes and forks follows the restrictions in the [Deviation Guide](./docs/guides/DEVIATION_GUIDE.md) and [LICENSE](./LICENSE).

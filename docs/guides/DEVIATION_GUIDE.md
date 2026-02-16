@@ -27,7 +27,15 @@ Include the required metadata block for Deviations (see [Mod System](../MOD_SYST
 - Respect the local-first model; do not collect or transmit data without opt-in.
 - Provide migration and rollback instructions if you diverge from core schemas. Note how you handle backups created by the core (`cardspoke-backup-*.json`/CSV/Markdown/TXT) and whether your build can import/export them without loss.
 
-## Open Items
-- [PLACEHOLDER] Required notice template for about pages and splash screens.
-- [PLACEHOLDER] Checklist for validating Deviation compatibility with popular mods.
+## Required Notice Template
+Use this (or stricter) notice in your README/about screen/splash:
+
+> This project is a Deviation of CardSpoke and is not an official CardSpoke release.
+> CardSpoke is owned by JX Holdings, LLC. This build is independently maintained.
+
+## Compatibility Checklist
+- Declare supported `schemaVersion` and tested CardSpoke baseline version.
+- Validate import/export compatibility for JSON/CSV/Markdown/TXT backup formats.
+- Test with at least one theme-layer, one feature-layer, and one app-layer mod (or clearly document unsupported layers).
+- Document any changed hooks, storage behavior, or removed APIs before release.
 

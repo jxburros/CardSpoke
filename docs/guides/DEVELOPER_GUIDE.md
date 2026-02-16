@@ -69,6 +69,12 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 - Document schema version changes and migrations in [Schema & Migration Docs](../api/SCHEMA.md).
 - Clearly mark whether a change is **official** (core) or **angled** (mod).
 
-## Open Items
-- [PLACEHOLDER] Source directory mapping for the prebuilt `www/` assets.
-- [PLACEHOLDER] Preferred linter/formatter settings if/when adopted.
+## Source Mapping & Tooling Status
+- Runtime source slices are ordered and concatenated into `www/app.js` as follows:
+  1. `www/src/01-metadata-and-utilities.js`
+  2. `www/src/02-storage-and-mods.js`
+  3. `www/src/03-data-and-modals.js`
+  4. `www/src/04-rendering-and-init.js`
+  5. `www/src/05-advanced-systems-and-boot.js`
+- Build command: `npm run build` (concatenates `www/src/*.js` into `www/app.js`).
+- There is currently no repository-enforced linter/formatter configuration. Keep style consistent with surrounding code and validate changes with `npm test`.
