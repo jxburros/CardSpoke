@@ -204,18 +204,6 @@ window.CardSpoke.Plugin.register('my-mod', pluginDefinition);
 
 Launch with `?safemode` in the URL to disable all plugins. This is useful for troubleshooting when a plugin causes issues. In safe mode, the app displays a "Mods Disabled" banner and no plugin code executes.
 
-## Migration from Legacy System
-
-**The legacy hook-based system is no longer supported.** All development should use the modern Plugin API.
-
-If you have existing plugins using the old format, contact the development team for assistance. New features and improvements are only available in the modern Plugin API.
-
-**Key modern equivalents:**
-- `setup(ctx)` → Replaces hook registration
-- Middleware Pipeline → Replaces hook-based interceptors
-- Component Registry → Replaces direct DOM manipulation
-- Namespaced plugin storage → Replaces global storage access
-
 ## Validation Rules
 
 `validateModPackage()` enforces:

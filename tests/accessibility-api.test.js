@@ -32,7 +32,6 @@ test('Accessibility API methods exist in app.js', () => {
     'isHighContrast',
     'prefersReducedMotion',
     'getThemeVariables'
-    // Note: onThemeChange removed with legacy hook system
   ];
   
   requiredMethods.forEach(method => {
@@ -135,8 +134,6 @@ test('High contrast mode uses customizable variables', () => {
     'High contrast mode should use customizable accent variable'
   );
 });
-
-// Legacy hook tests removed - hooks have been deprecated in favor of Plugin API
 
 // Test: Focus styles use customizable variables
 test('Focus styles use customizable variables', () => {

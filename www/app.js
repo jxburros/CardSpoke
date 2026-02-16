@@ -271,8 +271,8 @@
   console.log('[ComponentRegistry] System initialized');
 })();
 // Plugin API System
-// Replaces global window.CardSpoke_MODS with sandboxed Plugin API
-// Provides isolated contexts and resource management for hot-unloading
+// Provides sandboxed contexts and resource management for plugins
+// with isolated contexts and automatic cleanup support
 
 (function() {
   'use strict';
@@ -4233,10 +4233,6 @@ const header = {
         }
         
         save();
-        if (window.CardSpoke.mods && !safeMode) {
-          window.CardSpoke.mods.syncFromStore();
-          window.CardSpoke.mods.runHook('onAppInit');
-        }
 
         importedIds.forEach(cardId => {
           const storedCard = store.cards[cardId];

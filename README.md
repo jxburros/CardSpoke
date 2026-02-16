@@ -35,7 +35,6 @@ CardSpoke is a lightweight, card-based knowledge system built for extensibility.
 - `tests/` – Automated tests (uvu).
 - `docs/` – Project documentation organized by category (see [Documentation](#documentation) below).
 - `sample-mods/` – Example mod implementations across all three layers.
-- `sample_extensions/` – Legacy sample extensions for reference.
 
 ## Documentation
 

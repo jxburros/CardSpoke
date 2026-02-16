@@ -1,41 +1,6 @@
 # CardSpoke Architecture Diagram
 
-## Before (Legacy Hook System)
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                     CardSpoke App                        │
-│                                                           │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │              Application Code                     │   │
-│  │  • Card CRUD operations                          │   │
-│  │  • Rendering logic                               │   │
-│  │  • Navigation                                    │   │
-│  └──────────────────────────────────────────────────┘   │
-│                          ↓                               │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │          runModHook() Dispatcher                 │   │
-│  │  • Fires hooks after operations                  │   │
-│  │  • No interception capability                    │   │
-│  └──────────────────────────────────────────────────┘   │
-│                          ↓                               │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │     window.CardSpoke_MODS (Global)              │   │
-│  │  • Direct access to everything                   │   │
-│  │  • No resource tracking                          │   │
-│  │  • No sandboxing                                 │   │
-│  └──────────────────────────────────────────────────┘   │
-│                          ↓                               │
-│            ┌─────────────┬─────────────┐                │
-│            ↓             ↓             ↓                │
-│      ┌─────────┐  ┌─────────┐  ┌─────────┐            │
-│      │  Mod 1  │  │  Mod 2  │  │  Mod 3  │            │
-│      │ onLoad  │  │onSave   │  │onRender │            │
-│      └─────────┘  └─────────┘  └─────────┘            │
-└─────────────────────────────────────────────────────────┘
-```
-
-## After (Modern Architecture)
+## Modern Plugin Architecture
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
@@ -111,33 +76,13 @@
 │  │  └──────────────────┴──────────────────┘                  │   │
 │  └────────────────────────────────────────────────────────────┘   │
 │                                                                      │
-│  ┌────────────────────────────────────────────────────────────┐   │
-│  │            🔄 Compatibility Bridge                         │   │
-│  │  • Maps legacy hooks to middleware                         │   │
-│  │  • CardSpoke_MODS → Plugin API                            │   │
-│  │  • 100% backward compatible                                │   │
-│  └────────────────────────────────────────────────────────────┘   │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Data Flow: Card Save Operation
 
-### Before (Legacy)
-```
-User clicks Save
-    ↓
-createCard() / updateCard()
-    ↓
-Store updated
-    ↓
-runModHook('onCardSave', card)
-    ↓
-Mods notified (after the fact)
-    ↓
-No way to intercept or modify
-```
 
-### After (Modern)
+### Card Save Operation Flow
 ```
 User clicks Save
     ↓

@@ -2,7 +2,7 @@
 
 **Version:** 0.16.0
 
-The Middleware Pipeline replaces the legacy hook-based system with a priority-weighted, interceptor-style architecture. This allows mods to wrap core operations, modify data, or even cancel operations before they complete.
+The Middleware Pipeline provides a priority-weighted, interceptor-style architecture that allows mods to wrap core operations, modify data, or cancel operations before they complete.
 
 ## Overview
 
@@ -167,23 +167,6 @@ window.CardSpoke.Middleware.register({
   }
 });
 ```
-
-## Migration from Hooks
-
-Legacy hooks are automatically mapped to middleware operations:
-
-| Hook | Middleware Operation |
-|------|---------------------|
-| `onCardSave` | `card.save` |
-| `onCardDelete` | `card.delete` |
-| `onCardRender` | `card.render` |
-| `onNavigate` | `navigation.change` |
-| `onSearch` | `search.execute` |
-| `onExport` | `data.export` |
-| `onImport` | `data.import` |
-| `onThemeChange` | `theme.change` |
-
-The compatibility bridge ensures existing mods continue to work while new mods can use the middleware system directly.
 
 ## Best Practices
 

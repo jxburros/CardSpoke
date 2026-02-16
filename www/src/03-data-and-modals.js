@@ -641,10 +641,6 @@
         }
         
         save();
-        if (window.CardSpoke.mods && !safeMode) {
-          window.CardSpoke.mods.syncFromStore();
-          window.CardSpoke.mods.runHook('onAppInit');
-        }
 
         importedIds.forEach(cardId => {
           const storedCard = store.cards[cardId];

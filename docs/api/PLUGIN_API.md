@@ -2,7 +2,7 @@
 
 **Version:** 0.16.0
 
-The Plugin API provides a sandboxed, resource-managed environment for mod development. It replaces the global `window.CardSpoke_MODS` with isolated contexts and automatic cleanup support.
+The Plugin API provides a sandboxed, resource-managed environment for mod development with isolated contexts and automatic cleanup support.
 
 ## Overview
 
@@ -405,27 +405,6 @@ When a plugin is disabled, all resources are automatically cleaned up.
 4. **Request minimal permissions**: Only what you need
 5. **Test hot-unload**: Ensure your plugin unloads cleanly
 6. **Use logger**: For debugging and user feedback
-
-## Migration from Legacy Mods
-
-Legacy mods using `CardSpoke_MODS.register()` continue to work via the compatibility bridge. To migrate:
-
-```javascript
-// Old way
-CardSpoke_MODS.register('my-mod', {
-  onLoad(ctx) {
-    // ...
-  }
-});
-
-// New way
-window.CardSpoke.Plugin.register('my-mod', {
-  manifest: { /* ... */ },
-  setup: async (ctx) => {
-    // ...
-  }
-});
-```
 
 ## See Also
 
