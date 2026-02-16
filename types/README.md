@@ -107,7 +107,8 @@ See the [CardSpoke documentation](https://github.com/jxburros/CardSpoke/blob/mai
 - [Plugin API Guide](https://github.com/jxburros/CardSpoke/blob/main/docs/api/PLUGIN_API.md)
 - [Middleware Pipeline](https://github.com/jxburros/CardSpoke/blob/main/docs/api/MIDDLEWARE_PIPELINE.md)
 - [Component Registry](https://github.com/jxburros/CardSpoke/blob/main/docs/api/COMPONENT_REGISTRY.md)
-- [Migration Guide](https://github.com/jxburros/CardSpoke/blob/main/docs/guides/MIGRATION_GUIDE.md)
+- [API Reference](https://github.com/jxburros/CardSpoke/blob/main/docs/api/API_REFERENCE.md)
+- [Plugin System](https://github.com/jxburros/CardSpoke/blob/main/docs/PLUGIN_SYSTEM.md)
 
 ## License
 

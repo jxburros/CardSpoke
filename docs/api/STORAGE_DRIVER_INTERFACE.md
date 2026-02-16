@@ -28,4 +28,4 @@ Drivers extend the abstract `StorageDriver` class and must implement:
 
 ## Usage notes
 - Cloud drivers are opt-in and require explicit configuration; the app defaults to IndexedDB/LocalStorage.
-- Plugins should prefer `CardSpoke.utils.getDatasetMeta()` or the plugin `ctx.api.getDatasetMeta()` instead of directly touching drivers; this keeps storage decisions centralized.
+- Plugins should use window-level utilities like `window.getDatasetMeta()` instead of directly touching drivers; this keeps storage decisions centralized. Plugins access this through the global window object, not through `ctx.api`.
