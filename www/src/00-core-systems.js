@@ -767,6 +767,79 @@
           }
         });
       });
+    },
+
+    /**
+     * List all registered plugins
+     * @returns {Array} Array of plugin instances
+     */
+    listAll: function() {
+      return this.list();
+    },
+
+    /**
+     * Install a plugin from a package definition
+     * @param {Object} pkg - Plugin package with manifest, setup, teardown, css
+     * @returns {Promise<string>} Plugin ID
+     */
+    install: async function(pkg) {
+      if (!pkg || !pkg.manifest) {
+        throw new Error('Invalid plugin package: manifest is required');
+      }
+
+      const id = pkg.manifest.id || pkg.manifest.name.toLowerCase().replace(/\s+/g, '-');
+      
+      // Register the plugin
+      this.register(id, {
+        manifest: pkg.manifest,
+        setup: pkg.setup,
+        teardown: pkg.teardown,
+        css: pkg.css
+      });
+
+      // Auto-enable if not dangerous
+      const risk = this.assessModRisk(pkg);
+      if (risk !== 'HIGH') {
+        await this.enable(id);
+      }
+
+      console.log('[Plugin] Installed:', id);
+      return id;
+    },
+
+    /**
+     * Assess the risk level of a plugin package
+     * @param {Object} pkg - Plugin package
+     * @returns {string} Risk level: SAFE, LOW, MEDIUM, HIGH
+     */
+    assessModRisk: function(pkg) {
+      if (!pkg || !pkg.manifest) {
+        return 'HIGH';
+      }
+
+      const manifest = pkg.manifest;
+      const layer = manifest.layer || 'feature';
+      const hasJS = !!pkg.setup || !!pkg.teardown;
+      const hasCSS = !!pkg.css;
+      const hasOverrides = !!pkg.overrides || !!(manifest.overrides);
+
+      // Theme layer - CSS only
+      if (layer === 'theme' && !hasJS && hasCSS) {
+        return 'SAFE';
+      }
+
+      // Feature layer - CSS and JS, no overrides
+      if (layer === 'feature' && !hasOverrides) {
+        return 'LOW';
+      }
+
+      // App layer or has overrides
+      if (layer === 'app' || hasOverrides) {
+        return 'HIGH';
+      }
+
+      // Default to medium risk
+      return 'MEDIUM';
     }
   };
 
