@@ -42,17 +42,16 @@ Every plugin receives a context object:
 
 ```javascript
 {
-  modId: string,              // Plugin ID
-  appVersion: string,         // App version
-  schemaVersion: number,      // Schema version
+  pluginId: string,           // Plugin ID
+  appVersion: string,         // App version (0.16.0)
+  schemaVersion: number,      // Schema version (4)
   api: {
-    ui: UIApi,               // UI manipulation
-    data: DataApi,           // Data access
-    storage: StorageApi,     // Persistent storage
-    events: EventApi         // Event system
+    ui: UIApi,                // UI manipulation
+    data: DataApi,            // Data access
+    storage: StorageApi,      // Persistent storage
+    events: EventApi          // Event system
   },
-  utils: PluginUtils,        // Utility functions
-  logger: Logger             // Scoped logger
+  logger: Logger              // Scoped logger
 }
 ```
 
