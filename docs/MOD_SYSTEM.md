@@ -30,6 +30,7 @@ The mod system has been modernized with a new architecture featuring:
 
 ### Modern Plugin Format (Recommended)
 
+**ES6 Module Format (for development with Vite/ESBuild):**
 ```javascript
 export default {
   manifest: {
@@ -50,6 +51,30 @@ export default {
   css: "/* Optional CSS */"
 };
 ```
+
+**Runtime Registration Format:**
+```javascript
+window.CardSpoke.Plugin.register('my-mod', {
+  manifest: {
+    name: "My Mod",
+    version: "1.0.0",
+    author: "Author Name",
+    description: "What this mod does",
+    layer: "theme | feature | app",
+    compatibility: ">=0.16.0",
+    permissions: ["ui-override", "storage"]
+  },
+  setup: async (ctx) => {
+    // Plugin initialization with ctx.api
+  },
+  teardown: async (ctx) => {
+    // Cleanup (resources auto-managed)
+  },
+  css: "/* Optional CSS */"
+});
+```
+
+**Note:** The ES6 module format is used in the `sample-mods/new-api/` examples and requires a build step with Vite/ESBuild. For direct browser usage, use the runtime registration format with `window.CardSpoke.Plugin.register()`.
 
 ### Legacy JSON Format (Still Supported)
 
