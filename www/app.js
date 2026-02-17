@@ -6294,6 +6294,24 @@ const header = {
        * @returns {HTMLElement} Card tile element
        */
       function renderCardTile(card, opts = {}) {
+        // Check ComponentRegistry for a custom Card component
+        if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
+          const CustomCard = window.CardSpoke.ComponentRegistry.get('Card');
+          if (CustomCard && typeof CustomCard.render === 'function') {
+            try {
+              const isSelected = opts.isSelected || false;
+              const customEl = CustomCard.render({ card: card, isSelected: isSelected, opts: opts, onSelect: function() { goTo('read', { cardId: card.id }); } });
+              if (customEl instanceof HTMLElement) {
+                customEl.dataset.cardId = card.id;
+                customEl.dataset.renderType = 'list';
+                return customEl;
+              }
+            } catch (err) {
+              console.warn('[ComponentRegistry] Custom Card render failed, using default:', err);
+            }
+          }
+        }
+
         const isCompact = store.viewMode === 'compact';
         const cardClasses = isCompact ? 'card card-compact' : 'card';
         const cardEl = h('button', { className: cardClasses + ' card-tile', onclick: () => goTo('read', { cardId: card.id }), 'aria-label': 'Open card: ' + (card.title || 'Untitled'), role: 'listitem' });
