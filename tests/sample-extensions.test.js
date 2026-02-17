@@ -30,7 +30,7 @@ function createValidModPackage(overrides = {}) {
       author: 'Test Author',
       description: 'A test plugin',
       layer: 'feature',
-      compatibility: '>=0.16.0',
+      compatibility: '>=0.17.0',
       ...(overrides.manifest || {})
     },
     config: overrides.config || {},

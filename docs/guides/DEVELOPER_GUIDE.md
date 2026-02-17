@@ -2,7 +2,7 @@
 
 This guide explains how to work on the CardSpoke core app, run tests, and align with the project's lightweight, plugins-first philosophy.
 
-**Current Version:** 0.16.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
+**Current Version:** 0.17.0 | **Schema Version:** 4 | **Release Date:** 2026-02-17
 
 ## Architecture Overview
 - **Ultra-light core:** Keep the main bundle lean. `www/app.js` is a self-contained bundle built by concatenating the numbered source slices in `www/src/*.js` (via `npm run build`) with inline helpers for DOM creation (`h()`), markdown rendering (`simpleMarkdown()`), accessibility utilities (focus trap, debounce, ID generation), and fuzzy search (Levenshtein distance).

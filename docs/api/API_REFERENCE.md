@@ -2,7 +2,7 @@
 
 This reference documents the surfaces plugin developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke.Plugin` plugin runtime. It consolidates the runtime contracts that ship in `www/app.js`.
 
-**Current Version:** 0.16.0 | **Schema Version:** 4 | **Release Date:** 2025-11-30
+**Current Version:** 0.17.0 | **Schema Version:** 4 | **Release Date:** 2026-02-17
 
 ## Global objects
 - **`window.CardSpoke.utils`**: helpers for card CRUD, tagging, search, accessibility, dataset metadata, and toast UI helpers.
@@ -58,7 +58,7 @@ window.CardSpoke.Plugin.register('plugin-id', {
 The context object passed to setup and teardown functions contains:
 
 - **`ctx.pluginId`**: The ID of the current plugin
-- **`ctx.appVersion`**: Current app version (0.16.0)
+- **`ctx.appVersion`**: Current app version (0.17.0)
 - **`ctx.schemaVersion`**: Current schema version (4)
 - **`ctx.api`**: API object with `ui`, `data`, `storage`, and `events` namespaces
 - **`ctx.logger`**: Plugin-scoped logger with methods: `log()`, `info()`, `warn()`, `error()`

@@ -325,7 +325,7 @@
   function createPluginContext(pluginId) {
     return {
       modId: pluginId,
-      appVersion: window.APP_VERSION || '0.16.0',
+      appVersion: window.APP_VERSION || '0.17.0',
       schemaVersion: window.SCHEMA_VERSION || 4,
       api: {
         ui: createUIApi(pluginId),

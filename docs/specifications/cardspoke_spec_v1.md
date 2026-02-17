@@ -201,7 +201,7 @@ Every plugin must include a manifest in the JSON package format:
     "author": "Creator Name",
     "description": "What this plugin does",
     "layer": "theme | feature | app",
-    "compatibility": ">=0.16.0"
+    "compatibility": ">=0.17.0"
   },
   "config": {},
   "css": "",

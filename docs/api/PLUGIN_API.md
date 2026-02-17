@@ -1,6 +1,6 @@
 # Plugin API Documentation
 
-**Version:** 0.16.0
+**Version:** 0.17.0
 
 The Plugin API provides a sandboxed, resource-managed environment for plugin development with isolated contexts and automatic cleanup support.
 
@@ -43,7 +43,7 @@ Every plugin receives a context object:
 ```javascript
 {
   pluginId: string,           // Plugin ID
-  appVersion: string,         // App version (0.16.0)
+  appVersion: string,         // App version (0.17.0)
   schemaVersion: number,      // Schema version (4)
   api: {
     ui: UIApi,                // UI manipulation

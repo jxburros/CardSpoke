@@ -17,7 +17,7 @@
 
 // =============================================================
 // CardSpoke JavaScript Application (Source)
-// Version: 0.16.0
+// Version: 0.17.0
 // Creator: jxburros
 // Schema: v4
 // Note: Sources are split across www/src/* and concatenated with
@@ -35,8 +35,8 @@
 
 // --- APP METADATA & SIGNATURES ---
 const APP_CREATOR = 'Jeffrey from GX Generations Software';
-const APP_VERSION = '0.16.0';
-const APP_RELEASE_DATE = '2025-11-30';
+const APP_VERSION = '0.17.0';
+const APP_RELEASE_DATE = '2026-02-17';
 const APP_UPDATER = 'Claude Code (Sonnet 4.5)';
 const SCHEMA_VERSION = 4;
 
