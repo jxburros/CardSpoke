@@ -26,7 +26,7 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
   - `index.html` - Entry point with modal structures and script loading
   - `capacitor.js` - Capacitor runtime bridge
   - `modules/` - Reference ES module versions (not used at runtime)
-- `tests/` - uvu test suites (~227 tests across 18 files)
+- `tests/` - uvu test suites (284 passing tests out of 301 total across 18 files)
 - `docs/` - Project documentation organized by category
 - `capacitor.config.json` - Platform configuration for Capacitor
 
@@ -69,10 +69,11 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 
 ## Source Mapping & Tooling Status
 - Runtime source slices are ordered and concatenated into `www/app.js` as follows:
-  1. `www/src/01-metadata-and-utilities.js`
-  2. `www/src/02-storage-and-plugins.js`
-  3. `www/src/03-data-and-modals.js`
-  4. `www/src/04-rendering-and-init.js`
-  5. `www/src/05-advanced-systems-and-boot.js`
-- Build command: `npm run build` (concatenates `www/src/*.js` into `www/app.js`).
+  1. `www/src/00-core-systems.js` - Middleware Pipeline, Component Registry, Plugin API, Storage Driver Registry, Permissions System
+  2. `www/src/01-metadata-and-utilities.js` - App metadata, utilities (DOM helpers, markdown rendering, accessibility, fuzzy search)
+  3. `www/src/02-storage-and-plugins.js` - Storage drivers (IndexedDB, LocalStorage, Cloud), Plugin system
+  4. `www/src/03-data-and-modals.js` - CRUD operations (createCard, updateCard, deleteCard), modals
+  5. `www/src/04-rendering-and-init.js` - Rendering functions (breadcrumbs, lists, cards, search)
+  6. `www/src/05-advanced-systems-and-boot.js` - Undo/redo, tags, search, boot sequence
+- Build command: `npm run build` (concatenates `www/src/*.js` into `www/app.js` in lexical order).
 - There is currently no repository-enforced linter/formatter configuration. Keep style consistent with surrounding code and validate changes with `npm test`.

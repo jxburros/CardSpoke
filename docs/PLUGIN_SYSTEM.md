@@ -451,49 +451,59 @@ manifest: {
 
 Users are prompted to approve permissions on first install.
 
-## Schema and Metadata
+## Schema and Plugin-Specific Data
 
-Cards now support a `metadata` field for plugin-specific data:
+Cards support a `modsData` field for plugin-specific data:
 
 ```javascript
-card.metadata = {
-  pluginData: {
-    'my-plugin': {
-      customField: 'value',
-      timestamp: Date.now()
-    }
+card.modsData = {
+  'my-plugin': {
+    customField: 'value',
+    timestamp: Date.now()
   }
 };
 ```
 
-The `metadata` field is preserved during:
+The `modsData` field is preserved during:
 - Card save/load
 - Export/import
 - Duplication
 - Search indexing
 
+**Note:** Some documentation may reference a `metadata` field instead of `modsData`. The actual implementation uses `modsData` for plugin-specific data. The store itself has a `metadata` field for dataset-level information (storage type, display name, etc.).
+
 ## TypeScript Support
 
-Install type definitions:
+TypeScript definitions are available in the `types/` directory of this repository. 
 
-```bash
-npm install @cardspoke/core
-```
+**Note:** The `@cardspoke/core` npm package is not currently published. To use TypeScript with CardSpoke plugins:
 
-Use in your plugin:
+1. **For local development:** Reference the types directly from the repository:
+   ```typescript
+   /// <reference path="path/to/CardSpoke/types/index.d.ts" />
+   
+   const plugin: CardSpoke.PluginDefinition = {
+     manifest: { /* ... */ },
+     setup: async (ctx: CardSpoke.PluginContext) => {
+       // TypeScript knows the API shape
+     }
+   };
+   
+   export default plugin;
+   ```
 
-```typescript
-import type { PluginDefinition, PluginContext } from '@cardspoke/core';
-
-const plugin: PluginDefinition = {
-  manifest: { /* ... */ },
-  setup: async (ctx: PluginContext) => {
-    // TypeScript knows the API shape
-  }
-};
-
-export default plugin;
-```
+2. **For standalone plugins:** Copy the type definitions from `types/index.d.ts` into your project or use JSDoc comments for type hints:
+   ```javascript
+   /**
+    * @type {CardSpoke.PluginDefinition}
+    */
+   const plugin = {
+     manifest: { /* ... */ },
+     setup: async (ctx) => {
+       // Use JSDoc for inline type checking
+     }
+   };
+   ```
 
 ## Examples and Resources
 
@@ -528,7 +538,7 @@ Detailed documentation:
 
 1. **Use Plugin API**: Prefer `ctx.api` over direct window/global access
 2. **Register components**: Use Component Registry instead of direct DOM manipulation
-3. **Add metadata**: Use `card.metadata` or `card.modsData` for plugin-specific data
+3. **Add plugin data**: Use `card.modsData` for plugin-specific data (not `card.metadata`, which is for store-level configuration)
 4. **Handle errors**: Wrap async operations in try/catch blocks
 5. **Document permissions**: Clearly explain why each permission is needed
 6. **Test cleanup**: Ensure all resources are freed when plugin is disabled

@@ -4,23 +4,16 @@ TypeScript type definitions for CardSpoke plugin development.
 
 ## Installation
 
-```bash
-npm install @cardspoke/core
-```
+**Note:** This package is not currently published to npm. For now, use the type definitions directly from the repository.
 
-## Usage
+### For Local Development
 
-### TypeScript
+Reference the types directly from the repository:
 
 ```typescript
-import type { 
-  PluginDefinition, 
-  PluginContext,
-  Card,
-  ModManifest 
-} from '@cardspoke/core';
+/// <reference path="path/to/CardSpoke/types/index.d.ts" />
 
-const plugin: PluginDefinition = {
+const plugin: CardSpoke.PluginDefinition = {
   manifest: {
     name: "My Plugin",
     version: "1.0.0",
@@ -29,7 +22,7 @@ const plugin: PluginDefinition = {
     permissions: ["ui-override"]
   },
   
-  setup: async (ctx: PluginContext) => {
+  setup: async (ctx: CardSpoke.PluginContext) => {
     // TypeScript provides full type checking
     const cards = ctx.api.data.listCards();
     ctx.api.ui.showToast('Loaded!', 'success');
@@ -43,7 +36,7 @@ export default plugin;
 
 ```javascript
 /**
- * @type {import('@cardspoke/core').PluginDefinition}
+ * @type {CardSpoke.PluginDefinition}
  */
 const plugin = {
   manifest: {
@@ -54,7 +47,7 @@ const plugin = {
   },
   
   setup: async (ctx) => {
-    // ctx has type hints in VS Code
+    // ctx has type hints in VS Code if you include a reference to types/index.d.ts
     const cards = ctx.api.data.listCards();
   }
 };

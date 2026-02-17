@@ -83,7 +83,7 @@ The plugin system includes:
 - **Component Registry**: Type-safe UI component overrides with priority-based resolution
 - **Storage Driver Registry**: Pluggable storage backends (IndexedDB, cloud, git, etc.)
 - **Permission System**: User consent for sensitive operations with explicit permission requests
-- **TypeScript Support**: Full type definitions via `@cardspoke/core` package
+- **TypeScript Support**: Type definitions available in `types/` directory for local development
 
 ### Quick Example
 
