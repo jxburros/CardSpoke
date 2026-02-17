@@ -269,13 +269,13 @@ ctx.api.ui.registerComponent('Card', {
 
 ## TypeScript Support
 
-With the `@cardspoke/core` package:
+Using type definitions from the repository:
 
 ```typescript
-import type { Component } from '@cardspoke/core';
+/// <reference path="path/to/CardSpoke/types/index.d.ts" />
 
-const MyCard: Component = {
-  render: (props: CardProps) => {
+const MyCard: CardSpoke.Component = {
+  render: (props: CardSpoke.CardProps) => {
     // TypeScript knows props shape
     return element;
   },
@@ -284,6 +284,8 @@ const MyCard: Component = {
 
 window.CardSpoke.ComponentRegistry.register('Card', MyCard);
 ```
+
+**Note:** The `@cardspoke/core` package is not currently published to npm. Reference the type definitions directly from the `types/` directory in the repository.
 
 ## Performance
 
