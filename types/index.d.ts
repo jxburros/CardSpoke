@@ -183,7 +183,9 @@ export interface MiddlewareContext {
   args: any[];
   result?: any;
   error?: Error;
+  /** Read-only flag indicating whether stopPropagation() was called */
   stopped: boolean;
+  /** Read-only flag indicating whether preventDefault() was called */
   prevented: boolean;
   stopPropagation(): void;
   preventDefault(): void;

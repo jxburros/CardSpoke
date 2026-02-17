@@ -60,7 +60,7 @@
 
       if (!plugin.id || typeof plugin.id !== 'string') {
         errors.push('Plugin must have a string id');
-      } else if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(plugin.id) && plugin.id.length > 1) {
+      } else if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(plugin.id)) {
         warnings.push('Plugin id should use lowercase letters, numbers, and hyphens only');
       }
 

@@ -36,20 +36,21 @@
   };
 
   // Capture core function references once they become available
+  // Only captures each reference once to avoid redundant work
   function captureInternalReferences() {
     // Data operations
-    if (window.createCard) InternalAPI.data.createCard = window.createCard;
-    if (window.updateCard) InternalAPI.data.updateCard = window.updateCard;
-    if (window.deleteCard) InternalAPI.data.deleteCard = window.deleteCard;
-    if (window.cloneCard) InternalAPI.utils.cloneCard = window.cloneCard;
+    if (!InternalAPI.data.createCard && window.createCard) InternalAPI.data.createCard = window.createCard;
+    if (!InternalAPI.data.updateCard && window.updateCard) InternalAPI.data.updateCard = window.updateCard;
+    if (!InternalAPI.data.deleteCard && window.deleteCard) InternalAPI.data.deleteCard = window.deleteCard;
+    if (!InternalAPI.utils.cloneCard && window.cloneCard) InternalAPI.utils.cloneCard = window.cloneCard;
     // Tag operations
-    if (window.getTags) InternalAPI.data.getTags = window.getTags;
-    if (window.addTag) InternalAPI.data.addTag = window.addTag;
-    if (window.removeTag) InternalAPI.data.removeTag = window.removeTag;
-    if (window.setTags) InternalAPI.data.setTags = window.setTags;
-    if (window.getAllTags) InternalAPI.data.getAllTags = window.getAllTags;
+    if (!InternalAPI.data.getTags && window.getTags) InternalAPI.data.getTags = window.getTags;
+    if (!InternalAPI.data.addTag && window.addTag) InternalAPI.data.addTag = window.addTag;
+    if (!InternalAPI.data.removeTag && window.removeTag) InternalAPI.data.removeTag = window.removeTag;
+    if (!InternalAPI.data.setTags && window.setTags) InternalAPI.data.setTags = window.setTags;
+    if (!InternalAPI.data.getAllTags && window.getAllTags) InternalAPI.data.getAllTags = window.getAllTags;
     // UI operations
-    if (window.showToast) InternalAPI.ui.showToast = window.showToast;
+    if (!InternalAPI.ui.showToast && window.showToast) InternalAPI.ui.showToast = window.showToast;
   }
 
   // Helper function to check permissions
