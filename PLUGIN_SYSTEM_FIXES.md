@@ -1892,23 +1892,478 @@ ctx.api.storage = new IsolatedStorage(ctx.modId);
 
 ## Implementation Priority Recommendation
 
-**Phase 1 (Immediate - 1-2 weeks):**
-1. Permissions enforcement (Option 1)
-2. Input validation (Option 1)
-3. Error boundaries (Option 1)
-4. Operations registry (Option 1)
-5. Component documentation (Option 1)
+### Integrated Roadmap (Issue-Based + Phase-Based)
 
-**Phase 2 (Medium-term - 3-4 weeks):**
-1. Restricted API contexts (Option 2)
-2. JSON Schema validation (Option 2)
-3. Typed definitions (Option 2)
-4. Component validation (Option 2)
+This roadmap merges the issue-focused fixes with a practical phase-based implementation strategy:
 
-**Phase 3 (Long-term - 8+ weeks):**
-1. Worker isolation (Option 3)
-2. CSP implementation (Option 3)
-3. Isolated storage (Option 3)
-4. Full component system (Option 3)
+---
 
-This approach balances security improvements with implementation complexity, allowing gradual hardening of the plugin system.
+### Phase 1: Core Instrumentation (Connecting the Machinery) - **2-3 weeks**
+
+**Goal:** Make the plugin system's internal machinery visible and controllable
+
+#### 1.1 Instrument Data Operations with Middleware ⭐ NEW
+**What:** Wrap all core data functions (createCard, updateCard, deleteCard, etc. in `03-data-and-modals.js`) with `window.CardSpoke.Middleware.run(operation, args)`
+
+**Why:** Currently, plugins can intercept middleware operations that don't exist. By instrumenting data operations, middleware becomes actually useful for plugins.
+
+**Implementation:**
+```javascript
+// Before (in 03-data-and-modals.js):
+createCard(cardData) {
+  // ... create logic
+}
+
+// After (instrumented):
+createCard(cardData) {
+  return window.CardSpoke.Middleware.executeOperation('card.create', [cardData]);
+}
+```
+
+**Effort:** 4-6 hours | **Risk:** Low
+
+**Addresses Issue:** #4 (Undocumented Operations) + Operations consistency
+
+---
+
+#### 1.2 Instrument UI Rendering with Component Registry ⭐ NEW
+**What:** Update rendering logic in `04-rendering-and-init.js` to check `window.CardSpoke.ComponentRegistry.get(componentName)` before falling back to default templates
+
+**Why:** Component registry currently isn't actually used in rendering. This makes it functional.
+
+**Implementation:**
+```javascript
+// Before (rendering card):
+const cardHTML = `<div class="card">${card.title}</div>`;
+
+// After (with registry):
+const CardComponent = window.CardSpoke.ComponentRegistry.get('Card');
+const cardHTML = CardComponent
+  ? CardComponent.render({ card, isSelected, onSelect })
+  : `<div class="card">${card.title}</div>`;
+```
+
+**Effort:** 3-4 hours | **Risk:** Low
+
+**Addresses Issue:** #5 (Component Interface) + Makes components functional
+
+---
+
+#### 1.3 Abstract Global Dependencies
+**What:** Update `plugin-api.js` to use a stable internal reference for core functions instead of relying on mutable `window` object
+
+**Why:** Prevents plugins from breaking app by overwriting window functions
+
+**Implementation:**
+```javascript
+// Create internal reference to core functions
+const InternalAPI = {
+  data: {
+    createCard: window.CardSpoke.createCard,
+    updateCard: window.CardSpoke.updateCard,
+    deleteCard: window.CardSpoke.deleteCard
+  },
+  ui: {
+    render: window.CardSpoke.renderUI,
+    setTheme: window.CardSpoke.setTheme
+  }
+};
+
+// Plugin API uses internal reference, not window
+ctx.api.data.createCard = async (data) => {
+  return InternalAPI.data.createCard(data);
+};
+```
+
+**Effort:** 2-3 hours | **Risk:** Low
+
+**Addresses Issue:** #2 (Input Validation - prevents injection of malicious functions)
+
+---
+
+### Phase 2: AI-Agent Readability & Grounding - **1-2 weeks**
+
+**Goal:** Make the plugin system discoverable and understandable by both developers and AI agents
+
+#### 2.1 Create a Capabilities Manifest ⭐⭐ NEW - EXCELLENT
+**What:** Produce a static JSON file (`www/capabilities.json`) that explicitly lists all available Middleware operations, Component names, and stable DOM selectors
+
+**Why:** This is the single best thing for AI agent integration. Agents can read this at runtime to know what's available.
+
+**Implementation:**
+```json
+{
+  "version": "0.17.0",
+  "capabilities": {
+    "operations": [
+      {
+        "name": "card.create",
+        "description": "Create a new card",
+        "args": ["cardData"],
+        "returns": "Card",
+        "example": "ctx.api.data.createCard({title: 'My Card'})"
+      },
+      {
+        "name": "card.update",
+        "description": "Update an existing card",
+        "args": ["cardId", "updates"],
+        "returns": "Card"
+      },
+      {
+        "name": "card.render",
+        "description": "Re-render a card in the UI",
+        "args": ["cardId"],
+        "returns": "void"
+      }
+    ],
+    "components": [
+      {
+        "name": "Card",
+        "description": "Renders a single card",
+        "props": ["card", "isSelected", "onSelect"],
+        "canReplace": true
+      },
+      {
+        "name": "Sidebar",
+        "description": "Renders the left sidebar",
+        "props": ["cards", "selectedCardId"],
+        "canReplace": true
+      }
+    ],
+    "selectors": {
+      "card-list": ".card-list",
+      "sidebar": ".sidebar",
+      "search-input": "#search",
+      "plugin-manager": ".plugin-manager"
+    }
+  },
+  "permissions": [
+    "ui-override",
+    "storage",
+    "network",
+    "filesystem",
+    "core-override"
+  ]
+}
+```
+
+**Usage:** AI agents can fetch this to understand what they can do without reading source code
+
+**Effort:** 3-4 hours | **Risk:** None
+
+**Addresses Issue:** #4 (Undocumented Operations) - Provides comprehensive documentation
+
+---
+
+#### 2.2 Generate TypeScript Definitions ⭐⭐ (Already in my recommendations as Option 2)
+**What:** Maintain `types/cardspoke-plugin.d.ts` as the "ground truth" for the API surface
+
+**Already included in my Fix Option 2 for Issue #4**
+
+**Effort:** 4-6 hours | **Risk:** Low
+
+**Addresses Issue:** #4 (Operations discovery) + #5 (Component interface)
+
+---
+
+#### 2.3 Implement Semantic Selectors ⭐ NEW
+**What:** Add `data-plugin-anchor` attributes to key UI elements in `index.html` to provide stable targets for AI-generated DOM manipulation
+
+**Why:** Plugins currently use fragile selectors like `.card-list` which can change. Semantic anchors are stable and AI-friendly.
+
+**Implementation:**
+```html
+<!-- Before (fragile) -->
+<div class="card-list"></div>
+<div class="sidebar"></div>
+
+<!-- After (stable) -->
+<div class="card-list" data-plugin-anchor="card-list"></div>
+<div class="sidebar" data-plugin-anchor="sidebar"></div>
+<input type="text" id="search" data-plugin-anchor="search-input">
+<button class="btn-add" data-plugin-anchor="btn-create-card">+</button>
+```
+
+**Effort:** 1-2 hours | **Risk:** None
+
+**Addresses Issue:** #2 (Input Validation - plugins use stable anchors instead of guessing selectors)
+
+---
+
+### Phase 3: Developer & Agent Experience - **1-2 weeks**
+
+**Goal:** Make plugin development easier and reduce errors
+
+#### 3.1 Add Scoped Error Handling ⭐⭐ (Aligns with my Issue #3 fix)
+**What:** Wrap `setup()` and `teardown()` calls in `plugin-api.js` with try/catch blocks that automatically disable a plugin and log detailed stack traces
+
+**This is essentially my "Error Boundaries" (Option 2 for Issue #3)**
+
+**Implementation:**
+```javascript
+// In plugin-api.js:
+async function enablePlugin(plugin) {
+  const errorBoundary = new PluginErrorBoundary(plugin.id, plugin.manifest.name);
+
+  try {
+    // Call plugin setup
+    if (typeof plugin.setup === 'function') {
+      await plugin.setup(ctx);
+    }
+  } catch (error) {
+    errorBoundary.recordError('setup', error);
+    console.error(`[Plugin ${plugin.id}] Setup failed:`, error);
+    console.error('Stack:', error.stack);
+
+    // Auto-disable
+    plugin.enabled = false;
+    window.CardSpoke.Plugin.disable(plugin.id);
+
+    // Notify user
+    ctx.logger.error(`Plugin setup failed and was disabled: ${error.message}`);
+    throw error;
+  }
+}
+
+async function disablePlugin(plugin) {
+  try {
+    if (typeof plugin.teardown === 'function') {
+      await plugin.teardown(ctx);
+    }
+  } catch (error) {
+    console.error(`[Plugin ${plugin.id}] Teardown error:`, error);
+    // Continue anyway - don't let cleanup errors break app
+    ctx.logger.warn(`Plugin cleanup had errors but continuing: ${error.message}`);
+  }
+}
+```
+
+**Effort:** 2-3 hours | **Risk:** Low
+
+**Addresses Issue:** #3 (Error Isolation)
+
+---
+
+#### 3.2 Standardize Plugin Scaffolding ⭐ NEW
+**What:** Provide a "Plugin Template" that AI agents can use as a consistent starting point
+
+**Implementation:** Create `www/sample-plugins/TEMPLATE.json`:
+```json
+{
+  "id": "my-plugin",
+  "manifest": {
+    "name": "My Plugin",
+    "version": "1.0.0",
+    "author": "Your Name",
+    "description": "What does this plugin do?",
+    "layer": "feature",
+    "compatibility": ">=0.17.0",
+    "permissions": []
+  },
+  "config": {},
+  "js": "// Required: setup function\nasync function setup(ctx) {\n  ctx.logger.log('Plugin enabled');\n}\n\n// Optional: teardown function\nasync function teardown(ctx) {\n  ctx.logger.log('Plugin disabled');\n}",
+  "css": "/* Add your styles here */",
+  "overrides": {},
+  "enabled": false
+}
+```
+
+**Effort:** 1 hour | **Risk:** None
+
+**Addresses Issue:** Developer experience + plugin consistency
+
+---
+
+### Phase 4: Validation & Safety - **1-2 weeks**
+
+**Goal:** Enforce security policies and prevent resource leaks
+
+#### 4.1 Enforce Permission Checks ⭐⭐ (My Issue #1 Fix Option 1)
+**What:** Ensure `_checkPermissions` in `plugin-api.js` is fully integrated before enabling any feature or app layer plugins
+
+**Already in my recommendations as "Fix Option 1" for Issue #1 (Permissions)**
+
+**Implementation:** Wrap each API method with permission check:
+```javascript
+ctx.api.data.createCard = async (data) => {
+  if (!hasPermission(ctx.modId, 'data-modify')) {
+    throw new Error('Plugin does not have data-modify permission');
+  }
+  return InternalAPI.data.createCard(data);
+};
+```
+
+**Effort:** 3-4 hours | **Risk:** Low
+
+**Addresses Issue:** #1 (Permissions not enforced)
+
+---
+
+#### 4.2 Audit Resource Cleanup ⭐⭐ NEW - IMPORTANT
+**What:** Verify that the `_cleanupResources` method in `plugin-api.js` correctly removes all DOM elements, event listeners, and components registered by a plugin when disabled
+
+**Why:** Memory leaks from plugin teardown can degrade app performance over time
+
+**Implementation:**
+```javascript
+async function _cleanupResources(ctx) {
+  const pluginId = ctx.modId;
+
+  // Track what we're cleaning up
+  const cleanup = {
+    domElements: 0,
+    eventListeners: 0,
+    components: 0,
+    middleware: 0,
+    timers: 0
+  };
+
+  // 1. Remove DOM elements added by plugin
+  const pluginElements = document.querySelectorAll(`[data-plugin-id="${pluginId}"]`);
+  pluginElements.forEach(el => {
+    el.remove();
+    cleanup.domElements++;
+  });
+
+  // 2. Unregister event listeners
+  if (ctx._eventListeners) {
+    ctx._eventListeners.forEach(({ target, event, handler }) => {
+      target.removeEventListener(event, handler);
+      cleanup.eventListeners++;
+    });
+    ctx._eventListeners = [];
+  }
+
+  // 3. Unregister components
+  if (ctx._components) {
+    ctx._components.forEach(componentName => {
+      window.CardSpoke.ComponentRegistry.unregister(componentName);
+      cleanup.components++;
+    });
+    ctx._components = [];
+  }
+
+  // 4. Unregister middleware
+  if (ctx._middleware) {
+    ctx._middleware.forEach(middlewareName => {
+      window.CardSpoke.Middleware.unregister(middlewareName);
+      cleanup.middleware++;
+    });
+    ctx._middleware = [];
+  }
+
+  // 5. Clear timers
+  if (ctx._timers) {
+    ctx._timers.forEach(timerId => {
+      clearTimeout(timerId);
+      clearInterval(timerId);
+      cleanup.timers++;
+    });
+    ctx._timers = [];
+  }
+
+  ctx.logger.log(`Cleanup complete: ${JSON.stringify(cleanup)}`);
+  return cleanup;
+}
+
+// Track resources in wrapper functions
+ctx.addEventListener = function(target, event, handler) {
+  target.addEventListener(event, handler);
+  ctx._eventListeners = ctx._eventListeners || [];
+  ctx._eventListeners.push({ target, event, handler });
+};
+
+ctx.registerComponent = function(name, component) {
+  window.CardSpoke.ComponentRegistry.register(name, component);
+  ctx._components = ctx._components || [];
+  ctx._components.push(name);
+};
+
+ctx.registerMiddleware = function(middleware) {
+  window.CardSpoke.Middleware.register(middleware);
+  ctx._middleware = ctx._middleware || [];
+  ctx._middleware.push(middleware.name);
+};
+
+ctx.setTimeout = function(fn, delay) {
+  const timerId = setTimeout(fn, delay);
+  ctx._timers = ctx._timers || [];
+  ctx._timers.push(timerId);
+  return timerId;
+};
+```
+
+**Effort:** 4-6 hours | **Risk:** Low
+
+**Addresses Issue:** Resource cleanup + memory management
+
+---
+
+## Consolidated Implementation Priority
+
+### Tier 1: Critical (Do First - 1 week)
+These fixes are small, impactful, and low-risk:
+
+1. ✅ **Enforce Permission Checks** (Phase 4.1) - 3-4h
+   - *Fixes Issue #1: Permissions not enforced*
+
+2. ✅ **Instrument Data Operations with Middleware** (Phase 1.1) - 4-6h
+   - *Fixes Issue #4: Undocumented Operations*
+   - Makes middleware actually useful
+
+3. ✅ **Create Capabilities Manifest** (Phase 2.1) - 3-4h
+   - *Fixes Issue #4: Undocumented Operations*
+   - AI-agent friendly + comprehensive documentation
+
+4. ✅ **Add Scoped Error Handling** (Phase 3.1) - 2-3h
+   - *Fixes Issue #3: No Error Isolation*
+   - Prevents plugin crashes from breaking app
+
+5. ✅ **Audit Resource Cleanup** (Phase 4.2) - 4-6h
+   - Prevents memory leaks
+
+**Total Tier 1: ~17-23 hours (2-3 days of work)**
+
+---
+
+### Tier 2: Important (Do Next - 2 weeks)
+These enhance developer experience and foundation:
+
+6. ⭐ **Instrument UI Rendering with Component Registry** (Phase 1.2) - 3-4h
+   - Makes component system functional
+
+7. ⭐ **Generate TypeScript Definitions** (Phase 2.2) - 4-6h
+   - Type-safe plugin development
+
+8. ⭐ **Implement Semantic Selectors** (Phase 2.3) - 1-2h
+   - Stable targets for DOM manipulation
+
+9. ⭐ **Abstract Global Dependencies** (Phase 1.3) - 2-3h
+   - Prevents function hijacking
+
+10. ⭐ **Standardize Plugin Scaffolding** (Phase 3.2) - 1h
+    - Consistent template for plugins
+
+**Total Tier 2: ~15-20 hours (2-3 days of work)**
+
+---
+
+### Tier 3: Nice to Have (Future - 4+ weeks)
+These are medium/long-term architectural improvements:
+
+- Input validation (DOMPurify, JSON Schema) - Issue #2
+- Worker-based isolation - Issue #1/3
+- Plugin sandbox UI - Phase 3
+- Isolated storage (IndexedDB) - Issue #6
+
+---
+
+## Next Steps
+
+1. **Choose a starting point** from Tier 1
+2. **Create feature branch** for each implementation
+3. **Write tests** for each feature before implementation
+4. **Update documentation** (capabilities.json, TypeScript definitions)
+5. **Test with sample plugins** to verify backward compatibility
+
+This integrated roadmap balances the issue-based security approach with the practical phase-based implementation strategy.
