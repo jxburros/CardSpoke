@@ -17,7 +17,7 @@
 
 /**
  * CardSpoke Module Index
- * Version: 0.16.0
+ * Version: 0.17.0
  * 
  * Central export point for all modules
  */
