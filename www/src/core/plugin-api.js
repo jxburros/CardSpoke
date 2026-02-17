@@ -26,6 +26,32 @@
   const pluginResources = new Map();
   const dataUpdateListeners = new Map();
 
+  // Stable internal references to core functions (Phase 1.3)
+  // Captured at initialization time to prevent plugins from
+  // breaking the app by overwriting window functions
+  const InternalAPI = {
+    data: {},
+    ui: {},
+    utils: {}
+  };
+
+  // Capture core function references once they become available
+  function captureInternalReferences() {
+    // Data operations
+    if (window.createCard) InternalAPI.data.createCard = window.createCard;
+    if (window.updateCard) InternalAPI.data.updateCard = window.updateCard;
+    if (window.deleteCard) InternalAPI.data.deleteCard = window.deleteCard;
+    if (window.cloneCard) InternalAPI.utils.cloneCard = window.cloneCard;
+    // Tag operations
+    if (window.getTags) InternalAPI.data.getTags = window.getTags;
+    if (window.addTag) InternalAPI.data.addTag = window.addTag;
+    if (window.removeTag) InternalAPI.data.removeTag = window.removeTag;
+    if (window.setTags) InternalAPI.data.setTags = window.setTags;
+    if (window.getAllTags) InternalAPI.data.getAllTags = window.getAllTags;
+    // UI operations
+    if (window.showToast) InternalAPI.ui.showToast = window.showToast;
+  }
+
   // Helper function to check permissions
   function hasPermission(pluginId, permission) {
     if (window.CardSpoke && window.CardSpoke.Permissions) {
@@ -125,8 +151,9 @@
       },
 
       showToast: function(message, type, duration) {
-        if (window.showToast) {
-          window.showToast(message, type || 'info', duration);
+        var fn = InternalAPI.ui.showToast || window.showToast;
+        if (fn) {
+          fn(message, type || 'info', duration);
         }
       }
     };
@@ -155,15 +182,17 @@
 
       getCard: function(id) {
         if (window.store && window.store.cards && window.store.cards[id]) {
-          return window.cloneCard ? window.cloneCard(window.store.cards[id]) : window.store.cards[id];
+          var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
+          return cloneFn ? cloneFn(window.store.cards[id]) : window.store.cards[id];
         }
         return undefined;
       },
 
       listCards: function() {
         if (window.store && window.store.cards) {
+          var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
           return Object.values(window.store.cards).map(function(card) {
-            return window.cloneCard ? window.cloneCard(card) : card;
+            return cloneFn ? cloneFn(card) : card;
           });
         }
         return [];
@@ -175,8 +204,9 @@
           throw new Error('Plugin does not have data-modify permission');
         }
 
-        if (window.createCard) {
-          return window.createCard(data.title || '', data.body || '', data.parentId || null, false, false);
+        var fn = InternalAPI.data.createCard || window.createCard;
+        if (fn) {
+          return fn(data.title || '', data.body || '', data.parentId || null, false, false);
         }
         throw new Error('createCard not available');
       },
@@ -187,8 +217,9 @@
           throw new Error('Plugin does not have data-modify permission');
         }
 
-        if (window.updateCard) {
-          window.updateCard(id, updates, false, false);
+        var fn = InternalAPI.data.updateCard || window.updateCard;
+        if (fn) {
+          fn(id, updates, false, false);
           return this.getCard(id);
         }
         throw new Error('updateCard not available');
@@ -200,16 +231,18 @@
           throw new Error('Plugin does not have data-modify permission');
         }
 
-        if (window.deleteCard) {
-          window.deleteCard(id);
+        var fn = InternalAPI.data.deleteCard || window.deleteCard;
+        if (fn) {
+          fn(id);
           return true;
         }
         return false;
       },
 
       getTags: function(cardId) {
-        if (window.getTags) {
-          return window.getTags(cardId);
+        var fn = InternalAPI.data.getTags || window.getTags;
+        if (fn) {
+          return fn(cardId);
         }
         return [];
       },
@@ -220,8 +253,9 @@
           throw new Error('Plugin does not have data-modify permission');
         }
 
-        if (window.addTag) {
-          return window.addTag(cardId, tag);
+        var fn = InternalAPI.data.addTag || window.addTag;
+        if (fn) {
+          return fn(cardId, tag);
         }
         return false;
       },
@@ -232,8 +266,9 @@
           throw new Error('Plugin does not have data-modify permission');
         }
 
-        if (window.removeTag) {
-          return window.removeTag(cardId, tag);
+        var fn = InternalAPI.data.removeTag || window.removeTag;
+        if (fn) {
+          return fn(cardId, tag);
         }
         return false;
       },
@@ -244,15 +279,17 @@
           throw new Error('Plugin does not have data-modify permission');
         }
 
-        if (window.setTags) {
-          return window.setTags(cardId, tags);
+        var fn = InternalAPI.data.setTags || window.setTags;
+        if (fn) {
+          return fn(cardId, tags);
         }
         return false;
       },
 
       getAllTags: function() {
-        if (window.getAllTags) {
-          return window.getAllTags();
+        var fn = InternalAPI.data.getAllTags || window.getAllTags;
+        if (fn) {
+          return fn();
         }
         return [];
       }
@@ -422,6 +459,26 @@
         throw new Error('Plugin manifest is required');
       }
 
+      // Validate plugin content if validator is available
+      if (window.CardSpoke && window.CardSpoke.PluginValidator) {
+        var validationResult = window.CardSpoke.PluginValidator.validate({
+          id: id,
+          manifest: definition.manifest,
+          css: definition.css,
+          js: definition.js
+        });
+
+        if (validationResult.warnings.length > 0) {
+          validationResult.warnings.forEach(function(w) {
+            console.warn('[Plugin] Validation warning for ' + id + ':', w);
+          });
+        }
+
+        if (!validationResult.valid) {
+          throw new Error('Plugin validation failed: ' + validationResult.errors.join('; '));
+        }
+      }
+
       const context = createPluginContext(id);
       const instance = {
         id: id,
@@ -468,6 +525,9 @@
       if (instance.enabled) {
         return;
       }
+
+      // Capture stable internal references before plugin runs
+      captureInternalReferences();
 
       // Check permissions
       if (instance.definition.manifest.permissions) {

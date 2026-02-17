@@ -17,7 +17,7 @@
 
 /**
  * CardSpoke Core Type Definitions
- * @version 0.16.0
+ * @version 0.17.0
  * @module @cardspoke/core
  */
 
@@ -44,7 +44,7 @@ export interface Store {
 }
 
 export type ModLayer = 'theme' | 'feature' | 'app';
-export type PermissionType = 'ui-override' | 'storage' | 'network' | 'filesystem' | 'core-override';
+export type PermissionType = 'ui-override' | 'storage' | 'network' | 'filesystem' | 'core-override' | 'data-modify';
 
 export interface ModManifest {
   name: string;
@@ -139,6 +139,7 @@ export interface EventApi {
   on(event: string, callback: (...args: any[]) => void): () => void;
   emit(event: string, ...args: any[]): void;
   once(event: string, callback: (...args: any[]) => void): () => void;
+  off(event: string, callback: (...args: any[]) => void): void;
 }
 
 export interface DataUpdateEvent {
@@ -150,6 +151,31 @@ export interface DataUpdateEvent {
 export interface Component {
   render(props: any): HTMLElement | string;
   priority?: number;
+  onMount?(): void;
+  onUnmount?(): void;
+  onPropsChange?(oldProps: any, newProps: any): void;
+  metadata?: ComponentMetadata;
+}
+
+export interface ComponentMetadata {
+  name?: string;
+  version?: string;
+  description?: string;
+  canReplace?: string[];
+}
+
+/** Props passed to a registered Card component */
+export interface CardComponentProps {
+  card: Card;
+  isSelected: boolean;
+  opts: Record<string, any>;
+  onSelect: () => void;
+}
+
+/** Props passed to a registered Sidebar component */
+export interface SidebarComponentProps {
+  cards: Card[];
+  selectedCardId: string | null;
 }
 
 export interface MiddlewareContext {
@@ -157,6 +183,8 @@ export interface MiddlewareContext {
   args: any[];
   result?: any;
   error?: Error;
+  stopped: boolean;
+  prevented: boolean;
   stopPropagation(): void;
   preventDefault(): void;
 }
@@ -194,6 +222,33 @@ export interface NavigationState {
   opts?: Record<string, any>;
 }
 
+// --- Validation Types (Tier 3) ---
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  sanitized: any | null;
+}
+
+export interface PluginValidatorClass {
+  validate(plugin: { id: string; manifest: ModManifest; css?: string; js?: string }): ValidationResult;
+  validateManifest(manifest: ModManifest): { errors: string[]; warnings: string[] };
+  validateCSS(css: string): { errors: string[]; warnings: string[]; sanitized: string };
+  validateJS(js: string): { errors: string[]; warnings: string[] };
+}
+
+// --- Permissions Types ---
+
+export interface PermissionsClass {
+  hasPermission(pluginId: string, permission: PermissionType): boolean;
+  grantPermission(pluginId: string, permission: PermissionType): void;
+  revokePermission(pluginId: string, permission: PermissionType): void;
+  listPermissions(pluginId: string): PermissionType[];
+}
+
+// --- Global Window Declaration ---
+
 declare global {
   interface Window {
     CardSpoke: {
@@ -203,6 +258,8 @@ declare global {
       Middleware: MiddlewareManager;
       ComponentRegistry: ComponentRegistryClass;
       StorageDriverRegistry: StorageDriverRegistryClass;
+      Permissions: PermissionsClass;
+      PluginValidator: PluginValidatorClass;
       utils: PluginUtils;
     };
   }
@@ -215,6 +272,7 @@ export interface PluginClass {
   list(): PluginInstance[];
   enable(id: string): Promise<void>;
   disable(id: string): Promise<void>;
+  notifyDataUpdate(event: DataUpdateEvent): void;
 }
 
 export interface PluginDefinition {
@@ -222,6 +280,7 @@ export interface PluginDefinition {
   setup?(ctx: PluginContext): void | Promise<void>;
   teardown?(ctx: PluginContext): void | Promise<void>;
   css?: string;
+  js?: string;
   overrides?: ModOverrides;
 }
 
@@ -236,7 +295,9 @@ export interface PluginInstance {
 export interface MiddlewareManager {
   register(middleware: Middleware): void;
   unregister(name: string): void;
-  run(operation: string, args: any[]): Promise<any>;
+  run(operation: string, args: any[]): Promise<{ context: MiddlewareContext; prevented: boolean }>;
+  list(): Array<{ name: string; priority: number; operations: string[] }>;
+  clear(): void;
 }
 
 export interface ComponentRegistryClass {
@@ -244,6 +305,9 @@ export interface ComponentRegistryClass {
   unregister(name: string): void;
   get(name: string): Component | undefined;
   resolve(name: string): Component | undefined;
+  has(name: string): boolean;
+  list(): Array<{ name: string; priority: number }>;
+  clear(): void;
 }
 
 export interface StorageDriverRegistryClass {
@@ -253,3 +317,24 @@ export interface StorageDriverRegistryClass {
   setActive(name: string): Promise<void>;
   getActive(): StorageDriver;
 }
+
+/** Semantic DOM selector anchors available for plugin targeting */
+export type PluginAnchor =
+  | 'header'
+  | 'header-inner'
+  | 'brand'
+  | 'save-status'
+  | 'btn-undo'
+  | 'btn-home'
+  | 'btn-theme-toggle'
+  | 'btn-menu'
+  | 'menu-overlay'
+  | 'menu-panel'
+  | 'menu-new-card'
+  | 'menu-plugin-manager'
+  | 'breadcrumbs'
+  | 'main-content'
+  | 'search-container'
+  | 'search-input'
+  | 'toast-container'
+  | 'footer';

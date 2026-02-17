@@ -413,7 +413,28 @@
   },
 
   "selectors": {
-    "description": "Stable DOM selectors for plugin UI manipulation",
+    "description": "Stable DOM selectors for plugin UI manipulation. Use data-plugin-anchor attributes for stable targeting that survives layout refactors.",
+    "semantic-anchors": {
+      "description": "Stable data-plugin-anchor attributes on key UI elements. Use [data-plugin-anchor='name'] as CSS/JS selector.",
+      "header": "Top header bar",
+      "header-inner": "Header inner container",
+      "brand": "CardSpoke brand button",
+      "save-status": "Save status indicator",
+      "btn-undo": "Undo button",
+      "btn-home": "Home button",
+      "btn-theme-toggle": "Theme toggle button",
+      "btn-menu": "Menu open button",
+      "menu-overlay": "Main menu overlay",
+      "menu-panel": "Menu panel content",
+      "menu-new-card": "New Card menu item",
+      "menu-plugin-manager": "Plugin Manager menu item",
+      "breadcrumbs": "Breadcrumb navigation",
+      "main-content": "Main content area",
+      "search-container": "Search container",
+      "search-input": "Search input field",
+      "toast-container": "Toast notifications container",
+      "footer": "App footer"
+    },
     "main": {
       "#main": "Main content area",
       ".header": "Top header bar",
@@ -438,10 +459,28 @@
       "#app-creator": "App creator display"
     },
     "best-practices": [
-      "Use IDs when available for stability",
+      "Prefer data-plugin-anchor selectors for stability (e.g., [data-plugin-anchor='header'])",
+      "Use IDs when available as fallback",
       "Avoid relying on classes that may change",
-      "Test selectors before production use",
-      "Consider adding data-plugin-anchor attributes for custom elements"
+      "Test selectors before production use"
+    ]
+  },
+
+  "validation": {
+    "description": "Plugin content is validated before registration. Invalid plugins are rejected.",
+    "manifest-rules": [
+      "manifest.name is required (string, max 100 chars)",
+      "manifest.version is required (semver format recommended)",
+      "manifest.layer is required (must be 'theme', 'feature', or 'app')",
+      "manifest.permissions must be array of valid permission names"
+    ],
+    "css-rules": [
+      "CSS must be a string (max 100KB)",
+      "Dangerous patterns are removed: @import, javascript:, behavior:, -moz-binding, expression()"
+    ],
+    "js-rules": [
+      "JS must be a string (max 500KB)",
+      "eval() and new Function() are not allowed"
     ]
   },
 
