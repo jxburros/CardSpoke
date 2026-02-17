@@ -112,17 +112,24 @@ window.CardSpoke.Plugin.register('my-plugin', plugin.default);
 **Requirement:** "Update the Schema to allow for a 'hidden' metadata object on every card where plugins can store their own specific data."
 
 **Implementation:**
-- Schema already includes `modsData` field (now documented as `metadata`)
+- Schema includes `modsData` field for plugin-specific data on cards
+- Store-level `metadata` field for dataset configuration (storage type, display name)
 - Storage driver registry created (`www/src/core/storage-driver-registry.js`)
 - Pluggable storage backends
 - Example drivers in sample plugins
 
 **Evidence:**
 ```javascript
-card.metadata = {
-  pluginData: {
-    'my-plugin': { customField: 'value' }
-  }
+// Plugin-specific data on cards
+card.modsData = {
+  'my-plugin': { customField: 'value' }
+};
+
+// Store-level metadata for dataset configuration
+store.metadata = {
+  name: 'My Dataset',
+  storageType: 'indexeddb',
+  storageConfig: { dbName: 'CardSpokeDB' }
 };
 
 // Custom storage driver

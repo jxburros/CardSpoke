@@ -57,7 +57,7 @@ window.CardSpoke.Plugin.register('plugin-id', {
 
 The context object passed to setup and teardown functions contains:
 
-- **`ctx.pluginId`**: The ID of the current plugin
+- **`ctx.modId`**: The ID of the current plugin
 - **`ctx.appVersion`**: Current app version (0.17.0)
 - **`ctx.schemaVersion`**: Current schema version (4)
 - **`ctx.api`**: API object with `ui`, `data`, `storage`, and `events` namespaces

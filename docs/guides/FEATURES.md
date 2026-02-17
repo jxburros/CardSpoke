@@ -94,7 +94,7 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 - **Safe Mode:** Launch with `?safemode` URL parameter to disable all plugins for troubleshooting.
 - **Risk assessment:** Automatic risk scoring based on layer and code analysis (network access, DOM manipulation, storage usage).
 - **Metadata transparency:** Every plugin declares name, version, author, description, layer, compatibility, and permissions in its manifest.
-- **TypeScript support:** Full type definitions via `@cardspoke/core` package for type-safe plugin development.
+- **TypeScript support:** Type definitions available in `types/` directory for type-safe plugin development.
 - **Dev tools:** Inspect plugins, view hook stats, access error logs, and manually test hooks.
 
 ## Accessibility Features

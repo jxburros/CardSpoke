@@ -21,8 +21,22 @@ CardSpoke uses a schema version (`schemaVersion`) to track data model changes ac
 - Keep migrations idempotent and safe to re-run.
 - Log or surface errors when migrations fail; never silently drop user data.
 
+## Current Migration Implementation
+
+**Note:** The current implementation (v0.17.0, schema v4) includes minimal migration support:
+
+- **Root-order rebuild logic:** During IndexedDB initialization, the system detects missing root cards and reconstructs the `rootOrder` array. This ensures data integrity when cards are orphaned.
+- **Fallback behavior:** If migration fails, the app attempts to fall back to read-only mode.
+- **No versioned migrations:** There are currently no explicit migration functions for transitions between schema versions 1→2→3→4. The system starts fresh with v4 or attempts to use existing data as-is.
+
+**Future Migration Work:** To fully support the versioning rules above, future work should implement:
+1. Explicit migration functions for each schema version transition
+2. Version compatibility checks before loading data
+3. Comprehensive migration tests for each schema version path
+4. Better error handling and user prompts for failed migrations
+
 ## Migration Template
-For each schema change, record:
+For each future schema change, record:
 - **From → To:** schemaVersion numbers
 - **Change summary:** What changed and why
 - **Migration steps:** Ordered operations, including data transformations
