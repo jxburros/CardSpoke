@@ -563,20 +563,68 @@
 
     _cleanupResources: function(id) {
       const resources = pluginResources.get(id);
-      if (resources) {
-        resources.forEach(function(resource) {
-          try {
-            if (resource.type === 'dom' && resource.element && resource.element.parentNode) {
-              resource.element.parentNode.removeChild(resource.element);
-            } else if (resource.type === 'component' && window.CardSpoke && window.CardSpoke.ComponentRegistry) {
-              window.CardSpoke.ComponentRegistry.unregister(resource.name);
-            }
-          } catch (err) {
-            console.error('[Plugin] Resource cleanup error:', err);
-          }
-        });
-        resources.clear();
+      if (!resources || resources.size === 0) {
+        return;
       }
+
+      // Track cleanup statistics
+      const cleanup = {
+        domElements: 0,
+        components: 0,
+        listeners: 0,
+        events: 0,
+        errors: 0
+      };
+
+      resources.forEach(function(resource) {
+        try {
+          if (resource.type === 'dom') {
+            // Remove DOM element
+            if (resource.element && resource.element.parentNode) {
+              resource.element.parentNode.removeChild(resource.element);
+              cleanup.domElements++;
+            }
+            // Restore original if it was a replacement
+            if (resource.original && resource.original.parentNode) {
+              // Original was already replaced, skip restoration
+            }
+          } else if (resource.type === 'component') {
+            // Unregister component
+            if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
+              window.CardSpoke.ComponentRegistry.unregister(resource.name);
+              cleanup.components++;
+            }
+          } else if (resource.type === 'listener') {
+            // Data update listeners are tracked separately in dataUpdateListeners map
+            cleanup.listeners++;
+          } else if (resource.type === 'event') {
+            // Event handlers are tracked in the event API
+            cleanup.events++;
+          }
+        } catch (err) {
+          cleanup.errors++;
+          console.error('[Plugin] Resource cleanup error for', id, ':', err);
+        }
+      });
+
+      // Clear all resources
+      resources.clear();
+
+      // Clean up data update listeners
+      const listeners = dataUpdateListeners.get(id);
+      if (listeners && listeners.length > 0) {
+        cleanup.listeners += listeners.length;
+        dataUpdateListeners.delete(id);
+      }
+
+      // Log cleanup summary
+      console.log('[Plugin] Cleanup complete for', id, ':', 
+        cleanup.domElements, 'DOM elements,',
+        cleanup.components, 'components,',
+        cleanup.listeners, 'listeners,',
+        cleanup.events, 'events',
+        cleanup.errors > 0 ? '(' + cleanup.errors + ' errors)' : ''
+      );
     },
 
     _checkPermissions: async function(id, permissions) {
