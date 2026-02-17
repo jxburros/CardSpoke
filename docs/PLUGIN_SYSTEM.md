@@ -316,7 +316,7 @@ await window.CardSpoke.Plugin.enable('my-plugin');
 
 Every plugin receives a context object with:
 
-- **`ctx.pluginId`**: The plugin's unique identifier
+- **`ctx.modId`**: The plugin's unique identifier
 - **`ctx.appVersion`**: Current app version (0.17.0)
 - **`ctx.schemaVersion`**: Current schema version (4)
 - **`ctx.api.ui`**: DOM manipulation (`inject`, `replace`, `registerComponent`, `unregisterComponent`, `showToast`)
@@ -344,8 +344,8 @@ window.CardSpoke.Middleware.register({
     // Modify arguments
     if (ctx.operation === 'card.save') {
       const card = ctx.args[0];
-      card.metadata = card.metadata || {};
-      card.metadata.intercepted = true;
+      card.modsData = card.modsData || {};
+      card.modsData.intercepted = true;
     }
     
     // Call next middleware

@@ -42,7 +42,7 @@ Every plugin receives a context object:
 
 ```javascript
 {
-  pluginId: string,           // Plugin ID
+  modId: string,              // Plugin ID
   appVersion: string,         // App version (0.17.0)
   schemaVersion: number,      // Schema version (4)
   api: {
