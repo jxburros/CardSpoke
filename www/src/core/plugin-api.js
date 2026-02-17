@@ -26,11 +26,25 @@
   const pluginResources = new Map();
   const dataUpdateListeners = new Map();
 
+  // Helper function to check permissions
+  function hasPermission(pluginId, permission) {
+    if (window.CardSpoke && window.CardSpoke.Permissions) {
+      return window.CardSpoke.Permissions.hasPermission(pluginId, permission);
+    }
+    // Fallback - auto-grant if permissions system not available
+    return true;
+  }
+
   function createUIApi(pluginId) {
     const resources = pluginResources.get(pluginId) || new Set();
 
     return {
       inject: function(selector, element, position) {
+        // Check ui-override permission
+        if (!hasPermission(pluginId, 'ui-override')) {
+          throw new Error('Plugin does not have ui-override permission');
+        }
+
         position = position || 'append';
         const target = document.querySelector(selector);
         if (!target) {
@@ -66,6 +80,11 @@
       },
 
       replace: function(selector, element) {
+        // Check ui-override permission
+        if (!hasPermission(pluginId, 'ui-override')) {
+          throw new Error('Plugin does not have ui-override permission');
+        }
+
         const target = document.querySelector(selector);
         if (!target) {
           console.warn('[Plugin:' + pluginId + '] Selector not found:', selector);
@@ -87,6 +106,11 @@
       },
 
       registerComponent: function(name, component) {
+        // Check ui-override permission
+        if (!hasPermission(pluginId, 'ui-override')) {
+          throw new Error('Plugin does not have ui-override permission');
+        }
+
         if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
           window.CardSpoke.ComponentRegistry.register(name, component, component.priority || 0);
           const resource = { type: 'component', name: name };
@@ -146,6 +170,11 @@
       },
 
       createCard: function(data) {
+        // Check data-modify permission
+        if (!hasPermission(pluginId, 'data-modify')) {
+          throw new Error('Plugin does not have data-modify permission');
+        }
+
         if (window.createCard) {
           return window.createCard(data.title || '', data.body || '', data.parentId || null, false, false);
         }
@@ -153,6 +182,11 @@
       },
 
       updateCard: function(id, updates) {
+        // Check data-modify permission
+        if (!hasPermission(pluginId, 'data-modify')) {
+          throw new Error('Plugin does not have data-modify permission');
+        }
+
         if (window.updateCard) {
           window.updateCard(id, updates, false, false);
           return this.getCard(id);
@@ -161,6 +195,11 @@
       },
 
       deleteCard: function(id) {
+        // Check data-modify permission
+        if (!hasPermission(pluginId, 'data-modify')) {
+          throw new Error('Plugin does not have data-modify permission');
+        }
+
         if (window.deleteCard) {
           window.deleteCard(id);
           return true;
@@ -176,6 +215,11 @@
       },
 
       addTag: function(cardId, tag) {
+        // Check data-modify permission
+        if (!hasPermission(pluginId, 'data-modify')) {
+          throw new Error('Plugin does not have data-modify permission');
+        }
+
         if (window.addTag) {
           return window.addTag(cardId, tag);
         }
@@ -183,6 +227,11 @@
       },
 
       removeTag: function(cardId, tag) {
+        // Check data-modify permission
+        if (!hasPermission(pluginId, 'data-modify')) {
+          throw new Error('Plugin does not have data-modify permission');
+        }
+
         if (window.removeTag) {
           return window.removeTag(cardId, tag);
         }
@@ -190,6 +239,11 @@
       },
 
       setTags: function(cardId, tags) {
+        // Check data-modify permission
+        if (!hasPermission(pluginId, 'data-modify')) {
+          throw new Error('Plugin does not have data-modify permission');
+        }
+
         if (window.setTags) {
           return window.setTags(cardId, tags);
         }
@@ -214,6 +268,11 @@
       },
 
       get: async function(key) {
+        // Check storage permission
+        if (!hasPermission(pluginId, 'storage')) {
+          throw new Error('Plugin does not have storage permission');
+        }
+
         const fullKey = namespace + key;
         if (window.storageDriver && window.storageDriver.get) {
           return await window.storageDriver.get(fullKey);
@@ -222,6 +281,11 @@
       },
 
       set: async function(key, value) {
+        // Check storage permission
+        if (!hasPermission(pluginId, 'storage')) {
+          throw new Error('Plugin does not have storage permission');
+        }
+
         const fullKey = namespace + key;
         if (window.storageDriver && window.storageDriver.set) {
           return await window.storageDriver.set(fullKey, value);
@@ -230,6 +294,11 @@
       },
 
       remove: async function(key) {
+        // Check storage permission
+        if (!hasPermission(pluginId, 'storage')) {
+          throw new Error('Plugin does not have storage permission');
+        }
+
         const fullKey = namespace + key;
         if (window.storageDriver && window.storageDriver.remove) {
           return await window.storageDriver.remove(fullKey);
@@ -238,6 +307,11 @@
       },
 
       list: async function(prefix) {
+        // Check storage permission
+        if (!hasPermission(pluginId, 'storage')) {
+          throw new Error('Plugin does not have storage permission');
+        }
+
         const fullPrefix = namespace + (prefix || '');
         if (window.storageDriver && window.storageDriver.list) {
           return await window.storageDriver.list(fullPrefix);
@@ -414,6 +488,17 @@
           await instance.definition.setup(instance.context);
         } catch (err) {
           console.error('[Plugin] Setup error for', id, ':', err);
+          console.error('[Plugin] Stack trace:', err.stack);
+          
+          // Clean up partially applied resources
+          this._removeCSS(id);
+          this._cleanupResources(id);
+          
+          // Log to plugin context if available
+          if (instance.context && instance.context.logger) {
+            instance.context.logger.error('Plugin setup failed and was disabled: ' + err.message);
+          }
+          
           throw err;
         }
       }
@@ -438,6 +523,12 @@
           await instance.definition.teardown(instance.context);
         } catch (err) {
           console.error('[Plugin] Teardown error for', id, ':', err);
+          console.error('[Plugin] Stack trace:', err.stack);
+          // Log to plugin context if available
+          if (instance.context && instance.context.logger) {
+            instance.context.logger.warn('Plugin cleanup had errors but continuing: ' + err.message);
+          }
+          // Continue anyway - don't let cleanup errors break app
         }
       }
 
@@ -472,20 +563,71 @@
 
     _cleanupResources: function(id) {
       const resources = pluginResources.get(id);
-      if (resources) {
-        resources.forEach(function(resource) {
-          try {
-            if (resource.type === 'dom' && resource.element && resource.element.parentNode) {
-              resource.element.parentNode.removeChild(resource.element);
-            } else if (resource.type === 'component' && window.CardSpoke && window.CardSpoke.ComponentRegistry) {
-              window.CardSpoke.ComponentRegistry.unregister(resource.name);
-            }
-          } catch (err) {
-            console.error('[Plugin] Resource cleanup error:', err);
-          }
-        });
-        resources.clear();
+      if (!resources || resources.size === 0) {
+        return;
       }
+
+      // Track cleanup statistics
+      const cleanup = {
+        domElements: 0,
+        components: 0,
+        listeners: 0,
+        events: 0,
+        errors: 0
+      };
+
+      resources.forEach(function(resource) {
+        try {
+          if (resource.type === 'dom') {
+            // For replaced elements, restore the original
+            if (resource.original) {
+              if (resource.element && resource.element.parentNode) {
+                resource.element.parentNode.replaceChild(resource.original, resource.element);
+                cleanup.domElements++;
+              }
+            } 
+            // For injected elements, just remove them
+            else if (resource.element && resource.element.parentNode) {
+              resource.element.parentNode.removeChild(resource.element);
+              cleanup.domElements++;
+            }
+          } else if (resource.type === 'component') {
+            // Unregister component
+            if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
+              window.CardSpoke.ComponentRegistry.unregister(resource.name);
+              cleanup.components++;
+            }
+          } else if (resource.type === 'listener') {
+            // Data update listeners are tracked separately in dataUpdateListeners map
+            cleanup.listeners++;
+          } else if (resource.type === 'event') {
+            // Event handlers are tracked in the event API
+            cleanup.events++;
+          }
+        } catch (err) {
+          cleanup.errors++;
+          console.error('[Plugin] Resource cleanup error for', id, ':', err);
+        }
+      });
+
+      // Clear all resources
+      resources.clear();
+
+      // Clean up data update listeners
+      const listeners = dataUpdateListeners.get(id);
+      if (listeners && listeners.length > 0) {
+        cleanup.listeners += listeners.length;
+        dataUpdateListeners.delete(id);
+      }
+
+      // Log cleanup summary
+      console.log('[Plugin] Cleanup complete for', id, ':', 
+        cleanup.domElements, 'DOM elements,',
+        cleanup.components, 'components,',
+        cleanup.listeners, 'listeners,',
+        cleanup.events, 'events',
+        cleanup.errors > 0 ? '(' + cleanup.errors + ' errors)' : ''
+      );
     },
 
     _checkPermissions: async function(id, permissions) {
