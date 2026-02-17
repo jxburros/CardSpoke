@@ -17,7 +17,7 @@
 
 /**
  * CardSpoke Utility Functions
- * Version: 0.16.0
+ * Version: 0.17.0
  * 
  * Core utility functions used throughout the application
  */

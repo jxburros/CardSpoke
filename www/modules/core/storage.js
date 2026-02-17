@@ -17,7 +17,7 @@
 
 /**
  * CardSpoke Storage Module
- * Version: 0.16.0
+ * Version: 0.17.0
  * 
  * Storage drivers and data persistence
  */

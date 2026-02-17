@@ -6,7 +6,7 @@
     "author": "CardSpoke Community",
     "description": "Rebrands CardSpoke as a daily journaling app with one-click date-stamped entries and a streak counter",
     "layer": "app",
-    "compatibility": ">=0.16.0"
+    "compatibility": ">=0.17.0"
   },
   "config": {},
   "css": ".daily-journal-active { font-family: 'Georgia', 'Times New Roman', serif !important; } .daily-journal-active .card-detail-body { font-size: 17px !important; line-height: 1.9 !important; max-width: 680px !important; margin: 0 auto !important; } .journal-fab { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: #e67e22; color: #fff; border: none; font-size: 28px; cursor: pointer; box-shadow: 0 4px 16px rgba(230,126,34,0.4); z-index: 9999; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; } .journal-fab:hover { background: #d35400; transform: scale(1.1); } .journal-streak { position: fixed; bottom: 24px; left: 20px; font-size: 12px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #888; z-index: 9998; } .journal-streak-count { font-weight: bold; color: #e67e22; font-size: 18px; } body.dark-theme .journal-streak { color: #aaa; }",

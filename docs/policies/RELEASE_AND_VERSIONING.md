@@ -5,7 +5,7 @@ CardSpoke differentiates between core updates and plugin-driven changes. Use the
 ## Versioning Model
 - Core uses semantic versioning (`MAJOR.MINOR.PATCH`).
 - Schema changes increment `schemaVersion` (see [Schema & Migration Docs](../api/SCHEMA.md)).
-- Plugins should also use semantic versioning and declare `manifest.compatibility`. The current bundle reports `APP_VERSION = 0.16.0` and `SCHEMA_VERSION = 4` in `www/app.js`—mirror those values in docs and plugin metadata for alignment.
+- Plugins should also use semantic versioning and declare `manifest.compatibility`. The current bundle reports `APP_VERSION = 0.17.0` and `SCHEMA_VERSION = 4` in `www/app.js`—mirror those values in docs and plugin metadata for alignment.
 
 ## Update Types
 - **Update (Core):** Changes to the canonical app; may bundle plugins when operating in Bake Mode.

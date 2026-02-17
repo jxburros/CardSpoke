@@ -299,7 +299,7 @@ test('app.js contains boot sequence', () => {
 });
 
 // =====================================================================
-// Core Systems Tests (v0.16.0)
+// Core Systems Tests (v0.17.0)
 // =====================================================================
 
 test('app.js initializes Middleware, ComponentRegistry, and Plugin globals', () => {

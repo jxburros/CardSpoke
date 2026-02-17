@@ -237,7 +237,7 @@ Canonical plugin package structure:
     "author": "Your Name",
     "description": "Optional summary",
     "layer": "theme",
-    "compatibility": ">=0.16.0"
+    "compatibility": ">=0.17.0"
   },
   "config": {},
   "css": "",
@@ -303,7 +303,7 @@ The modern plugin system uses `setup` and `teardown` functions instead of indivi
 ### Plugin Context (`ctx`) includes
 
 - `pluginId` - The plugin's unique identifier
-- `appVersion` - Current app version (0.16.0)
+- `appVersion` - Current app version (0.17.0)
 - `schemaVersion` - Current schema version (4)
 - `api` - API object with `ui`, `data`, `storage`, and `events` namespaces
 - `logger` - Plugin-scoped logger (`log`, `info`, `warn`, `error`)
