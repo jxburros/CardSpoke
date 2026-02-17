@@ -1,0 +1,565 @@
+{
+  "version": "0.17.0",
+  "schemaVersion": 4,
+  "lastUpdated": "2026-02-17",
+  "description": "CardSpoke Plugin API Capabilities - Complete reference for plugin developers and AI agents",
+  
+  "permissions": [
+    {
+      "name": "ui-override",
+      "description": "Modify the user interface and inject custom elements",
+      "risk": "medium",
+      "requiredFor": ["ui.inject", "ui.replace", "ui.registerComponent"]
+    },
+    {
+      "name": "storage",
+      "description": "Access and modify local storage (namespaced per plugin)",
+      "risk": "low",
+      "requiredFor": ["storage.get", "storage.set", "storage.remove", "storage.list"]
+    },
+    {
+      "name": "data-modify",
+      "description": "Create, update, and delete cards and tags",
+      "risk": "high",
+      "requiredFor": ["data.createCard", "data.updateCard", "data.deleteCard", "data.addTag", "data.removeTag", "data.setTags"]
+    },
+    {
+      "name": "network",
+      "description": "Make network requests to external services",
+      "risk": "high",
+      "requiredFor": ["fetch", "XMLHttpRequest (if implemented in future)"]
+    },
+    {
+      "name": "filesystem",
+      "description": "Access the file system (mobile platforms only)",
+      "risk": "high",
+      "requiredFor": ["file operations (if implemented in future)"]
+    },
+    {
+      "name": "core-override",
+      "description": "Override core application functions (very high risk)",
+      "risk": "critical",
+      "requiredFor": ["middleware operations that modify core behavior"]
+    }
+  ],
+
+  "api": {
+    "ui": {
+      "description": "User interface manipulation API",
+      "permission": "ui-override",
+      "methods": [
+        {
+          "name": "inject",
+          "description": "Inject an element into the DOM at a specified selector",
+          "signature": "inject(selector: string, element: HTMLElement, position?: 'before'|'after'|'prepend'|'append'): () => void",
+          "args": [
+            {"name": "selector", "type": "string", "description": "CSS selector for target element"},
+            {"name": "element", "type": "HTMLElement", "description": "Element to inject"},
+            {"name": "position", "type": "string", "optional": true, "default": "append", "description": "Where to inject relative to target"}
+          ],
+          "returns": "Function to remove the injected element",
+          "example": "ctx.api.ui.inject('body', myElement, 'append')"
+        },
+        {
+          "name": "replace",
+          "description": "Replace an element in the DOM",
+          "signature": "replace(selector: string, element: HTMLElement): () => void",
+          "args": [
+            {"name": "selector", "type": "string", "description": "CSS selector for element to replace"},
+            {"name": "element", "type": "HTMLElement", "description": "New element"}
+          ],
+          "returns": "Function to restore the original element",
+          "example": "ctx.api.ui.replace('.header', newHeader)"
+        },
+        {
+          "name": "registerComponent",
+          "description": "Register a custom component that can override default rendering",
+          "signature": "registerComponent(name: string, component: Component): void",
+          "args": [
+            {"name": "name", "type": "string", "description": "Component name (e.g., 'Card', 'Sidebar')"},
+            {"name": "component", "type": "object", "description": "Component object with render method and priority"}
+          ],
+          "returns": "void",
+          "example": "ctx.api.ui.registerComponent('Card', { render: (props) => {...}, priority: 10 })"
+        },
+        {
+          "name": "unregisterComponent",
+          "description": "Unregister a custom component",
+          "signature": "unregisterComponent(name: string): void",
+          "args": [
+            {"name": "name", "type": "string", "description": "Component name to unregister"}
+          ],
+          "returns": "void",
+          "example": "ctx.api.ui.unregisterComponent('Card')"
+        },
+        {
+          "name": "showToast",
+          "description": "Show a toast notification to the user",
+          "signature": "showToast(message: string, type?: 'info'|'success'|'warning'|'error', duration?: number): void",
+          "args": [
+            {"name": "message", "type": "string", "description": "Message to display"},
+            {"name": "type", "type": "string", "optional": true, "default": "info", "description": "Toast type"},
+            {"name": "duration", "type": "number", "optional": true, "description": "Duration in milliseconds"}
+          ],
+          "returns": "void",
+          "example": "ctx.api.ui.showToast('Card saved!', 'success')"
+        }
+      ]
+    },
+
+    "data": {
+      "description": "Card and tag data access API",
+      "methods": [
+        {
+          "name": "getCard",
+          "description": "Get a card by ID",
+          "signature": "getCard(id: string): Card | undefined",
+          "permission": "none",
+          "args": [
+            {"name": "id", "type": "string", "description": "Card ID"}
+          ],
+          "returns": "Card object or undefined if not found",
+          "example": "const card = ctx.api.data.getCard('card-123')"
+        },
+        {
+          "name": "listCards",
+          "description": "Get all cards",
+          "signature": "listCards(): Card[]",
+          "permission": "none",
+          "args": [],
+          "returns": "Array of card objects",
+          "example": "const cards = ctx.api.data.listCards()"
+        },
+        {
+          "name": "createCard",
+          "description": "Create a new card",
+          "signature": "createCard(data: {title?: string, body?: string, parentId?: string}): Card",
+          "permission": "data-modify",
+          "args": [
+            {"name": "data", "type": "object", "description": "Card data with optional title, body, and parentId"}
+          ],
+          "returns": "Created card object",
+          "example": "ctx.api.data.createCard({title: 'My Card', body: 'Content'})"
+        },
+        {
+          "name": "updateCard",
+          "description": "Update an existing card",
+          "signature": "updateCard(id: string, updates: Partial<Card>): Card",
+          "permission": "data-modify",
+          "args": [
+            {"name": "id", "type": "string", "description": "Card ID"},
+            {"name": "updates", "type": "object", "description": "Fields to update"}
+          ],
+          "returns": "Updated card object",
+          "example": "ctx.api.data.updateCard('card-123', {title: 'New Title'})"
+        },
+        {
+          "name": "deleteCard",
+          "description": "Delete a card",
+          "signature": "deleteCard(id: string): boolean",
+          "permission": "data-modify",
+          "args": [
+            {"name": "id", "type": "string", "description": "Card ID"}
+          ],
+          "returns": "true if deleted, false otherwise",
+          "example": "ctx.api.data.deleteCard('card-123')"
+        },
+        {
+          "name": "getTags",
+          "description": "Get tags for a specific card",
+          "signature": "getTags(cardId: string): string[]",
+          "permission": "none",
+          "args": [
+            {"name": "cardId", "type": "string", "description": "Card ID"}
+          ],
+          "returns": "Array of tag strings",
+          "example": "const tags = ctx.api.data.getTags('card-123')"
+        },
+        {
+          "name": "addTag",
+          "description": "Add a tag to a card",
+          "signature": "addTag(cardId: string, tag: string): boolean",
+          "permission": "data-modify",
+          "args": [
+            {"name": "cardId", "type": "string", "description": "Card ID"},
+            {"name": "tag", "type": "string", "description": "Tag to add"}
+          ],
+          "returns": "true if successful",
+          "example": "ctx.api.data.addTag('card-123', 'important')"
+        },
+        {
+          "name": "removeTag",
+          "description": "Remove a tag from a card",
+          "signature": "removeTag(cardId: string, tag: string): boolean",
+          "permission": "data-modify",
+          "args": [
+            {"name": "cardId", "type": "string", "description": "Card ID"},
+            {"name": "tag", "type": "string", "description": "Tag to remove"}
+          ],
+          "returns": "true if successful",
+          "example": "ctx.api.data.removeTag('card-123', 'important')"
+        },
+        {
+          "name": "setTags",
+          "description": "Replace all tags for a card",
+          "signature": "setTags(cardId: string, tags: string[]): boolean",
+          "permission": "data-modify",
+          "args": [
+            {"name": "cardId", "type": "string", "description": "Card ID"},
+            {"name": "tags", "type": "array", "description": "New tags array"}
+          ],
+          "returns": "true if successful",
+          "example": "ctx.api.data.setTags('card-123', ['work', 'urgent'])"
+        },
+        {
+          "name": "getAllTags",
+          "description": "Get all unique tags across all cards",
+          "signature": "getAllTags(): string[]",
+          "permission": "none",
+          "args": [],
+          "returns": "Array of unique tag strings",
+          "example": "const allTags = ctx.api.data.getAllTags()"
+        },
+        {
+          "name": "onUpdate",
+          "description": "Register a callback for data updates",
+          "signature": "onUpdate(callback: (event: DataUpdateEvent) => void): () => void",
+          "permission": "none",
+          "args": [
+            {"name": "callback", "type": "function", "description": "Function called on data updates"}
+          ],
+          "returns": "Function to unregister the listener",
+          "example": "const unlisten = ctx.api.data.onUpdate((event) => console.log(event))"
+        }
+      ]
+    },
+
+    "storage": {
+      "description": "Namespaced key-value storage API (automatically prefixed with 'plugin_{id}_')",
+      "permission": "storage",
+      "methods": [
+        {
+          "name": "get",
+          "description": "Get a value from storage",
+          "signature": "get(key: string): Promise<any>",
+          "args": [
+            {"name": "key", "type": "string", "description": "Storage key (will be namespaced)"}
+          ],
+          "returns": "Promise resolving to stored value",
+          "example": "const value = await ctx.api.storage.get('myKey')"
+        },
+        {
+          "name": "set",
+          "description": "Set a value in storage",
+          "signature": "set(key: string, value: any): Promise<void>",
+          "args": [
+            {"name": "key", "type": "string", "description": "Storage key (will be namespaced)"},
+            {"name": "value", "type": "any", "description": "Value to store (will be JSON stringified)"}
+          ],
+          "returns": "Promise resolving when saved",
+          "example": "await ctx.api.storage.set('myKey', {data: 'value'})"
+        },
+        {
+          "name": "remove",
+          "description": "Remove a value from storage",
+          "signature": "remove(key: string): Promise<void>",
+          "args": [
+            {"name": "key", "type": "string", "description": "Storage key to remove"}
+          ],
+          "returns": "Promise resolving when removed",
+          "example": "await ctx.api.storage.remove('myKey')"
+        },
+        {
+          "name": "list",
+          "description": "List all keys with optional prefix",
+          "signature": "list(prefix?: string): Promise<string[]>",
+          "args": [
+            {"name": "prefix", "type": "string", "optional": true, "description": "Optional key prefix filter"}
+          ],
+          "returns": "Promise resolving to array of keys (without namespace prefix)",
+          "example": "const keys = await ctx.api.storage.list('config_')"
+        },
+        {
+          "name": "getNamespace",
+          "description": "Get the storage namespace for this plugin",
+          "signature": "getNamespace(): string",
+          "args": [],
+          "returns": "Namespace string (e.g., 'plugin_my-plugin_')",
+          "example": "const ns = ctx.api.storage.getNamespace()"
+        }
+      ]
+    },
+
+    "events": {
+      "description": "Event system for plugin-to-plugin communication",
+      "permission": "none",
+      "methods": [
+        {
+          "name": "on",
+          "description": "Listen for an event",
+          "signature": "on(event: string, callback: Function): () => void",
+          "args": [
+            {"name": "event", "type": "string", "description": "Event name"},
+            {"name": "callback", "type": "function", "description": "Function to call when event fires"}
+          ],
+          "returns": "Function to unregister the listener",
+          "example": "const unlisten = ctx.api.events.on('custom-event', (data) => {...})"
+        },
+        {
+          "name": "off",
+          "description": "Stop listening for an event",
+          "signature": "off(event: string, callback: Function): void",
+          "args": [
+            {"name": "event", "type": "string", "description": "Event name"},
+            {"name": "callback", "type": "function", "description": "Callback to remove"}
+          ],
+          "returns": "void",
+          "example": "ctx.api.events.off('custom-event', myCallback)"
+        },
+        {
+          "name": "once",
+          "description": "Listen for an event once",
+          "signature": "once(event: string, callback: Function): () => void",
+          "args": [
+            {"name": "event", "type": "string", "description": "Event name"},
+            {"name": "callback", "type": "function", "description": "Function to call once"}
+          ],
+          "returns": "Function to cancel the listener",
+          "example": "ctx.api.events.once('init', () => console.log('Initialized'))"
+        },
+        {
+          "name": "emit",
+          "description": "Emit an event",
+          "signature": "emit(event: string, ...args: any[]): void",
+          "args": [
+            {"name": "event", "type": "string", "description": "Event name"},
+            {"name": "args", "type": "any", "rest": true, "description": "Arguments to pass to listeners"}
+          ],
+          "returns": "void",
+          "example": "ctx.api.events.emit('custom-event', {data: 'value'})"
+        }
+      ]
+    }
+  },
+
+  "middleware": {
+    "description": "Middleware operations that can be intercepted by plugins",
+    "operations": [
+      {
+        "name": "card.render",
+        "description": "Called when a card is rendered in the UI",
+        "args": ["card", "element"],
+        "canPrevent": false,
+        "example": "Middleware can modify card element styling or inject badges"
+      },
+      {
+        "name": "card.save",
+        "description": "Called when a card is saved",
+        "args": ["card"],
+        "canPrevent": true,
+        "example": "Middleware can validate data or add computed fields"
+      },
+      {
+        "name": "card.delete",
+        "description": "Called when a card is deleted",
+        "args": ["cardId"],
+        "canPrevent": true,
+        "example": "Middleware can show confirmation or prevent deletion"
+      },
+      {
+        "name": "card.create",
+        "description": "Called when a card is created",
+        "args": ["cardData"],
+        "canPrevent": true,
+        "example": "Middleware can set defaults or validate input"
+      },
+      {
+        "name": "card.update",
+        "description": "Called when a card is updated",
+        "args": ["cardId", "updates"],
+        "canPrevent": true,
+        "example": "Middleware can validate changes or track history"
+      }
+    ],
+    "usage": {
+      "register": "window.CardSpoke.Middleware.register({name, priority, operations, handler})",
+      "unregister": "window.CardSpoke.Middleware.unregister(name)",
+      "example": "window.CardSpoke.Middleware.register({name: 'my-middleware', priority: 10, operations: ['card.save'], handler: async (ctx, next) => { await next(); }})"
+    }
+  },
+
+  "components": {
+    "description": "Replaceable UI components",
+    "available": [
+      {
+        "name": "Card",
+        "description": "Individual card component in the sidebar or main view",
+        "props": ["card", "isSelected", "onSelect"],
+        "canReplace": true,
+        "priority": "Higher priority components override lower priority ones"
+      },
+      {
+        "name": "Sidebar",
+        "description": "Left sidebar containing card list",
+        "props": ["cards", "selectedCardId"],
+        "canReplace": true,
+        "priority": "Higher priority components override lower priority ones"
+      }
+    ],
+    "usage": {
+      "register": "ctx.api.ui.registerComponent(name, {render: (props) => HTMLElement, priority: number})",
+      "example": "ctx.api.ui.registerComponent('Card', {render: (props) => {...}, priority: 10})"
+    }
+  },
+
+  "selectors": {
+    "description": "Stable DOM selectors for plugin UI manipulation",
+    "main": {
+      "#main": "Main content area",
+      ".header": "Top header bar",
+      ".brand": "CardSpoke brand button",
+      "#breadcrumbs": "Breadcrumb navigation",
+      "#saveStatus": "Save status indicator",
+      "#searchContainer": "Search container",
+      "#searchInput": "Search input field",
+      "#menuOverlay": "Main menu overlay",
+      ".menu-panel": "Menu panel content"
+    },
+    "buttons": {
+      "#undoBtn": "Undo button",
+      "#homeBtn": "Home button",
+      "#themeToggle": "Theme toggle button",
+      "#menuBtn": "Menu button",
+      "#menuClose": "Menu close button"
+    },
+    "footer": {
+      "footer": "Footer element",
+      "#app-version": "App version display",
+      "#app-creator": "App creator display"
+    },
+    "best-practices": [
+      "Use IDs when available for stability",
+      "Avoid relying on classes that may change",
+      "Test selectors before production use",
+      "Consider adding data-plugin-anchor attributes for custom elements"
+    ]
+  },
+
+  "context": {
+    "description": "Plugin context object (ctx) provided to setup() and teardown()",
+    "properties": {
+      "modId": {
+        "type": "string",
+        "description": "Plugin ID",
+        "example": "'my-plugin'"
+      },
+      "appVersion": {
+        "type": "string",
+        "description": "CardSpoke application version",
+        "example": "'0.17.0'"
+      },
+      "schemaVersion": {
+        "type": "number",
+        "description": "Plugin schema version",
+        "example": "4"
+      },
+      "api": {
+        "type": "object",
+        "description": "API object with ui, data, storage, and events",
+        "properties": ["ui", "data", "storage", "events"]
+      },
+      "utils": {
+        "type": "object",
+        "description": "Utility functions (if available)",
+        "note": "Check window.CardSpoke.utils for available utilities"
+      },
+      "logger": {
+        "type": "object",
+        "description": "Prefixed logger for this plugin",
+        "methods": ["log", "info", "warn", "error"],
+        "example": "ctx.logger.info('Plugin loaded')"
+      }
+    }
+  },
+
+  "plugin-lifecycle": {
+    "description": "Plugin lifecycle methods",
+    "methods": {
+      "setup": {
+        "signature": "async setup(ctx: PluginContext): Promise<void>",
+        "description": "Called when plugin is enabled",
+        "best-practices": [
+          "Store cleanup references in 'this'",
+          "Use ctx.logger for logging",
+          "Register middleware and components",
+          "Return promise for async operations"
+        ]
+      },
+      "teardown": {
+        "signature": "async teardown(ctx: PluginContext): Promise<void>",
+        "description": "Called when plugin is disabled",
+        "best-practices": [
+          "Clean up all resources",
+          "Unregister middleware and components",
+          "Remove injected DOM elements",
+          "Clear intervals and timeouts",
+          "Errors in teardown should not crash app"
+        ]
+      }
+    }
+  },
+
+  "types": {
+    "Card": {
+      "id": "string",
+      "title": "string",
+      "body": "string",
+      "tags": "string[]",
+      "createdAt": "string (ISO 8601)",
+      "updatedAt": "string (ISO 8601)",
+      "parentId": "string | null"
+    },
+    "MiddlewareContext": {
+      "operation": "string",
+      "args": "any[]",
+      "result": "any",
+      "error": "Error | undefined",
+      "stopPropagation": "() => void",
+      "preventDefault": "() => void",
+      "stopped": "boolean",
+      "prevented": "boolean"
+    }
+  },
+
+  "security": {
+    "notes": [
+      "Permissions are enforced at API boundaries",
+      "Plugins run in the same context as the main app (no sandboxing)",
+      "Storage is namespaced per plugin (prefix: 'plugin_{id}_')",
+      "All setup errors trigger automatic cleanup",
+      "Teardown errors are logged but don't stop app"
+    ],
+    "best-practices": [
+      "Always request minimum required permissions",
+      "Validate user input before creating/updating cards",
+      "Handle errors gracefully in async operations",
+      "Test teardown thoroughly to avoid memory leaks",
+      "Document all permissions in manifest description"
+    ]
+  },
+
+  "examples": {
+    "minimal-plugin": {
+      "description": "Minimal plugin template",
+      "code": "window.CardSpoke.Plugin.register('my-plugin', {\n  manifest: {\n    name: 'My Plugin',\n    version: '1.0.0',\n    author: 'Your Name',\n    description: 'Plugin description',\n    layer: 'feature',\n    permissions: []\n  },\n  setup: async function(ctx) {\n    ctx.logger.info('Plugin enabled');\n  },\n  teardown: async function(ctx) {\n    ctx.logger.info('Plugin disabled');\n  }\n});"
+    },
+    "ui-injection": {
+      "description": "Inject an element into the UI",
+      "code": "const badge = document.createElement('div');\nbadge.textContent = 'My Badge';\nconst remove = ctx.api.ui.inject('body', badge, 'append');\n// Store remove function for cleanup in teardown\nthis._removeBadge = remove;"
+    },
+    "middleware": {
+      "description": "Register middleware to intercept operations",
+      "code": "window.CardSpoke.Middleware.register({\n  name: 'my-middleware',\n  priority: 10,\n  operations: ['card.save'],\n  handler: async function(mwCtx, next) {\n    console.log('Before save:', mwCtx.args[0]);\n    await next(); // Call next middleware\n    console.log('After save');\n  }\n});"
+    }
+  }
+}
