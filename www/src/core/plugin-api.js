@@ -579,14 +579,17 @@
       resources.forEach(function(resource) {
         try {
           if (resource.type === 'dom') {
-            // Remove DOM element
-            if (resource.element && resource.element.parentNode) {
+            // For replaced elements, restore the original
+            if (resource.original) {
+              if (resource.element && resource.element.parentNode) {
+                resource.element.parentNode.replaceChild(resource.original, resource.element);
+                cleanup.domElements++;
+              }
+            } 
+            // For injected elements, just remove them
+            else if (resource.element && resource.element.parentNode) {
               resource.element.parentNode.removeChild(resource.element);
               cleanup.domElements++;
-            }
-            // Restore original if it was a replacement
-            if (resource.original && resource.original.parentNode) {
-              // Original was already replaced, skip restoration
             }
           } else if (resource.type === 'component') {
             // Unregister component
