@@ -133,4 +133,51 @@ test('Clear removes all components', () => {
   assert.equal(window.CardSpoke.ComponentRegistry.list().length, 0, 'All cleared');
 });
 
+// Task 2.5: Verify Sidebar, Header, SearchBar can be registered
+test('Sidebar component can be registered and retrieved', () => {
+  window.CardSpoke.ComponentRegistry.clear();
+
+  const CustomSidebar = {
+    render: (props) => {
+      const el = { tagName: 'DIV', dataset: {}, textContent: 'Custom Sidebar' };
+      return el;
+    }
+  };
+
+  window.CardSpoke.ComponentRegistry.register('Sidebar', CustomSidebar, 10);
+  const retrieved = window.CardSpoke.ComponentRegistry.get('Sidebar');
+  assert.ok(retrieved, 'Sidebar component registered');
+  assert.type(retrieved.render, 'function', 'Sidebar render function available');
+});
+
+test('Header component can be registered and retrieved', () => {
+  window.CardSpoke.ComponentRegistry.clear();
+
+  const CustomHeader = {
+    render: (props) => {
+      return { tagName: 'HEADER', textContent: 'Custom Header' };
+    }
+  };
+
+  window.CardSpoke.ComponentRegistry.register('Header', CustomHeader, 10);
+  const retrieved = window.CardSpoke.ComponentRegistry.get('Header');
+  assert.ok(retrieved, 'Header component registered');
+  assert.type(retrieved.render, 'function', 'Header render function available');
+});
+
+test('SearchBar component can be registered and retrieved', () => {
+  window.CardSpoke.ComponentRegistry.clear();
+
+  const CustomSearchBar = {
+    render: (props) => {
+      return { tagName: 'DIV', className: 'custom-search' };
+    }
+  };
+
+  window.CardSpoke.ComponentRegistry.register('SearchBar', CustomSearchBar, 10);
+  const retrieved = window.CardSpoke.ComponentRegistry.get('SearchBar');
+  assert.ok(retrieved, 'SearchBar component registered');
+  assert.type(retrieved.render, 'function', 'SearchBar render function available');
+});
+
 test.run();

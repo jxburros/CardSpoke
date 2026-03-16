@@ -658,8 +658,7 @@
         if (window.store && window.store.cards && window.store.cards[id]) {
           var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
           if (cloneFn) return cloneFn(window.store.cards[id]);
-          // structuredClone not available in older runtimes; fall through to JSON round-trip
-          try { return structuredClone(window.store.cards[id]); } catch(e) {}
+          if (typeof structuredClone === 'function') return structuredClone(window.store.cards[id]);
           return JSON.parse(JSON.stringify(window.store.cards[id]));
         }
         return undefined;
@@ -670,8 +669,7 @@
           var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
           return Object.values(window.store.cards).map(function(card) {
             if (cloneFn) return cloneFn(card);
-            // structuredClone not available in older runtimes; fall through to JSON round-trip
-            try { return structuredClone(card); } catch(e) {}
+            if (typeof structuredClone === 'function') return structuredClone(card);
             return JSON.parse(JSON.stringify(card));
           });
         }
@@ -917,7 +915,7 @@
           throw new Error('Plugin does not have filesystem permission');
         }
         if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
-          return window.Capacitor.Plugins.Filesystem.readFile(Object.assign({ path: path }, options));
+          return window.Capacitor.Plugins.Filesystem.readFile(Object.assign({}, options, { path: path }));
         }
         throw new Error('Filesystem not available on this platform');
       },
@@ -926,7 +924,7 @@
           throw new Error('Plugin does not have filesystem permission');
         }
         if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
-          return window.Capacitor.Plugins.Filesystem.writeFile(Object.assign({ path: path, data: data }, options));
+          return window.Capacitor.Plugins.Filesystem.writeFile(Object.assign({}, options, { path: path, data: data }));
         }
         throw new Error('Filesystem not available on this platform');
       }

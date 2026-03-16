@@ -939,6 +939,69 @@
         }
       }
 
+      /**
+       * Apply custom components from the ComponentRegistry to core UI areas.
+       * Task 2.5: Expand Component Registry to Sidebar, Header, and SearchBar.
+       * Called once after plugins are synced from store.
+       */
+      function applyRegistryComponents() {
+        if (!window.CardSpoke || !window.CardSpoke.ComponentRegistry) {
+          return;
+        }
+        const registry = window.CardSpoke.ComponentRegistry;
+
+        // Replace Header if a custom component is registered
+        const CustomHeader = registry.get('Header');
+        if (CustomHeader && typeof CustomHeader.render === 'function') {
+          try {
+            const headerEl = document.querySelector('.header');
+            if (headerEl) {
+              const customEl = CustomHeader.render({ header: headerEl });
+              if (customEl instanceof HTMLElement) {
+                headerEl.parentNode.replaceChild(customEl, headerEl);
+                console.log('[ComponentRegistry] Custom Header component applied');
+              }
+            }
+          } catch (err) {
+            console.warn('[ComponentRegistry] Custom Header render failed, using default:', err);
+          }
+        }
+
+        // Replace Sidebar (menu panel) if a custom component is registered
+        const CustomSidebar = registry.get('Sidebar');
+        if (CustomSidebar && typeof CustomSidebar.render === 'function') {
+          try {
+            const menuPanel = document.querySelector('.menu-panel');
+            if (menuPanel) {
+              const customEl = CustomSidebar.render({ panel: menuPanel });
+              if (customEl instanceof HTMLElement) {
+                menuPanel.parentNode.replaceChild(customEl, menuPanel);
+                console.log('[ComponentRegistry] Custom Sidebar component applied');
+              }
+            }
+          } catch (err) {
+            console.warn('[ComponentRegistry] Custom Sidebar render failed, using default:', err);
+          }
+        }
+
+        // Replace SearchBar if a custom component is registered
+        const CustomSearchBar = registry.get('SearchBar');
+        if (CustomSearchBar && typeof CustomSearchBar.render === 'function') {
+          try {
+            const searchWrapper = document.querySelector('.search-input-wrapper');
+            if (searchWrapper) {
+              const customEl = CustomSearchBar.render({ wrapper: searchWrapper });
+              if (customEl instanceof HTMLElement) {
+                searchWrapper.parentNode.replaceChild(customEl, searchWrapper);
+                console.log('[ComponentRegistry] Custom SearchBar component applied');
+              }
+            }
+          } catch (err) {
+            console.warn('[ComponentRegistry] Custom SearchBar render failed, using default:', err);
+          }
+        }
+      }
+
       // =============================================================
       // --- THEME MANAGEMENT ---
       // Handle dark/light theme switching
