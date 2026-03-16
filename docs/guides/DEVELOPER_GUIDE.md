@@ -26,7 +26,7 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
   - `index.html` - Entry point with modal structures and script loading
   - `capacitor.js` - Capacitor runtime bridge
   - `modules/` - Reference ES module versions (not used at runtime)
-- `tests/` - uvu test suites (284 passing tests out of 301 total across 18 files)
+- `tests/` - uvu test suites (26 files; currently 336 passing tests via `npm test`)
 - `docs/` - Project documentation organized by category
 - `capacitor.config.json` - Platform configuration for Capacitor
 

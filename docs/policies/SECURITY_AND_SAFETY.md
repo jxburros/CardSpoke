@@ -71,7 +71,7 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 - [ ] Use certificate pinning for API endpoints
 
 ## Static Analysis & Code Quality
-- Testing: `npm test` runs 227+ tests using uvu framework
+- Testing: `npm test` currently runs 336 uvu tests across 26 test files
 - Linting: Consider adding ESLint for code quality
 - Security scanning: Run `npm audit` before each release
 - Code review: All plugins should be reviewed before publication

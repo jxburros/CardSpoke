@@ -44,7 +44,7 @@ window.CardSpoke.Plugin.register('plugin-id', {
 - **`list()`**: Returns an array of all registered plugin instances.
 - **`enable(id)`**: Enables a plugin by checking permissions, applying CSS, and running the setup function. Throws an error if permissions are not granted or if setup fails.
 - **`disable(id)`**: Disables a plugin by running teardown, removing CSS, and cleaning up resources.
-- **`install(pkg)`**: Installs a plugin package, registers it with a unique ID, and auto-enables based on risk assessment (SAFE and LOW risk plugins are enabled automatically). Persists to store. Returns the generated plugin ID.
+- **`install(pkg)`**: Installs a plugin package, registers it by manifest/base ID, and auto-enables based on risk assessment (SAFE and LOW risk plugins are enabled automatically). If an ID already exists, the prior plugin is disabled/unregistered and replaced. Persists to store and returns the installed plugin ID.
 - **`assessModRisk(pkg)`**: Assesses the risk level of a plugin package based on layer, capabilities, and permissions. Returns one of: `'SAFE'`, `'LOW'`, `'MEDIUM'`, `'HIGH'`.
   - `SAFE`: Theme layer with CSS only, no JavaScript
   - `LOW`: Feature layer with JavaScript, no core overrides
@@ -60,7 +60,9 @@ The context object passed to setup and teardown functions contains:
 - **`ctx.modId`**: The ID of the current plugin
 - **`ctx.appVersion`**: Current app version (0.17.0)
 - **`ctx.schemaVersion`**: Current schema version (4)
-- **`ctx.api`**: API object with `ui`, `data`, `storage`, and `events` namespaces
+- **`ctx.api`**: API object with `ui`, `data`, `storage`, `events`, `network`, and `filesystem` namespaces
+- **`ctx.config`**: Optional manifest config object (present when `manifest.config` is provided).
+- **`ctx.utils`**: Shared utility helper surface from `window.CardSpoke.utils` when available.
 - **`ctx.logger`**: Plugin-scoped logger with methods: `log()`, `info()`, `warn()`, `error()`
 
 ### Plugin API (ctx.api)
@@ -89,7 +91,7 @@ The context object passed to setup and teardown functions contains:
 
 #### Storage API (ctx.api.storage)
 
-The storage API provides plugin-namespaced storage using localStorage:
+The storage API provides plugin-namespaced storage using the active storage driver when available, with localStorage fallback:
 
 - **`get(key)`**: Retrieves a value from storage. The key is automatically namespaced to the plugin. Returns the stored value or null.
 - **`set(key, value)`**: Stores a value. The key is automatically namespaced to the plugin. Value is JSON serialized.
@@ -105,7 +107,16 @@ The events API provides an event bus for inter-plugin communication. Note: This 
 - **`off(eventName, callback)`**: Unsubscribes from an event.
 - **`emit(eventName, ...args)`**: Emits an event with optional arguments (variadic).
 - **`once(eventName, callback)`**: Subscribes to an event that fires only once.
-- **`clear(eventName)`**: Clears all listeners for the specified event (or all events if no name provided).
+
+#### Network API (ctx.api.network)
+
+- **`fetch(url, options)`**: Wraps `window.fetch` and enforces the `network` permission.
+- **`xhr()`**: Returns an `XMLHttpRequest` instance and enforces the `network` permission.
+
+#### Filesystem API (ctx.api.filesystem)
+
+- **`readFile(path, options)`**: Reads files via Capacitor Filesystem when available; requires `filesystem` permission.
+- **`writeFile(path, data, options)`**: Writes files via Capacitor Filesystem when available; requires `filesystem` permission.
 
 ### Resource Management
 
@@ -121,7 +132,7 @@ Plugins must declare required permissions in their manifest:
 
 - **`ui-override`**: Permission to inject or replace DOM elements
 - **`storage`**: Permission to access localStorage (plugin-namespaced)
-- **`network`**: Permission to make network requests (not enforced by core, but declared for transparency)
+- **`network`**: Permission to make network requests (`ctx.api.network.fetch` / `ctx.api.network.xhr`)
 - **`filesystem`**: Permission to access filesystem APIs (mobile only)
 - **`core-override`**: Permission to override core functionality (high risk)
 
@@ -193,4 +204,4 @@ Direct window functions for appearance:
 - Most utility functions work with the global `window.store` object
 - Plugins should prefer using `ctx.api.data` methods over direct window functions for better compatibility
 - Functions may return `undefined`, `null`, or empty arrays when data is not available
-- The app uses localStorage for preferences and datasets, IndexedDB is planned for future versions
+- The app uses localStorage plus pluggable storage drivers (including IndexedDB/local-file strategies) for datasets and plugin data
