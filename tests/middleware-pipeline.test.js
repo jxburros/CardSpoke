@@ -1,19 +1,16 @@
 // Tests for Middleware Pipeline System
 import { test } from 'uvu';
 import * as assert from 'uvu/assert';
-import { readFileSync } from 'fs';
+import { Middleware } from '../www/src/core/middleware.js';
 
-// Set up the window mock and load the middleware system before tests run.
-// Done inside test.before to avoid module-level global.window resets from
-// other test files loaded by uvu before tests execute.
+// Set up the window mock before tests run.
 test.before(() => {
   global.window = {
-    CardSpoke: {},
+    CardSpoke: { Middleware },
     performance: {
       now: () => Date.now()
     }
   };
-  eval(readFileSync('./www/src/core/middleware.js', 'utf8'));
 });
 
 test('Middleware system initializes', () => {

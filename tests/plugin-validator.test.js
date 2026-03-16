@@ -1,14 +1,11 @@
 // Tests for Plugin Validator System
 import { test } from 'uvu';
 import * as assert from 'uvu/assert';
-import { readFileSync } from 'fs';
+import { PluginValidator } from '../www/src/core/plugin-validator.js';
 
-// Set up the window mock and load the plugin validator before tests run.
-// Done inside test.before to avoid module-level global.window resets from
-// other test files loaded by uvu before tests execute.
+// Set up the window mock before tests run.
 test.before(() => {
-  global.window = { CardSpoke: {} };
-  eval(readFileSync('./www/src/core/plugin-validator.js', 'utf8'));
+  global.window = { CardSpoke: { PluginValidator } };
 });
 
 test('Plugin validator initializes', () => {

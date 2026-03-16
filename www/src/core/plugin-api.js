@@ -143,16 +143,16 @@ const dataUpdateListeners = new Map();
           throw new Error('Plugin does not have ui-override permission');
         }
 
-        if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
-          window.CardSpoke.ComponentRegistry.register(name, component, component.priority || 0);
+        if (ComponentRegistry) {
+          ComponentRegistry.register(name, component, component.priority || 0);
           const resource = { type: 'component', name: name };
           resources.add(resource);
         }
       },
 
       unregisterComponent: function(name) {
-        if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
-          window.CardSpoke.ComponentRegistry.unregister(name);
+        if (ComponentRegistry) {
+          ComponentRegistry.unregister(name);
         }
       },
 
@@ -643,8 +643,8 @@ const dataUpdateListeners = new Map();
       }
 
       // Validate plugin content if validator is available
-      if (window.CardSpoke && window.CardSpoke.PluginValidator) {
-        var validationResult = window.CardSpoke.PluginValidator.validate({
+      if (PluginValidator) {
+        var validationResult = PluginValidator.validate({
           id: id,
           manifest: definition.manifest,
           css: definition.css,
@@ -859,8 +859,8 @@ const dataUpdateListeners = new Map();
             }
           } else if (resource.type === 'component') {
             // Unregister component
-            if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
-              window.CardSpoke.ComponentRegistry.unregister(resource.name);
+            if (ComponentRegistry) {
+              ComponentRegistry.unregister(resource.name);
               cleanup.components++;
             }
           } else if (resource.type === 'listener') {
@@ -912,10 +912,10 @@ const dataUpdateListeners = new Map();
       }
 
       // Use the PermissionsManager if available (preferred path)
-      if (window.CardSpoke && window.CardSpoke.Permissions) {
+      if (Permissions) {
         const instance = plugins.get(id);
         const pluginName = (instance && instance.definition.manifest && instance.definition.manifest.name) || id;
-        return await window.CardSpoke.Permissions.requestPermissions(id, pluginName, permissions);
+        return await Permissions.requestPermissions(id, pluginName, permissions);
       }
 
       // Fallback: use global dialog if available
@@ -1161,10 +1161,16 @@ const dataUpdateListeners = new Map();
     }
   };
 
-  // Export to window
-  if (!window.CardSpoke) window.CardSpoke = {};
-  window.CardSpoke.Plugin = PluginManager;
-  window.CardSpoke.PluginSandbox = { createFunction: _createSandboxedFunction };
-
   console.log('[Plugin] API system initialized');
-})();
+
+export { PluginManager as Plugin };
+export { _createSandboxedFunction as PluginSandbox };
+
+// Reset internal state (used in tests for isolation)
+export function resetForTesting() {
+  plugins.clear();
+  pluginResources.clear();
+  dataUpdateListeners.clear();
+  globalEventBus.clear();
+  pluginSandboxRuntime = null;
+}

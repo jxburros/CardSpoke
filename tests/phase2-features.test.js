@@ -3,13 +3,20 @@
 //         2.4 (plugin updating), 2.6 (config/overrides), 2.7 (network/filesystem perms)
 import { test } from 'uvu';
 import * as assert from 'uvu/assert';
-import { readFileSync } from 'fs';
+import { Plugin, PluginSandbox, resetForTesting } from '../www/src/core/plugin-api.js';
+import { Permissions } from '../www/src/core/permissions.js';
 
 let PluginManager = null;
 
 test.before(() => {
+  resetForTesting();
+
   global.window = {
-    CardSpoke: {},
+    CardSpoke: {
+      Plugin,
+      Permissions,
+      PluginSandbox: { createFunction: PluginSandbox }
+    },
     store: {
       cards: {
         'card-1': { id: 'card-1', title: 'Test Card', body: 'Test body', tags: [], children: [], parentId: null, modsData: {} }
@@ -58,12 +65,7 @@ test.before(() => {
     body: { appendChild: () => {}, removeChild: () => {} }
   };
 
-  // Load validator, permissions, then plugin-api
-  eval(readFileSync('./www/src/core/plugin-validator.js', 'utf8'));
-  eval(readFileSync('./www/src/core/permissions.js', 'utf8'));
-  eval(readFileSync('./www/src/core/plugin-api.js', 'utf8'));
-
-  PluginManager = window.CardSpoke.Plugin;
+  PluginManager = Plugin;
 });
 
 // Task 2.2: Secure cloneCard Fallback
