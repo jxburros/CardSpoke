@@ -46,8 +46,8 @@ test('File format is valid (ES Module, IIFE, or standalone script)', () => {
   // Check if it's an ES Module (has import statements) or IIFE (wrapped in function)
   const isESModule = appCode.includes('import {') || appCode.includes("import '");
   const isIIFE = firstNonEmptyLine.startsWith('(function()') || firstNonEmptyLine === '(function() {';
-  // Standalone script: starts with comments or 'use strict' and has function definitions
-  const isStandaloneScript = (firstNonEmptyLine.startsWith('//') || firstNonEmptyLine === "'use strict';") 
+  // Standalone script: starts with comments (// or /* block) or 'use strict' and has function definitions
+  const isStandaloneScript = (firstNonEmptyLine.startsWith('//') || firstNonEmptyLine.startsWith('/*') || firstNonEmptyLine === "'use strict';") 
     && appCode.includes('function ') 
     && !isESModule 
     && !isIIFE;

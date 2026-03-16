@@ -3,20 +3,18 @@ import { test } from 'uvu';
 import * as assert from 'uvu/assert';
 import { readFileSync } from 'fs';
 
-// Mock window and CardSpoke
-global.window = {
-  CardSpoke: {},
-  performance: {
-    now: () => Date.now()
-  }
-};
-global.document = {
-  createElement: (tag) => ({ tag, style: {} }),
-  head: { appendChild: () => {} }
-};
-
-// Load the middleware system
-eval(readFileSync('./www/src/core/middleware.js', 'utf8'));
+// Set up the window mock and load the middleware system before tests run.
+// Done inside test.before to avoid module-level global.window resets from
+// other test files loaded by uvu before tests execute.
+test.before(() => {
+  global.window = {
+    CardSpoke: {},
+    performance: {
+      now: () => Date.now()
+    }
+  };
+  eval(readFileSync('./www/src/core/middleware.js', 'utf8'));
+});
 
 test('Middleware system initializes', () => {
   assert.ok(window.CardSpoke.Middleware, 'Middleware manager exists');

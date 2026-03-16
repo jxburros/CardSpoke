@@ -3,59 +3,66 @@ import { test } from 'uvu';
 import * as assert from 'uvu/assert';
 import { readFileSync } from 'fs';
 
-// Setup fresh window before loading modules
-global.window = {
-  CardSpoke: {},
-  store: {
-    cards: {
-      'card-1': { id: 'card-1', title: 'Test Card', body: 'Test body', tags: [], children: [], parentId: null }
+let PluginManager = null;
+let Validator = null;
+
+// Set up fresh window/document and load modules before tests run.
+// Done inside test.before to avoid module-level global overrides from other
+// test files loaded by uvu before tests execute.
+test.before(() => {
+  global.window = {
+    CardSpoke: {},
+    store: {
+      cards: {
+        'card-1': { id: 'card-1', title: 'Test Card', body: 'Test body', tags: [], children: [], parentId: null }
+      }
+    },
+    createCard: (title, body, parentId) => 'new-card-id',
+    updateCard: (id, updates) => {},
+    deleteCard: (id) => {},
+    cloneCard: (card) => Object.assign({}, card),
+    getTags: (cardId) => [],
+    addTag: (cardId, tag) => true,
+    removeTag: (cardId, tag) => true,
+    setTags: (cardId, tags) => true,
+    getAllTags: () => [],
+    showToast: (msg, type) => {},
+    APP_VERSION: '0.17.0',
+    SCHEMA_VERSION: 4,
+    localStorage: {
+      _data: {},
+      getItem: function(key) { return this._data[key] || null; },
+      setItem: function(key, value) { this._data[key] = value; },
+      removeItem: function(key) { delete this._data[key]; },
+      get length() { return Object.keys(this._data).length; },
+      key: function(i) { return Object.keys(this._data)[i]; }
     }
-  },
-  createCard: (title, body, parentId) => 'new-card-id',
-  updateCard: (id, updates) => {},
-  deleteCard: (id) => {},
-  cloneCard: (card) => Object.assign({}, card),
-  getTags: (cardId) => [],
-  addTag: (cardId, tag) => true,
-  removeTag: (cardId, tag) => true,
-  setTags: (cardId, tags) => true,
-  getAllTags: () => [],
-  showToast: (msg, type) => {},
-  APP_VERSION: '0.17.0',
-  SCHEMA_VERSION: 4,
-  localStorage: {
-    _data: {},
-    getItem: function(key) { return this._data[key] || null; },
-    setItem: function(key, value) { this._data[key] = value; },
-    removeItem: function(key) { delete this._data[key]; },
-    get length() { return Object.keys(this._data).length; },
-    key: function(i) { return Object.keys(this._data)[i]; }
-  }
-};
-global.localStorage = global.window.localStorage;
+  };
+  global.localStorage = global.window.localStorage;
 
-global.document = {
-  querySelector: (sel) => null,
-  createElement: (tag) => ({
-    tag,
-    style: {},
-    textContent: '',
-    setAttribute: () => {},
-    appendChild: () => {},
-    parentNode: null,
-    dataset: {}
-  }),
-  head: { appendChild: () => {} }
-};
+  global.document = {
+    querySelector: (sel) => null,
+    createElement: (tag) => ({
+      tag,
+      style: {},
+      textContent: '',
+      setAttribute: () => {},
+      appendChild: () => {},
+      parentNode: null,
+      dataset: {}
+    }),
+    head: { appendChild: () => {} }
+  };
 
-// Load validator first (since plugin-api checks for it)
-eval(readFileSync('./www/src/core/plugin-validator.js', 'utf8'));
+  // Load validator first (since plugin-api checks for it)
+  eval(readFileSync('./www/src/core/plugin-validator.js', 'utf8'));
 
-// Load plugin API (skip permissions to avoid DOM dependency)
-eval(readFileSync('./www/src/core/plugin-api.js', 'utf8'));
+  // Load plugin API (skip permissions to avoid DOM dependency)
+  eval(readFileSync('./www/src/core/plugin-api.js', 'utf8'));
 
-const PluginManager = window.CardSpoke.Plugin;
-const Validator = window.CardSpoke.PluginValidator;
+  PluginManager = window.CardSpoke.Plugin;
+  Validator = window.CardSpoke.PluginValidator;
+});
 
 test('Plugin API initializes with InternalAPI support', () => {
   assert.ok(PluginManager, 'Plugin manager exists');

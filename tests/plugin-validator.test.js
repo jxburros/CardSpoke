@@ -3,11 +3,13 @@ import { test } from 'uvu';
 import * as assert from 'uvu/assert';
 import { readFileSync } from 'fs';
 
-// Mock window
-global.window = { CardSpoke: {} };
-
-// Load the plugin validator
-eval(readFileSync('./www/src/core/plugin-validator.js', 'utf8'));
+// Set up the window mock and load the plugin validator before tests run.
+// Done inside test.before to avoid module-level global.window resets from
+// other test files loaded by uvu before tests execute.
+test.before(() => {
+  global.window = { CardSpoke: {} };
+  eval(readFileSync('./www/src/core/plugin-validator.js', 'utf8'));
+});
 
 test('Plugin validator initializes', () => {
   assert.ok(window.CardSpoke.PluginValidator, 'Validator exists');
