@@ -1,0 +1,22 @@
+{
+  "plugins": [
+    {
+      "id": "theme-monochrome",
+      "name": "Monochrome Theme",
+      "description": "A minimalist grayscale visual theme.",
+      "url": "https://raw.githubusercontent.com/jxburros/CardSpoke/main/sample-plugins/themes/monochrome.json"
+    },
+    {
+      "id": "theme-cyberpunk",
+      "name": "Cyberpunk Theme",
+      "description": "Neon-inspired high contrast theme.",
+      "url": "https://raw.githubusercontent.com/jxburros/CardSpoke/main/sample-plugins/themes/cyberpunk.json"
+    },
+    {
+      "id": "feature-auto-save-indicator",
+      "name": "Auto Save Indicator",
+      "description": "Shows visual save state status in the UI.",
+      "url": "https://raw.githubusercontent.com/jxburros/CardSpoke/main/sample-plugins/features/auto-save-indicator.json"
+    }
+  ]
+}

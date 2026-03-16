@@ -96,7 +96,7 @@
        * @param {string} id - Card ID to delete
        */
       function deleteCard(id, opts = {}) {
-        const { skipSave = false, skipHooks = false } = opts;
+        const { skipSave = false, skipHooks = false, rootCall = true } = opts;
         const card = store.cards[id];
         if (!card) return;
         
@@ -111,7 +111,7 @@
         if (trashBin.length > MAX_TRASH_SIZE) trashBin.pop();
         
         // Skip hooks for children to avoid redundant middleware calls on recursive deletes
-        (card.children || []).forEach(cid => deleteCard(cid, { skipSave: true, skipHooks: true }));
+        (card.children || []).forEach(cid => deleteCard(cid, { skipSave, skipHooks: true, rootCall: false }));
         if (card.parentId) {
           const parent = store.cards[card.parentId];
           if (parent) parent.children = parent.children.filter(c => c !== id);
@@ -119,7 +119,7 @@
           store.rootOrder = store.rootOrder.filter(c => c !== id);
         }
         delete store.cards[id];
-        if (!skipSave) save();
+        if (!skipSave && rootCall) save();
         // Fire middleware event for plugins (Task 1.1)
         if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
           window.CardSpoke.Middleware.run('card.delete', [id])
@@ -250,7 +250,9 @@
       function duplicateCard(id, withChildren = false) {
         const original = store.cards[id];
         if (!original) return null;
-        
+
+        const groupedUndo = withChildren && window.startUndoGroup && window.startUndoGroup('duplicateCard');
+
         const newId = uid();
         const now = Date.now();
         
@@ -282,6 +284,7 @@
         }
         
         save();
+        if (groupedUndo && window.endUndoGroup) window.endUndoGroup();
         return newId;
       }
 
@@ -554,13 +557,15 @@
       }
 
       function importJSON(data, mode = 'root') {
-        let pkg;
+        const groupedUndo = window.startUndoGroup && window.startUndoGroup('importJSON');
         try {
-          pkg = typeof data === 'string' ? JSON.parse(data) : data;
-        } catch (err) {
-          showToast('Invalid JSON: ' + err.message, 'error');
-          throw new Error('Failed to parse JSON: ' + err.message);
-        }
+          let pkg;
+          try {
+            pkg = typeof data === 'string' ? JSON.parse(data) : data;
+          } catch (err) {
+            showToast('Invalid JSON: ' + err.message, 'error');
+            throw new Error('Failed to parse JSON: ' + err.message);
+          }
 
         // Security: Validate import data structure
         if (!pkg || typeof pkg !== 'object') {
@@ -683,6 +688,9 @@
         
         showToast(`Imported ${Object.keys(remappedCards).length} cards`);
         render();
+        } finally {
+          if (groupedUndo && window.endUndoGroup) window.endUndoGroup();
+        }
       }
 
       function importTXT(text, mode = 'outline', location = 'root') {
@@ -929,7 +937,7 @@
           style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);'
         }, 'Default: LocalStorage. You can migrate later. Local File lets you choose a save location. Cloud options use your own Google Drive or OneDrive account.');
 
-        // PIN protection (future feature)
+        // PIN protection
         const pinLabel = h('label', { 
           style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' 
         }, 'PIN Protection (Optional)');
@@ -937,7 +945,7 @@
           type: 'password',
           id: 'newDatasetPin',
           placeholder: 'Leave empty for no PIN',
-          title: 'PIN encryption will be available in v0.10.3',
+          title: 'Optional PIN used for dataset encryption',
           style: `
             width: 100%;
             padding: var(--space-md);
@@ -947,14 +955,12 @@
             color: var(--text-primary);
             margin-bottom: var(--space-xs);
             font-size: 1rem;
-            cursor: not-allowed;
-          `,
-          disabled: true
+          `
         });
 
         const pinHelp = h('div', { 
           style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' 
-        }, 'PIN encryption coming in v0.10.3 - feature currently disabled for security hardening.');
+        }, 'If set, this PIN encrypts dataset payloads via Web Crypto (PBKDF2 + AES-GCM).');
 
         // Create button
         const createBtn = h('button', {
@@ -963,6 +969,7 @@
           onclick: async () => {
             let name = document.getElementById('newDatasetName').value.trim();
             const storageType = document.getElementById('newDatasetStorage').value;
+            const pin = document.getElementById('newDatasetPin').value.trim();
 
             // Generate a readable default name if none provided
             if (!name) {
@@ -1024,7 +1031,8 @@
                 name: name,
                 storageType: storageType,
                 storageConfig: {},
-                createdAt: Date.now()
+                createdAt: Date.now(),
+                pin: pin || null
               }
             };
 
@@ -1218,7 +1226,7 @@
 
         // Tab buttons
         var tabBar = h('div', { style: 'display: flex; border-bottom: 2px solid var(--border); padding: 0 var(--space-lg);' });
-        var tabs = ['installed', 'install', 'create'];
+        var tabs = ['installed', 'install', 'gallery', 'create'];
         var tabButtons = {};
         var tabContents = {};
 
@@ -1405,9 +1413,9 @@
                 // Task 1.2: pkg.js takes priority, then pkg.javascript (only if setup not already set)
                 if (!pkg.setup) {
                   if (pkg.js && typeof pkg.js === 'string') {
-                    pkg.setup = new Function('ctx', pkg.js);
+                    pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.js) : new Function('ctx', pkg.js));
                   } else if (pkg.javascript && typeof pkg.javascript === 'string') {
-                    pkg.setup = new Function('ctx', pkg.javascript);
+                    pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.javascript) : new Function('ctx', pkg.javascript));
                   }
                 }
                 
@@ -1454,9 +1462,9 @@
                 // Task 1.2: pkg.js takes priority, then pkg.javascript (only if setup not already set)
                 if (!pkg.setup) {
                   if (pkg.js && typeof pkg.js === 'string') {
-                    pkg.setup = new Function('ctx', pkg.js);
+                    pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.js) : new Function('ctx', pkg.js));
                   } else if (pkg.javascript && typeof pkg.javascript === 'string') {
-                    pkg.setup = new Function('ctx', pkg.javascript);
+                    pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.javascript) : new Function('ctx', pkg.javascript));
                   }
                 }
                 
@@ -1473,6 +1481,55 @@
           urlSection.appendChild(urlInput);
           urlSection.appendChild(urlBtn);
           container.appendChild(urlSection);
+        }
+
+
+
+        // ===== GALLERY TAB =====
+        function renderGalleryTab() {
+          var container = tabContents['gallery'];
+          container.innerHTML = '';
+          container.appendChild(h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Plugin Gallery'));
+          container.appendChild(h('p', { style: 'margin-bottom: var(--space-lg); color: var(--text-muted);' },
+            'Browse curated plugins from the CardSpoke GitHub repository.'));
+
+          var loading = h('div', { style: 'padding: var(--space-md); color: var(--text-muted);' }, 'Loading gallery...');
+          container.appendChild(loading);
+
+          fetch('https://raw.githubusercontent.com/jxburros/CardSpoke/main/sample-plugins/manifest.json')
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function(manifest) {
+              loading.remove();
+              var plugins = Array.isArray(manifest.plugins) ? manifest.plugins : [];
+              if (!plugins.length) {
+                container.appendChild(h('div', { className: 'empty' }, 'No gallery plugins available.'));
+                return;
+              }
+              plugins.forEach(function(item) {
+                var card = h('div', { style: 'border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md); margin-bottom: var(--space-md);' });
+                card.appendChild(h('div', { style: 'font-weight: 700;' }, item.name || item.id || 'Plugin'));
+                card.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-top: var(--space-xs);' }, item.description || ''));
+                var installBtn = h('button', { className: 'btn btn-sm', style: 'margin-top: var(--space-sm);', onclick: async function() {
+                  try {
+                    var url = item.url || item.sourceUrl;
+                    if (!url) throw new Error('Missing plugin URL in manifest');
+                    var res = await fetch(url);
+                    if (!res.ok) throw new Error('Failed to fetch plugin package');
+                    var pkg = await res.json();
+                    var id = await window.CardSpoke.Plugin.install(pkg);
+                    showToast('Installed: ' + (pkg.manifest && pkg.manifest.name ? pkg.manifest.name : id), 'success');
+                    renderInstalledTab();
+                  } catch (err) {
+                    showToast('Gallery install failed: ' + err.message, 'error');
+                  }
+                }}, 'Install');
+                card.appendChild(installBtn);
+                container.appendChild(card);
+              });
+            })
+            .catch(function(err) {
+              loading.textContent = 'Failed to load gallery: ' + err.message;
+            });
         }
 
         // ===== CREATE TAB =====
@@ -1530,7 +1587,7 @@
                 };
 
                 if (jsCode) {
-                  pkg.setup = new Function('ctx', jsCode);
+                  pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(jsCode) : new Function('ctx', jsCode));
                 }
 
                 var id = await window.CardSpoke.Plugin.install(pkg);
@@ -1550,6 +1607,7 @@
         // Render all tabs
         renderInstalledTab();
         renderInstallTab();
+        renderGalleryTab();
         renderCreateTab();
 
         // Switch to initial tab

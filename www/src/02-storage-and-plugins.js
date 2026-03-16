@@ -1316,6 +1316,130 @@
         return text || null;
       }
 
+
+
+      function toBase64(bytes) {
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
+      }
+
+      function fromBase64(base64) {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+      }
+
+      async function derivePinKey(pin, saltBytes) {
+        if (!window.crypto || !window.crypto.subtle) throw new Error('Web Crypto API unavailable');
+        const encoder = new TextEncoder();
+        const baseKey = await window.crypto.subtle.importKey('raw', encoder.encode(pin), 'PBKDF2', false, ['deriveKey']);
+        return window.crypto.subtle.deriveKey(
+          {
+            name: 'PBKDF2',
+            salt: saltBytes,
+            iterations: 250000,
+            hash: 'SHA-256'
+          },
+          baseKey,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['encrypt', 'decrypt']
+        );
+      }
+
+      async function encryptStorePayload(payload, pin) {
+        const salt = window.crypto.getRandomValues(new Uint8Array(16));
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const key = await derivePinKey(pin, salt);
+        const data = new TextEncoder().encode(payload);
+        const encrypted = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
+        return JSON.stringify({
+          encrypted: true,
+          version: 1,
+          kdf: 'PBKDF2',
+          cipher: 'AES-GCM',
+          iterations: 250000,
+          salt: toBase64(salt),
+          iv: toBase64(iv),
+          payload: toBase64(new Uint8Array(encrypted))
+        });
+      }
+
+      async function decryptStorePayload(encryptedPayload, pin) {
+        const envelope = typeof encryptedPayload === 'string' ? JSON.parse(encryptedPayload) : encryptedPayload;
+        if (!envelope || !envelope.encrypted) return encryptedPayload;
+        const salt = fromBase64(envelope.salt);
+        const iv = fromBase64(envelope.iv);
+        const ciphertext = fromBase64(envelope.payload);
+        const key = await derivePinKey(pin, salt);
+        const decrypted = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+        return new TextDecoder().decode(decrypted);
+      }
+
+      function validateStoreConsistency() {
+        if (!store || !store.cards || typeof store.cards !== 'object') return false;
+        let changed = false;
+        const cards = store.cards;
+        const ids = new Set(Object.keys(cards));
+
+        Object.values(cards).forEach(card => {
+          if (!Array.isArray(card.children)) {
+            card.children = [];
+            changed = true;
+          }
+          card.children = card.children.filter(cid => ids.has(cid));
+        });
+
+        Object.values(cards).forEach(card => {
+          if (card.parentId && !cards[card.parentId]) {
+            card.parentId = null;
+            changed = true;
+          }
+        });
+
+        const visiting = new Set();
+        const visited = new Set();
+        const breakCycle = (id) => {
+          if (visited.has(id)) return;
+          if (visiting.has(id)) {
+            cards[id].parentId = null;
+            changed = true;
+            return;
+          }
+          visiting.add(id);
+          const parentId = cards[id] && cards[id].parentId;
+          if (parentId && cards[parentId]) breakCycle(parentId);
+          visiting.delete(id);
+          visited.add(id);
+        };
+        Object.keys(cards).forEach(breakCycle);
+
+        Object.values(cards).forEach(card => {
+          if (card.parentId && cards[card.parentId] && !cards[card.parentId].children.includes(card.id)) {
+            cards[card.parentId].children.push(card.id);
+            changed = true;
+          }
+        });
+
+        const computedRoots = Object.values(cards).filter(card => !card.parentId).map(card => card.id);
+        const existingRootOrder = Array.isArray(store.rootOrder) ? store.rootOrder : [];
+        const cleanedRootOrder = existingRootOrder.filter(id => cards[id] && !cards[id].parentId);
+        computedRoots.forEach(id => {
+          if (!cleanedRootOrder.includes(id)) {
+            cleanedRootOrder.push(id);
+            changed = true;
+          }
+        });
+        if (cleanedRootOrder.length !== existingRootOrder.length || !cleanedRootOrder.every((id, i) => id === existingRootOrder[i])) {
+          store.rootOrder = cleanedRootOrder;
+          changed = true;
+        }
+
+        return changed;
+      }
+
       // Cloud sync tracking
       let cloudSyncTimeout = null;
       let lastCloudSyncTime = 0;
@@ -1400,17 +1524,36 @@
           const key = instanceKey || 'nested_cards_store';
           const startTime = performance.now();
 
+          if (!store.metadata) store.metadata = {};
+          store.metadata.navState = { ...navState };
+          store.metadata.navHistory = Array.isArray(navHistory) ? navHistory.slice(-100) : [];
+
           // Use requestIdleCallback if available to avoid blocking UI
-          const doSave = () => {
+          const doSave = async () => {
             try {
               const payload = JSON.stringify(store);
-              localStorage.setItem(key, payload);
+              const activeDataset = datasetManager && datasetManager.getActiveDataset ? datasetManager.getActiveDataset() : null;
+              const activePin = (activeDataset && activeDataset.pin) || (store && store.metadata && store.metadata.pin) || null;
+              const finalPayload = activePin
+                ? await encryptStorePayload(payload, activePin)
+                : payload;
+
+              localStorage.setItem(key, finalPayload);
 
               if (isIndexedDbDataset()) {
                 getIndexedDbMirrorDriver()
-                  .then(driver => driver.set(key, payload))
+                  .then(driver => driver.set(key, finalPayload))
                   .catch(err => console.error('[IndexedDB] Mirror save failed:', err));
               }
+
+              if (getStorageType() === 'localfile') {
+                writeDatasetToLocalFile(finalPayload)
+                  .catch(err => {
+                    console.error('[Local File] Save failed:', err);
+                    showToast('Local file save failed: ' + err.message, 'error');
+                  });
+              }
+
 
               const duration = performance.now() - startTime;
               lastSaveTime = Date.now();
@@ -1425,13 +1568,6 @@
               // Schedule cloud sync if cloud storage is configured
               scheduleCloudSync();
 
-              if (getStorageType() === 'localfile') {
-                writeDatasetToLocalFile(payload)
-                  .catch(err => {
-                    console.error('[Local File] Save failed:', err);
-                    showToast('Local file save failed: ' + err.message, 'error');
-                  });
-              }
             } catch (e) {
               savePending = false;
               if (e.name === 'QuotaExceededError') {
@@ -1444,7 +1580,7 @@
           };
 
           if (window.requestIdleCallback) {
-            requestIdleCallback(doSave, { timeout: 2000 });
+            requestIdleCallback(() => { doSave(); }, { timeout: 2000 });
           } else {
             doSave();
           }
@@ -1542,9 +1678,20 @@
         }
       }
 
-      function load() {
+      async function load() {
         const key = instanceKey || 'nested_cards_store';
-        const raw = localStorage.getItem(key);
+        let raw = localStorage.getItem(key);
+        const activeDataset = datasetManager && datasetManager.getActiveDataset ? datasetManager.getActiveDataset() : null;
+        const activePin = (activeDataset && activeDataset.pin) || (store && store.metadata && store.metadata.pin) || null;
+        if (raw && activePin) {
+          try {
+            raw = await decryptStorePayload(raw, activePin);
+          } catch (err) {
+            console.error('[Dataset] Failed to decrypt payload:', err);
+            showToast('Failed to decrypt dataset. Check your PIN.', 'error');
+            throw err;
+          }
+        }
         if (!raw) {
           store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
           save();
@@ -1563,52 +1710,24 @@
             metadata: parsed.metadata || {}
           };
 
-          // Data migration: rebuild rootOrder if needed
-          let needsMigration = false;
-          
-          // Case 1: rootOrder is empty but cards exist
-          if (store.rootOrder.length === 0 && Object.keys(store.cards).length > 0) {
-            const rootCards = Object.values(store.cards).filter(card => !card.parentId);
-            store.rootOrder = rootCards.map(card => card.id);
-            needsMigration = store.rootOrder.length > 0;
+          if (store.metadata && store.metadata.navState) {
+            navState = { ...navState, ...store.metadata.navState };
           }
-          
-          // Case 2: Clean up rootOrder - remove invalid IDs and ensure all root cards are included
-          if (Object.keys(store.cards).length > 0) {
-            // Remove IDs from rootOrder that don't exist in cards
-            const validRootOrder = store.rootOrder.filter(id => store.cards[id]);
-            
-            // Find all root-level cards (no parentId or parentId doesn't exist)
-            const actualRootCards = Object.values(store.cards).filter(card => {
-              return !card.parentId || !store.cards[card.parentId];
-            });
-            
-            // Add any missing root cards to rootOrder
-            actualRootCards.forEach(card => {
-              if (!validRootOrder.includes(card.id)) {
-                validRootOrder.push(card.id);
-                needsMigration = true;
-              }
-            });
-            
-            // Update rootOrder if it changed
-            if (validRootOrder.length !== store.rootOrder.length || 
-                !validRootOrder.every((id, i) => id === store.rootOrder[i])) {
-              store.rootOrder = validRootOrder;
-              needsMigration = true;
-            }
+          if (store.metadata && Array.isArray(store.metadata.navHistory)) {
+            navHistory = store.metadata.navHistory.slice(-100);
           }
-          
-          if (needsMigration) {
+
+          const repaired = validateStoreConsistency();
+          if (repaired) {
             save();
-            showToast('Data migrated: synchronized root cards');
+            showToast('Data integrity check repaired structural metadata', 'info');
           }
 
           const storageType = getStorageType();
           if (storageType === 'indexeddb') {
             getIndexedDbMirrorDriver()
               .then(driver => driver.get(key))
-              .then(payload => {
+              .then(async payload => {
                 if (!payload) return;
                 const parsedMirror = typeof payload === 'string' ? JSON.parse(payload) : payload;
                 if (!parsedMirror || typeof parsedMirror !== 'object') return;
@@ -1623,6 +1742,9 @@
                   activeTheme: parsedMirror.activeTheme || 'light',
                   metadata: parsedMirror.metadata || store.metadata
                 };
+                if (store.metadata && store.metadata.navState) navState = { ...navState, ...store.metadata.navState };
+                if (store.metadata && Array.isArray(store.metadata.navHistory)) navHistory = store.metadata.navHistory.slice(-100);
+                if (validateStoreConsistency()) save();
                 render();
               })
               .catch(err => {
@@ -1630,9 +1752,12 @@
               });
           } else if (storageType === 'localfile') {
             readDatasetFromLocalFile()
-              .then(payload => {
+              .then(async payload => {
                 if (!payload) return;
-                const parsedFile = JSON.parse(payload);
+                const active = datasetManager && datasetManager.getActiveDataset ? datasetManager.getActiveDataset() : null;
+                const filePin = (active && active.pin) || (store && store.metadata && store.metadata.pin) || null;
+                const payloadText = filePin ? await decryptStorePayload(payload, filePin) : payload;
+                const parsedFile = JSON.parse(payloadText);
                 store = {
                   rootOrder: parsedFile.rootOrder || [],
                   cards: parsedFile.cards || {},
@@ -1644,6 +1769,9 @@
                   activeTheme: parsedFile.activeTheme || 'light',
                   metadata: parsedFile.metadata || store.metadata
                 };
+                if (store.metadata && store.metadata.navState) navState = { ...navState, ...store.metadata.navState };
+                if (store.metadata && Array.isArray(store.metadata.navHistory)) navHistory = store.metadata.navHistory.slice(-100);
+                if (validateStoreConsistency()) save();
                 render();
               })
               .catch(err => {

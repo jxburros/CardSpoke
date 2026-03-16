@@ -993,8 +993,114 @@
   // at this level; future work should run this function inside a dedicated
   // iframe or Worker that exposes a controlled message-passing API instead
   // of the live window object.
+  let pluginSandboxRuntime = null;
+
+  function ensurePluginSandboxRuntime() {
+    if (pluginSandboxRuntime) return pluginSandboxRuntime;
+
+    const frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.style.display = 'none';
+    document.body.appendChild(frame);
+
+    const pending = new Map();
+    const callCtxPath = function(root, path, args) {
+      const parts = (path || '').split('.');
+      let target = root;
+      for (let i = 0; i < parts.length; i++) {
+        if (!target) break;
+        target = target[parts[i]];
+      }
+      if (typeof target !== 'function') throw new Error('ctx method not found: ' + path);
+      return target.apply(null, args || []);
+    };
+
+    window.addEventListener('message', function(ev) {
+      if (ev.source !== frame.contentWindow) return;
+      const data = ev.data || {};
+      if (data.type === 'sandbox:ctx-result' && pending.has(data.id)) {
+        const entry = pending.get(data.id);
+        pending.delete(data.id);
+        data.error ? entry.reject(new Error(data.error)) : entry.resolve(data.result);
+      }
+    });
+
+    frame.srcdoc = `<!doctype html><html><body><script>
+      const pendingCalls = new Map();
+      window.addEventListener('message', async (event) => {
+        const data = event.data || {};
+        if (data.type === 'sandbox:execute') {
+          const reqId = data.id;
+          const callCtx = (path, args) => new Promise((resolve, reject) => {
+            const id = 'ctx_' + Math.random().toString(36).slice(2);
+            pendingCalls.set(id, { resolve, reject });
+            parent.postMessage({ type: 'sandbox:ctx-call', id, path, args }, '*');
+          });
+          window.addEventListener('message', function onResult(ev){
+            const msg = ev.data || {};
+            if (msg.type !== 'sandbox:ctx-result') return;
+            const c = pendingCalls.get(msg.id);
+            if (!c) return;
+            pendingCalls.delete(msg.id);
+            msg.error ? c.reject(new Error(msg.error)) : c.resolve(msg.result);
+          });
+          const makeProxy = (prefix='') => new Proxy(function(){}, {
+            get(_t, prop){
+              const p = prefix ? prefix + '.' + String(prop) : String(prop);
+              return makeProxy(p);
+            },
+            apply(_t,_this,args){
+              return callCtx(prefix, args || []);
+            }
+          });
+          try {
+            const fn = new Function('ctx', data.code);
+            const ctx = makeProxy('');
+            const result = await fn(ctx);
+            parent.postMessage({ type: 'sandbox:exec-result', id: reqId, result }, '*');
+          } catch (err) {
+            parent.postMessage({ type: 'sandbox:exec-result', id: reqId, error: String(err && err.message ? err.message : err) }, '*');
+          }
+        }
+      });
+    </script></body></html>`;
+
+    const execute = function(code, ctx) {
+      return new Promise((resolve, reject) => {
+        const execId = 'exec_' + Math.random().toString(36).slice(2);
+        const onMessage = async function(ev) {
+          if (ev.source !== frame.contentWindow) return;
+          const data = ev.data || {};
+          if (data.type === 'sandbox:ctx-call') {
+            try {
+              const result = await callCtxPath(ctx, data.path, data.args);
+              frame.contentWindow.postMessage({ type: 'sandbox:ctx-result', id: data.id, result }, '*');
+            } catch (err) {
+              frame.contentWindow.postMessage({ type: 'sandbox:ctx-result', id: data.id, error: err.message }, '*');
+            }
+            return;
+          }
+          if (data.type === 'sandbox:exec-result' && data.id === execId) {
+            window.removeEventListener('message', onMessage);
+            data.error ? reject(new Error(data.error)) : resolve(data.result);
+          }
+        };
+        window.addEventListener('message', onMessage);
+        frame.contentWindow.postMessage({ type: 'sandbox:execute', id: execId, code }, '*');
+      });
+    };
+
+    pluginSandboxRuntime = { execute };
+    return pluginSandboxRuntime;
+  }
+
   function _createSandboxedFunction(code) {
-    return new Function('ctx', code);
+    return function(ctx) {
+      if (typeof window === 'undefined' || typeof document === 'undefined' || typeof window.addEventListener !== 'function' || typeof document.createElement !== 'function') {
+        return new Function('ctx', code)(ctx);
+      }
+      return ensurePluginSandboxRuntime().execute(code, ctx || {});
+    };
   }
 
   const PluginManager = {
@@ -1554,6 +1660,7 @@
   // Export to window
   if (!window.CardSpoke) window.CardSpoke = {};
   window.CardSpoke.Plugin = PluginManager;
+  window.CardSpoke.PluginSandbox = { createFunction: _createSandboxedFunction };
 
   console.log('[Plugin] API system initialized');
 })();
