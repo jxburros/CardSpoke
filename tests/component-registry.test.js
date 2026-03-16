@@ -3,11 +3,13 @@ import { test } from 'uvu';
 import * as assert from 'uvu/assert';
 import { readFileSync } from 'fs';
 
-// Mock window
-global.window = { CardSpoke: {} };
-
-// Load the component registry
-eval(readFileSync('./www/src/core/component-registry.js', 'utf8'));
+// Set up the window mock and load the component registry before tests run.
+// Done inside test.before to avoid module-level global.window resets from
+// other test files loaded by uvu before tests execute.
+test.before(() => {
+  global.window = { CardSpoke: {} };
+  eval(readFileSync('./www/src/core/component-registry.js', 'utf8'));
+});
 
 test('Component registry initializes', () => {
   assert.ok(window.CardSpoke.ComponentRegistry, 'Registry exists');
