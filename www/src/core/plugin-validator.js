@@ -38,9 +38,11 @@
   ];
 
   // Dangerous JS patterns
+  // Task 1.3: Allow new Function('ctx', ...) since the installer uses that exact pattern
+  // to instantiate stringified JS from manifests. Other new Function() forms are still blocked.
   var DANGEROUS_JS_PATTERNS = [
     { pattern: /\beval\s*\(/g, name: 'eval()' },
-    { pattern: /\bnew\s+Function\s*\(/g, name: 'new Function()' }
+    { pattern: /\bnew\s+Function\s*\(\s*(?!['"]ctx['"])/g, name: 'new Function()' }
   ];
 
   var PluginValidator = {

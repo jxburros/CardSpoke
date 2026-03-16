@@ -26,6 +26,10 @@
   const pluginResources = new Map();
   const dataUpdateListeners = new Map();
 
+  // Task 1.5: Central global event bus for cross-plugin communication
+  // Handlers stored as { pluginId, callback } entries per event name
+  const globalEventBus = new Map();
+
   // Stable internal references to core functions (Phase 1.3)
   // Captured at initialization time to prevent plugins from
   // breaking the app by overwriting window functions
@@ -368,36 +372,44 @@
   }
 
   function createEventApi(pluginId) {
+    // Task 1.5: Use global event bus for cross-plugin communication while
+    // preserving per-plugin ctx.api.events interface
     const resources = pluginResources.get(pluginId) || new Set();
-    const eventHandlers = new Map();
 
     return {
       on: function(event, callback) {
-        const handlers = eventHandlers.get(event) || [];
-        handlers.push(callback);
-        eventHandlers.set(event, handlers);
+        // Ensure the handlers array exists in the global bus, then append to the same reference
+        if (!globalEventBus.has(event)) {
+          globalEventBus.set(event, []);
+        }
+        const handlers = globalEventBus.get(event);
+        handlers.push({ pluginId: pluginId, callback: callback });
 
         const resource = { type: 'event', event: event, callback: callback };
         resources.add(resource);
 
         return function() {
-          const idx = handlers.indexOf(callback);
-          if (idx !== -1) {
-            handlers.splice(idx, 1);
+          const list = globalEventBus.get(event);
+          if (list) {
+            const idx = list.findIndex(function(h) { return h.callback === callback && h.pluginId === pluginId; });
+            if (idx !== -1) {
+              list.splice(idx, 1);
+            }
           }
           resources.delete(resource);
         };
       },
 
       emit: function(event) {
-        const handlers = eventHandlers.get(event);
+        const handlers = globalEventBus.get(event);
         if (handlers) {
           const args = Array.prototype.slice.call(arguments, 1);
-          handlers.forEach(function(handler) {
+          // Iterate over a copy to avoid issues if handlers array is modified during dispatch
+          handlers.slice().forEach(function(entry) {
             try {
-              handler.apply(null, args);
+              entry.callback.apply(null, args);
             } catch (err) {
-              console.error('[Plugin:' + pluginId + '] Event handler error:', err);
+              console.error('[EventBus] Handler error in plugin ' + entry.pluginId + ':', err);
             }
           });
         }
@@ -413,11 +425,11 @@
       },
 
       off: function(event, callback) {
-        const handlers = eventHandlers.get(event);
-        if (handlers) {
-          const idx = handlers.indexOf(callback);
+        const list = globalEventBus.get(event);
+        if (list) {
+          const idx = list.findIndex(function(h) { return h.callback === callback && h.pluginId === pluginId; });
           if (idx !== -1) {
-            handlers.splice(idx, 1);
+            list.splice(idx, 1);
           }
         }
       }
@@ -662,7 +674,14 @@
             // Data update listeners are tracked separately in dataUpdateListeners map
             cleanup.listeners++;
           } else if (resource.type === 'event') {
-            // Event handlers are tracked in the event API
+            // Task 1.5: Clean up global event bus handlers on plugin disable/unregister
+            const list = globalEventBus.get(resource.event);
+            if (list) {
+              const idx = list.findIndex(function(h) { return h.callback === resource.callback && h.pluginId === id; });
+              if (idx !== -1) {
+                list.splice(idx, 1);
+              }
+            }
             cleanup.events++;
           }
         } catch (err) {
@@ -692,17 +711,28 @@
     },
 
     _checkPermissions: async function(id, permissions) {
-      // For now, auto-grant all permissions
-      // In production, this should show a consent UI
+      // Task 1.4: Use PermissionsManager for actual user consent instead of auto-granting
       console.log('[Plugin] Permissions requested for', id, ':', permissions);
-      
-      // Show user consent UI if available
+
+      if (!permissions || permissions.length === 0) {
+        return true;
+      }
+
+      // Use the PermissionsManager if available (preferred path)
+      if (window.CardSpoke && window.CardSpoke.Permissions) {
+        const instance = plugins.get(id);
+        const pluginName = (instance && instance.definition.manifest && instance.definition.manifest.name) || id;
+        return await window.CardSpoke.Permissions.requestPermissions(id, pluginName, permissions);
+      }
+
+      // Fallback: use global dialog if available
       if (window.showPermissionDialog) {
         return await window.showPermissionDialog(id, permissions);
       }
-      
-      // Auto-grant for now
-      return true;
+
+      // Last resort: deny by default when no consent mechanism is available
+      console.warn('[Plugin] No permission consent mechanism available; denying permissions for', id);
+      return false;
     },
 
     notifyDataUpdate: function(event) {
