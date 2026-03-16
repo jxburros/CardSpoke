@@ -1938,6 +1938,11 @@
           await window.CardSpoke.Plugin.syncFromStore(safeMode);
         }
 
+        // Task 2.5: Apply custom components from ComponentRegistry (Header, Sidebar, SearchBar)
+        if (typeof applyRegistryComponents === 'function') {
+          applyRegistryComponents();
+        }
+
         render();                        // Initial render
         populateFooter();                // Re-populate footer to ensure it displays
 

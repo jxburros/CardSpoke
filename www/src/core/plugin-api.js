@@ -188,7 +188,9 @@
       getCard: function(id) {
         if (window.store && window.store.cards && window.store.cards[id]) {
           var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
-          return cloneFn ? cloneFn(window.store.cards[id]) : window.store.cards[id];
+          if (cloneFn) return cloneFn(window.store.cards[id]);
+          if (typeof structuredClone === 'function') return structuredClone(window.store.cards[id]);
+          return JSON.parse(JSON.stringify(window.store.cards[id]));
         }
         return undefined;
       },
@@ -197,7 +199,9 @@
         if (window.store && window.store.cards) {
           var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
           return Object.values(window.store.cards).map(function(card) {
-            return cloneFn ? cloneFn(card) : card;
+            if (cloneFn) return cloneFn(card);
+            if (typeof structuredClone === 'function') return structuredClone(card);
+            return JSON.parse(JSON.stringify(card));
           });
         }
         return [];
@@ -319,7 +323,9 @@
         if (window.storageDriver && window.storageDriver.get) {
           return await window.storageDriver.get(fullKey);
         }
-        return localStorage.getItem(fullKey);
+        const raw = localStorage.getItem(fullKey);
+        if (raw === null) return null;
+        try { return JSON.parse(raw); } catch(e) { return raw; }
       },
 
       set: async function(key, value) {
@@ -436,6 +442,46 @@
     };
   }
 
+  function createNetworkApi(pluginId) {
+    return {
+      fetch: async function(url, options) {
+        if (!hasPermission(pluginId, 'network')) {
+          throw new Error('Plugin does not have network permission');
+        }
+        return window.fetch(url, options);
+      },
+      xhr: function() {
+        if (!hasPermission(pluginId, 'network')) {
+          throw new Error('Plugin does not have network permission');
+        }
+        return new XMLHttpRequest();
+      }
+    };
+  }
+
+  function createFilesystemApi(pluginId) {
+    return {
+      readFile: async function(path, options) {
+        if (!hasPermission(pluginId, 'filesystem')) {
+          throw new Error('Plugin does not have filesystem permission');
+        }
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+          return window.Capacitor.Plugins.Filesystem.readFile(Object.assign({}, options, { path: path }));
+        }
+        throw new Error('Filesystem not available on this platform');
+      },
+      writeFile: async function(path, data, options) {
+        if (!hasPermission(pluginId, 'filesystem')) {
+          throw new Error('Plugin does not have filesystem permission');
+        }
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+          return window.Capacitor.Plugins.Filesystem.writeFile(Object.assign({}, options, { path: path, data: data }));
+        }
+        throw new Error('Filesystem not available on this platform');
+      }
+    };
+  }
+
   function createLogger(pluginId) {
     const prefix = '[Plugin:' + pluginId + ']';
     return {
@@ -455,7 +501,9 @@
         ui: createUIApi(pluginId),
         data: createDataApi(pluginId),
         storage: createStorageApi(pluginId),
-        events: createEventApi(pluginId)
+        events: createEventApi(pluginId),
+        network: createNetworkApi(pluginId),
+        filesystem: createFilesystemApi(pluginId)
       },
       utils: window.CardSpoke && window.CardSpoke.utils ? window.CardSpoke.utils : {},
       logger: createLogger(pluginId)
@@ -517,6 +565,15 @@
         plugins.delete(id);
         pluginResources.delete(id);
         dataUpdateListeners.delete(id);
+
+        // Remove from store
+        if (window.store && window.store.plugins) {
+          delete window.store.plugins[id];
+          if (window.save) {
+            window.save();
+          }
+        }
+
         console.log('[Plugin] Unregistered:', id);
       }
     },
@@ -541,6 +598,20 @@
 
       // Capture stable internal references before plugin runs
       captureInternalReferences();
+
+      // Task 2.6: Pass config to plugin context
+      if (instance.definition.manifest.config) {
+        instance.context.config = instance.definition.manifest.config;
+      }
+
+      // Task 2.6: Apply overrides from manifest
+      if (instance.definition.manifest.overrides) {
+        const overrides = instance.definition.manifest.overrides;
+        if (overrides.appName && typeof overrides.appName === 'string') {
+          const brandBtn = document.getElementById && document.getElementById('brandBtn');
+          if (brandBtn) brandBtn.textContent = overrides.appName;
+        }
+      }
 
       // Check permissions
       if (instance.definition.manifest.permissions) {
@@ -745,6 +816,131 @@
           }
         });
       });
+    },
+
+    listAll: function() {
+      return this.list();
+    },
+
+    install: async function(pkg) {
+      if (!pkg || !pkg.manifest) {
+        throw new Error('Invalid plugin package: manifest is required');
+      }
+
+      // Support pkg.js field (Task 1.2)
+      if (!pkg.setup) {
+        if (pkg.js && typeof pkg.js === 'string') {
+          pkg.setup = new Function('ctx', pkg.js);
+        } else if (pkg.javascript && typeof pkg.javascript === 'string') {
+          pkg.setup = new Function('ctx', pkg.javascript);
+        }
+      }
+
+      // Generate base ID
+      let id = pkg.manifest.id || pkg.manifest.name.toLowerCase().replace(/\s+/g, '-');
+
+      // Task 2.4: If plugin with this base ID already exists, update it (disable+unregister+overwrite)
+      if (plugins.has(id)) {
+        if (plugins.get(id).enabled) {
+          await this.disable(id);
+        }
+        this.unregister(id);
+      }
+
+      const definition = {
+        manifest: pkg.manifest,
+        setup: pkg.setup,
+        teardown: pkg.teardown,
+        css: pkg.css,
+        js: pkg.js || pkg.javascript
+      };
+
+      this.register(id, definition);
+
+      const risk = this.assessModRisk(pkg);
+      if (risk === 'SAFE' || risk === 'LOW') {
+        await this.enable(id);
+      }
+
+      if (window.store) {
+        if (!window.store.plugins) {
+          window.store.plugins = {};
+        }
+        window.store.plugins[id] = {
+          definition: definition,
+          enabled: risk === 'SAFE' || risk === 'LOW'
+        };
+        if (window.save) {
+          window.save();
+        }
+      }
+
+      console.log('[Plugin] Installed:', id);
+      return id;
+    },
+
+    assessModRisk: function(pkg) {
+      if (!pkg || !pkg.manifest) {
+        return 'HIGH';
+      }
+
+      const manifest = pkg.manifest;
+      const layer = manifest.layer || 'feature';
+      const hasJS = !!pkg.setup || !!pkg.teardown;
+      const hasCSS = !!pkg.css;
+      const hasOverrides = !!pkg.overrides || !!(manifest.overrides);
+
+      if (layer === 'theme' && !hasJS && hasCSS) {
+        return 'SAFE';
+      }
+      if (layer === 'feature' && !hasOverrides) {
+        return 'LOW';
+      }
+      if (layer === 'app' || hasOverrides) {
+        return 'HIGH';
+      }
+      return 'MEDIUM';
+    },
+
+    syncFromStore: async function(safeMode) {
+      if (!window.store || !window.store.plugins) {
+        return;
+      }
+
+      const storedPlugins = window.store.plugins || {};
+      const pluginIds = Object.keys(storedPlugins);
+
+      if (pluginIds.length === 0) {
+        return;
+      }
+
+      console.log('[Plugin] Syncing', pluginIds.length, 'plugins from store');
+
+      for (const id of pluginIds) {
+        const pluginData = storedPlugins[id];
+
+        try {
+          if (pluginData.definition) {
+            const def = pluginData.definition;
+
+            // Task 2.1: Reconstruct setup/teardown from saved JS string
+            if (!def.setup && def.js && typeof def.js === 'string') {
+              def.setup = new Function('ctx', def.js);
+            }
+            if (!def.teardown && def.teardownJs && typeof def.teardownJs === 'string') {
+              def.teardown = new Function('ctx', def.teardownJs);
+            }
+
+            this.register(id, def);
+
+            if (!safeMode && pluginData.enabled) {
+              await this.enable(id);
+            }
+          }
+        } catch (err) {
+          console.error('[Plugin] Failed to sync plugin', id, ':', err);
+        }
+      }
     }
   };
 
