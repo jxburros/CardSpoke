@@ -10,7 +10,7 @@ It is intentionally specific: you’ll find concrete field names, hook signature
 
 CardSpoke’s runtime is a **single browser bundle** (`www/app.js`) produced by concatenating source slices in lexical order:
 
-1. `www/src/00-core-systems.js` **(NEW in v0.16.0)**
+1. `www/src/00-core-systems.js` (core runtime bootstrap)
 2. `www/src/01-metadata-and-utilities.js`
 3. `www/src/02-storage-and-plugins.js`
 4. `www/src/03-data-and-modals.js`
@@ -29,7 +29,7 @@ The bundle is designed to work in `file://` contexts, so many helpers are intent
 
 ## 2) Source Slice Responsibilities (Concrete)
 
-## `00-core-systems.js` **(NEW in v0.16.0)**
+## `00-core-systems.js`
 
 Initializes the modern plugin architecture before any other code runs:
 
@@ -55,7 +55,6 @@ Initializes the modern plugin architecture before any other code runs:
   - `disable(id)` - Disable plugin and run teardown
   - `get(id)` - Get plugin instance
   - `list()` - List all plugins
-  - `isEnabled(id)` - Check plugin status
   - Context APIs: `ctx.api.ui`, `ctx.api.data`, `ctx.api.storage`, `ctx.api.events`
   - Resource tracking and automatic cleanup
 

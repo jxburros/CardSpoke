@@ -49,8 +49,12 @@ Every plugin receives a context object:
     ui: UIApi,                // UI manipulation
     data: DataApi,            // Data access
     storage: StorageApi,      // Persistent storage
-    events: EventApi          // Event system
+    events: EventApi,         // Shared cross-plugin event bus
+    network: NetworkApi,       // Permission-gated network access
+    filesystem: FilesystemApi  // Permission-gated Capacitor filesystem access
   },
+  utils: object,              // CardSpoke shared utility surface
+  config?: object,            // Plugin manifest config (when provided)
   logger: Logger              // Scoped logger
 }
 ```
@@ -410,3 +414,15 @@ When a plugin is disabled, all resources are automatically cleaned up.
 - [Middleware Pipeline](./MIDDLEWARE_PIPELINE.md) - Intercept operations
 - [Component Registry](./COMPONENT_REGISTRY.md) - UI components
 - [Plugin System Documentation](../PLUGIN_SYSTEM.md) - Complete plugin system guide including permissions
+
+
+### Network API
+
+- `ctx.api.network.fetch(url, options)` wraps `window.fetch` and requires the `network` permission.
+- `ctx.api.network.xhr()` creates an `XMLHttpRequest` and requires the `network` permission.
+
+### Filesystem API
+
+- `ctx.api.filesystem.readFile(path, options)` reads files through Capacitor Filesystem when available.
+- `ctx.api.filesystem.writeFile(path, data, options)` writes files through Capacitor Filesystem when available.
+- Both filesystem calls require the `filesystem` permission and throw if Filesystem is unavailable on the current platform.

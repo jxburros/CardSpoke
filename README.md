@@ -74,7 +74,7 @@ CardSpoke features a modern, extensible plugin system with three architectural l
 - **Feature Layer:** CSS and JavaScript; adds new features using the Plugin API. Medium risk.
 - **App Layer:** Full capabilities including core overrides, custom storage drivers, and app rebranding. High risk.
 
-### Modern Architecture (v0.17.0+)
+### Modern Architecture (current v0.17.0 runtime)
 
 The plugin system includes:
 
