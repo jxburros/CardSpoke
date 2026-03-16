@@ -79,6 +79,21 @@
       // Clear operation cache
       middlewaresByOperation.clear();
 
+      // Phase 3.2: Conflict Warning System
+      // Warn if another middleware at the same priority handles overlapping operations
+      const conflicts = middlewares.filter(function(m) {
+        if (m.name === middleware.name) return false;
+        if (m.priority !== middleware.priority) return false;
+        return m.operations.some(function(op) {
+          return op === '*' || middleware.operations.includes('*') || middleware.operations.includes(op);
+        });
+      });
+      if (conflicts.length > 0) {
+        console.warn('[Middleware] Conflict: "' + middleware.name + '" registered at priority ' + middleware.priority +
+          ' conflicts with: ' + conflicts.map(function(m) { return m.name; }).join(', ') +
+          '. Consider using different priority levels to ensure deterministic execution order.');
+      }
+
       console.log('[Middleware] Registered:', middleware.name, 'priority:', middleware.priority);
     },
 
