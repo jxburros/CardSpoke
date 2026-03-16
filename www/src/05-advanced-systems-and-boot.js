@@ -26,6 +26,11 @@
        * @param {Object} data - Data needed to undo
        */
       function pushUndo(action, data) {
+        if (undoGroupState.active) {
+          undoGroupState.actions.push({ action, data, timestamp: Date.now() });
+          redoStack.length = 0;
+          return;
+        }
         undoStack.push({
           action,
           data,
@@ -35,6 +40,38 @@
           undoStack.shift();
         }
         redoStack.length = 0;
+      }
+
+      const undoGroupState = {
+        active: false,
+        label: null,
+        actions: []
+      };
+
+      function startUndoGroup(label) {
+        if (undoGroupState.active) return false;
+        undoGroupState.active = true;
+        undoGroupState.label = label || 'group';
+        undoGroupState.actions = [];
+        return true;
+      }
+
+      function endUndoGroup() {
+        if (!undoGroupState.active) return false;
+        const groupedActions = undoGroupState.actions.slice();
+        const label = undoGroupState.label || 'group';
+        undoGroupState.active = false;
+        undoGroupState.label = null;
+        undoGroupState.actions = [];
+        if (!groupedActions.length) return true;
+        undoStack.push({
+          action: 'undoGroup',
+          data: { label, actions: groupedActions },
+          timestamp: Date.now()
+        });
+        if (undoStack.length > MAX_UNDO_STACK) undoStack.shift();
+        redoStack.length = 0;
+        return true;
       }
       
       /**
@@ -49,7 +86,33 @@
         const action = undoStack.pop();
         
         try {
-          switch (action.action) {
+          if (action.action === 'undoGroup') {
+            const grouped = action.data.actions || [];
+            for (let i = grouped.length - 1; i >= 0; i--) {
+              applyUndoAction(grouped[i]);
+            }
+            redoStack.push(action);
+            save();
+            render();
+            showToast('Undo: ' + (action.data.label || 'bulk operation'), 'info');
+            return true;
+          }
+          applyUndoAction(action);
+          
+          redoStack.push(action);
+          save();
+          render();
+          showToast('Undo: ' + action.action, 'info');
+          return true;
+        } catch (err) {
+          console.error('Undo failed:', err);
+          showToast('Undo failed', 'error');
+          return false;
+        }
+      }
+
+      function applyUndoAction(action) {
+        switch (action.action) {
             case 'deleteCard':
               const cardData = action.data.card;
               store.cards[cardData.id] = cardData;
@@ -114,17 +177,6 @@
                 }
               }
               break;
-          }
-          
-          redoStack.push(action);
-          save();
-          render();
-          showToast('Undo: ' + action.action, 'info');
-          return true;
-        } catch (err) {
-          console.error('Undo failed:', err);
-          showToast('Undo failed', 'error');
-          return false;
         }
       }
       
@@ -140,7 +192,32 @@
         const action = redoStack.pop();
         
         try {
-          switch (action.action) {
+          if (action.action === 'undoGroup') {
+            const grouped = action.data.actions || [];
+            grouped.forEach(applyRedoAction);
+            undoStack.push(action);
+            save();
+            render();
+            showToast('Redo: ' + (action.data.label || 'bulk operation'), 'info');
+            return true;
+          }
+
+          applyRedoAction(action);
+          
+          undoStack.push(action);
+          save();
+          render();
+          showToast('Redo: ' + action.action, 'info');
+          return true;
+        } catch (err) {
+          console.error('Redo failed:', err);
+          showToast('Redo failed', 'error');
+          return false;
+        }
+      }
+
+      function applyRedoAction(action) {
+        switch (action.action) {
             case 'deleteCard':
               const cardId = action.data.card.id;
               const card = store.cards[cardId];
@@ -206,19 +283,11 @@
                 }
               }
               break;
-          }
-          
-          undoStack.push(action);
-          save();
-          render();
-          showToast('Redo: ' + action.action, 'info');
-          return true;
-        } catch (err) {
-          console.error('Redo failed:', err);
-          showToast('Redo failed', 'error');
-          return false;
         }
       }
+
+      window.startUndoGroup = startUndoGroup;
+      window.endUndoGroup = endUndoGroup;
       
       /**
        * Show trash bin modal

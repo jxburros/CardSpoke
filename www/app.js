@@ -993,8 +993,114 @@
   // at this level; future work should run this function inside a dedicated
   // iframe or Worker that exposes a controlled message-passing API instead
   // of the live window object.
+  let pluginSandboxRuntime = null;
+
+  function ensurePluginSandboxRuntime() {
+    if (pluginSandboxRuntime) return pluginSandboxRuntime;
+
+    const frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.style.display = 'none';
+    document.body.appendChild(frame);
+
+    const pending = new Map();
+    const callCtxPath = function(root, path, args) {
+      const parts = (path || '').split('.');
+      let target = root;
+      for (let i = 0; i < parts.length; i++) {
+        if (!target) break;
+        target = target[parts[i]];
+      }
+      if (typeof target !== 'function') throw new Error('ctx method not found: ' + path);
+      return target.apply(null, args || []);
+    };
+
+    window.addEventListener('message', function(ev) {
+      if (ev.source !== frame.contentWindow) return;
+      const data = ev.data || {};
+      if (data.type === 'sandbox:ctx-result' && pending.has(data.id)) {
+        const entry = pending.get(data.id);
+        pending.delete(data.id);
+        data.error ? entry.reject(new Error(data.error)) : entry.resolve(data.result);
+      }
+    });
+
+    frame.srcdoc = `<!doctype html><html><body><script>
+      const pendingCalls = new Map();
+      window.addEventListener('message', async (event) => {
+        const data = event.data || {};
+        if (data.type === 'sandbox:execute') {
+          const reqId = data.id;
+          const callCtx = (path, args) => new Promise((resolve, reject) => {
+            const id = 'ctx_' + Math.random().toString(36).slice(2);
+            pendingCalls.set(id, { resolve, reject });
+            parent.postMessage({ type: 'sandbox:ctx-call', id, path, args }, '*');
+          });
+          window.addEventListener('message', function onResult(ev){
+            const msg = ev.data || {};
+            if (msg.type !== 'sandbox:ctx-result') return;
+            const c = pendingCalls.get(msg.id);
+            if (!c) return;
+            pendingCalls.delete(msg.id);
+            msg.error ? c.reject(new Error(msg.error)) : c.resolve(msg.result);
+          });
+          const makeProxy = (prefix='') => new Proxy(function(){}, {
+            get(_t, prop){
+              const p = prefix ? prefix + '.' + String(prop) : String(prop);
+              return makeProxy(p);
+            },
+            apply(_t,_this,args){
+              return callCtx(prefix, args || []);
+            }
+          });
+          try {
+            const fn = new Function('ctx', data.code);
+            const ctx = makeProxy('');
+            const result = await fn(ctx);
+            parent.postMessage({ type: 'sandbox:exec-result', id: reqId, result }, '*');
+          } catch (err) {
+            parent.postMessage({ type: 'sandbox:exec-result', id: reqId, error: String(err && err.message ? err.message : err) }, '*');
+          }
+        }
+      });
+    </script></body></html>`;
+
+    const execute = function(code, ctx) {
+      return new Promise((resolve, reject) => {
+        const execId = 'exec_' + Math.random().toString(36).slice(2);
+        const onMessage = async function(ev) {
+          if (ev.source !== frame.contentWindow) return;
+          const data = ev.data || {};
+          if (data.type === 'sandbox:ctx-call') {
+            try {
+              const result = await callCtxPath(ctx, data.path, data.args);
+              frame.contentWindow.postMessage({ type: 'sandbox:ctx-result', id: data.id, result }, '*');
+            } catch (err) {
+              frame.contentWindow.postMessage({ type: 'sandbox:ctx-result', id: data.id, error: err.message }, '*');
+            }
+            return;
+          }
+          if (data.type === 'sandbox:exec-result' && data.id === execId) {
+            window.removeEventListener('message', onMessage);
+            data.error ? reject(new Error(data.error)) : resolve(data.result);
+          }
+        };
+        window.addEventListener('message', onMessage);
+        frame.contentWindow.postMessage({ type: 'sandbox:execute', id: execId, code }, '*');
+      });
+    };
+
+    pluginSandboxRuntime = { execute };
+    return pluginSandboxRuntime;
+  }
+
   function _createSandboxedFunction(code) {
-    return new Function('ctx', code);
+    return function(ctx) {
+      if (typeof window === 'undefined' || typeof document === 'undefined' || typeof window.addEventListener !== 'function' || typeof document.createElement !== 'function') {
+        return new Function('ctx', code)(ctx);
+      }
+      return ensurePluginSandboxRuntime().execute(code, ctx || {});
+    };
   }
 
   const PluginManager = {
@@ -1554,6 +1660,7 @@
   // Export to window
   if (!window.CardSpoke) window.CardSpoke = {};
   window.CardSpoke.Plugin = PluginManager;
+  window.CardSpoke.PluginSandbox = { createFunction: _createSandboxedFunction };
 
   console.log('[Plugin] API system initialized');
 })();
@@ -3919,6 +4026,130 @@ const header = {
         return text || null;
       }
 
+
+
+      function toBase64(bytes) {
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
+      }
+
+      function fromBase64(base64) {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+      }
+
+      async function derivePinKey(pin, saltBytes) {
+        if (!window.crypto || !window.crypto.subtle) throw new Error('Web Crypto API unavailable');
+        const encoder = new TextEncoder();
+        const baseKey = await window.crypto.subtle.importKey('raw', encoder.encode(pin), 'PBKDF2', false, ['deriveKey']);
+        return window.crypto.subtle.deriveKey(
+          {
+            name: 'PBKDF2',
+            salt: saltBytes,
+            iterations: 250000,
+            hash: 'SHA-256'
+          },
+          baseKey,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['encrypt', 'decrypt']
+        );
+      }
+
+      async function encryptStorePayload(payload, pin) {
+        const salt = window.crypto.getRandomValues(new Uint8Array(16));
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const key = await derivePinKey(pin, salt);
+        const data = new TextEncoder().encode(payload);
+        const encrypted = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
+        return JSON.stringify({
+          encrypted: true,
+          version: 1,
+          kdf: 'PBKDF2',
+          cipher: 'AES-GCM',
+          iterations: 250000,
+          salt: toBase64(salt),
+          iv: toBase64(iv),
+          payload: toBase64(new Uint8Array(encrypted))
+        });
+      }
+
+      async function decryptStorePayload(encryptedPayload, pin) {
+        const envelope = typeof encryptedPayload === 'string' ? JSON.parse(encryptedPayload) : encryptedPayload;
+        if (!envelope || !envelope.encrypted) return encryptedPayload;
+        const salt = fromBase64(envelope.salt);
+        const iv = fromBase64(envelope.iv);
+        const ciphertext = fromBase64(envelope.payload);
+        const key = await derivePinKey(pin, salt);
+        const decrypted = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+        return new TextDecoder().decode(decrypted);
+      }
+
+      function validateStoreConsistency() {
+        if (!store || !store.cards || typeof store.cards !== 'object') return false;
+        let changed = false;
+        const cards = store.cards;
+        const ids = new Set(Object.keys(cards));
+
+        Object.values(cards).forEach(card => {
+          if (!Array.isArray(card.children)) {
+            card.children = [];
+            changed = true;
+          }
+          card.children = card.children.filter(cid => ids.has(cid));
+        });
+
+        Object.values(cards).forEach(card => {
+          if (card.parentId && !cards[card.parentId]) {
+            card.parentId = null;
+            changed = true;
+          }
+        });
+
+        const visiting = new Set();
+        const visited = new Set();
+        const breakCycle = (id) => {
+          if (visited.has(id)) return;
+          if (visiting.has(id)) {
+            cards[id].parentId = null;
+            changed = true;
+            return;
+          }
+          visiting.add(id);
+          const parentId = cards[id] && cards[id].parentId;
+          if (parentId && cards[parentId]) breakCycle(parentId);
+          visiting.delete(id);
+          visited.add(id);
+        };
+        Object.keys(cards).forEach(breakCycle);
+
+        Object.values(cards).forEach(card => {
+          if (card.parentId && cards[card.parentId] && !cards[card.parentId].children.includes(card.id)) {
+            cards[card.parentId].children.push(card.id);
+            changed = true;
+          }
+        });
+
+        const computedRoots = Object.values(cards).filter(card => !card.parentId).map(card => card.id);
+        const existingRootOrder = Array.isArray(store.rootOrder) ? store.rootOrder : [];
+        const cleanedRootOrder = existingRootOrder.filter(id => cards[id] && !cards[id].parentId);
+        computedRoots.forEach(id => {
+          if (!cleanedRootOrder.includes(id)) {
+            cleanedRootOrder.push(id);
+            changed = true;
+          }
+        });
+        if (cleanedRootOrder.length !== existingRootOrder.length || !cleanedRootOrder.every((id, i) => id === existingRootOrder[i])) {
+          store.rootOrder = cleanedRootOrder;
+          changed = true;
+        }
+
+        return changed;
+      }
+
       // Cloud sync tracking
       let cloudSyncTimeout = null;
       let lastCloudSyncTime = 0;
@@ -4003,17 +4234,36 @@ const header = {
           const key = instanceKey || 'nested_cards_store';
           const startTime = performance.now();
 
+          if (!store.metadata) store.metadata = {};
+          store.metadata.navState = { ...navState };
+          store.metadata.navHistory = Array.isArray(navHistory) ? navHistory.slice(-100) : [];
+
           // Use requestIdleCallback if available to avoid blocking UI
-          const doSave = () => {
+          const doSave = async () => {
             try {
               const payload = JSON.stringify(store);
-              localStorage.setItem(key, payload);
+              const activeDataset = datasetManager && datasetManager.getActiveDataset ? datasetManager.getActiveDataset() : null;
+              const activePin = (activeDataset && activeDataset.pin) || (store && store.metadata && store.metadata.pin) || null;
+              const finalPayload = activePin
+                ? await encryptStorePayload(payload, activePin)
+                : payload;
+
+              localStorage.setItem(key, finalPayload);
 
               if (isIndexedDbDataset()) {
                 getIndexedDbMirrorDriver()
-                  .then(driver => driver.set(key, payload))
+                  .then(driver => driver.set(key, finalPayload))
                   .catch(err => console.error('[IndexedDB] Mirror save failed:', err));
               }
+
+              if (getStorageType() === 'localfile') {
+                writeDatasetToLocalFile(finalPayload)
+                  .catch(err => {
+                    console.error('[Local File] Save failed:', err);
+                    showToast('Local file save failed: ' + err.message, 'error');
+                  });
+              }
+
 
               const duration = performance.now() - startTime;
               lastSaveTime = Date.now();
@@ -4028,13 +4278,6 @@ const header = {
               // Schedule cloud sync if cloud storage is configured
               scheduleCloudSync();
 
-              if (getStorageType() === 'localfile') {
-                writeDatasetToLocalFile(payload)
-                  .catch(err => {
-                    console.error('[Local File] Save failed:', err);
-                    showToast('Local file save failed: ' + err.message, 'error');
-                  });
-              }
             } catch (e) {
               savePending = false;
               if (e.name === 'QuotaExceededError') {
@@ -4047,7 +4290,7 @@ const header = {
           };
 
           if (window.requestIdleCallback) {
-            requestIdleCallback(doSave, { timeout: 2000 });
+            requestIdleCallback(() => { doSave(); }, { timeout: 2000 });
           } else {
             doSave();
           }
@@ -4145,9 +4388,20 @@ const header = {
         }
       }
 
-      function load() {
+      async function load() {
         const key = instanceKey || 'nested_cards_store';
-        const raw = localStorage.getItem(key);
+        let raw = localStorage.getItem(key);
+        const activeDataset = datasetManager && datasetManager.getActiveDataset ? datasetManager.getActiveDataset() : null;
+        const activePin = (activeDataset && activeDataset.pin) || (store && store.metadata && store.metadata.pin) || null;
+        if (raw && activePin) {
+          try {
+            raw = await decryptStorePayload(raw, activePin);
+          } catch (err) {
+            console.error('[Dataset] Failed to decrypt payload:', err);
+            showToast('Failed to decrypt dataset. Check your PIN.', 'error');
+            throw err;
+          }
+        }
         if (!raw) {
           store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
           save();
@@ -4166,52 +4420,24 @@ const header = {
             metadata: parsed.metadata || {}
           };
 
-          // Data migration: rebuild rootOrder if needed
-          let needsMigration = false;
-          
-          // Case 1: rootOrder is empty but cards exist
-          if (store.rootOrder.length === 0 && Object.keys(store.cards).length > 0) {
-            const rootCards = Object.values(store.cards).filter(card => !card.parentId);
-            store.rootOrder = rootCards.map(card => card.id);
-            needsMigration = store.rootOrder.length > 0;
+          if (store.metadata && store.metadata.navState) {
+            navState = { ...navState, ...store.metadata.navState };
           }
-          
-          // Case 2: Clean up rootOrder - remove invalid IDs and ensure all root cards are included
-          if (Object.keys(store.cards).length > 0) {
-            // Remove IDs from rootOrder that don't exist in cards
-            const validRootOrder = store.rootOrder.filter(id => store.cards[id]);
-            
-            // Find all root-level cards (no parentId or parentId doesn't exist)
-            const actualRootCards = Object.values(store.cards).filter(card => {
-              return !card.parentId || !store.cards[card.parentId];
-            });
-            
-            // Add any missing root cards to rootOrder
-            actualRootCards.forEach(card => {
-              if (!validRootOrder.includes(card.id)) {
-                validRootOrder.push(card.id);
-                needsMigration = true;
-              }
-            });
-            
-            // Update rootOrder if it changed
-            if (validRootOrder.length !== store.rootOrder.length || 
-                !validRootOrder.every((id, i) => id === store.rootOrder[i])) {
-              store.rootOrder = validRootOrder;
-              needsMigration = true;
-            }
+          if (store.metadata && Array.isArray(store.metadata.navHistory)) {
+            navHistory = store.metadata.navHistory.slice(-100);
           }
-          
-          if (needsMigration) {
+
+          const repaired = validateStoreConsistency();
+          if (repaired) {
             save();
-            showToast('Data migrated: synchronized root cards');
+            showToast('Data integrity check repaired structural metadata', 'info');
           }
 
           const storageType = getStorageType();
           if (storageType === 'indexeddb') {
             getIndexedDbMirrorDriver()
               .then(driver => driver.get(key))
-              .then(payload => {
+              .then(async payload => {
                 if (!payload) return;
                 const parsedMirror = typeof payload === 'string' ? JSON.parse(payload) : payload;
                 if (!parsedMirror || typeof parsedMirror !== 'object') return;
@@ -4226,6 +4452,9 @@ const header = {
                   activeTheme: parsedMirror.activeTheme || 'light',
                   metadata: parsedMirror.metadata || store.metadata
                 };
+                if (store.metadata && store.metadata.navState) navState = { ...navState, ...store.metadata.navState };
+                if (store.metadata && Array.isArray(store.metadata.navHistory)) navHistory = store.metadata.navHistory.slice(-100);
+                if (validateStoreConsistency()) save();
                 render();
               })
               .catch(err => {
@@ -4233,9 +4462,12 @@ const header = {
               });
           } else if (storageType === 'localfile') {
             readDatasetFromLocalFile()
-              .then(payload => {
+              .then(async payload => {
                 if (!payload) return;
-                const parsedFile = JSON.parse(payload);
+                const active = datasetManager && datasetManager.getActiveDataset ? datasetManager.getActiveDataset() : null;
+                const filePin = (active && active.pin) || (store && store.metadata && store.metadata.pin) || null;
+                const payloadText = filePin ? await decryptStorePayload(payload, filePin) : payload;
+                const parsedFile = JSON.parse(payloadText);
                 store = {
                   rootOrder: parsedFile.rootOrder || [],
                   cards: parsedFile.cards || {},
@@ -4247,6 +4479,9 @@ const header = {
                   activeTheme: parsedFile.activeTheme || 'light',
                   metadata: parsedFile.metadata || store.metadata
                 };
+                if (store.metadata && store.metadata.navState) navState = { ...navState, ...store.metadata.navState };
+                if (store.metadata && Array.isArray(store.metadata.navHistory)) navHistory = store.metadata.navHistory.slice(-100);
+                if (validateStoreConsistency()) save();
                 render();
               })
               .catch(err => {
@@ -4518,7 +4753,7 @@ const header = {
        * @param {string} id - Card ID to delete
        */
       function deleteCard(id, opts = {}) {
-        const { skipSave = false, skipHooks = false } = opts;
+        const { skipSave = false, skipHooks = false, rootCall = true } = opts;
         const card = store.cards[id];
         if (!card) return;
         
@@ -4533,7 +4768,7 @@ const header = {
         if (trashBin.length > MAX_TRASH_SIZE) trashBin.pop();
         
         // Skip hooks for children to avoid redundant middleware calls on recursive deletes
-        (card.children || []).forEach(cid => deleteCard(cid, { skipSave: true, skipHooks: true }));
+        (card.children || []).forEach(cid => deleteCard(cid, { skipSave, skipHooks: true, rootCall: false }));
         if (card.parentId) {
           const parent = store.cards[card.parentId];
           if (parent) parent.children = parent.children.filter(c => c !== id);
@@ -4541,7 +4776,7 @@ const header = {
           store.rootOrder = store.rootOrder.filter(c => c !== id);
         }
         delete store.cards[id];
-        if (!skipSave) save();
+        if (!skipSave && rootCall) save();
         // Fire middleware event for plugins (Task 1.1)
         if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
           window.CardSpoke.Middleware.run('card.delete', [id])
@@ -4672,7 +4907,9 @@ const header = {
       function duplicateCard(id, withChildren = false) {
         const original = store.cards[id];
         if (!original) return null;
-        
+
+        const groupedUndo = withChildren && window.startUndoGroup && window.startUndoGroup('duplicateCard');
+
         const newId = uid();
         const now = Date.now();
         
@@ -4704,6 +4941,7 @@ const header = {
         }
         
         save();
+        if (groupedUndo && window.endUndoGroup) window.endUndoGroup();
         return newId;
       }
 
@@ -4976,13 +5214,15 @@ const header = {
       }
 
       function importJSON(data, mode = 'root') {
-        let pkg;
+        const groupedUndo = window.startUndoGroup && window.startUndoGroup('importJSON');
         try {
-          pkg = typeof data === 'string' ? JSON.parse(data) : data;
-        } catch (err) {
-          showToast('Invalid JSON: ' + err.message, 'error');
-          throw new Error('Failed to parse JSON: ' + err.message);
-        }
+          let pkg;
+          try {
+            pkg = typeof data === 'string' ? JSON.parse(data) : data;
+          } catch (err) {
+            showToast('Invalid JSON: ' + err.message, 'error');
+            throw new Error('Failed to parse JSON: ' + err.message);
+          }
 
         // Security: Validate import data structure
         if (!pkg || typeof pkg !== 'object') {
@@ -5105,6 +5345,9 @@ const header = {
         
         showToast(`Imported ${Object.keys(remappedCards).length} cards`);
         render();
+        } finally {
+          if (groupedUndo && window.endUndoGroup) window.endUndoGroup();
+        }
       }
 
       function importTXT(text, mode = 'outline', location = 'root') {
@@ -5351,7 +5594,7 @@ const header = {
           style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);'
         }, 'Default: LocalStorage. You can migrate later. Local File lets you choose a save location. Cloud options use your own Google Drive or OneDrive account.');
 
-        // PIN protection (future feature)
+        // PIN protection
         const pinLabel = h('label', { 
           style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' 
         }, 'PIN Protection (Optional)');
@@ -5359,7 +5602,7 @@ const header = {
           type: 'password',
           id: 'newDatasetPin',
           placeholder: 'Leave empty for no PIN',
-          title: 'PIN encryption will be available in v0.10.3',
+          title: 'Optional PIN used for dataset encryption',
           style: `
             width: 100%;
             padding: var(--space-md);
@@ -5369,14 +5612,12 @@ const header = {
             color: var(--text-primary);
             margin-bottom: var(--space-xs);
             font-size: 1rem;
-            cursor: not-allowed;
-          `,
-          disabled: true
+          `
         });
 
         const pinHelp = h('div', { 
           style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' 
-        }, 'PIN encryption coming in v0.10.3 - feature currently disabled for security hardening.');
+        }, 'If set, this PIN encrypts dataset payloads via Web Crypto (PBKDF2 + AES-GCM).');
 
         // Create button
         const createBtn = h('button', {
@@ -5385,6 +5626,7 @@ const header = {
           onclick: async () => {
             let name = document.getElementById('newDatasetName').value.trim();
             const storageType = document.getElementById('newDatasetStorage').value;
+            const pin = document.getElementById('newDatasetPin').value.trim();
 
             // Generate a readable default name if none provided
             if (!name) {
@@ -5446,7 +5688,8 @@ const header = {
                 name: name,
                 storageType: storageType,
                 storageConfig: {},
-                createdAt: Date.now()
+                createdAt: Date.now(),
+                pin: pin || null
               }
             };
 
@@ -5640,7 +5883,7 @@ const header = {
 
         // Tab buttons
         var tabBar = h('div', { style: 'display: flex; border-bottom: 2px solid var(--border); padding: 0 var(--space-lg);' });
-        var tabs = ['installed', 'install', 'create'];
+        var tabs = ['installed', 'install', 'gallery', 'create'];
         var tabButtons = {};
         var tabContents = {};
 
@@ -5827,9 +6070,9 @@ const header = {
                 // Task 1.2: pkg.js takes priority, then pkg.javascript (only if setup not already set)
                 if (!pkg.setup) {
                   if (pkg.js && typeof pkg.js === 'string') {
-                    pkg.setup = new Function('ctx', pkg.js);
+                    pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.js) : new Function('ctx', pkg.js));
                   } else if (pkg.javascript && typeof pkg.javascript === 'string') {
-                    pkg.setup = new Function('ctx', pkg.javascript);
+                    pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.javascript) : new Function('ctx', pkg.javascript));
                   }
                 }
                 
@@ -5876,9 +6119,9 @@ const header = {
                 // Task 1.2: pkg.js takes priority, then pkg.javascript (only if setup not already set)
                 if (!pkg.setup) {
                   if (pkg.js && typeof pkg.js === 'string') {
-                    pkg.setup = new Function('ctx', pkg.js);
+                    pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.js) : new Function('ctx', pkg.js));
                   } else if (pkg.javascript && typeof pkg.javascript === 'string') {
-                    pkg.setup = new Function('ctx', pkg.javascript);
+                    pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.javascript) : new Function('ctx', pkg.javascript));
                   }
                 }
                 
@@ -5895,6 +6138,55 @@ const header = {
           urlSection.appendChild(urlInput);
           urlSection.appendChild(urlBtn);
           container.appendChild(urlSection);
+        }
+
+
+
+        // ===== GALLERY TAB =====
+        function renderGalleryTab() {
+          var container = tabContents['gallery'];
+          container.innerHTML = '';
+          container.appendChild(h('h3', { style: 'margin-bottom: var(--space-md);' }, 'Plugin Gallery'));
+          container.appendChild(h('p', { style: 'margin-bottom: var(--space-lg); color: var(--text-muted);' },
+            'Browse curated plugins from the CardSpoke GitHub repository.'));
+
+          var loading = h('div', { style: 'padding: var(--space-md); color: var(--text-muted);' }, 'Loading gallery...');
+          container.appendChild(loading);
+
+          fetch('https://raw.githubusercontent.com/jxburros/CardSpoke/main/sample-plugins/manifest.json')
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function(manifest) {
+              loading.remove();
+              var plugins = Array.isArray(manifest.plugins) ? manifest.plugins : [];
+              if (!plugins.length) {
+                container.appendChild(h('div', { className: 'empty' }, 'No gallery plugins available.'));
+                return;
+              }
+              plugins.forEach(function(item) {
+                var card = h('div', { style: 'border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md); margin-bottom: var(--space-md);' });
+                card.appendChild(h('div', { style: 'font-weight: 700;' }, item.name || item.id || 'Plugin'));
+                card.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-top: var(--space-xs);' }, item.description || ''));
+                var installBtn = h('button', { className: 'btn btn-sm', style: 'margin-top: var(--space-sm);', onclick: async function() {
+                  try {
+                    var url = item.url || item.sourceUrl;
+                    if (!url) throw new Error('Missing plugin URL in manifest');
+                    var res = await fetch(url);
+                    if (!res.ok) throw new Error('Failed to fetch plugin package');
+                    var pkg = await res.json();
+                    var id = await window.CardSpoke.Plugin.install(pkg);
+                    showToast('Installed: ' + (pkg.manifest && pkg.manifest.name ? pkg.manifest.name : id), 'success');
+                    renderInstalledTab();
+                  } catch (err) {
+                    showToast('Gallery install failed: ' + err.message, 'error');
+                  }
+                }}, 'Install');
+                card.appendChild(installBtn);
+                container.appendChild(card);
+              });
+            })
+            .catch(function(err) {
+              loading.textContent = 'Failed to load gallery: ' + err.message;
+            });
         }
 
         // ===== CREATE TAB =====
@@ -5952,7 +6244,7 @@ const header = {
                 };
 
                 if (jsCode) {
-                  pkg.setup = new Function('ctx', jsCode);
+                  pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(jsCode) : new Function('ctx', jsCode));
                 }
 
                 var id = await window.CardSpoke.Plugin.install(pkg);
@@ -5972,6 +6264,7 @@ const header = {
         // Render all tabs
         renderInstalledTab();
         renderInstallTab();
+        renderGalleryTab();
         renderCreateTab();
 
         // Switch to initial tab
@@ -8275,6 +8568,11 @@ const header = {
        * @param {Object} data - Data needed to undo
        */
       function pushUndo(action, data) {
+        if (undoGroupState.active) {
+          undoGroupState.actions.push({ action, data, timestamp: Date.now() });
+          redoStack.length = 0;
+          return;
+        }
         undoStack.push({
           action,
           data,
@@ -8284,6 +8582,38 @@ const header = {
           undoStack.shift();
         }
         redoStack.length = 0;
+      }
+
+      const undoGroupState = {
+        active: false,
+        label: null,
+        actions: []
+      };
+
+      function startUndoGroup(label) {
+        if (undoGroupState.active) return false;
+        undoGroupState.active = true;
+        undoGroupState.label = label || 'group';
+        undoGroupState.actions = [];
+        return true;
+      }
+
+      function endUndoGroup() {
+        if (!undoGroupState.active) return false;
+        const groupedActions = undoGroupState.actions.slice();
+        const label = undoGroupState.label || 'group';
+        undoGroupState.active = false;
+        undoGroupState.label = null;
+        undoGroupState.actions = [];
+        if (!groupedActions.length) return true;
+        undoStack.push({
+          action: 'undoGroup',
+          data: { label, actions: groupedActions },
+          timestamp: Date.now()
+        });
+        if (undoStack.length > MAX_UNDO_STACK) undoStack.shift();
+        redoStack.length = 0;
+        return true;
       }
       
       /**
@@ -8298,7 +8628,33 @@ const header = {
         const action = undoStack.pop();
         
         try {
-          switch (action.action) {
+          if (action.action === 'undoGroup') {
+            const grouped = action.data.actions || [];
+            for (let i = grouped.length - 1; i >= 0; i--) {
+              applyUndoAction(grouped[i]);
+            }
+            redoStack.push(action);
+            save();
+            render();
+            showToast('Undo: ' + (action.data.label || 'bulk operation'), 'info');
+            return true;
+          }
+          applyUndoAction(action);
+          
+          redoStack.push(action);
+          save();
+          render();
+          showToast('Undo: ' + action.action, 'info');
+          return true;
+        } catch (err) {
+          console.error('Undo failed:', err);
+          showToast('Undo failed', 'error');
+          return false;
+        }
+      }
+
+      function applyUndoAction(action) {
+        switch (action.action) {
             case 'deleteCard':
               const cardData = action.data.card;
               store.cards[cardData.id] = cardData;
@@ -8363,17 +8719,6 @@ const header = {
                 }
               }
               break;
-          }
-          
-          redoStack.push(action);
-          save();
-          render();
-          showToast('Undo: ' + action.action, 'info');
-          return true;
-        } catch (err) {
-          console.error('Undo failed:', err);
-          showToast('Undo failed', 'error');
-          return false;
         }
       }
       
@@ -8389,7 +8734,32 @@ const header = {
         const action = redoStack.pop();
         
         try {
-          switch (action.action) {
+          if (action.action === 'undoGroup') {
+            const grouped = action.data.actions || [];
+            grouped.forEach(applyRedoAction);
+            undoStack.push(action);
+            save();
+            render();
+            showToast('Redo: ' + (action.data.label || 'bulk operation'), 'info');
+            return true;
+          }
+
+          applyRedoAction(action);
+          
+          undoStack.push(action);
+          save();
+          render();
+          showToast('Redo: ' + action.action, 'info');
+          return true;
+        } catch (err) {
+          console.error('Redo failed:', err);
+          showToast('Redo failed', 'error');
+          return false;
+        }
+      }
+
+      function applyRedoAction(action) {
+        switch (action.action) {
             case 'deleteCard':
               const cardId = action.data.card.id;
               const card = store.cards[cardId];
@@ -8455,19 +8825,11 @@ const header = {
                 }
               }
               break;
-          }
-          
-          undoStack.push(action);
-          save();
-          render();
-          showToast('Redo: ' + action.action, 'info');
-          return true;
-        } catch (err) {
-          console.error('Redo failed:', err);
-          showToast('Redo failed', 'error');
-          return false;
         }
       }
+
+      window.startUndoGroup = startUndoGroup;
+      window.endUndoGroup = endUndoGroup;
       
       /**
        * Show trash bin modal
