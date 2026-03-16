@@ -2195,8 +2195,8 @@ import {
           } else {
             // Partial match - check if search term is contained
             if (normalizedTitle.includes(normalizedSearch)) {
-              // Calculate simple similarity score
-              const similarity = normalizedSearch.length / normalizedTitle.length;
+              // Calculate simple similarity score (capped at 1.0)
+              const similarity = Math.min(normalizedSearch.length, normalizedTitle.length) / Math.max(normalizedSearch.length, normalizedTitle.length);
               results.push({
                 id,
                 title: card.title,
