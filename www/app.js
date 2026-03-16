@@ -93,6 +93,21 @@
       // Clear operation cache
       middlewaresByOperation.clear();
 
+      // Phase 3.2: Conflict Warning System
+      // Warn if another middleware at the same priority handles overlapping operations
+      const conflicts = middlewares.filter(function(m) {
+        if (m.name === middleware.name) return false;
+        if (m.priority !== middleware.priority) return false;
+        return m.operations.some(function(op) {
+          return op === '*' || middleware.operations.includes('*') || middleware.operations.includes(op);
+        });
+      });
+      if (conflicts.length > 0) {
+        console.warn('[Middleware] Conflict: "' + middleware.name + '" registered at priority ' + middleware.priority +
+          ' conflicts with: ' + conflicts.map(function(m) { return m.name; }).join(', ') +
+          '. Consider using different priority levels to ensure deterministic execution order.');
+      }
+
       console.log('[Middleware] Registered:', middleware.name, 'priority:', middleware.priority);
     },
 
@@ -220,6 +235,14 @@
         return;
       }
 
+      // Phase 3.2: Conflict Warning System
+      // Warn if an existing registration at the exact same priority is being replaced
+      if (existing && componentPriorities.get(name) === priority) {
+        console.warn('[ComponentRegistry] Conflict: Component "' + name + '" is already registered at priority ' +
+          priority + '. The previous registration will be overridden. ' +
+          'Consider using different priority levels to avoid ambiguous overrides.');
+      }
+
       components.set(name, component);
       componentPriorities.set(name, priority);
 
@@ -287,6 +310,218 @@
 
   console.log('[ComponentRegistry] System initialized');
 })();
+// Plugin Validation System
+// Validates plugin manifests, CSS, and JS content before execution
+// Prevents malformed or potentially dangerous plugins from loading
+
+(function() {
+  'use strict';
+
+  // Valid values for plugin manifest fields
+  var VALID_LAYERS = ['theme', 'feature', 'app'];
+  var VALID_PERMISSIONS = ['ui-override', 'storage', 'network', 'filesystem', 'core-override', 'data-modify'];
+  var MAX_CSS_LENGTH = 100000;   // 100KB max CSS
+  var MAX_JS_LENGTH = 500000;    // 500KB max JS
+
+  // Dangerous CSS patterns that could be used for attacks
+  var DANGEROUS_CSS_PATTERNS = [
+    { pattern: /@import/gi, name: '@import (external resource loading)' },
+    { pattern: /javascript:/gi, name: 'javascript: protocol' },
+    { pattern: /behavior:/gi, name: 'behavior: (IE behavior)' },
+    { pattern: /-moz-binding/gi, name: '-moz-binding (Mozilla binding)' },
+    { pattern: /expression\s*\(/gi, name: 'expression() (IE expressions)' }
+  ];
+
+  // Dangerous JS patterns
+  // Task 1.3: Allow new Function('ctx', ...) since the installer uses that exact pattern
+  // to instantiate stringified JS from manifests. Other new Function() forms are still blocked.
+  var DANGEROUS_JS_PATTERNS = [
+    { pattern: /\beval\s*\(/g, name: 'eval()' },
+    { pattern: /\bnew\s+Function\s*\(\s*(?!['"]ctx['"])/g, name: 'new Function()' }
+  ];
+
+  var PluginValidator = {
+    /**
+     * Validate a complete plugin package
+     * @param {Object} plugin - Plugin object to validate
+     * @returns {Object} { valid: boolean, errors: string[], warnings: string[], sanitized: Object }
+     */
+    validate: function(plugin) {
+      var errors = [];
+      var warnings = [];
+
+      // 1. Validate required fields
+      if (!plugin) {
+        return { valid: false, errors: ['Plugin object is required'], warnings: [], sanitized: null };
+      }
+
+      if (!plugin.id || typeof plugin.id !== 'string') {
+        errors.push('Plugin must have a string id');
+      } else if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(plugin.id)) {
+        warnings.push('Plugin id should use lowercase letters, numbers, and hyphens only');
+      }
+
+      // 2. Validate manifest
+      var manifestResult = this.validateManifest(plugin.manifest);
+      errors = errors.concat(manifestResult.errors);
+      warnings = warnings.concat(manifestResult.warnings);
+
+      // 3. Validate and sanitize CSS
+      if (plugin.css) {
+        var cssResult = this.validateCSS(plugin.css);
+        errors = errors.concat(cssResult.errors);
+        warnings = warnings.concat(cssResult.warnings);
+        if (cssResult.sanitized !== plugin.css) {
+          plugin.css = cssResult.sanitized;
+        }
+      }
+
+      // 4. Validate JS
+      if (plugin.js) {
+        var jsResult = this.validateJS(plugin.js);
+        errors = errors.concat(jsResult.errors);
+        warnings = warnings.concat(jsResult.warnings);
+      }
+
+      return {
+        valid: errors.length === 0,
+        errors: errors,
+        warnings: warnings,
+        sanitized: errors.length === 0 ? plugin : null
+      };
+    },
+
+    /**
+     * Validate plugin manifest structure
+     * @param {Object} manifest - Plugin manifest
+     * @returns {Object} { errors: string[], warnings: string[] }
+     */
+    validateManifest: function(manifest) {
+      var errors = [];
+      var warnings = [];
+
+      if (!manifest || typeof manifest !== 'object') {
+        errors.push('Plugin manifest is required and must be an object');
+        return { errors: errors, warnings: warnings };
+      }
+
+      // Required fields
+      if (!manifest.name || typeof manifest.name !== 'string') {
+        errors.push('manifest.name is required and must be a string');
+      } else if (manifest.name.length > 100) {
+        errors.push('manifest.name must be 100 characters or less');
+      }
+
+      if (!manifest.version || typeof manifest.version !== 'string') {
+        errors.push('manifest.version is required and must be a string');
+      } else if (!/^\d+\.\d+\.\d+/.test(manifest.version)) {
+        warnings.push('manifest.version should follow semver format (e.g., 1.0.0)');
+      }
+
+      if (!manifest.layer || typeof manifest.layer !== 'string') {
+        errors.push('manifest.layer is required and must be a string');
+      } else if (VALID_LAYERS.indexOf(manifest.layer) === -1) {
+        errors.push('manifest.layer must be one of: ' + VALID_LAYERS.join(', '));
+      }
+
+      // Optional fields
+      if (manifest.author && typeof manifest.author !== 'string') {
+        warnings.push('manifest.author should be a string');
+      } else if (manifest.author && manifest.author.length > 200) {
+        warnings.push('manifest.author should be 200 characters or less');
+      }
+
+      if (manifest.description && typeof manifest.description !== 'string') {
+        warnings.push('manifest.description should be a string');
+      } else if (manifest.description && manifest.description.length > 500) {
+        warnings.push('manifest.description should be 500 characters or less');
+      }
+
+      // Validate permissions
+      if (manifest.permissions) {
+        if (!Array.isArray(manifest.permissions)) {
+          errors.push('manifest.permissions must be an array');
+        } else {
+          manifest.permissions.forEach(function(perm) {
+            if (VALID_PERMISSIONS.indexOf(perm) === -1) {
+              warnings.push('Unknown permission: ' + perm);
+            }
+          });
+        }
+      }
+
+      return { errors: errors, warnings: warnings };
+    },
+
+    /**
+     * Validate and sanitize CSS content
+     * @param {string} css - CSS string to validate
+     * @returns {Object} { errors: string[], warnings: string[], sanitized: string }
+     */
+    validateCSS: function(css) {
+      var errors = [];
+      var warnings = [];
+      var sanitized = css;
+
+      if (typeof css !== 'string') {
+        return { errors: ['CSS must be a string'], warnings: [], sanitized: '' };
+      }
+
+      if (css.length > MAX_CSS_LENGTH) {
+        errors.push('CSS exceeds maximum size of ' + MAX_CSS_LENGTH + ' characters');
+        return { errors: errors, warnings: warnings, sanitized: css };
+      }
+
+      // Check and remove dangerous patterns
+      DANGEROUS_CSS_PATTERNS.forEach(function(entry) {
+        if (entry.pattern.test(sanitized)) {
+          warnings.push('Removed dangerous CSS pattern: ' + entry.name);
+          sanitized = sanitized.replace(entry.pattern, '/* removed */');
+        }
+        // Reset lastIndex for global regex
+        entry.pattern.lastIndex = 0;
+      });
+
+      return { errors: errors, warnings: warnings, sanitized: sanitized };
+    },
+
+    /**
+     * Validate JS content for dangerous patterns
+     * @param {string} js - JS string to validate
+     * @returns {Object} { errors: string[], warnings: string[] }
+     */
+    validateJS: function(js) {
+      var errors = [];
+      var warnings = [];
+
+      if (typeof js !== 'string') {
+        return { errors: ['JS must be a string'], warnings: [] };
+      }
+
+      if (js.length > MAX_JS_LENGTH) {
+        errors.push('JS exceeds maximum size of ' + MAX_JS_LENGTH + ' characters');
+        return { errors: errors, warnings: warnings };
+      }
+
+      // Check for dangerous patterns
+      DANGEROUS_JS_PATTERNS.forEach(function(entry) {
+        if (entry.pattern.test(js)) {
+          errors.push('Plugin contains ' + entry.name + ' - not allowed');
+        }
+        // Reset lastIndex for global regex
+        entry.pattern.lastIndex = 0;
+      });
+
+      return { errors: errors, warnings: warnings };
+    }
+  };
+
+  // Export to window
+  if (!window.CardSpoke) window.CardSpoke = {};
+  window.CardSpoke.PluginValidator = PluginValidator;
+
+  console.log('[PluginValidator] Validation system initialized');
+})();
 // Plugin API System
 // Provides sandboxed contexts and resource management for plugins
 // with isolated contexts and automatic cleanup support
@@ -302,11 +537,41 @@
   // Handlers stored as { pluginId, callback } entries per event name
   const globalEventBus = new Map();
 
+  // Stable internal references captured at initialization time
+  const InternalAPI = {
+    data: {},
+    ui: {},
+    utils: {}
+  };
+
+  function captureInternalReferences() {
+    if (!InternalAPI.data.createCard && window.createCard) InternalAPI.data.createCard = window.createCard;
+    if (!InternalAPI.data.updateCard && window.updateCard) InternalAPI.data.updateCard = window.updateCard;
+    if (!InternalAPI.data.deleteCard && window.deleteCard) InternalAPI.data.deleteCard = window.deleteCard;
+    if (!InternalAPI.utils.cloneCard && window.cloneCard) InternalAPI.utils.cloneCard = window.cloneCard;
+    if (!InternalAPI.data.getTags && window.getTags) InternalAPI.data.getTags = window.getTags;
+    if (!InternalAPI.data.addTag && window.addTag) InternalAPI.data.addTag = window.addTag;
+    if (!InternalAPI.data.removeTag && window.removeTag) InternalAPI.data.removeTag = window.removeTag;
+    if (!InternalAPI.data.setTags && window.setTags) InternalAPI.data.setTags = window.setTags;
+    if (!InternalAPI.data.getAllTags && window.getAllTags) InternalAPI.data.getAllTags = window.getAllTags;
+    if (!InternalAPI.ui.showToast && window.showToast) InternalAPI.ui.showToast = window.showToast;
+  }
+
+  function hasPermission(pluginId, permission) {
+    if (window.CardSpoke && window.CardSpoke.Permissions) {
+      return window.CardSpoke.Permissions.hasPermission(pluginId, permission);
+    }
+    return true;
+  }
+
   function createUIApi(pluginId) {
     const resources = pluginResources.get(pluginId) || new Set();
 
     return {
       inject: function(selector, element, position) {
+        if (!hasPermission(pluginId, 'ui-override')) {
+          throw new Error('Plugin does not have ui-override permission');
+        }
         position = position || 'append';
         const target = document.querySelector(selector);
         if (!target) {
@@ -342,6 +607,9 @@
       },
 
       replace: function(selector, element) {
+        if (!hasPermission(pluginId, 'ui-override')) {
+          throw new Error('Plugin does not have ui-override permission');
+        }
         const target = document.querySelector(selector);
         if (!target) {
           console.warn('[Plugin:' + pluginId + '] Selector not found:', selector);
@@ -363,6 +631,9 @@
       },
 
       registerComponent: function(name, component) {
+        if (!hasPermission(pluginId, 'ui-override')) {
+          throw new Error('Plugin does not have ui-override permission');
+        }
         if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
           window.CardSpoke.ComponentRegistry.register(name, component, component.priority || 0);
           const resource = { type: 'component', name: name };
@@ -377,8 +648,9 @@
       },
 
       showToast: function(message, type, duration) {
-        if (window.showToast) {
-          window.showToast(message, type || 'info', duration);
+        var fn = InternalAPI.ui.showToast || window.showToast;
+        if (fn) {
+          fn(message, type || 'info', duration);
         }
       }
     };
@@ -407,74 +679,106 @@
 
       getCard: function(id) {
         if (window.store && window.store.cards && window.store.cards[id]) {
-          return window.cloneCard ? window.cloneCard(window.store.cards[id]) : window.store.cards[id];
+          var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
+          if (cloneFn) return cloneFn(window.store.cards[id]);
+          if (typeof structuredClone === 'function') return structuredClone(window.store.cards[id]);
+          return JSON.parse(JSON.stringify(window.store.cards[id]));
         }
         return undefined;
       },
 
       listCards: function() {
         if (window.store && window.store.cards) {
+          var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
           return Object.values(window.store.cards).map(function(card) {
-            return window.cloneCard ? window.cloneCard(card) : card;
+            if (cloneFn) return cloneFn(card);
+            if (typeof structuredClone === 'function') return structuredClone(card);
+            return JSON.parse(JSON.stringify(card));
           });
         }
         return [];
       },
 
       createCard: function(data) {
-        if (window.createCard) {
-          return window.createCard(data.title || '', data.body || '', data.parentId || null, false, false);
+        if (!hasPermission(pluginId, 'data-modify')) {
+          throw new Error('Plugin does not have data-modify permission');
+        }
+        var fn = InternalAPI.data.createCard || window.createCard;
+        if (fn) {
+          return fn(data.title || '', data.body || '', data.parentId || null, false, false);
         }
         throw new Error('createCard not available');
       },
 
       updateCard: function(id, updates) {
-        if (window.updateCard) {
-          window.updateCard(id, updates, false, false);
+        if (!hasPermission(pluginId, 'data-modify')) {
+          throw new Error('Plugin does not have data-modify permission');
+        }
+        var fn = InternalAPI.data.updateCard || window.updateCard;
+        if (fn) {
+          fn(id, updates, false, false);
           return this.getCard(id);
         }
         throw new Error('updateCard not available');
       },
 
       deleteCard: function(id) {
-        if (window.deleteCard) {
-          window.deleteCard(id);
+        if (!hasPermission(pluginId, 'data-modify')) {
+          throw new Error('Plugin does not have data-modify permission');
+        }
+        var fn = InternalAPI.data.deleteCard || window.deleteCard;
+        if (fn) {
+          fn(id);
           return true;
         }
         return false;
       },
 
       getTags: function(cardId) {
-        if (window.getTags) {
-          return window.getTags(cardId);
+        var fn = InternalAPI.data.getTags || window.getTags;
+        if (fn) {
+          return fn(cardId);
         }
         return [];
       },
 
       addTag: function(cardId, tag) {
-        if (window.addTag) {
-          return window.addTag(cardId, tag);
+        if (!hasPermission(pluginId, 'data-modify')) {
+          throw new Error('Plugin does not have data-modify permission');
+        }
+        var fn = InternalAPI.data.addTag || window.addTag;
+        if (fn) {
+          return fn(cardId, tag);
         }
         return false;
       },
 
       removeTag: function(cardId, tag) {
-        if (window.removeTag) {
-          return window.removeTag(cardId, tag);
+        if (!hasPermission(pluginId, 'data-modify')) {
+          throw new Error('Plugin does not have data-modify permission');
+        }
+        var fn = InternalAPI.data.removeTag || window.removeTag;
+        if (fn) {
+          return fn(cardId, tag);
         }
         return false;
       },
 
       setTags: function(cardId, tags) {
-        if (window.setTags) {
-          return window.setTags(cardId, tags);
+        if (!hasPermission(pluginId, 'data-modify')) {
+          throw new Error('Plugin does not have data-modify permission');
+        }
+        var fn = InternalAPI.data.setTags || window.setTags;
+        if (fn) {
+          return fn(cardId, tags);
         }
         return false;
       },
 
       getAllTags: function() {
-        if (window.getAllTags) {
-          return window.getAllTags();
+        var fn = InternalAPI.data.getAllTags || window.getAllTags;
+        if (fn) {
+          return fn();
         }
         return [];
       }
@@ -490,14 +794,22 @@
       },
 
       get: async function(key) {
+        if (!hasPermission(pluginId, 'storage')) {
+          throw new Error('Plugin does not have storage permission');
+        }
         const fullKey = namespace + key;
         if (window.storageDriver && window.storageDriver.get) {
           return await window.storageDriver.get(fullKey);
         }
-        return localStorage.getItem(fullKey);
+        const raw = localStorage.getItem(fullKey);
+        if (raw === null) return null;
+        try { return JSON.parse(raw); } catch(e) { return raw; }
       },
 
       set: async function(key, value) {
+        if (!hasPermission(pluginId, 'storage')) {
+          throw new Error('Plugin does not have storage permission');
+        }
         const fullKey = namespace + key;
         if (window.storageDriver && window.storageDriver.set) {
           return await window.storageDriver.set(fullKey, value);
@@ -506,6 +818,9 @@
       },
 
       remove: async function(key) {
+        if (!hasPermission(pluginId, 'storage')) {
+          throw new Error('Plugin does not have storage permission');
+        }
         const fullKey = namespace + key;
         if (window.storageDriver && window.storageDriver.remove) {
           return await window.storageDriver.remove(fullKey);
@@ -514,6 +829,9 @@
       },
 
       list: async function(prefix) {
+        if (!hasPermission(pluginId, 'storage')) {
+          throw new Error('Plugin does not have storage permission');
+        }
         const fullPrefix = namespace + (prefix || '');
         if (window.storageDriver && window.storageDriver.list) {
           return await window.storageDriver.list(fullPrefix);
@@ -596,6 +914,46 @@
     };
   }
 
+  function createNetworkApi(pluginId) {
+    return {
+      fetch: async function(url, options) {
+        if (!hasPermission(pluginId, 'network')) {
+          throw new Error('Plugin does not have network permission');
+        }
+        return window.fetch(url, options);
+      },
+      xhr: function() {
+        if (!hasPermission(pluginId, 'network')) {
+          throw new Error('Plugin does not have network permission');
+        }
+        return new XMLHttpRequest();
+      }
+    };
+  }
+
+  function createFilesystemApi(pluginId) {
+    return {
+      readFile: async function(path, options) {
+        if (!hasPermission(pluginId, 'filesystem')) {
+          throw new Error('Plugin does not have filesystem permission');
+        }
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+          return window.Capacitor.Plugins.Filesystem.readFile(Object.assign({}, options, { path: path }));
+        }
+        throw new Error('Filesystem not available on this platform');
+      },
+      writeFile: async function(path, data, options) {
+        if (!hasPermission(pluginId, 'filesystem')) {
+          throw new Error('Plugin does not have filesystem permission');
+        }
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+          return window.Capacitor.Plugins.Filesystem.writeFile(Object.assign({}, options, { path: path, data: data }));
+        }
+        throw new Error('Filesystem not available on this platform');
+      }
+    };
+  }
+
   function createLogger(pluginId) {
     const prefix = '[Plugin:' + pluginId + ']';
     return {
@@ -615,11 +973,28 @@
         ui: createUIApi(pluginId),
         data: createDataApi(pluginId),
         storage: createStorageApi(pluginId),
-        events: createEventApi(pluginId)
+        events: createEventApi(pluginId),
+        network: createNetworkApi(pluginId),
+        filesystem: createFilesystemApi(pluginId)
       },
       utils: window.CardSpoke && window.CardSpoke.utils ? window.CardSpoke.utils : {},
       logger: createLogger(pluginId)
     };
+  }
+
+  // Phase 3.4: Sandbox Hardening
+  // Centralized factory for all plugin JS execution.
+  // All plugin code is instantiated here, providing a single upgrade point
+  // when full iframe or Web Worker isolation is implemented in the future.
+  //
+  // Current approach: new Function('ctx', code) creates a function scope
+  // where 'ctx' is the only explicitly-named parameter, providing the
+  // plugin's entire allowed API surface. Direct window access is not blocked
+  // at this level; future work should run this function inside a dedicated
+  // iframe or Worker that exposes a controlled message-passing API instead
+  // of the live window object.
+  function _createSandboxedFunction(code) {
+    return new Function('ctx', code);
   }
 
   const PluginManager = {
@@ -630,6 +1005,26 @@
 
       if (!definition.manifest) {
         throw new Error('Plugin manifest is required');
+      }
+
+      // Validate plugin content if validator is available
+      if (window.CardSpoke && window.CardSpoke.PluginValidator) {
+        var validationResult = window.CardSpoke.PluginValidator.validate({
+          id: id,
+          manifest: definition.manifest,
+          css: definition.css,
+          js: definition.js
+        });
+
+        if (validationResult.warnings.length > 0) {
+          validationResult.warnings.forEach(function(w) {
+            console.warn('[Plugin] Validation warning for ' + id + ':', w);
+          });
+        }
+
+        if (!validationResult.valid) {
+          throw new Error('Plugin validation failed: ' + validationResult.errors.join('; '));
+        }
       }
 
       const context = createPluginContext(id);
@@ -688,6 +1083,23 @@
         return;
       }
 
+      // Capture stable internal references before plugin runs
+      captureInternalReferences();
+
+      // Task 2.6: Pass config to plugin context
+      if (instance.definition.manifest.config) {
+        instance.context.config = instance.definition.manifest.config;
+      }
+
+      // Task 2.6: Apply overrides from manifest
+      if (instance.definition.manifest.overrides) {
+        const overrides = instance.definition.manifest.overrides;
+        if (overrides.appName && typeof overrides.appName === 'string') {
+          const brandBtn = document.getElementById && document.getElementById('brandBtn');
+          if (brandBtn) brandBtn.textContent = overrides.appName;
+        }
+      }
+
       // Check permissions
       if (instance.definition.manifest.permissions) {
         const granted = await this._checkPermissions(id, instance.definition.manifest.permissions);
@@ -707,6 +1119,13 @@
           await instance.definition.setup(instance.context);
         } catch (err) {
           console.error('[Plugin] Setup error for', id, ':', err);
+          console.error('[Plugin] Stack trace:', err.stack);
+          // Clean up partially applied resources
+          this._removeCSS(id);
+          this._cleanupResources(id);
+          if (instance.context && instance.context.logger) {
+            instance.context.logger.error('Plugin setup failed and was disabled: ' + err.message);
+          }
           throw err;
         }
       }
@@ -731,6 +1150,11 @@
           await instance.definition.teardown(instance.context);
         } catch (err) {
           console.error('[Plugin] Teardown error for', id, ':', err);
+          console.error('[Plugin] Stack trace:', err.stack);
+          if (instance.context && instance.context.logger) {
+            instance.context.logger.warn('Plugin cleanup had errors but continuing: ' + err.message);
+          }
+          // Continue anyway - don't let cleanup errors break app
         }
       }
 
@@ -765,29 +1189,78 @@
 
     _cleanupResources: function(id) {
       const resources = pluginResources.get(id);
-      if (resources) {
-        resources.forEach(function(resource) {
-          try {
-            if (resource.type === 'dom' && resource.element && resource.element.parentNode) {
-              resource.element.parentNode.removeChild(resource.element);
-            } else if (resource.type === 'component' && window.CardSpoke && window.CardSpoke.ComponentRegistry) {
-              window.CardSpoke.ComponentRegistry.unregister(resource.name);
-            } else if (resource.type === 'event') {
-              // Task 1.5: Clean up global event bus handlers on plugin disable/unregister
-              const list = globalEventBus.get(resource.event);
-              if (list) {
-                const idx = list.findIndex(function(h) { return h.callback === resource.callback && h.pluginId === id; });
-                if (idx !== -1) {
-                  list.splice(idx, 1);
-                }
+      if (!resources || resources.size === 0) {
+        return;
+      }
+
+      // Track cleanup statistics
+      const cleanup = {
+        domElements: 0,
+        components: 0,
+        listeners: 0,
+        events: 0,
+        errors: 0
+      };
+
+      resources.forEach(function(resource) {
+        try {
+          if (resource.type === 'dom') {
+            // For replaced elements, restore the original
+            if (resource.original) {
+              if (resource.element && resource.element.parentNode) {
+                resource.element.parentNode.replaceChild(resource.original, resource.element);
+                cleanup.domElements++;
               }
             }
-          } catch (err) {
-            console.error('[Plugin] Resource cleanup error:', err);
+            // For injected elements, just remove them
+            else if (resource.element && resource.element.parentNode) {
+              resource.element.parentNode.removeChild(resource.element);
+              cleanup.domElements++;
+            }
+          } else if (resource.type === 'component') {
+            // Unregister component
+            if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
+              window.CardSpoke.ComponentRegistry.unregister(resource.name);
+              cleanup.components++;
+            }
+          } else if (resource.type === 'listener') {
+            // Data update listeners are tracked separately in dataUpdateListeners map
+            cleanup.listeners++;
+          } else if (resource.type === 'event') {
+            // Task 1.5: Clean up global event bus handlers on plugin disable/unregister
+            const list = globalEventBus.get(resource.event);
+            if (list) {
+              const idx = list.findIndex(function(h) { return h.callback === resource.callback && h.pluginId === id; });
+              if (idx !== -1) {
+                list.splice(idx, 1);
+              }
+            }
+            cleanup.events++;
           }
-        });
-        resources.clear();
+        } catch (err) {
+          cleanup.errors++;
+          console.error('[Plugin] Resource cleanup error for', id, ':', err);
+        }
+      });
+
+      // Clear all resources
+      resources.clear();
+
+      // Clean up data update listeners
+      const listeners = dataUpdateListeners.get(id);
+      if (listeners && listeners.length > 0) {
+        cleanup.listeners += listeners.length;
+        dataUpdateListeners.delete(id);
       }
+
+      // Log cleanup summary
+      console.log('[Plugin] Cleanup complete for', id, ':',
+        cleanup.domElements, 'DOM elements,',
+        cleanup.components, 'components,',
+        cleanup.listeners, 'listeners,',
+        cleanup.events, 'events',
+        cleanup.errors > 0 ? '(' + cleanup.errors + ' errors)' : ''
+      );
     },
 
     _checkPermissions: async function(id, permissions) {
@@ -845,27 +1318,37 @@
         throw new Error('Invalid plugin package: manifest is required');
       }
 
-      // Task 1.2: Support pkg.js field (in addition to pkg.javascript and pkg.setup)
-      // Convert stringified JS to a callable setup function
+      // Phase 3.3: Dependency Checking
+      // Halt installation if any declared dependency is not already installed
+      if (pkg.manifest.dependencies && Array.isArray(pkg.manifest.dependencies) && pkg.manifest.dependencies.length > 0) {
+        const missing = pkg.manifest.dependencies.filter(function(dep) {
+          return !plugins.has(dep);
+        });
+        if (missing.length > 0) {
+          throw new Error('Missing dependencies: ' + missing.join(', ') + '. Install the required plugins first.');
+        }
+      }
+
+      // Task 1.2: Support pkg.js field via sandboxed function factory
       if (!pkg.setup) {
         if (pkg.js && typeof pkg.js === 'string') {
-          pkg.setup = new Function('ctx', pkg.js);
+          pkg.setup = _createSandboxedFunction(pkg.js);
         } else if (pkg.javascript && typeof pkg.javascript === 'string') {
-          pkg.setup = new Function('ctx', pkg.javascript);
+          pkg.setup = _createSandboxedFunction(pkg.javascript);
         }
       }
 
       // Generate unique ID
       let id = pkg.manifest.id || pkg.manifest.name.toLowerCase().replace(/\s+/g, '-');
       
-      // Ensure uniqueness
-      let counter = 1;
-      let uniqueId = id;
-      while (plugins.has(uniqueId)) {
-        uniqueId = id + '-' + counter;
-        counter++;
+      // Task 2.4: If plugin with this base ID already exists, update it
+      if (plugins.has(id)) {
+        const existing = plugins.get(id);
+        if (existing.enabled) {
+          await this.disable(id);
+        }
+        this.unregister(id);
       }
-      id = uniqueId;
       
       // Register the plugin
       const definition = {
@@ -962,6 +1445,14 @@
         try {
           // Register the plugin
           if (pluginData.definition) {
+            // Task 2.1: Reconstruct setup/teardown from saved JS string via sandbox factory
+            const def = pluginData.definition;
+            if (!def.setup && def.js && typeof def.js === 'string') {
+              def.setup = _createSandboxedFunction(def.js);
+            }
+            if (!def.teardown && def.teardownJs && typeof def.teardownJs === 'string') {
+              def.teardown = _createSandboxedFunction(def.teardownJs);
+            }
             this.register(id, pluginData.definition);
             
             // Enable if not in safe mode and plugin was previously enabled
@@ -973,6 +1464,90 @@
           console.error('[Plugin] Failed to sync plugin', id, ':', err);
         }
       }
+    },
+
+    /**
+     * Phase 3.1: Auto-Generated Settings UI
+     * Dynamically build a settings panel from the plugin's config object.
+     * Each config key becomes a labelled form input whose type is inferred
+     * from the value type (boolean → checkbox, number → number, else → text).
+     * Changes made in the panel are written back to the plugin's live context.
+     *
+     * @param {string} id - Plugin ID
+     * @returns {HTMLElement|null} A <div class="plugin-settings-panel"> element,
+     *   or null if the plugin has no config.
+     */
+    buildSettingsPanel: function(id) {
+      const instance = plugins.get(id);
+      if (!instance) return null;
+
+      const config = instance.definition.manifest && instance.definition.manifest.config;
+      if (!config || typeof config !== 'object') return null;
+
+      const keys = Object.keys(config);
+      if (keys.length === 0) return null;
+
+      const panel = document.createElement('div');
+      panel.className = 'plugin-settings-panel';
+      panel.setAttribute('data-plugin-id', id);
+
+      const title = document.createElement('h3');
+      title.className = 'plugin-settings-title';
+      title.textContent = (instance.definition.manifest.name || id) + ' Settings';
+      panel.appendChild(title);
+
+      keys.forEach(function(key) {
+        const defaultValue = config[key];
+        const valueType = typeof defaultValue;
+
+        const row = document.createElement('div');
+        row.className = 'plugin-settings-row';
+
+        const label = document.createElement('label');
+        label.textContent = key;
+        label.setAttribute('for', 'plugin-setting-' + id + '-' + key);
+
+        let input;
+        if (valueType === 'boolean') {
+          input = document.createElement('input');
+          input.type = 'checkbox';
+          input.checked = defaultValue;
+        } else if (valueType === 'number') {
+          input = document.createElement('input');
+          input.type = 'number';
+          input.value = String(defaultValue);
+        } else {
+          input = document.createElement('input');
+          input.type = 'text';
+          input.value = defaultValue != null ? String(defaultValue) : '';
+        }
+
+        input.id = 'plugin-setting-' + id + '-' + key;
+        input.setAttribute('data-config-key', key);
+        input.setAttribute('data-plugin-id', id);
+
+        // Write changes back to the live config object and context
+        input.onchange = function() {
+          let newValue;
+          if (valueType === 'boolean') {
+            newValue = input.checked;
+          } else if (valueType === 'number') {
+            newValue = Number(input.value);
+          } else {
+            newValue = input.value;
+          }
+          config[key] = newValue;
+          if (instance.context && instance.context.config) {
+            instance.context.config[key] = newValue;
+          }
+        };
+
+        row.appendChild(label);
+        row.appendChild(input);
+        panel.appendChild(row);
+      });
+
+      return panel;
     }
   };
 
@@ -7193,6 +7768,69 @@ const header = {
         }
       }
 
+      /**
+       * Apply custom components from the ComponentRegistry to core UI areas.
+       * Task 2.5: Expand Component Registry to Sidebar, Header, and SearchBar.
+       * Called once after plugins are synced from store.
+       */
+      function applyRegistryComponents() {
+        if (!window.CardSpoke || !window.CardSpoke.ComponentRegistry) {
+          return;
+        }
+        const registry = window.CardSpoke.ComponentRegistry;
+
+        // Replace Header if a custom component is registered
+        const CustomHeader = registry.get('Header');
+        if (CustomHeader && typeof CustomHeader.render === 'function') {
+          try {
+            const headerEl = document.querySelector('.header');
+            if (headerEl) {
+              const customEl = CustomHeader.render({ header: headerEl });
+              if (customEl instanceof HTMLElement) {
+                headerEl.parentNode.replaceChild(customEl, headerEl);
+                console.log('[ComponentRegistry] Custom Header component applied');
+              }
+            }
+          } catch (err) {
+            console.warn('[ComponentRegistry] Custom Header render failed, using default:', err);
+          }
+        }
+
+        // Replace Sidebar (menu panel) if a custom component is registered
+        const CustomSidebar = registry.get('Sidebar');
+        if (CustomSidebar && typeof CustomSidebar.render === 'function') {
+          try {
+            const menuPanel = document.querySelector('.menu-panel');
+            if (menuPanel) {
+              const customEl = CustomSidebar.render({ panel: menuPanel });
+              if (customEl instanceof HTMLElement) {
+                menuPanel.parentNode.replaceChild(customEl, menuPanel);
+                console.log('[ComponentRegistry] Custom Sidebar component applied');
+              }
+            }
+          } catch (err) {
+            console.warn('[ComponentRegistry] Custom Sidebar render failed, using default:', err);
+          }
+        }
+
+        // Replace SearchBar if a custom component is registered
+        const CustomSearchBar = registry.get('SearchBar');
+        if (CustomSearchBar && typeof CustomSearchBar.render === 'function') {
+          try {
+            const searchWrapper = document.querySelector('.search-input-wrapper');
+            if (searchWrapper) {
+              const customEl = CustomSearchBar.render({ wrapper: searchWrapper });
+              if (customEl instanceof HTMLElement) {
+                searchWrapper.parentNode.replaceChild(customEl, searchWrapper);
+                console.log('[ComponentRegistry] Custom SearchBar component applied');
+              }
+            }
+          } catch (err) {
+            console.warn('[ComponentRegistry] Custom SearchBar render failed, using default:', err);
+          }
+        }
+      }
+
       // =============================================================
       // --- THEME MANAGEMENT ---
       // Handle dark/light theme switching
@@ -9547,6 +10185,11 @@ const header = {
         // Sync plugins from store after load() but before render()
         if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
           await window.CardSpoke.Plugin.syncFromStore(safeMode);
+        }
+
+        // Task 2.5: Apply custom components from ComponentRegistry (Header, Sidebar, SearchBar)
+        if (typeof applyRegistryComponents === 'function') {
+          applyRegistryComponents();
         }
 
         render();                        // Initial render
