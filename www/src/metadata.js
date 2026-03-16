@@ -26,6 +26,22 @@
 
 'use strict';
 
+// ── Shared state & constants (ESM) ───────────────────────────────────────────
+import {
+  APP_CREATOR, APP_VERSION, APP_RELEASE_DATE, APP_UPDATER, SCHEMA_VERSION,
+  MAX_UNDO_STACK, MAX_TRASH_SIZE,
+  createDefaultStore,
+  store, setStore,
+  navState, setNavState,
+  navHistory, setNavHistory,
+  instanceKey, setInstanceKey,
+  dirty, setDirty,
+  searchResultsState, setSearchResultsState,
+  draggedCardId, setDraggedCardId,
+  dragOverCardId, setDragOverCardId,
+  undoStack, redoStack, trashBin
+} from './state.js';
+
 // =============================================================
 // --- SELF-CONTAINED UTILITIES ---
 // All utilities are defined locally to support opening directly
@@ -34,11 +50,7 @@
 // =============================================================
 
 // --- APP METADATA & SIGNATURES ---
-const APP_CREATOR = 'Jeffrey from GX Generations Software';
-const APP_VERSION = '0.17.0';
-const APP_RELEASE_DATE = '2026-02-17';
-const APP_UPDATER = 'Claude Code (Sonnet 4.5)';
-const SCHEMA_VERSION = 4;
+// (Imported from ./state.js — APP_CREATOR, APP_VERSION, APP_RELEASE_DATE, APP_UPDATER, SCHEMA_VERSION)
 
 /**
  * Helper function to create DOM elements
@@ -195,19 +207,9 @@ function formatBytes(bytes) {
 
 /**
  * Create a fresh store object with default values
+ * @see ./state.js — canonical definition; re-exported here for local use.
  */
-function createDefaultStore() {
-  return {
-    rootOrder: [],
-    cards: {},
-    plugins: {},
-    bookmarks: [],
-    recentCards: [],
-    viewMode: 'normal',
-    activeTheme: 'light',
-    richTextEnabled: false
-  };
-}
+// (imported from ./state.js — createDefaultStore)
 
 /**
  * Check if rich text mode is enabled globally
@@ -358,21 +360,11 @@ function showToast(message, type = 'success', duration = 3000) {
 // (see previous versions in git history)
 
 // --- CORE APP STATE ---
-let store = createDefaultStore();
-let navState = {
-  page: 'list',
-  cardId: null,
-  parentId: null,
-  searchQuery: ''
-};
-let navHistory = [];
-let instanceKey = localStorage.getItem('activeInstance') || 'nested_cards_store';
-let dirty = false;
-let searchResultsState = {
-  items: [],
-  elements: [],
-  selectedIndex: 0
-};
+// All mutable state is declared in and exported from ./state.js.
+// The names (store, navState, navHistory, …) are imported at the top of this
+// file so the rest of the module can reference them without qualification.
+
+// renderCleanupCallbacks is private to this module (not shared cross-module).
 let renderCleanupCallbacks = [];
 
 function registerRenderCleanup(fn) {
@@ -390,15 +382,6 @@ function runRenderCleanup() {
   });
   renderCleanupCallbacks = [];
 }
-
-// --- UNDO/REDO SYSTEM STATE (v0.12.0) ---
-const undoStack = [];
-const redoStack = [];
-const trashBin = [];
-const MAX_UNDO_STACK = 50;
-const MAX_TRASH_SIZE = 100;
-let draggedCardId = null;
-let dragOverCardId = null;
 
 // Note: save, saveNow, load, clearAllData, showAppearanceSettings, applyTheme 
 // are defined later in this file with local implementations

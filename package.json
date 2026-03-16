@@ -6,7 +6,7 @@
   "scripts": {
     "test": "uvu tests",
     "test:watch": "uvu tests --watch",
-    "build": "mkdir -p www && cat www/src/core.js www/src/metadata.js www/src/storage.js www/src/data.js www/src/rendering.js www/src/systems.js > www/app.js",
+    "build": "mkdir -p www && cat www/src/state.js www/src/core.js www/src/metadata.js www/src/storage.js www/src/data.js www/src/rendering.js www/src/systems.js > www/app.js",
     "build:vite": "vite build",
     "dev": "vite",
     "preview": "vite preview",

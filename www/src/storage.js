@@ -14,6 +14,14 @@
  * limitations under the License.
  */
 
+import {
+  APP_VERSION, SCHEMA_VERSION,
+  store, setStore,
+  navState, setNavState,
+  navHistory, setNavHistory,
+  instanceKey
+} from './state.js';
+
 
       // Source Part 2/5: Storage drivers, navigation, and plugin runtime
       // Concatenated via `npm run build` in lexical order of www/src/*.js
@@ -1693,13 +1701,13 @@
           }
         }
         if (!raw) {
-          store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
+          setStore({ rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' });
           save();
           return;
         }
         try {
           const parsed = JSON.parse(raw);
-          store = {
+          setStore({
             rootOrder: parsed.rootOrder || [],
             cards: parsed.cards || {},
             plugins: parsed.plugins || {},
@@ -1708,13 +1716,13 @@
             viewMode: parsed.viewMode || 'normal',
             activeTheme: parsed.activeTheme || 'light',
             metadata: parsed.metadata || {}
-          };
+          });
 
           if (store.metadata && store.metadata.navState) {
-            navState = { ...navState, ...store.metadata.navState };
+            setNavState({ ...navState, ...store.metadata.navState });
           }
           if (store.metadata && Array.isArray(store.metadata.navHistory)) {
-            navHistory = store.metadata.navHistory.slice(-100);
+            setNavHistory(store.metadata.navHistory.slice(-100));
           }
 
           const repaired = validateStoreConsistency();
@@ -1731,7 +1739,7 @@
                 if (!payload) return;
                 const parsedMirror = typeof payload === 'string' ? JSON.parse(payload) : payload;
                 if (!parsedMirror || typeof parsedMirror !== 'object') return;
-                store = {
+                setStore({
                   rootOrder: parsedMirror.rootOrder || [],
                   cards: parsedMirror.cards || {},
                   plugins: parsedMirror.plugins || {},
@@ -1740,9 +1748,9 @@
                   viewMode: parsedMirror.viewMode || 'normal',
                   activeTheme: parsedMirror.activeTheme || 'light',
                   metadata: parsedMirror.metadata || store.metadata
-                };
-                if (store.metadata && store.metadata.navState) navState = { ...navState, ...store.metadata.navState };
-                if (store.metadata && Array.isArray(store.metadata.navHistory)) navHistory = store.metadata.navHistory.slice(-100);
+                });
+                if (store.metadata && store.metadata.navState) setNavState({ ...navState, ...store.metadata.navState });
+                if (store.metadata && Array.isArray(store.metadata.navHistory)) setNavHistory(store.metadata.navHistory.slice(-100));
                 if (validateStoreConsistency()) save();
                 render();
               })
@@ -1757,7 +1765,7 @@
                 const filePin = (active && active.pin) || (store && store.metadata && store.metadata.pin) || null;
                 const payloadText = filePin ? await decryptStorePayload(payload, filePin) : payload;
                 const parsedFile = JSON.parse(payloadText);
-                store = {
+                setStore({
                   rootOrder: parsedFile.rootOrder || [],
                   cards: parsedFile.cards || {},
                   plugins: parsedFile.plugins || {},
@@ -1766,9 +1774,9 @@
                   viewMode: parsedFile.viewMode || 'normal',
                   activeTheme: parsedFile.activeTheme || 'light',
                   metadata: parsedFile.metadata || store.metadata
-                };
-                if (store.metadata && store.metadata.navState) navState = { ...navState, ...store.metadata.navState };
-                if (store.metadata && Array.isArray(store.metadata.navHistory)) navHistory = store.metadata.navHistory.slice(-100);
+                });
+                if (store.metadata && store.metadata.navState) setNavState({ ...navState, ...store.metadata.navState });
+                if (store.metadata && Array.isArray(store.metadata.navHistory)) setNavHistory(store.metadata.navHistory.slice(-100));
                 if (validateStoreConsistency()) save();
                 render();
               })
@@ -1785,12 +1793,12 @@
 
       function goTo(page, opts = {}) {
         navHistory.push({ ...navState });
-        navState = {
+        setNavState({
           page,
           cardId: opts.cardId ?? null,
           parentId: opts.parentId ?? null,
           searchQuery: opts.searchQuery ?? ''
-        };
+        });
 
         // Add to recent cards when viewing a card
         if (page === 'read' && opts.cardId) {
@@ -1802,7 +1810,7 @@
 
       function goBack() {
         if (navHistory.length) {
-          navState = navHistory.pop();
+          setNavState(navHistory.pop());
           render();
         }
       }

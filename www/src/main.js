@@ -34,11 +34,11 @@ import { Permissions, showPermissionDialog } from './core/permissions.js';
 import { StorageDriverRegistry } from './core/storage-driver-registry.js';
 import { Plugin as PluginAPI, PluginSandbox } from './core/plugin-api.js';
 
+// ── Shared application state (ESM live bindings) ─────────────────────────────
+import './state.js';
+
 // ── App layers (loaded in dependency order) ──────────────────────────────────
-// NOTE: These source files are currently plain scripts being progressively
-// converted to full ES Modules.  They are imported as side-effect modules
-// so Vite includes them in the IIFE bundle.  Full import/export wiring will
-// be completed once the shared-state migration (www/src/state.js) is done.
+// Each module imports the specific state bindings it needs from state.js.
 import './metadata.js';
 import './storage.js';
 import './data.js';
