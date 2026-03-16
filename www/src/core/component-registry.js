@@ -45,6 +45,14 @@
         return;
       }
 
+      // Phase 3.2: Conflict Warning System
+      // Warn if an existing registration at the exact same priority is being replaced
+      if (existing && componentPriorities.get(name) === priority) {
+        console.warn('[ComponentRegistry] Conflict: Component "' + name + '" is already registered at priority ' +
+          priority + '. The previous registration will be overridden. ' +
+          'Consider using different priority levels to avoid ambiguous overrides.');
+      }
+
       components.set(name, component);
       componentPriorities.set(name, priority);
 

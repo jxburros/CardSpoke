@@ -510,6 +510,21 @@
     };
   }
 
+  // Phase 3.4: Sandbox Hardening
+  // Centralized factory for all plugin JS execution.
+  // All plugin code is instantiated here, providing a single upgrade point
+  // when full iframe or Web Worker isolation is implemented in the future.
+  //
+  // Current approach: new Function('ctx', code) creates a function scope
+  // where 'ctx' is the only explicitly-named parameter, providing the
+  // plugin's entire allowed API surface. Direct window access is not blocked
+  // at this level; future work should run this function inside a dedicated
+  // iframe or Worker that exposes a controlled message-passing API instead
+  // of the live window object.
+  function _createSandboxedFunction(code) {
+    return new Function('ctx', code);
+  }
+
   const PluginManager = {
     register: function(id, definition) {
       if (!id || !definition) {
@@ -827,12 +842,23 @@
         throw new Error('Invalid plugin package: manifest is required');
       }
 
-      // Support pkg.js field (Task 1.2)
+      // Phase 3.3: Dependency Checking
+      // Halt installation if any declared dependency is not already installed
+      if (pkg.manifest.dependencies && Array.isArray(pkg.manifest.dependencies) && pkg.manifest.dependencies.length > 0) {
+        const missing = pkg.manifest.dependencies.filter(function(dep) {
+          return !plugins.has(dep);
+        });
+        if (missing.length > 0) {
+          throw new Error('Missing dependencies: ' + missing.join(', ') + '. Install the required plugins first.');
+        }
+      }
+
+      // Support pkg.js field (Task 1.2) via sandboxed function factory
       if (!pkg.setup) {
         if (pkg.js && typeof pkg.js === 'string') {
-          pkg.setup = new Function('ctx', pkg.js);
+          pkg.setup = _createSandboxedFunction(pkg.js);
         } else if (pkg.javascript && typeof pkg.javascript === 'string') {
-          pkg.setup = new Function('ctx', pkg.javascript);
+          pkg.setup = _createSandboxedFunction(pkg.javascript);
         }
       }
 
@@ -923,12 +949,12 @@
           if (pluginData.definition) {
             const def = pluginData.definition;
 
-            // Task 2.1: Reconstruct setup/teardown from saved JS string
+            // Task 2.1: Reconstruct setup/teardown from saved JS string via sandbox factory
             if (!def.setup && def.js && typeof def.js === 'string') {
-              def.setup = new Function('ctx', def.js);
+              def.setup = _createSandboxedFunction(def.js);
             }
             if (!def.teardown && def.teardownJs && typeof def.teardownJs === 'string') {
-              def.teardown = new Function('ctx', def.teardownJs);
+              def.teardown = _createSandboxedFunction(def.teardownJs);
             }
 
             this.register(id, def);
@@ -941,6 +967,90 @@
           console.error('[Plugin] Failed to sync plugin', id, ':', err);
         }
       }
+    },
+
+    /**
+     * Phase 3.1: Auto-Generated Settings UI
+     * Dynamically build a settings panel from the plugin's config object.
+     * Each config key becomes a labelled form input whose type is inferred
+     * from the value type (boolean → checkbox, number → number, else → text).
+     * Changes made in the panel are written back to the plugin's live context.
+     *
+     * @param {string} id - Plugin ID
+     * @returns {HTMLElement|null} A <div class="plugin-settings-panel"> element,
+     *   or null if the plugin has no config.
+     */
+    buildSettingsPanel: function(id) {
+      const instance = plugins.get(id);
+      if (!instance) return null;
+
+      const config = instance.definition.manifest && instance.definition.manifest.config;
+      if (!config || typeof config !== 'object') return null;
+
+      const keys = Object.keys(config);
+      if (keys.length === 0) return null;
+
+      const panel = document.createElement('div');
+      panel.className = 'plugin-settings-panel';
+      panel.setAttribute('data-plugin-id', id);
+
+      const title = document.createElement('h3');
+      title.className = 'plugin-settings-title';
+      title.textContent = (instance.definition.manifest.name || id) + ' Settings';
+      panel.appendChild(title);
+
+      keys.forEach(function(key) {
+        const defaultValue = config[key];
+        const valueType = typeof defaultValue;
+
+        const row = document.createElement('div');
+        row.className = 'plugin-settings-row';
+
+        const label = document.createElement('label');
+        label.textContent = key;
+        label.setAttribute('for', 'plugin-setting-' + id + '-' + key);
+
+        let input;
+        if (valueType === 'boolean') {
+          input = document.createElement('input');
+          input.type = 'checkbox';
+          input.checked = defaultValue;
+        } else if (valueType === 'number') {
+          input = document.createElement('input');
+          input.type = 'number';
+          input.value = String(defaultValue);
+        } else {
+          input = document.createElement('input');
+          input.type = 'text';
+          input.value = defaultValue != null ? String(defaultValue) : '';
+        }
+
+        input.id = 'plugin-setting-' + id + '-' + key;
+        input.setAttribute('data-config-key', key);
+        input.setAttribute('data-plugin-id', id);
+
+        // Write changes back to the live config object and context
+        input.onchange = function() {
+          let newValue;
+          if (valueType === 'boolean') {
+            newValue = input.checked;
+          } else if (valueType === 'number') {
+            newValue = Number(input.value);
+          } else {
+            newValue = input.value;
+          }
+          config[key] = newValue;
+          if (instance.context && instance.context.config) {
+            instance.context.config[key] = newValue;
+          }
+        };
+
+        row.appendChild(label);
+        row.appendChild(input);
+        panel.appendChild(row);
+      });
+
+      return panel;
     }
   };
 
