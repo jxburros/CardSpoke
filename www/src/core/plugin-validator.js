@@ -19,11 +19,8 @@
 // Validates plugin manifests, CSS, and JS content before execution
 // Prevents malformed or potentially dangerous plugins from loading
 
-(function() {
-  'use strict';
-
-  // Valid values for plugin manifest fields
-  var VALID_LAYERS = ['theme', 'feature', 'app'];
+// Valid values for plugin manifest fields
+var VALID_LAYERS = ['theme', 'feature', 'app'];
   var VALID_PERMISSIONS = ['ui-override', 'storage', 'network', 'filesystem', 'core-override', 'data-modify'];
   var MAX_CSS_LENGTH = 100000;   // 100KB max CSS
   var MAX_JS_LENGTH = 500000;    // 500KB max JS
@@ -221,9 +218,6 @@
     }
   };
 
-  // Export to window
-  if (!window.CardSpoke) window.CardSpoke = {};
-  window.CardSpoke.PluginValidator = PluginValidator;
-
   console.log('[PluginValidator] Validation system initialized');
-})();
+
+export { PluginValidator };

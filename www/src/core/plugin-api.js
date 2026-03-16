@@ -19,12 +19,13 @@
 // Provides sandboxed contexts and resource management for plugins
 // with isolated contexts and automatic cleanup support
 
-(function() {
-  'use strict';
+import { PluginValidator } from './plugin-validator.js';
+import { Permissions } from './permissions.js';
+import { ComponentRegistry } from './component-registry.js';
 
-  const plugins = new Map();
-  const pluginResources = new Map();
-  const dataUpdateListeners = new Map();
+const plugins = new Map();
+const pluginResources = new Map();
+const dataUpdateListeners = new Map();
 
   // Task 1.5: Central global event bus for cross-plugin communication
   // Handlers stored as { pluginId, callback } entries per event name
@@ -59,8 +60,8 @@
 
   // Helper function to check permissions
   function hasPermission(pluginId, permission) {
-    if (window.CardSpoke && window.CardSpoke.Permissions) {
-      return window.CardSpoke.Permissions.hasPermission(pluginId, permission);
+    if (Permissions) {
+      return Permissions.hasPermission(pluginId, permission);
     }
     // Fallback - auto-grant if permissions system not available
     return true;

@@ -19,11 +19,8 @@
 // Allows plugins to register custom storage drivers
 // Provides pluggable storage backends (cloud, git, etc.)
 
-(function() {
-  'use strict';
-
-  const drivers = new Map();
-  let activeDriver = null;
+const drivers = new Map();
+let activeDriver = null;
 
   const StorageDriverRegistry = {
     /**
@@ -125,9 +122,6 @@
     }
   };
 
-  // Export to window
-  if (!window.CardSpoke) window.CardSpoke = {};
-  window.CardSpoke.StorageDriverRegistry = StorageDriverRegistry;
-
   console.log('[StorageDriverRegistry] System initialized');
-})();
+
+export { StorageDriverRegistry };
