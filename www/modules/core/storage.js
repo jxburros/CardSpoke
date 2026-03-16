@@ -208,7 +208,7 @@ export class LocalStorageDriver extends StorageDriver {
 
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key.startsWith(searchPrefix)) {
+      if (key && key.startsWith(searchPrefix)) {
         keys.push(key.substring(this.prefix.length));
       }
     }
@@ -574,10 +574,14 @@ export class OneDriveDriver extends StorageDriver {
     const accounts = this.msalInstance.getAllAccounts();
     const request = {
       scopes: ['Files.ReadWrite', 'User.Read'],
-      account: accounts[0],
+      account: accounts.length > 0 ? accounts[0] : undefined,
     };
 
     try {
+      if (!request.account) {
+        // No cached account — go straight to interactive login
+        throw new Error('No cached account');
+      }
       // Try silent token acquisition first
       const response = await this.msalInstance.acquireTokenSilent(request);
       this.accessToken = response.accessToken;

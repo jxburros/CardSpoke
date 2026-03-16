@@ -581,9 +581,17 @@
 
         switch (position) {
           case 'before':
+            if (!target.parentNode) {
+              console.warn('[Plugin:' + pluginId + '] Target has no parent node for "before" injection');
+              return () => {};
+            }
             target.parentNode.insertBefore(element, target);
             break;
           case 'after':
+            if (!target.parentNode) {
+              console.warn('[Plugin:' + pluginId + '] Target has no parent node for "after" injection');
+              return () => {};
+            }
             target.parentNode.insertBefore(element, target.nextSibling);
             break;
           case 'prepend':
@@ -617,6 +625,10 @@
         }
 
         const original = target;
+        if (!target.parentNode) {
+          console.warn('[Plugin:' + pluginId + '] Target has no parent node for replace');
+          return () => {};
+        }
         target.parentNode.replaceChild(element, target);
 
         const resource = { type: 'dom', element: element, original: original };
@@ -2914,7 +2926,7 @@ const header = {
       
           for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key.startsWith(searchPrefix)) {
+            if (key && key.startsWith(searchPrefix)) {
               keys.push(key.substring(this.prefix.length));
             }
           }
@@ -3168,8 +3180,11 @@ const header = {
         async ensureAuthenticated() {
           if (this.accessToken) return;
           const accounts = this.msalInstance.getAllAccounts();
-          const request = { scopes: ['Files.ReadWrite', 'User.Read'], account: accounts[0] };
+          const request = { scopes: ['Files.ReadWrite', 'User.Read'], account: accounts.length > 0 ? accounts[0] : undefined };
           try {
+            if (!request.account) {
+              throw new Error('No cached account');
+            }
             const response = await this.msalInstance.acquireTokenSilent(request);
             this.accessToken = response.accessToken;
           } catch (error) {
@@ -6844,8 +6859,8 @@ const header = {
           } else {
             // Partial match - check if search term is contained
             if (normalizedTitle.includes(normalizedSearch)) {
-              // Calculate simple similarity score
-              const similarity = normalizedSearch.length / normalizedTitle.length;
+              // Calculate simple similarity score (capped at 1.0)
+              const similarity = Math.min(normalizedSearch.length, normalizedTitle.length) / Math.max(normalizedSearch.length, normalizedTitle.length);
               results.push({
                 id,
                 title: card.title,
@@ -7308,7 +7323,7 @@ const header = {
         cardEl.appendChild(contentEl);
 
         // Right side count
-        if (card.children.length > 0) {
+        if (card.children && card.children.length > 0) {
           cardEl.appendChild(h('div', { className: 'card-count' }, String(card.children.length)));
         }
 
@@ -7512,7 +7527,7 @@ const header = {
           }
         } }, 'Delete'));
         detail.appendChild(actions);
-        if (card.children.length > 0) {
+        if (card.children && card.children.length > 0) {
           const childrenSection = h('div', { className: 'children-section' });
           childrenSection.appendChild(h('div', { className: 'children-title' }, `Children (${card.children.length})`));
           const childrenGrid = h('div', { className: 'card-grid' });

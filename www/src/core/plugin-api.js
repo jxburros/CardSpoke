@@ -86,9 +86,17 @@ const dataUpdateListeners = new Map();
 
         switch (position) {
           case 'before':
+            if (!target.parentNode) {
+              console.warn('[Plugin:' + pluginId + '] Target has no parent node for "before" injection');
+              return () => {};
+            }
             target.parentNode.insertBefore(element, target);
             break;
           case 'after':
+            if (!target.parentNode) {
+              console.warn('[Plugin:' + pluginId + '] Target has no parent node for "after" injection');
+              return () => {};
+            }
             target.parentNode.insertBefore(element, target.nextSibling);
             break;
           case 'prepend':
@@ -124,6 +132,10 @@ const dataUpdateListeners = new Map();
         }
 
         const original = target;
+        if (!target.parentNode) {
+          console.warn('[Plugin:' + pluginId + '] Target has no parent node for replace');
+          return () => {};
+        }
         target.parentNode.replaceChild(element, target);
 
         const resource = { type: 'dom', element: element, original: original };

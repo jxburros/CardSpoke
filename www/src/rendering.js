@@ -195,7 +195,7 @@ import {
         cardEl.appendChild(contentEl);
 
         // Right side count
-        if (card.children.length > 0) {
+        if (card.children && card.children.length > 0) {
           cardEl.appendChild(h('div', { className: 'card-count' }, String(card.children.length)));
         }
 
@@ -399,7 +399,7 @@ import {
           }
         } }, 'Delete'));
         detail.appendChild(actions);
-        if (card.children.length > 0) {
+        if (card.children && card.children.length > 0) {
           const childrenSection = h('div', { className: 'children-section' });
           childrenSection.appendChild(h('div', { className: 'children-title' }, `Children (${card.children.length})`));
           const childrenGrid = h('div', { className: 'card-grid' });
