@@ -188,7 +188,9 @@
       getCard: function(id) {
         if (window.store && window.store.cards && window.store.cards[id]) {
           var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
-          return cloneFn ? cloneFn(window.store.cards[id]) : window.store.cards[id];
+          if (cloneFn) return cloneFn(window.store.cards[id]);
+          try { return structuredClone(window.store.cards[id]); } catch(e) {}
+          return JSON.parse(JSON.stringify(window.store.cards[id]));
         }
         return undefined;
       },
@@ -197,7 +199,9 @@
         if (window.store && window.store.cards) {
           var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
           return Object.values(window.store.cards).map(function(card) {
-            return cloneFn ? cloneFn(card) : card;
+            if (cloneFn) return cloneFn(card);
+            try { return structuredClone(card); } catch(e) {}
+            return JSON.parse(JSON.stringify(card));
           });
         }
         return [];
@@ -319,7 +323,9 @@
         if (window.storageDriver && window.storageDriver.get) {
           return await window.storageDriver.get(fullKey);
         }
-        return localStorage.getItem(fullKey);
+        const raw = localStorage.getItem(fullKey);
+        if (raw === null) return null;
+        try { return JSON.parse(raw); } catch(e) { return raw; }
       },
 
       set: async function(key, value) {
@@ -436,6 +442,46 @@
     };
   }
 
+  function createNetworkApi(pluginId) {
+    return {
+      fetch: async function(url, options) {
+        if (!hasPermission(pluginId, 'network')) {
+          throw new Error('Plugin does not have network permission');
+        }
+        return window.fetch(url, options);
+      },
+      xhr: function() {
+        if (!hasPermission(pluginId, 'network')) {
+          throw new Error('Plugin does not have network permission');
+        }
+        return new XMLHttpRequest();
+      }
+    };
+  }
+
+  function createFilesystemApi(pluginId) {
+    return {
+      readFile: async function(path, options) {
+        if (!hasPermission(pluginId, 'filesystem')) {
+          throw new Error('Plugin does not have filesystem permission');
+        }
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+          return window.Capacitor.Plugins.Filesystem.readFile({ path: path, ...options });
+        }
+        throw new Error('Filesystem not available on this platform');
+      },
+      writeFile: async function(path, data, options) {
+        if (!hasPermission(pluginId, 'filesystem')) {
+          throw new Error('Plugin does not have filesystem permission');
+        }
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+          return window.Capacitor.Plugins.Filesystem.writeFile({ path: path, data: data, ...options });
+        }
+        throw new Error('Filesystem not available on this platform');
+      }
+    };
+  }
+
   function createLogger(pluginId) {
     const prefix = '[Plugin:' + pluginId + ']';
     return {
@@ -455,7 +501,9 @@
         ui: createUIApi(pluginId),
         data: createDataApi(pluginId),
         storage: createStorageApi(pluginId),
-        events: createEventApi(pluginId)
+        events: createEventApi(pluginId),
+        network: createNetworkApi(pluginId),
+        filesystem: createFilesystemApi(pluginId)
       },
       utils: window.CardSpoke && window.CardSpoke.utils ? window.CardSpoke.utils : {},
       logger: createLogger(pluginId)
@@ -550,6 +598,20 @@
 
       // Capture stable internal references before plugin runs
       captureInternalReferences();
+
+      // Task 2.6: Pass config to plugin context
+      if (instance.definition.manifest.config) {
+        instance.context.config = instance.definition.manifest.config;
+      }
+
+      // Task 2.6: Apply overrides from manifest
+      if (instance.definition.manifest.overrides) {
+        const overrides = instance.definition.manifest.overrides;
+        if (overrides.appName && typeof overrides.appName === 'string') {
+          const brandBtn = document.getElementById && document.getElementById('brandBtn');
+          if (brandBtn) brandBtn.textContent = overrides.appName;
+        }
+      }
 
       // Check permissions
       if (instance.definition.manifest.permissions) {
@@ -783,15 +845,6 @@
           await this.disable(id);
         }
         this.unregister(id);
-      } else {
-        // Ensure uniqueness against any suffixed IDs
-        let counter = 1;
-        let uniqueId = id;
-        while (plugins.has(uniqueId)) {
-          uniqueId = id + '-' + counter;
-          counter++;
-        }
-        id = uniqueId;
       }
 
       const definition = {
