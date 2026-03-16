@@ -55,6 +55,11 @@
         // Always track undo regardless of skipHooks - skipHooks only controls plugin hooks
         pushUndo('createCard', { cardId: id, card: cloneCard(store.cards[id]) });
         if (!skipSave) save();
+        // Fire middleware event for plugins (Task 1.1)
+        if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
+          window.CardSpoke.Middleware.run('card.create', [id, store.cards[id]])
+            .catch(err => console.error('[Middleware] card.create error:', err));
+        }
         return id;
       }
 
@@ -79,6 +84,11 @@
         });
         Object.assign(card, updates, { updatedAt: updateTimestamp });
         if (!skipSave) save();
+        // Fire middleware event for plugins (Task 1.1)
+        if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
+          window.CardSpoke.Middleware.run('card.update', [id, store.cards[id]])
+            .catch(err => console.error('[Middleware] card.update error:', err));
+        }
       }
 
       /**
@@ -86,7 +96,7 @@
        * @param {string} id - Card ID to delete
        */
       function deleteCard(id, opts = {}) {
-        const { skipSave = false } = opts;
+        const { skipSave = false, skipHooks = false } = opts;
         const card = store.cards[id];
         if (!card) return;
         
@@ -100,7 +110,8 @@
         });
         if (trashBin.length > MAX_TRASH_SIZE) trashBin.pop();
         
-        (card.children || []).forEach(cid => deleteCard(cid, { skipSave: true }));
+        // Skip hooks for children to avoid redundant middleware calls on recursive deletes
+        (card.children || []).forEach(cid => deleteCard(cid, { skipSave: true, skipHooks: true }));
         if (card.parentId) {
           const parent = store.cards[card.parentId];
           if (parent) parent.children = parent.children.filter(c => c !== id);
@@ -109,6 +120,11 @@
         }
         delete store.cards[id];
         if (!skipSave) save();
+        // Fire middleware event for plugins (Task 1.1)
+        if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
+          window.CardSpoke.Middleware.run('card.delete', [id])
+            .catch(err => console.error('[Middleware] card.delete error:', err));
+        }
       }
 
       function getStorageTypeLabel(storageType) {
@@ -1386,9 +1402,13 @@
                 var text = await file.text();
                 var pkg = JSON.parse(text);
                 
-                // Convert to plugin format if needed
-                if (pkg.javascript && typeof pkg.javascript === 'string') {
-                  pkg.setup = new Function('ctx', pkg.javascript);
+                // Task 1.2: pkg.js takes priority, then pkg.javascript (only if setup not already set)
+                if (!pkg.setup) {
+                  if (pkg.js && typeof pkg.js === 'string') {
+                    pkg.setup = new Function('ctx', pkg.js);
+                  } else if (pkg.javascript && typeof pkg.javascript === 'string') {
+                    pkg.setup = new Function('ctx', pkg.javascript);
+                  }
                 }
                 
                 var id = await window.CardSpoke.Plugin.install(pkg);
@@ -1431,9 +1451,13 @@
                 if (!response.ok) throw new Error('Failed to fetch plugin: ' + response.status + ' ' + response.statusText);
                 var pkg = await response.json();
                 
-                // Convert to plugin format if needed
-                if (pkg.javascript && typeof pkg.javascript === 'string') {
-                  pkg.setup = new Function('ctx', pkg.javascript);
+                // Task 1.2: pkg.js takes priority, then pkg.javascript (only if setup not already set)
+                if (!pkg.setup) {
+                  if (pkg.js && typeof pkg.js === 'string') {
+                    pkg.setup = new Function('ctx', pkg.js);
+                  } else if (pkg.javascript && typeof pkg.javascript === 'string') {
+                    pkg.setup = new Function('ctx', pkg.javascript);
+                  }
                 }
                 
                 var id = await window.CardSpoke.Plugin.install(pkg);

@@ -208,6 +208,12 @@
           previewObserver.observe(cardEl);
         }
 
+        // Fire card.render middleware for plugins (Task 1.1)
+        if (window.CardSpoke && window.CardSpoke.Middleware) {
+          window.CardSpoke.Middleware.run('card.render', [card, cardEl])
+            .catch(err => console.error('[Middleware] card.render error:', err));
+        }
+
         return cardEl;
       }
 

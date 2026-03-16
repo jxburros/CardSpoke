@@ -1382,8 +1382,21 @@
         }, delay);
       }
 
-      function saveNow() {
+      async function saveNow() {
         try {
+          // Run middleware pipeline before saving (Task 1.1)
+          if (window.CardSpoke && window.CardSpoke.Middleware) {
+            try {
+              const result = await window.CardSpoke.Middleware.run('card.save', [store]);
+              if (result && result.prevented) {
+                savePending = false;
+                return;
+              }
+            } catch (err) {
+              console.error('[Middleware] card.save pipeline error:', err);
+            }
+          }
+
           const key = instanceKey || 'nested_cards_store';
           const startTime = performance.now();
 

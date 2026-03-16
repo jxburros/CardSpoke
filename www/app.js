@@ -298,6 +298,10 @@
   const pluginResources = new Map();
   const dataUpdateListeners = new Map();
 
+  // Task 1.5: Central global event bus for cross-plugin communication
+  // Handlers stored as { pluginId, callback } entries per event name
+  const globalEventBus = new Map();
+
   function createUIApi(pluginId) {
     const resources = pluginResources.get(pluginId) || new Set();
 
@@ -528,36 +532,44 @@
   }
 
   function createEventApi(pluginId) {
+    // Task 1.5: Use global event bus for cross-plugin communication while
+    // preserving per-plugin ctx.api.events interface
     const resources = pluginResources.get(pluginId) || new Set();
-    const eventHandlers = new Map();
 
     return {
       on: function(event, callback) {
-        const handlers = eventHandlers.get(event) || [];
-        handlers.push(callback);
-        eventHandlers.set(event, handlers);
+        // Ensure the handlers array exists in the global bus, then append to the same reference
+        if (!globalEventBus.has(event)) {
+          globalEventBus.set(event, []);
+        }
+        const handlers = globalEventBus.get(event);
+        handlers.push({ pluginId: pluginId, callback: callback });
 
         const resource = { type: 'event', event: event, callback: callback };
         resources.add(resource);
 
         return function() {
-          const idx = handlers.indexOf(callback);
-          if (idx !== -1) {
-            handlers.splice(idx, 1);
+          const list = globalEventBus.get(event);
+          if (list) {
+            const idx = list.findIndex(function(h) { return h.callback === callback && h.pluginId === pluginId; });
+            if (idx !== -1) {
+              list.splice(idx, 1);
+            }
           }
           resources.delete(resource);
         };
       },
 
       emit: function(event) {
-        const handlers = eventHandlers.get(event);
+        const handlers = globalEventBus.get(event);
         if (handlers) {
           const args = Array.prototype.slice.call(arguments, 1);
-          handlers.forEach(function(handler) {
+          // Iterate over a copy to avoid issues if handlers array is modified during dispatch
+          handlers.slice().forEach(function(entry) {
             try {
-              handler.apply(null, args);
+              entry.callback.apply(null, args);
             } catch (err) {
-              console.error('[Plugin:' + pluginId + '] Event handler error:', err);
+              console.error('[EventBus] Handler error in plugin ' + entry.pluginId + ':', err);
             }
           });
         }
@@ -573,11 +585,11 @@
       },
 
       off: function(event, callback) {
-        const handlers = eventHandlers.get(event);
-        if (handlers) {
-          const idx = handlers.indexOf(callback);
+        const list = globalEventBus.get(event);
+        if (list) {
+          const idx = list.findIndex(function(h) { return h.callback === callback && h.pluginId === pluginId; });
           if (idx !== -1) {
-            handlers.splice(idx, 1);
+            list.splice(idx, 1);
           }
         }
       }
@@ -760,6 +772,15 @@
               resource.element.parentNode.removeChild(resource.element);
             } else if (resource.type === 'component' && window.CardSpoke && window.CardSpoke.ComponentRegistry) {
               window.CardSpoke.ComponentRegistry.unregister(resource.name);
+            } else if (resource.type === 'event') {
+              // Task 1.5: Clean up global event bus handlers on plugin disable/unregister
+              const list = globalEventBus.get(resource.event);
+              if (list) {
+                const idx = list.findIndex(function(h) { return h.callback === resource.callback && h.pluginId === id; });
+                if (idx !== -1) {
+                  list.splice(idx, 1);
+                }
+              }
             }
           } catch (err) {
             console.error('[Plugin] Resource cleanup error:', err);
@@ -770,17 +791,28 @@
     },
 
     _checkPermissions: async function(id, permissions) {
-      // For now, auto-grant all permissions
-      // In production, this should show a consent UI
+      // Task 1.4: Use PermissionsManager for actual user consent instead of auto-granting
       console.log('[Plugin] Permissions requested for', id, ':', permissions);
-      
-      // Show user consent UI if available
+
+      if (!permissions || permissions.length === 0) {
+        return true;
+      }
+
+      // Use the PermissionsManager if available (preferred path)
+      if (window.CardSpoke && window.CardSpoke.Permissions) {
+        const instance = plugins.get(id);
+        const pluginName = (instance && instance.definition.manifest && instance.definition.manifest.name) || id;
+        return await window.CardSpoke.Permissions.requestPermissions(id, pluginName, permissions);
+      }
+
+      // Fallback: use global dialog if available
       if (window.showPermissionDialog) {
         return await window.showPermissionDialog(id, permissions);
       }
-      
-      // Auto-grant for now
-      return true;
+
+      // Last resort: deny by default when no consent mechanism is available
+      console.warn('[Plugin] No permission consent mechanism available; denying permissions for', id);
+      return false;
     },
 
     notifyDataUpdate: function(event) {
@@ -805,12 +837,22 @@
 
     /**
      * Install a plugin from a package definition
-     * @param {Object} pkg - Plugin package with manifest, setup, teardown, css
+     * @param {Object} pkg - Plugin package with manifest, setup, teardown, css, js
      * @returns {Promise<string>} Plugin ID
      */
     install: async function(pkg) {
       if (!pkg || !pkg.manifest) {
         throw new Error('Invalid plugin package: manifest is required');
+      }
+
+      // Task 1.2: Support pkg.js field (in addition to pkg.javascript and pkg.setup)
+      // Convert stringified JS to a callable setup function
+      if (!pkg.setup) {
+        if (pkg.js && typeof pkg.js === 'string') {
+          pkg.setup = new Function('ctx', pkg.js);
+        } else if (pkg.javascript && typeof pkg.javascript === 'string') {
+          pkg.setup = new Function('ctx', pkg.javascript);
+        }
       }
 
       // Generate unique ID
@@ -830,7 +872,8 @@
         manifest: pkg.manifest,
         setup: pkg.setup,
         teardown: pkg.teardown,
-        css: pkg.css
+        css: pkg.css,
+        js: pkg.js || pkg.javascript  // Preserve raw JS string for Task 2.1 (persistence)
       };
       
       this.register(id, definition);
@@ -3367,8 +3410,21 @@ const header = {
         }, delay);
       }
 
-      function saveNow() {
+      async function saveNow() {
         try {
+          // Run middleware pipeline before saving (Task 1.1)
+          if (window.CardSpoke && window.CardSpoke.Middleware) {
+            try {
+              const result = await window.CardSpoke.Middleware.run('card.save', [store]);
+              if (result && result.prevented) {
+                savePending = false;
+                return;
+              }
+            } catch (err) {
+              console.error('[Middleware] card.save pipeline error:', err);
+            }
+          }
+
           const key = instanceKey || 'nested_cards_store';
           const startTime = performance.now();
 
@@ -3846,6 +3902,11 @@ const header = {
         // Always track undo regardless of skipHooks - skipHooks only controls plugin hooks
         pushUndo('createCard', { cardId: id, card: cloneCard(store.cards[id]) });
         if (!skipSave) save();
+        // Fire middleware event for plugins (Task 1.1)
+        if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
+          window.CardSpoke.Middleware.run('card.create', [id, store.cards[id]])
+            .catch(err => console.error('[Middleware] card.create error:', err));
+        }
         return id;
       }
 
@@ -3870,6 +3931,11 @@ const header = {
         });
         Object.assign(card, updates, { updatedAt: updateTimestamp });
         if (!skipSave) save();
+        // Fire middleware event for plugins (Task 1.1)
+        if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
+          window.CardSpoke.Middleware.run('card.update', [id, store.cards[id]])
+            .catch(err => console.error('[Middleware] card.update error:', err));
+        }
       }
 
       /**
@@ -3877,7 +3943,7 @@ const header = {
        * @param {string} id - Card ID to delete
        */
       function deleteCard(id, opts = {}) {
-        const { skipSave = false } = opts;
+        const { skipSave = false, skipHooks = false } = opts;
         const card = store.cards[id];
         if (!card) return;
         
@@ -3891,7 +3957,8 @@ const header = {
         });
         if (trashBin.length > MAX_TRASH_SIZE) trashBin.pop();
         
-        (card.children || []).forEach(cid => deleteCard(cid, { skipSave: true }));
+        // Skip hooks for children to avoid redundant middleware calls on recursive deletes
+        (card.children || []).forEach(cid => deleteCard(cid, { skipSave: true, skipHooks: true }));
         if (card.parentId) {
           const parent = store.cards[card.parentId];
           if (parent) parent.children = parent.children.filter(c => c !== id);
@@ -3900,6 +3967,11 @@ const header = {
         }
         delete store.cards[id];
         if (!skipSave) save();
+        // Fire middleware event for plugins (Task 1.1)
+        if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
+          window.CardSpoke.Middleware.run('card.delete', [id])
+            .catch(err => console.error('[Middleware] card.delete error:', err));
+        }
       }
 
       function getStorageTypeLabel(storageType) {
@@ -5177,9 +5249,13 @@ const header = {
                 var text = await file.text();
                 var pkg = JSON.parse(text);
                 
-                // Convert to plugin format if needed
-                if (pkg.javascript && typeof pkg.javascript === 'string') {
-                  pkg.setup = new Function('ctx', pkg.javascript);
+                // Task 1.2: pkg.js takes priority, then pkg.javascript (only if setup not already set)
+                if (!pkg.setup) {
+                  if (pkg.js && typeof pkg.js === 'string') {
+                    pkg.setup = new Function('ctx', pkg.js);
+                  } else if (pkg.javascript && typeof pkg.javascript === 'string') {
+                    pkg.setup = new Function('ctx', pkg.javascript);
+                  }
                 }
                 
                 var id = await window.CardSpoke.Plugin.install(pkg);
@@ -5222,9 +5298,13 @@ const header = {
                 if (!response.ok) throw new Error('Failed to fetch plugin: ' + response.status + ' ' + response.statusText);
                 var pkg = await response.json();
                 
-                // Convert to plugin format if needed
-                if (pkg.javascript && typeof pkg.javascript === 'string') {
-                  pkg.setup = new Function('ctx', pkg.javascript);
+                // Task 1.2: pkg.js takes priority, then pkg.javascript (only if setup not already set)
+                if (!pkg.setup) {
+                  if (pkg.js && typeof pkg.js === 'string') {
+                    pkg.setup = new Function('ctx', pkg.js);
+                  } else if (pkg.javascript && typeof pkg.javascript === 'string') {
+                    pkg.setup = new Function('ctx', pkg.javascript);
+                  }
                 }
                 
                 var id = await window.CardSpoke.Plugin.install(pkg);
@@ -6380,6 +6460,12 @@ const header = {
             }, { rootMargin: '200px' });
           }
           previewObserver.observe(cardEl);
+        }
+
+        // Fire card.render middleware for plugins (Task 1.1)
+        if (window.CardSpoke && window.CardSpoke.Middleware) {
+          window.CardSpoke.Middleware.run('card.render', [card, cardEl])
+            .catch(err => console.error('[Middleware] card.render error:', err));
         }
 
         return cardEl;
