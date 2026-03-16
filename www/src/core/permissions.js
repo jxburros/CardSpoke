@@ -19,11 +19,8 @@
 // Manages plugin permissions and user consent
 // Provides security layer for plugin capabilities
 
-(function() {
-  'use strict';
-
-  const STORAGE_KEY = 'cardspoke_plugin_permissions';
-  const grantedPermissions = new Map();
+const STORAGE_KEY = 'cardspoke_plugin_permissions';
+const grantedPermissions = new Map();
 
   // Load saved permissions from localStorage
   function loadPermissions() {
@@ -252,15 +249,11 @@
   // Initialize
   loadPermissions();
 
-  // Export to window
-  if (!window.CardSpoke) window.CardSpoke = {};
-  window.CardSpoke.Permissions = PermissionsManager;
-
-  // Make permission dialog available globally
-  window.showPermissionDialog = function(pluginId, permissions) {
-    const pluginName = pluginId; // Fallback to ID if name not available
-    return PermissionsManager.requestPermissions(pluginId, pluginName, permissions);
-  };
-
   console.log('[Permissions] System initialized');
-})();
+
+export { PermissionsManager as Permissions };
+
+export function showPermissionDialog(pluginId, permissions) {
+  const pluginName = pluginId; // Fallback to ID if name not available
+  return PermissionsManager.requestPermissions(pluginId, pluginName, permissions);
+}

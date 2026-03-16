@@ -3,13 +3,26 @@
 //         3.3 (dependency checking), 3.4 (sandbox hardening)
 import { test } from 'uvu';
 import * as assert from 'uvu/assert';
-import { readFileSync } from 'fs';
+import { Plugin, PluginSandbox, resetForTesting } from '../www/src/core/plugin-api.js';
+import { Middleware } from '../www/src/core/middleware.js';
+import { ComponentRegistry } from '../www/src/core/component-registry.js';
+import { Permissions } from '../www/src/core/permissions.js';
 
 let PluginManager = null;
 
 test.before(() => {
+  resetForTesting();
+  Middleware.clear();
+  ComponentRegistry.clear();
+
   global.window = {
-    CardSpoke: {},
+    CardSpoke: {
+      Plugin,
+      Middleware,
+      ComponentRegistry,
+      Permissions,
+      PluginSandbox: { createFunction: PluginSandbox }
+    },
     store: {
       cards: {},
       plugins: {}
@@ -102,13 +115,7 @@ test.before(() => {
     }
   };
 
-  eval(readFileSync('./www/src/core/middleware.js', 'utf8'));
-  eval(readFileSync('./www/src/core/component-registry.js', 'utf8'));
-  eval(readFileSync('./www/src/core/plugin-validator.js', 'utf8'));
-  eval(readFileSync('./www/src/core/permissions.js', 'utf8'));
-  eval(readFileSync('./www/src/core/plugin-api.js', 'utf8'));
-
-  PluginManager = window.CardSpoke.Plugin;
+  PluginManager = Plugin;
 });
 
 // ─── Task 3.2: Conflict Warning System ───────────────────────────────────────

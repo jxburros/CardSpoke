@@ -19,12 +19,13 @@
 // Provides sandboxed contexts and resource management for plugins
 // with isolated contexts and automatic cleanup support
 
-(function() {
-  'use strict';
+import { PluginValidator } from './plugin-validator.js';
+import { Permissions } from './permissions.js';
+import { ComponentRegistry } from './component-registry.js';
 
-  const plugins = new Map();
-  const pluginResources = new Map();
-  const dataUpdateListeners = new Map();
+const plugins = new Map();
+const pluginResources = new Map();
+const dataUpdateListeners = new Map();
 
   // Task 1.5: Central global event bus for cross-plugin communication
   // Handlers stored as { pluginId, callback } entries per event name
@@ -59,8 +60,8 @@
 
   // Helper function to check permissions
   function hasPermission(pluginId, permission) {
-    if (window.CardSpoke && window.CardSpoke.Permissions) {
-      return window.CardSpoke.Permissions.hasPermission(pluginId, permission);
+    if (Permissions) {
+      return Permissions.hasPermission(pluginId, permission);
     }
     // Fallback - auto-grant if permissions system not available
     return true;
@@ -142,16 +143,16 @@
           throw new Error('Plugin does not have ui-override permission');
         }
 
-        if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
-          window.CardSpoke.ComponentRegistry.register(name, component, component.priority || 0);
+        if (ComponentRegistry) {
+          ComponentRegistry.register(name, component, component.priority || 0);
           const resource = { type: 'component', name: name };
           resources.add(resource);
         }
       },
 
       unregisterComponent: function(name) {
-        if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
-          window.CardSpoke.ComponentRegistry.unregister(name);
+        if (ComponentRegistry) {
+          ComponentRegistry.unregister(name);
         }
       },
 
@@ -642,8 +643,8 @@
       }
 
       // Validate plugin content if validator is available
-      if (window.CardSpoke && window.CardSpoke.PluginValidator) {
-        var validationResult = window.CardSpoke.PluginValidator.validate({
+      if (PluginValidator) {
+        var validationResult = PluginValidator.validate({
           id: id,
           manifest: definition.manifest,
           css: definition.css,
@@ -858,8 +859,8 @@
             }
           } else if (resource.type === 'component') {
             // Unregister component
-            if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
-              window.CardSpoke.ComponentRegistry.unregister(resource.name);
+            if (ComponentRegistry) {
+              ComponentRegistry.unregister(resource.name);
               cleanup.components++;
             }
           } else if (resource.type === 'listener') {
@@ -911,10 +912,10 @@
       }
 
       // Use the PermissionsManager if available (preferred path)
-      if (window.CardSpoke && window.CardSpoke.Permissions) {
+      if (Permissions) {
         const instance = plugins.get(id);
         const pluginName = (instance && instance.definition.manifest && instance.definition.manifest.name) || id;
-        return await window.CardSpoke.Permissions.requestPermissions(id, pluginName, permissions);
+        return await Permissions.requestPermissions(id, pluginName, permissions);
       }
 
       // Fallback: use global dialog if available
@@ -1160,10 +1161,16 @@
     }
   };
 
-  // Export to window
-  if (!window.CardSpoke) window.CardSpoke = {};
-  window.CardSpoke.Plugin = PluginManager;
-  window.CardSpoke.PluginSandbox = { createFunction: _createSandboxedFunction };
-
   console.log('[Plugin] API system initialized');
-})();
+
+export { PluginManager as Plugin };
+export { _createSandboxedFunction as PluginSandbox };
+
+// Reset internal state (used in tests for isolation)
+export function resetForTesting() {
+  plugins.clear();
+  pluginResources.clear();
+  dataUpdateListeners.clear();
+  globalEventBus.clear();
+  pluginSandboxRuntime = null;
+}

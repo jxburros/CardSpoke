@@ -14,6 +14,14 @@
  * limitations under the License.
  */
 
+import {
+  APP_VERSION,
+  createDefaultStore,
+  store, setStore,
+  instanceKey, setInstanceKey,
+  trashBin
+} from './state.js';
+
 
       // Source Part 3/5: Data CRUD, imports/exports, dataset modals
       // Concatenated via `npm run build` in lexical order of www/src/*.js
@@ -815,7 +823,7 @@
                 className: 'btn btn-primary',
                 onclick: () => {
                   localStorage.setItem('activeInstance', key);
-                  instanceKey = key;
+                  setInstanceKey(key);
                   load();
                   if (!safeMode) {
                   }
@@ -851,7 +859,7 @@
                     // Switch to another dataset
                     const otherKey = allKeys.find(k => k !== key);
                     localStorage.setItem('activeInstance', otherKey);
-                    instanceKey = otherKey;
+                    setInstanceKey(otherKey);
                     load();
                     render();
                   }
@@ -1038,8 +1046,8 @@
 
             // Save to localStorage (for now - cloud sync will happen on subsequent saves)
             localStorage.setItem('activeInstance', newKey);
-            instanceKey = newKey;
-            store = newStore;
+            setInstanceKey(newKey);
+            setStore(newStore);
             save();
             render();
             overlay.remove();

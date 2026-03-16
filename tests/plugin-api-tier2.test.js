@@ -1,17 +1,22 @@
 // Tests for Plugin API - InternalAPI abstraction and validation integration
 import { test } from 'uvu';
 import * as assert from 'uvu/assert';
-import { readFileSync } from 'fs';
+import { Plugin, PluginSandbox, resetForTesting } from '../www/src/core/plugin-api.js';
+import { PluginValidator } from '../www/src/core/plugin-validator.js';
 
 let PluginManager = null;
 let Validator = null;
 
 // Set up fresh window/document and load modules before tests run.
-// Done inside test.before to avoid module-level global overrides from other
-// test files loaded by uvu before tests execute.
 test.before(() => {
+  resetForTesting();
+
   global.window = {
-    CardSpoke: {},
+    CardSpoke: {
+      Plugin,
+      PluginValidator,
+      PluginSandbox: { createFunction: PluginSandbox }
+    },
     store: {
       cards: {
         'card-1': { id: 'card-1', title: 'Test Card', body: 'Test body', tags: [], children: [], parentId: null }
@@ -54,14 +59,8 @@ test.before(() => {
     head: { appendChild: () => {} }
   };
 
-  // Load validator first (since plugin-api checks for it)
-  eval(readFileSync('./www/src/core/plugin-validator.js', 'utf8'));
-
-  // Load plugin API (skip permissions to avoid DOM dependency)
-  eval(readFileSync('./www/src/core/plugin-api.js', 'utf8'));
-
-  PluginManager = window.CardSpoke.Plugin;
-  Validator = window.CardSpoke.PluginValidator;
+  PluginManager = Plugin;
+  Validator = PluginValidator;
 });
 
 test('Plugin API initializes with InternalAPI support', () => {

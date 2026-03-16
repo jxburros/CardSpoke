@@ -19,11 +19,8 @@
 // Allows plugins to register and override UI components
 // Provides a central registry for component resolution
 
-(function() {
-  'use strict';
-
-  const components = new Map();
-  const componentPriorities = new Map();
+const components = new Map();
+const componentPriorities = new Map();
 
   const ComponentRegistry = {
     /**
@@ -114,9 +111,6 @@
     }
   };
 
-  // Export to window
-  if (!window.CardSpoke) window.CardSpoke = {};
-  window.CardSpoke.ComponentRegistry = ComponentRegistry;
-
   console.log('[ComponentRegistry] System initialized');
-})();
+
+export { ComponentRegistry };

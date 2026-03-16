@@ -14,6 +14,18 @@
  * limitations under the License.
  */
 
+import {
+  APP_VERSION,
+  MAX_UNDO_STACK, MAX_TRASH_SIZE,
+  store,
+  navState, navHistory,
+  instanceKey,
+  dirty,
+  undoStack, redoStack, trashBin,
+  draggedCardId, setDraggedCardId,
+  dragOverCardId, setDragOverCardId
+} from './state.js';
+
 
       // Source Part 5/5: Advanced systems (undo/redo, tags, search) and boot
       // Concatenated via `npm run build` in lexical order of www/src/*.js
@@ -866,7 +878,7 @@
        * Handle drag start
        */
       function handleDragStart(e, cardId) {
-        draggedCardId = cardId;
+        setDraggedCardId(cardId);
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', cardId);
         e.target.style.opacity = '0.5';
@@ -877,8 +889,8 @@
        */
       function handleDragEnd(e) {
         e.target.style.opacity = '1';
-        draggedCardId = null;
-        dragOverCardId = null;
+        setDraggedCardId(null);
+        setDragOverCardId(null);
         document.querySelectorAll('.drag-over').forEach(function(el) { el.classList.remove('drag-over'); });
       }
       
@@ -895,7 +907,7 @@
             var tile = e.target.closest('.card-tile');
             if (tile) tile.classList.add('drag-over');
           }
-          dragOverCardId = cardId;
+          setDragOverCardId(cardId);
         }
       }
       

@@ -19,11 +19,8 @@
 // Replaces the hook-based system with a priority-weighted pipeline
 // Allows plugins to intercept and modify core operations
 
-(function() {
-  'use strict';
-
-  const middlewares = [];
-  const middlewaresByOperation = new Map();
+const middlewares = [];
+const middlewaresByOperation = new Map();
 
   class MiddlewareContextImpl {
     constructor(operation, args) {
@@ -185,9 +182,6 @@
     }
   };
 
-  // Export to window
-  if (!window.CardSpoke) window.CardSpoke = {};
-  window.CardSpoke.Middleware = MiddlewareManager;
-
   console.log('[Middleware] Pipeline system initialized');
-})();
+
+export { MiddlewareManager as Middleware };

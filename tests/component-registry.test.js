@@ -1,14 +1,11 @@
 // Tests for Component Registry System
 import { test } from 'uvu';
 import * as assert from 'uvu/assert';
-import { readFileSync } from 'fs';
+import { ComponentRegistry } from '../www/src/core/component-registry.js';
 
-// Set up the window mock and load the component registry before tests run.
-// Done inside test.before to avoid module-level global.window resets from
-// other test files loaded by uvu before tests execute.
+// Set up the window mock before tests run.
 test.before(() => {
-  global.window = { CardSpoke: {} };
-  eval(readFileSync('./www/src/core/component-registry.js', 'utf8'));
+  global.window = { CardSpoke: { ComponentRegistry } };
 });
 
 test('Component registry initializes', () => {

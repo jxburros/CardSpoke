@@ -14,6 +14,15 @@
  * limitations under the License.
  */
 
+import {
+  APP_CREATOR, APP_VERSION, APP_RELEASE_DATE, APP_UPDATER,
+  store,
+  navState,
+  dirty, setDirty,
+  searchResultsState, setSearchResultsState,
+  trashBin
+} from './state.js';
+
 
       // Source Part 4/5: Rendering, themes, footer, and initialization
       // Concatenated via `npm run build` in lexical order of www/src/*.js
@@ -541,7 +550,7 @@
                   } else {
                     currentBody.value = ev.target.result;
                   }
-                  dirty = true;
+                  setDirty(true);
                   showToast('Content imported from ' + file.name);
                 };
                 reader.onerror = function() {
@@ -578,7 +587,7 @@
           bodyTextarea.focus();
           bodyTextarea.selectionStart = start + before.length;
           bodyTextarea.selectionEnd = start + before.length + selected.length;
-          dirty = true;
+          setDirty(true);
         };
         const addBlockPrefix = (prefix) => {
           const cursor = bodyTextarea.selectionStart;
@@ -588,7 +597,7 @@
           const newText = before + `\n${prefix}`;
           bodyTextarea.value = newText + after;
           bodyTextarea.focus();
-          dirty = true;
+          setDirty(true);
         };
         const buttons = [
           { label: 'B', action: () => applyWrap('**', '**'), aria: 'Bold' },
@@ -850,7 +859,7 @@
             const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
             const gridClass = gridViewEnabled ? 'card-grid grid-view' : 'card-grid';
             const grid = h('div', { className: gridClass, role: 'list', id: 'searchResultGrid' });
-            searchResultsState = { items: fuzzyResults, elements: [], selectedIndex: 0 };
+            setSearchResultsState({ items: fuzzyResults, elements: [], selectedIndex: 0 });
             const batchSize = 50;
             let renderIndex = 0;
             const renderBatch = () => {
