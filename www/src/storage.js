@@ -1735,7 +1735,6 @@
                   rootOrder: parsedMirror.rootOrder || [],
                   cards: parsedMirror.cards || {},
                   plugins: parsedMirror.plugins || {},
-                  plugins: parsedMirror.plugins || {},
                   bookmarks: parsedMirror.bookmarks || [],
                   recentCards: parsedMirror.recentCards || [],
                   viewMode: parsedMirror.viewMode || 'normal',
@@ -1761,7 +1760,6 @@
                 store = {
                   rootOrder: parsedFile.rootOrder || [],
                   cards: parsedFile.cards || {},
-                  plugins: parsedFile.plugins || {},
                   plugins: parsedFile.plugins || {},
                   bookmarks: parsedFile.bookmarks || [],
                   recentCards: parsedFile.recentCards || [],

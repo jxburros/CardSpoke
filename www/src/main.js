@@ -1,0 +1,70 @@
+/*
+ * Copyright 2026 Jeffrey Guntly (JX Holdings, LLC)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * CardSpoke Application Entry Point
+ *
+ * This module is the Vite IIFE build entry point.  It imports the core
+ * sub-systems as proper ES Modules, then exposes a strictly controlled,
+ * read-only surface on `window.CardSpoke` for the plugin ecosystem.
+ *
+ * Plugins must call `window.CardSpoke.registerPlugin()` and
+ * `window.CardSpoke.requestPermissions()` — they cannot reach internal
+ * state or override core APIs directly.
+ */
+
+// ── Core sub-systems (fully ESM) ────────────────────────────────────────────
+import { Middleware } from './core/middleware.js';
+import { ComponentRegistry } from './core/component-registry.js';
+import { PluginValidator } from './core/plugin-validator.js';
+import { Permissions, showPermissionDialog } from './core/permissions.js';
+import { StorageDriverRegistry } from './core/storage-driver-registry.js';
+import { Plugin as PluginAPI, PluginSandbox } from './core/plugin-api.js';
+
+// ── App layers (loaded in dependency order) ──────────────────────────────────
+// NOTE: These source files are currently plain scripts being progressively
+// converted to full ES Modules.  They are imported as side-effect modules
+// so Vite includes them in the IIFE bundle.  Full import/export wiring will
+// be completed once the shared-state migration (www/src/state.js) is done.
+import './metadata.js';
+import './storage.js';
+import './data.js';
+import './rendering.js';
+import './systems.js';
+
+// ── Public plugin API — frozen, read-only surface on window ─────────────────
+// Plugins access exactly two entry-points; everything else is internal.
+window.CardSpoke = Object.freeze({
+  /**
+   * Register and activate a plugin.
+   * @param {string} id - Unique plugin identifier
+   * @param {Object} definition - Plugin definition object (manifest, setup, teardown, css, js)
+   */
+  registerPlugin: function(id, definition) {
+    return PluginAPI.register(id, definition);
+  },
+
+  /**
+   * Request user consent for a set of permissions on behalf of a plugin.
+   * @param {string} pluginId - Plugin identifier
+   * @param {string} pluginName - Human-readable plugin name
+   * @param {string[]} permissions - Array of permission names
+   * @returns {Promise<boolean>} Whether permissions were granted
+   */
+  requestPermissions: function(pluginId, pluginName, permissions) {
+    return Permissions.requestPermissions(pluginId, pluginName, permissions);
+  }
+});

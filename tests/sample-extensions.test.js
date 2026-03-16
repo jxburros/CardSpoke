@@ -274,14 +274,14 @@ test('all sample plugins have unique IDs', () => {
   assert.is(uniqueIds.size, ids.length, 'All plugin IDs must be unique: ' + ids.join(', '));
 });
 
-test('all sample plugins register via window.CardSpoke.Plugin.register in their JS', () => {
+test('all sample plugins register via window.CardSpoke.registerPlugin in their JS', () => {
   const featureMods = loadSampleMods('features');
   const appMods = loadSampleMods('apps');
   [...featureMods, ...appMods].forEach(({ filename, pkg }) => {
     if (pkg.js && pkg.js.trim().length > 0) {
       assert.ok(
-        pkg.js.includes('window.CardSpoke.Plugin.register('),
-        `${filename} JS should register via window.CardSpoke.Plugin.register()`
+        pkg.js.includes('window.CardSpoke.registerPlugin('),
+        `${filename} JS should register via window.CardSpoke.registerPlugin()`
       );
     }
   });

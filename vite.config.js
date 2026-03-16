@@ -19,35 +19,25 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
-  // Build configuration
+  // Build configuration — produces a single IIFE bundle at www/app.js
   build: {
-    outDir: 'www/dist',
-    emptyOutDir: true,
+    outDir: 'www',
+    emptyOutDir: false,
     rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'www/index.html'),
-        'core-systems': resolve(__dirname, 'www/src/core-systems-bundle.js')
-      },
+      input: resolve(__dirname, 'www/src/main.js'),
       output: {
-        // Enable code splitting for dynamic imports
-        manualChunks: (id) => {
-          if (id.includes('node_modules')) {
-            return 'vendor';
-          }
-          if (id.includes('www/src/core/')) {
-            return 'core';
-          }
-        }
+        // Bundle everything into a single self-executing IIFE
+        format: 'iife',
+        // The IIFE name is the isolated internal namespace (not the public API)
+        name: 'CardSpokeCore',
+        // Output directly to www/app.js (same path as the legacy cat build)
+        entryFileNames: 'app.js'
       }
     },
     // Generate source maps for debugging
     sourcemap: true,
     // Optimize for modern browsers
-    target: 'es2020',
-    // Enable dynamic imports
-    dynamicImportVarsOptions: {
-      warnOnError: true
-    }
+    target: 'es2020'
   },
 
   // Development server configuration
@@ -68,11 +58,6 @@ export default defineConfig({
 
   // Plugin configuration
   plugins: [],
-
-  // Optimization
-  optimizeDeps: {
-    include: []
-  },
 
   // Define global constants
   define: {
