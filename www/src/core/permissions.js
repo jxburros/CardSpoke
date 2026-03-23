@@ -25,6 +25,7 @@ const grantedPermissions = new Map();
   // Load saved permissions from localStorage
   function loadPermissions() {
     try {
+      if (typeof localStorage === 'undefined') return;
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -40,6 +41,7 @@ const grantedPermissions = new Map();
   // Save permissions to localStorage
   function savePermissions() {
     try {
+      if (typeof localStorage === 'undefined') return;
       const data = {};
       grantedPermissions.forEach((perms, pluginId) => {
         data[pluginId] = Array.from(perms);
@@ -55,7 +57,8 @@ const grantedPermissions = new Map();
     'storage': 'Access and modify local storage',
     'network': 'Make network requests to external services',
     'filesystem': 'Access the file system (mobile platforms)',
-    'core-override': 'Override core application functions (high risk)'
+    'core-override': 'Override core application functions (high risk)',
+    'data-modify': 'Create, update, and delete cards'
   };
 
   const PermissionsManager = {

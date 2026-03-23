@@ -674,26 +674,31 @@ const dataUpdateListeners = new Map();
         }
       }
 
+      // Pre-initialize the shared resources Set so that all API factory functions
+      // (createUIApi, createDataApi, createEventApi) close over the correct Set
+      // instead of creating orphaned Sets that _cleanupResources cannot reach.
+      const resources = new Set();
+      pluginResources.set(id, resources);
+
       const context = createPluginContext(id);
       const instance = {
         id: id,
         definition: definition,
         context: context,
         enabled: false,
-        resources: new Set()
+        resources: resources
       };
 
       plugins.set(id, instance);
-      pluginResources.set(id, instance.resources);
 
       console.log('[Plugin] Registered:', id);
     },
 
-    unregister: function(id) {
+    unregister: async function(id) {
       const instance = plugins.get(id);
       if (instance) {
         if (instance.enabled) {
-          this.disable(id);
+          await this.disable(id);
         }
         this._cleanupResources(id);
         plugins.delete(id);
@@ -1031,7 +1036,9 @@ const dataUpdateListeners = new Map();
 
       const manifest = pkg.manifest;
       const layer = manifest.layer || 'feature';
-      const hasJS = !!pkg.setup || !!pkg.teardown;
+      // Check both function-form (setup/teardown) and string-form (js/javascript) so that
+      // raw JSON packages that have not yet been through install() are assessed correctly.
+      const hasJS = !!pkg.setup || !!pkg.teardown || !!pkg.js || !!pkg.javascript;
       const hasCSS = !!pkg.css;
       const hasOverrides = !!pkg.overrides || !!(manifest.overrides);
 
