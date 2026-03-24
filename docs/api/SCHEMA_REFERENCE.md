@@ -6,7 +6,7 @@ This file summarizes the persisted data model and schema versioning rules used b
 
 ## Versioning
 - **Current schema version:** 4.
-- Runtime constant `SCHEMA_VERSION` is defined in `www/src/01-metadata-and-utilities.js` (bundled into `www/app.js`) and surfaced to plugins via the plugin context (`ctx.schemaVersion`).
+- Runtime constant `SCHEMA_VERSION` is defined in `www/src/state.js` (bundled into `www/app.js`) and surfaced to plugins via the plugin context (`ctx.schemaVersion`).
 - Bump the schema version on any backward-incompatible change and ship an accompanying migration plan.
 
 ## Core domains

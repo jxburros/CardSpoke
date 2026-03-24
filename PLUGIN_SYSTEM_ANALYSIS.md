@@ -8,14 +8,14 @@ The system is composed of 6 interconnected subsystems, all initialized as IIFEs 
 
 | Subsystem | Namespace | Primary File |
 |---|---|---|
-| Plugin Manager | `CardSpoke.Plugin` | `00-core-systems.js` (lines 290–941) |
-| Middleware Pipeline | `CardSpoke.Middleware` | `00-core-systems.js` (lines 36–192) |
-| Component Registry | `CardSpoke.ComponentRegistry` | `00-core-systems.js` (lines 197–289) |
-| Permissions | `CardSpoke.Permissions` | `00-core-systems.js` (lines 1062–1306) |
-| Storage Driver Registry | `CardSpoke.StorageDriverRegistry` | `00-core-systems.js` (lines 946–1057) |
-| Plugin Validator | `CardSpoke.PluginValidator` | `00-core-systems.js` (embedded) |
+| Plugin Manager | `CardSpoke.Plugin` | `www/src/core.js` |
+| Middleware Pipeline | `CardSpoke.Middleware` | `www/src/core.js` |
+| Component Registry | `CardSpoke.ComponentRegistry` | `www/src/core.js` |
+| Permissions | `CardSpoke.Permissions` | `www/src/core.js` |
+| Storage Driver Registry | `CardSpoke.StorageDriverRegistry` | `www/src/core.js` |
+| Plugin Validator | `CardSpoke.PluginValidator` | `www/src/core.js` (embedded) |
 
-All 6 are also duplicated as standalone modules under `www/src/core/` — these standalone files are never loaded at runtime (the app loads only `00-core-systems.js` through `05-advanced-systems-and-boot.js` concatenated into `app.js`).
+The standalone ESM equivalents live under `www/src/core/` (`middleware.js`, `component-registry.js`, `plugin-api.js`, `permissions.js`, `storage-driver-registry.js`, `plugin-validator.js`) and are used by the Vite IIFE build (`npm run build:vite`) via `www/src/main.js`. The default `npm run build` (concatenation build) uses `www/src/core.js` directly.
 
 ---
 
@@ -59,7 +59,7 @@ Before registration, the `PluginValidator` checks:
 Six permission types: `ui-override`, `storage`, `network`, `filesystem`, `core-override`, `data-modify`. Each API call checks permission before executing. Permissions are persisted to `localStorage` and a consent dialog is rendered dynamically when requesting new permissions.
 
 ### 8. Component Registry with Priority
-Plugins can register UI components by name (e.g., `'Card'`) with a numeric priority. Higher priority wins. The rendering code in `04-rendering-and-init.js:124-138` checks for a custom `'Card'` component and uses it if available, falling back to the default renderer on failure.
+Plugins can register UI components by name (e.g., `'Card'`) with a numeric priority. Higher priority wins. The rendering code in `www/src/rendering.js` checks for a custom `'Card'` component and uses it if available, falling back to the default renderer on failure.
 
 ### 9. Middleware Pipeline
 A priority-weighted interceptor system where handlers receive `(ctx, next)` and can `preventDefault()` or `stopPropagation()`. Supports operation filtering (e.g., `['card.save']`) and wildcard `['*']`. Includes an operation-based cache for performance.
@@ -88,40 +88,35 @@ Plugins can register custom storage backends implementing a 7-method interface (
 
 ### Critical Issues
 
-#### 1. Middleware Pipeline is Dead Code
-`Middleware.run()` is never called anywhere in the core app. The pipeline is fully implemented, tested, and documented — but no core operation (`card.save`, `card.delete`, `card.create`, etc.) is instrumented to run through it. Plugins can register middleware, but it will never fire from app operations. The only place middleware gets invoked is from within plugins themselves (e.g., the kanban-board plugin registers middleware for `card.save` / `card.delete`, but since the core app never calls `Middleware.run('card.save')`, it never triggers).
+#### 1. ~~Middleware Pipeline is Dead Code~~ — **FIXED**
+`Middleware.run()` is now called from `www/src/data.js` and `www/src/storage.js` for core operations (`card.create`, `card.update`, `card.delete`, `card.save`). The middleware pipeline is live and functional.
 
 #### 2. `new Function()` Used Despite Being Blocked by Validator
-The validator blocks `new Function()` in JS strings (`plugin-validator.js:43`). However, the Plugin Manager UI (`03-data-and-modals.js:1391, 1436, 1509`) uses `new Function('ctx', jsCode)` to convert user-entered JavaScript into setup functions. This means:
+The validator blocks `new Function()` in JS strings (`plugin-validator.js:43`). However, the Plugin Manager UI (`www/src/data.js`) uses `new Function('ctx', jsCode)` to convert user-entered JavaScript into setup functions. This means:
 - The Create tab and Install tab both use the very pattern the validator forbids
 - If a plugin JSON file contains JS as a string in the `js` field, that string is never executed — it's validated but there's no code path that converts it into a callable function
 - The sample plugin JSON files (kanban-board, card-search-highlight, etc.) embed their JS as self-executing IIFEs that call `window.CardSpoke.Plugin.register()` directly — but this `js` field string is never `eval()`'d or executed by the system
 
-#### 3. Sample Plugin JSON Files Can't Be Loaded
-The sample plugins (e.g., `kanban-board.json`) contain a `js` field with an IIFE string that calls `Plugin.register()`. But when uploaded through the Install tab, the code path does:
-1. Parse JSON -> get `pkg`
-2. Check for `pkg.javascript` (not `pkg.js`) -> if present, create `new Function('ctx', pkg.javascript)`
-3. Call `Plugin.install(pkg)`
-
-The sample files use `pkg.js`, not `pkg.javascript`. The system never looks at `pkg.js` to create a setup function. The sample plugins' JS would only work if someone manually executed the string via `eval()` or a `<script>` tag — which the system explicitly blocks.
+#### 3. ~~Sample Plugin JSON Files Can't Be Loaded~~ — **PARTIALLY FIXED**
+The `install()` method in `www/src/core.js` now checks for `pkg.js` (in addition to `pkg.javascript`) and creates a sandboxed setup function from it, so sample plugins with a `js` field can be loaded. The `javascript` field alias is still checked for backwards compatibility.
 
 #### 4. Permissions System Disconnected from Enable Flow
-In `PluginManager.enable()` (`00-core-systems.js:680-698`), `_checkPermissions()` is called, which:
+In `PluginManager.enable()`, `_checkPermissions()` is called, which:
 - Checks if `window.showPermissionDialog` exists -> calls it -> auto-grants
 - Falls back to auto-granting if dialog not available
 
-But the actual permission checks in the API methods (`hasPermission()` at `permissions.js:68`) check `grantedPermissions`, which is populated only when `PermissionsManager.grantPermissions()` is called. The `_checkPermissions` flow calls `showPermissionDialog` which calls `requestPermissions` which calls `grantPermissions` — but only if the user clicks "Allow". The issue is that `_checkPermissions` **auto-grants and returns `true`** as a fallback (`plugin-api.js:705`), bypassing the actual permissions system entirely.
+But the actual permission checks in the API methods (`hasPermission()` in `permissions.js`) check `grantedPermissions`, which is populated only when `PermissionsManager.grantPermissions()` is called. The `_checkPermissions` flow calls `showPermissionDialog` which calls `requestPermissions` which calls `grantPermissions` — but only if the user clicks "Allow". The issue is that `_checkPermissions` **auto-grants and returns `true`** as a fallback, bypassing the actual permissions system entirely.
 
 #### 5. Event Bus is Plugin-Scoped, Not Global
 The `ctx.api.events` bus creates a new `eventHandlers` Map per plugin. Plugin A cannot emit events that Plugin B hears. There is no cross-plugin communication mechanism.
 
 ### Moderate Issues
 
-#### 6. Duplicate Code in `00-core-systems.js` vs `core/` files
-The `00-core-systems.js` file is a concatenation of the individual `core/*.js` module files, but the `00-core-systems.js` version has diverged — it contains `install()`, `syncFromStore()`, `assessModRisk()`, `listAll()`, and enhanced `unregister()` (with store cleanup) that the standalone `core/plugin-api.js` lacks. The standalone files are stale/incomplete copies.
+#### 6. Divergence Between `www/src/core.js` and `www/src/core/` ESM Files
+The `www/src/core.js` file (used by the `npm run build` concatenation build) contains the full plugin system with methods such as `install()`, `syncFromStore()`, `assessModRisk()`, `listAll()`, and an enhanced `unregister()` (with store cleanup). The standalone ESM files under `www/src/core/` (used by the `npm run build:vite` Vite build) may not yet have all of these methods. Keeping these two representations in sync is an ongoing maintenance concern.
 
 #### 7. `cloneCard` Fallback Returns Direct Reference
-In `createDataApi` (`plugin-api.js:186-188`), if `cloneCard` is not available, `getCard()` returns a direct reference to `window.store.cards[id]`. This means a plugin could mutate the store directly, bypassing all validation, middleware, and permission checks.
+In `createDataApi` (in `www/src/core.js`), if `cloneCard` is not available, `getCard()` returns a direct reference to `window.store.cards[id]`. This means a plugin could mutate the store directly, bypassing all validation, middleware, and permission checks.
 
 #### 8. No Teardown Function Persistence
 When a plugin is installed via `Plugin.install()`, the `definition` (including `setup` and `teardown` function references) is persisted to `window.store.plugins`. Functions cannot be serialized to JSON. After a page reload, `syncFromStore()` will re-register the plugin with `pluginData.definition`, but `definition.setup` and `definition.teardown` will be `undefined` (lost during serialization). The plugin will be "enabled" with no functionality.

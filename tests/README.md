@@ -16,7 +16,7 @@ npm run test:watch
 
 - Framework: [uvu](https://github.com/lukeed/uvu)
 - Test files: 26 (`*.test.js`)
-- Latest baseline: **336 / 336 passing** (`npm test`)
+- Latest baseline: **347 / 347 passing** (`npm test`)
 
 ## What's Covered
 

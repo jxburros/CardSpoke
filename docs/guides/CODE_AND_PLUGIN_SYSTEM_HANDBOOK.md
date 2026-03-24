@@ -8,14 +8,15 @@ It is intentionally specific: you’ll find concrete field names, hook signature
 
 ## 1) What Runs in Production
 
-CardSpoke’s runtime is a **single browser bundle** (`www/app.js`) produced by concatenating source slices in lexical order:
+CardSpoke’s runtime is a **single browser bundle** (`www/app.js`) produced by concatenating domain-named source slices in the following order:
 
-1. `www/src/00-core-systems.js` (core runtime bootstrap)
-2. `www/src/01-metadata-and-utilities.js`
-3. `www/src/02-storage-and-plugins.js`
-4. `www/src/03-data-and-modals.js`
-5. `www/src/04-rendering-and-init.js`
-6. `www/src/05-advanced-systems-and-boot.js`
+1. `www/src/state.js` (shared application state)
+2. `www/src/core.js` (core plugin architecture bootstrap)
+3. `www/src/metadata.js` (metadata and utilities)
+4. `www/src/storage.js` (storage drivers and plugin wiring)
+5. `www/src/data.js` (CRUD operations and modals)
+6. `www/src/rendering.js` (rendering and initialization)
+7. `www/src/systems.js` (advanced systems and boot)
 
 Build command:
 
@@ -23,13 +24,25 @@ Build command:
 npm run build
 ```
 
-The bundle is designed to work in `file://` contexts, so many helpers are intentionally inlined and globalized rather than split into runtime imports.
+A Vite IIFE build is also available via `npm run build:vite`, using `www/src/main.js` as the entry point with ESM modules under `www/src/core/`.
+
+The concatenation build (`npm run build`) is designed to work in `file://` contexts, so many helpers are intentionally inlined rather than split into separate runtime imports. The Vite IIFE build (`npm run build:vite`) uses proper ES module scoping, trapping all internal state inside the IIFE closure.
 
 ---
 
 ## 2) Source Slice Responsibilities (Concrete)
 
-## `00-core-systems.js`
+## `state.js`
+
+Defines shared application state as named exports:
+
+- App metadata constants: `APP_VERSION`, `APP_RELEASE_DATE`, `SCHEMA_VERSION`, `APP_CREATOR`
+- Store factory: `createDefaultStore()`
+- Mutable state with setters: `store`/`setStore`, `navState`/`setNavState`, `instanceKey`/`setInstanceKey`, `dirty`/`setDirty`, and others
+- Immutable in-place arrays: `undoStack`, `redoStack`, `trashBin`
+- Size limits: `MAX_UNDO_STACK` (50), `MAX_TRASH_SIZE` (100)
+
+## `core.js`
 
 Initializes the modern plugin architecture before any other code runs:
 
@@ -68,7 +81,7 @@ Initializes the modern plugin architecture before any other code runs:
 
 This file loads first to ensure the new architecture is available to all subsequent slices and provides the foundation for the modern plugin-based plugin system.
 
-## `01-metadata-and-utilities.js`
+## `metadata.js`
 
 Defines metadata constants and shared primitives used by all later slices:
 
@@ -90,7 +103,7 @@ Defines metadata constants and shared primitives used by all later slices:
   - `isDeveloperMode()`
 - Toast system: `initToast()` / `showToast(message, type, duration)`
 
-## `02-storage-and-plugins.js`
+## `storage.js`
 
 Defines persistence architecture and extension runtime:
 
@@ -110,11 +123,10 @@ Defines persistence architecture and extension runtime:
   - `assessModRisk(pkg)`
 - plugin runtime singleton:
   - `window.CardSpoke.Plugin`
-  - `window.CardSpoke.Plugin` (alias)
 - plugin developer API:
   - `window.CardSpoke.utils`
 
-## `03-data-and-modals.js`
+## `data.js`
 
 Owns app workflows and plugin manager UI actions:
 
@@ -125,7 +137,7 @@ Owns app workflows and plugin manager UI actions:
   - Create
 - Utility flows frequently used by plugin users (install, export, toggle, etc.)
 
-## `04-rendering-and-init.js`
+## `rendering.js`
 
 Owns render pipeline and primary interaction views:
 
@@ -141,7 +153,7 @@ Owns render pipeline and primary interaction views:
   - `runModHook('onSearch', ...)`
   - theme/typography/accessibility hook dispatch from user actions
 
-## `05-advanced-systems-and-boot.js`
+## `systems.js`
 
 Owns advanced behavior and startup:
 
@@ -651,7 +663,10 @@ npm test
 ## Runtime globals
 
 - `window.CardSpoke.Plugin`
-- `window.CardSpoke.Plugin`
+- `window.CardSpoke.Middleware`
+- `window.CardSpoke.ComponentRegistry`
+- `window.CardSpoke.StorageDriverRegistry`
+- `window.CardSpoke.Permissions`
 - `window.CardSpoke.utils`
 
 ## Troubleshooting

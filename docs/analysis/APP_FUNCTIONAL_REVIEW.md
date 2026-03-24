@@ -5,7 +5,7 @@ This review analyzes CardSpoke by reading core docs (`README.md`, `docs/guides/F
 
 ## Product and architecture summary
 CardSpoke is a local-first, card-based knowledge app with a minimal core and built-in plugin runtime. The architecture combines:
-- **Single-bundle runtime** (`www/app.js`) built from numbered slices in `www/src`.
+- **Single-bundle runtime** (`www/app.js`) built from domain-named source slices in `www/src`.
 - **Stateful client store** (`store`) persisted by dataset key.
 - **Hierarchical card graph model** (`cards`, `rootOrder`, `parentId`, `children`).
 - **Hook-driven plugin engine** (`onCardSave`, `onNavigate`, `onRender`, etc.).
