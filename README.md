@@ -30,7 +30,7 @@ CardSpoke is a lightweight, card-based knowledge system built for extensibility.
 
 ## Project Layout
 - `www/` – Prebuilt web assets for the Capacitor shell. `app.js` embeds utilities, renderer logic, and the plugin runtime; `styles.css` holds the default light/dark styling and typography presets.
-- `www/src/` – Source slices for `app.js`. Run `npm run build` to concatenate the numbered files into the single bundle for `file://` usage.
+- `www/src/` – Source slices for `app.js`. Run `npm run build` to concatenate the domain-named files into the single bundle for `file://` usage.
 - `www/modules/` – Reference ES module versions kept for documentation (not used at runtime).
 - `tests/` – Automated tests (uvu).
 - `docs/` – Project documentation organized by category (see [Documentation](#documentation) below).

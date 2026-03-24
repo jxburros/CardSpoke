@@ -5,7 +5,7 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 **Current Version:** 0.17.0 | **Schema Version:** 4 | **Release Date:** 2026-02-17
 
 ## Architecture Overview
-- **Ultra-light core:** Keep the main bundle lean. `www/app.js` is a self-contained bundle built by concatenating the numbered source slices in `www/src/*.js` (via `npm run build`) with inline helpers for DOM creation (`h()`), markdown rendering (`simpleMarkdown()`), accessibility utilities (focus trap, debounce, ID generation), and fuzzy search (Levenshtein distance).
+- **Ultra-light core:** Keep the main bundle lean. `www/app.js` is a self-contained bundle built by concatenating the domain-named source slices in `www/src/` (via `npm run build`) with inline helpers for DOM creation (`h()`), markdown rendering (`simpleMarkdown()`), accessibility utilities (focus trap, debounce, ID generation), and fuzzy search (Levenshtein distance).
 - **Card model:** UI presents hierarchical, tiered cards for navigating knowledge. The default store shape (`createDefaultStore`) tracks `rootOrder`, per-card records (`cards`), `bookmarks`, `recentCards`, `plugins`, `viewMode`, `activeTheme`, and `richTextEnabled`.
 - **Plugin system:** Core exposes `window.CardSpoke.Plugin`, `window.CardSpoke.Middleware`, and `window.CardSpoke.ComponentRegistry` for extensibility. Plugins should use these modern APIs instead of directly mutating global state where possible.
 - **Local-first:** Default storage is LocalStorage/IndexedDB; avoid adding network dependencies without opt-in controls. Preferences persist under `cardspoke_*` keys:
@@ -20,13 +20,13 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 
 ## Repository Layout
 - `www/` - Prebuilt client bundle consumed by Capacitor:
-  - `src/` - Numbered source slices that concatenate into the browser bundle
+  - `src/` - Domain-named source slices that concatenate into the browser bundle
   - `app.js` - Main application (self-contained output of `npm run build`)
   - `styles.css` - Default styling with light/dark themes and typography presets
   - `index.html` - Entry point with modal structures and script loading
   - `capacitor.js` - Capacitor runtime bridge
   - `modules/` - Reference ES module versions (not used at runtime)
-- `tests/` - uvu test suites (26 files; currently 336 passing tests via `npm test`)
+- `tests/` - uvu test suites (26 files; currently 347 passing tests via `npm test`)
 - `docs/` - Project documentation organized by category
 - `capacitor.config.json` - Platform configuration for Capacitor
 
@@ -68,12 +68,14 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 - Clearly mark whether a change is **official** (core) or **angled** (plugin).
 
 ## Source Mapping & Tooling Status
-- Runtime source slices are ordered and concatenated into `www/app.js` as follows:
-  1. `www/src/00-core-systems.js` - Middleware Pipeline, Component Registry, Plugin API, Storage Driver Registry, Permissions System
-  2. `www/src/01-metadata-and-utilities.js` - App metadata, utilities (DOM helpers, markdown rendering, accessibility, fuzzy search)
-  3. `www/src/02-storage-and-plugins.js` - Storage drivers (IndexedDB, LocalStorage, Cloud), Plugin system
-  4. `www/src/03-data-and-modals.js` - CRUD operations (createCard, updateCard, deleteCard), modals
-  5. `www/src/04-rendering-and-init.js` - Rendering functions (breadcrumbs, lists, cards, search)
-  6. `www/src/05-advanced-systems-and-boot.js` - Undo/redo, tags, search, boot sequence
-- Build command: `npm run build` (concatenates `www/src/*.js` into `www/app.js` in lexical order).
+- Runtime source slices are concatenated into `www/app.js` in the following order:
+  1. `www/src/state.js` - Shared application state (store, navState, instanceKey, undo/trash stacks, constants)
+  2. `www/src/core.js` - Core plugin architecture: Middleware Pipeline, Component Registry, Plugin API, Storage Driver Registry, Permissions System
+  3. `www/src/metadata.js` - App metadata, DOM helper (`h()`), utilities (debounce, uid, escapeHtml, fuzzy search), accessibility helpers, store factory, preference accessors, toast system
+  4. `www/src/storage.js` - Storage drivers (IndexedDB, LocalStorage, LocalFile, Cloud), dataset manager, plugin system wiring
+  5. `www/src/data.js` - CRUD operations (createCard, updateCard, deleteCard), data/modals UI
+  6. `www/src/rendering.js` - Rendering functions (breadcrumbs, lists, cards, search)
+  7. `www/src/systems.js` - Undo/redo, tags, search, advanced UX, boot sequence
+- Build command: `npm run build` (concatenates `www/src/state.js`, `core.js`, `metadata.js`, `storage.js`, `data.js`, `rendering.js`, `systems.js` into `www/app.js`).
+- A Vite IIFE build is also available via `npm run build:vite`, using `www/src/main.js` as entry point with the ESM source under `www/src/core/`.
 - There is currently no repository-enforced linter/formatter configuration. Keep style consistent with surrounding code and validate changes with `npm test`.
