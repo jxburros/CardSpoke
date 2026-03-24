@@ -526,7 +526,7 @@ import {
         });
         const formGroup1 = h('div', { className: 'form-group' });
         formGroup1.appendChild(h('label', { className: 'form-label' }, 'Title'));
-        formGroup1.appendChild(h('input', { type: 'text', id: 'cardTitle', className: 'form-input', value: card.title, oninput: () => { dirty = true; } }));
+        formGroup1.appendChild(h('input', { type: 'text', id: 'cardTitle', className: 'form-input', value: card.title, oninput: () => { setDirty(true); } }));
         form.appendChild(formGroup1);
         const formGroup2 = h('div', { className: 'form-group' });
         const bodyLabelRow = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
@@ -568,14 +568,14 @@ import {
         const richToggleRow = h('div', { className: 'form-row' });
         const richToggle = h('input', { type: 'checkbox', id: 'cardRich', checked: card.isRichText });
         const richLabel = h('label', { for: 'cardRich', style: 'margin-left: 6px;' }, 'Enable formatting (Markdown)');
-        richToggle.addEventListener('change', () => { dirty = true; });
+        richToggle.addEventListener('change', () => { setDirty(true); });
         richToggleRow.appendChild(richToggle);
         richToggleRow.appendChild(richLabel);
         formGroup2.appendChild(richToggleRow);
 
         const bodyTextarea = h('textarea', { id: 'cardBody', className: 'form-textarea', 'aria-label': 'Card body' });
         bodyTextarea.value = card.body;
-        bodyTextarea.addEventListener('input', () => { dirty = true; });
+        bodyTextarea.addEventListener('input', () => { setDirty(true); });
 
         const toolbar = h('div', { className: 'rich-toolbar', role: 'toolbar', 'aria-label': 'Formatting toolbar' });
         const applyWrap = (before, after = before) => {
@@ -629,7 +629,7 @@ import {
         });
 
         const tagEditor = createTagEditor(card.tags || [], tagsDatalistId);
-        tagEditor.addEventListener('focusin', () => { dirty = true; });
+        tagEditor.addEventListener('focusin', () => { setDirty(true); });
 
         formGroupTags.appendChild(tagEditor);
         formGroupTags.appendChild(tagsDatalist);
@@ -661,7 +661,7 @@ import {
           .forEach(c => {
             parentSel.appendChild(h('option', { value: c.id, selected: parVal === c.id }, c.title || '(Untitled)'));
           });
-        parentSel.addEventListener('change', () => { dirty = true; });
+        parentSel.addEventListener('change', () => { setDirty(true); });
         formGroup3.appendChild(parentSel);
         form.appendChild(formGroup3);
         let childrenInpMap = {};
@@ -673,7 +673,7 @@ import {
             const c = store.cards[cid];
             const row = h('div', { className: 'form-child-row' });
             const chInp = h('input', { type: 'text', value: c.title, className: 'form-input form-child-input' });
-            chInp.addEventListener('input', () => { dirty = true; });
+            chInp.addEventListener('input', () => { setDirty(true); });
             row.appendChild(chInp);
             const delBtn = h('button', {
               type: 'button',
@@ -698,7 +698,7 @@ import {
           const addChildRow = (title = '') => {
             const r = h('div', { className: 'form-child-row' });
             const t = h('input', { type: 'text', value: title, placeholder: 'Child title...', className: 'form-input form-child-input' });
-            t.addEventListener('input', () => { dirty = true; });
+            t.addEventListener('input', () => { setDirty(true); });
             const d = h('button', { type: 'button', className: 'form-child-delete', onclick: () => { r.remove(); } }, '✕');
             r.appendChild(t);
             r.appendChild(d);
@@ -715,7 +715,7 @@ import {
           const addChildRow = (title = '') => {
             const r = h('div', { className: 'form-child-row' });
             const t = h('input', { type: 'text', value: title, placeholder: 'Child title...', className: 'form-input form-child-input' });
-            t.addEventListener('input', () => { dirty = true; });
+            t.addEventListener('input', () => { setDirty(true); });
             const d = h('button', { type: 'button', className: 'form-child-delete', onclick: () => { r.remove(); } }, '✕');
             r.appendChild(t);
             r.appendChild(d);

@@ -222,7 +222,7 @@
   <!-- Capacitor script - must be loaded before app scripts -->
   <script src="capacitor.js"></script>
 
-  <!-- Application script - self-contained for file:// compatibility -->
-  <script src="app.js"></script>
+  <!-- Application entry point (Vite serves as ES modules in dev, bundles for prod) -->
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
