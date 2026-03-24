@@ -222,7 +222,28 @@
   <!-- Capacitor script - must be loaded before app scripts -->
   <script src="capacitor.js"></script>
 
-  <!-- Application entry point (Vite serves as ES modules in dev, bundles for prod) -->
-  <script type="module" src="./src/main.js"></script>
+  <!-- Application entry point loader: prefers ES modules, falls back to bundled app.js -->
+  <script>
+    (function() {
+      function loadBundle() {
+        var legacy = document.createElement('script');
+        legacy.src = './app.js';
+        legacy.defer = true;
+        document.body.appendChild(legacy);
+      }
+
+      // file:// and some embedded webviews cannot resolve module graphs reliably.
+      if (window.location.protocol === 'file:') {
+        loadBundle();
+        return;
+      }
+
+      var entry = document.createElement('script');
+      entry.type = 'module';
+      entry.src = './src/main.js';
+      entry.onerror = loadBundle;
+      document.body.appendChild(entry);
+    })();
+  </script>
 </body>
 </html>
