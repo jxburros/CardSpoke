@@ -19,9 +19,12 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
+  // Serve from www/ where index.html lives
+  root: 'www',
+
   // Build configuration — produces a single IIFE bundle at www/app.js
   build: {
-    outDir: 'www',
+    outDir: resolve(__dirname, 'www'),
     emptyOutDir: false,
     rollupOptions: {
       input: resolve(__dirname, 'www/src/main.js'),
@@ -43,7 +46,7 @@ export default defineConfig({
   // Development server configuration
   server: {
     port: 3000,
-    open: true,
+    open: false,
     cors: true
   },
 
