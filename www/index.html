@@ -222,27 +222,21 @@
   <!-- Capacitor script - must be loaded before app scripts -->
   <script src="capacitor.js"></script>
 
-  <!-- Application entry point loader: prefers ES modules, falls back to bundled app.js -->
+  <!-- Application entry point loader: prefers stable bundled app.js, falls back to ESM entry -->
   <script>
     (function() {
-      function loadBundle() {
-        var legacy = document.createElement('script');
-        legacy.src = './app.js';
-        legacy.defer = true;
-        document.body.appendChild(legacy);
+      function loadModuleEntry() {
+        var entry = document.createElement('script');
+        entry.type = 'module';
+        entry.src = './src/main.js';
+        document.body.appendChild(entry);
       }
 
-      // file:// and some embedded webviews cannot resolve module graphs reliably.
-      if (window.location.protocol === 'file:') {
-        loadBundle();
-        return;
-      }
-
-      var entry = document.createElement('script');
-      entry.type = 'module';
-      entry.src = './src/main.js';
-      entry.onerror = loadBundle;
-      document.body.appendChild(entry);
+      var bundle = document.createElement('script');
+      bundle.src = './app.js';
+      bundle.defer = true;
+      bundle.onerror = loadModuleEntry;
+      document.body.appendChild(bundle);
     })();
   </script>
 </body>
