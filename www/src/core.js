@@ -1103,6 +1103,21 @@
     };
   }
 
+  function _functionToCtxCode(fn) {
+    if (typeof fn !== 'function') return null;
+    return 'return (' + fn.toString() + ')(ctx);';
+  }
+
+  function _createSerializableDefinition(definition) {
+    if (!definition) return null;
+    return {
+      manifest: definition.manifest,
+      css: definition.css,
+      js: (typeof definition.js === 'string' && definition.js) || _functionToCtxCode(definition.setup),
+      teardownJs: (typeof definition.teardownJs === 'string' && definition.teardownJs) || _functionToCtxCode(definition.teardown)
+    };
+  }
+
   const PluginManager = {
     register: function(id, definition) {
       if (!id || !definition) {
@@ -1226,6 +1241,9 @@
         } catch (err) {
           console.error('[Plugin] Setup error for', id, ':', err);
           console.error('[Plugin] Stack trace:', err.stack);
+          if (window.showToast) {
+            window.showToast('Plugin "' + id + '" failed to start: ' + err.message, 'error');
+          }
           // Clean up partially applied resources
           this._removeCSS(id);
           this._cleanupResources(id);
@@ -1462,7 +1480,8 @@
         setup: pkg.setup,
         teardown: pkg.teardown,
         css: pkg.css,
-        js: pkg.js || pkg.javascript  // Preserve raw JS string for Task 2.1 (persistence)
+        js: pkg.js || pkg.javascript,  // Preserve raw JS string for Task 2.1 (persistence)
+        teardownJs: pkg.teardownJs || (typeof pkg.teardown === 'string' ? pkg.teardown : null)
       };
       
       this.register(id, definition);
@@ -1479,7 +1498,7 @@
           window.store.plugins = {};
         }
         window.store.plugins[id] = {
-          definition: definition,
+          definition: _createSerializableDefinition(definition),
           enabled: risk === 'SAFE' || risk === 'LOW'
         };
         if (window.save) {
