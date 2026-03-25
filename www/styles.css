@@ -162,11 +162,14 @@
     }
     
     .brand {
-      font-family: var(--font-brand); /* Uses Inter */
-      font-size: var(--text-brand);
-      font-weight: 900;
-      letter-spacing: -0.04em;
-      color: var(--text);
+      display: flex;
+      align-items: center;
+    }
+
+    .brand-logo {
+      height: 48px;
+      width: auto;
+      display: block;
     }
     
     .spacer {
@@ -191,6 +194,10 @@
       background: #f5f5f5;
     }
     
+    :root.dark .brand-logo {
+      filter: invert(1);
+    }
+
     :root.dark .header-btn:hover {
       background: #1a1a1a;
     }
@@ -1334,8 +1341,8 @@
         padding: var(--space-xl) var(--space-2xl);
       }
 
-      .brand {
-        font-size: 40px;
+      .brand-logo {
+        height: 40px;
       }
 
       #main {
@@ -1358,8 +1365,8 @@
         gap: var(--space-md);
       }
 
-      .brand {
-        font-size: 32px;
+      .brand-logo {
+        height: 32px;
       }
 
       .header-btn {
@@ -1449,8 +1456,8 @@
 
     /* Small mobile devices (max-width: 480px) */
     @media (max-width: 480px) {
-      .brand {
-        font-size: 24px;
+      .brand-logo {
+        height: 24px;
       }
 
       .header-inner {
