@@ -2208,7 +2208,7 @@ import {
   draggedCardId, setDraggedCardId,
   dragOverCardId, setDragOverCardId,
   undoStack, redoStack, trashBin
-} from './state.js';
+} from './src/state.js';
 
 // =============================================================
 // --- SELF-CONTAINED UTILITIES ---
@@ -2850,7 +2850,7 @@ import {
   navState, setNavState,
   navHistory, setNavHistory,
   instanceKey
-} from './state.js';
+} from './src/state.js';
 
 
       // Source Part 2/5: Storage drivers, navigation, and plugin runtime
@@ -4803,7 +4803,7 @@ import {
   store, setStore,
   instanceKey, setInstanceKey,
   trashBin
-} from './state.js';
+} from './src/state.js';
 
 
       // Source Part 3/5: Data CRUD, imports/exports, dataset modals
@@ -7277,7 +7277,7 @@ import {
   dirty, setDirty,
   searchResultsState, setSearchResultsState,
   trashBin
-} from './state.js';
+} from './src/state.js';
 
 
       // Source Part 4/5: Rendering, themes, footer, and initialization
@@ -8709,7 +8709,7 @@ import {
   undoStack, redoStack, trashBin,
   draggedCardId, setDraggedCardId,
   dragOverCardId, setDragOverCardId
-} from './state.js';
+} from './src/state.js';
 
 
       // Source Part 5/5: Advanced systems (undo/redo, tags, search) and boot
