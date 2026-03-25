@@ -161,13 +161,27 @@
       gap: var(--space-xl);
     }
     
-    .brand {
-      font-family: var(--font-brand); /* Uses Inter */
-      font-size: var(--text-brand);
-      font-weight: 900;
-      letter-spacing: -0.04em;
-      color: var(--text);
-    }
+    
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.brand-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  font-family: var(--font-brand); /* Uses Inter */
+  font-size: var(--text-brand);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
     
     .spacer {
       flex: 1;
@@ -1334,8 +1348,13 @@
         padding: var(--space-xl) var(--space-2xl);
       }
 
-      .brand {
+      .brand-text {
         font-size: 40px;
+      }
+
+      .brand-logo {
+        width: 32px;
+        height: 32px;
       }
 
       #main {
@@ -1358,8 +1377,13 @@
         gap: var(--space-md);
       }
 
-      .brand {
+      .brand-text {
         font-size: 32px;
+      }
+
+      .brand-logo {
+        width: 28px;
+        height: 28px;
       }
 
       .header-btn {
@@ -1449,8 +1473,13 @@
 
     /* Small mobile devices (max-width: 480px) */
     @media (max-width: 480px) {
-      .brand {
+      .brand-text {
         font-size: 24px;
+      }
+
+      .brand-logo {
+        width: 24px;
+        height: 24px;
       }
 
       .header-inner {
@@ -2113,6 +2142,7 @@ button.brand {
   border: none;
   cursor: pointer;
   text-align: left;
+  padding: 0;
 }
 
 button.brand:hover {
