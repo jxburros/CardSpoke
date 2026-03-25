@@ -51,7 +51,7 @@ Initializes the modern plugin architecture before any other code runs:
   - `unregister(name)` - Remove middleware by name
   - `run(operation, args)` - Execute middleware pipeline for operation
   - `list()` - List all registered middlewares
-  - Operations: `card.save`, `card.delete`, `card.render`, `navigation.change`, `search.execute`, `data.export`, `data.import`, `theme.change`, `typography.change`, `contrast.change`, `page.change`
+  - Operations: `card.create`, `card.update`, `card.delete`, `card.save`, `card.render`
 
 - **Component Registry** (`window.CardSpoke.ComponentRegistry`):
   - `register(name, component, priority)` - Register UI components
