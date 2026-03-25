@@ -37,6 +37,10 @@ import { Plugin as PluginAPI, PluginSandbox } from './core/plugin-api.js';
 // ── Shared application state (ESM live bindings) ─────────────────────────────
 import './state.js';
 
+// ── Layer 0: Kernel (pure data engine — no browser deps) ─────────────────────
+// Imported by data.js; listed here for build-order documentation.
+import './kernel.js';
+
 // ── App layers (loaded in dependency order) ──────────────────────────────────
 // Each module imports the specific state bindings it needs from state.js.
 import './metadata.js';
