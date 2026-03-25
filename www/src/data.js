@@ -16,16 +16,55 @@
 
 import {
   APP_VERSION,
+  MAX_TRASH_SIZE,
   createDefaultStore,
   store, setStore,
   instanceKey, setInstanceKey,
   trashBin
 } from './state.js';
-
+import {
+  Kernel,
+  cloneCard as kernelCloneCard,
+  parseCardLinks as kernelParseCardLinks,
+  normalizeCardName as kernelNormalizeCardName,
+  hasCardLink as kernelHasCardLink,
+  extractTags as kernelExtractTags
+} from './kernel.js';
 
       // Source Part 3/5: Data CRUD, imports/exports, dataset modals
       // Concatenated via `npm run build` in lexical order of www/src/*.js
-      // --- DATA (CRUD) ---
+      //
+      // Layer 2 (Shell) wrappers — these delegate pure data operations to the
+      // Kernel (Layer 0) and layer on side effects: undo logging, persistence,
+      // middleware hooks, and UI toasts.
+      //
+      // The shared kernel instance is initialised here and kept in sync with
+      // the legacy `store` object so existing rendering and storage code still
+      // works without changes.
+
+      /** @type {Kernel} Shared kernel instance — bridges Layer 0 ↔ Layer 2 */
+      const _kernel = new Kernel({ cards: store.cards, rootOrder: store.rootOrder });
+
+      /**
+       * Sync kernel data back into the legacy store object.
+       * Called after every mutating kernel operation so that rendering,
+       * storage, and other Layer-2 code sees up-to-date data.
+       */
+      function _syncKernelToStore() {
+        const snap = _kernel.snapshot();
+        store.cards = snap.cards;
+        store.rootOrder = snap.rootOrder;
+      }
+
+      /**
+       * Sync legacy store data into the kernel.
+       * Called when the store is replaced wholesale (e.g. after a load).
+       */
+      function _syncStoreToKernel() {
+        _kernel.hydrate({ cards: store.cards, rootOrder: store.rootOrder });
+      }
+
+      // --- DATA (CRUD) — Shell wrappers around Kernel ---
 
       /**
        * Create a new card
@@ -37,38 +76,18 @@ import {
        * @returns {string} New card ID
        */
       function createCard(title, body, parentId = null, skipSave = false, skipHooks = false) {
-        const id = uid();
-        const now = Date.now();
-        store.cards[id] = {
-          id,
-          title: title || '',
-          body: body || '',
-          parentId: parentId || null,
-          children: [],
-          createdAt: now,
-          updatedAt: now,
-          modsData: {},
-          tags: [],
-          isRichText: false
-        };
-        if (!parentId) {
-          store.rootOrder.push(id);
-        } else {
-          const parent = store.cards[parentId];
-          if (parent && !parent.children.includes(id)) {
-            parent.children.push(id);
-          }
-        }
-        // Add to undo stack for undo support (v0.12.0 fix)
-        // Always track undo regardless of skipHooks - skipHooks only controls plugin hooks
-        pushUndo('createCard', { cardId: id, card: cloneCard(store.cards[id]) });
+        const result = _kernel.createCard(title, body, parentId);
+        _syncKernelToStore();
+
+        // Undo support
+        pushUndo('createCard', { cardId: result.id, card: result.card });
         if (!skipSave) save();
         // Fire middleware event for plugins (Task 1.1)
         if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
-          window.CardSpoke.Middleware.run('card.create', [id, store.cards[id]])
+          window.CardSpoke.Middleware.run('card.create', [result.id, store.cards[result.id]])
             .catch(err => console.error('[Middleware] card.create error:', err));
         }
-        return id;
+        return result.id;
       }
 
       /**
@@ -79,18 +98,16 @@ import {
        * @param {boolean} skipHooks - Skip running plugin hooks
        */
       function updateCard(id, updates, skipSave = false, skipHooks = false) {
-        const card = store.cards[id];
-        if (!card) return;
-        // Store previous state for undo support (v0.12.0 fix)
-        // Always track undo regardless of skipHooks - skipHooks only controls plugin hooks
-        const previousState = cloneCard(card);
-        const updateTimestamp = Date.now();
-        pushUndo('updateCard', { 
-          cardId: id, 
-          previousState: previousState,
-          newState: { ...updates, updatedAt: updateTimestamp }
+        const result = _kernel.updateCard(id, updates);
+        if (!result.previousState) return;
+        _syncKernelToStore();
+
+        // Undo support
+        pushUndo('updateCard', {
+          cardId: id,
+          previousState: result.previousState,
+          newState: result.card
         });
-        Object.assign(card, updates, { updatedAt: updateTimestamp });
         if (!skipSave) save();
         // Fire middleware event for plugins (Task 1.1)
         if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
@@ -104,30 +121,20 @@ import {
        * @param {string} id - Card ID to delete
        */
       function deleteCard(id, opts = {}) {
-        const { skipSave = false, skipHooks = false, rootCall = true } = opts;
-        const card = store.cards[id];
-        if (!card) return;
-        
-        // Add to undo stack before deletion
-        pushUndo('deleteCard', { card: cloneCard(card) });
-        
-        // Add to trash bin
-        trashBin.unshift({
-          card: cloneCard(card),
-          deletedAt: Date.now()
-        });
-        if (trashBin.length > MAX_TRASH_SIZE) trashBin.pop();
-        
-        // Skip hooks for children to avoid redundant middleware calls on recursive deletes
-        (card.children || []).forEach(cid => deleteCard(cid, { skipSave, skipHooks: true, rootCall: false }));
-        if (card.parentId) {
-          const parent = store.cards[card.parentId];
-          if (parent) parent.children = parent.children.filter(c => c !== id);
-        } else {
-          store.rootOrder = store.rootOrder.filter(c => c !== id);
+        const { skipSave = false, skipHooks = false } = opts;
+
+        // Snapshot deleted cards via kernel before removal
+        const result = _kernel.deleteCard(id);
+        _syncKernelToStore();
+
+        // Add each deleted card to undo stack and trash bin
+        for (const deleted of result.deleted) {
+          pushUndo('deleteCard', { card: deleted });
+          trashBin.unshift({ card: deleted, deletedAt: Date.now() });
+          if (trashBin.length > MAX_TRASH_SIZE) trashBin.pop();
         }
-        delete store.cards[id];
-        if (!skipSave && rootCall) save();
+
+        if (!skipSave) save();
         // Fire middleware event for plugins (Task 1.1)
         if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
           window.CardSpoke.Middleware.run('card.delete', [id])
@@ -256,81 +263,37 @@ import {
        * @returns {string} New card ID
        */
       function duplicateCard(id, withChildren = false) {
-        const original = store.cards[id];
-        if (!original) return null;
+        if (!_kernel.hasCard(id)) return null;
 
         const groupedUndo = withChildren && window.startUndoGroup && window.startUndoGroup('duplicateCard');
 
-        const newId = uid();
-        const now = Date.now();
-        
-        // Create duplicate with new ID and title suffix
-        store.cards[newId] = {
-          ...cloneCard(original),
-          id: newId,
-          title: (original.title || 'Untitled') + ' (Copy)',
-          children: [],
-          createdAt: now,
-          updatedAt: now
-        };
-        
-        // Add to parent or root
-        if (original.parentId) {
-          const parent = store.cards[original.parentId];
-          if (parent && !parent.children.includes(newId)) {
-            parent.children.push(newId);
-          }
-        } else {
-          store.rootOrder.push(newId);
-        }
-        
-        // Recursively duplicate children if requested
-        if (withChildren && original.children.length > 0) {
-          original.children.forEach(childId => {
-            const newChildId = duplicateCardAsChild(childId, newId, true);
-          });
-        }
-        
+        const result = _kernel.duplicateHierarchy(id, withChildren);
+        _syncKernelToStore();
+
         save();
         if (groupedUndo && window.endUndoGroup) window.endUndoGroup();
-        return newId;
+        return result.newId;
       }
 
       /**
        * Helper to duplicate a card as child of another card
+       * (Legacy compatibility — delegates to kernel reparent after dup)
        * @param {string} id - Card ID to duplicate
        * @param {string} newParentId - New parent card ID
        * @param {boolean} withChildren - Whether to clone children recursively
        * @returns {string} New card ID
        */
       function duplicateCardAsChild(id, newParentId, withChildren = false) {
-        const original = store.cards[id];
-        if (!original) return null;
-        
-        const newId = uid();
-        const now = Date.now();
-        
-        store.cards[newId] = {
-          ...cloneCard(original),
-          id: newId,
-          parentId: newParentId,
-          children: [],
-          createdAt: now,
-          updatedAt: now
-        };
-        
-        const parent = store.cards[newParentId];
-        if (parent && !parent.children.includes(newId)) {
-          parent.children.push(newId);
-        }
-        
-        if (withChildren && original.children.length > 0) {
-          original.children.forEach(childId => {
-            duplicateCardAsChild(childId, newId, true);
-          });
-        }
-        
-        return newId;
+        if (!_kernel.hasCard(id)) return null;
+
+        const result = _kernel.duplicateHierarchy(id, withChildren);
+        if (!result.newId) return null;
+
+        // The kernel placed the duplicate next to the original; reparent it.
+        _kernel.reparent(result.newId, newParentId);
+        _syncKernelToStore();
+
+        return result.newId;
       }
 
       /**
@@ -2097,245 +2060,64 @@ import {
         }
       }
 
-      function extractTags(body) {
-        if (!body) return [];
-        const matches = body.match(/#\w+/g);
-        return matches ? matches.slice(0, 5) : [];
-      }
+      // Pure utility functions — delegated to Kernel (Layer 0) imports
+      function extractTags(body) { return kernelExtractTags(body); }
+      function parseCardLinks(text) { return kernelParseCardLinks(text); }
+      function normalizeCardName(name) { return kernelNormalizeCardName(name); }
+      function hasCardLink(text, cardName) { return kernelHasCardLink(text, cardName); }
 
-      /**
-       * Parse [[Card Name]] tokens from text
-       * @param {string} text - Text to parse
-       * @returns {Array<{match: string, cardName: string, startIndex: number, endIndex: number}>} Array of token matches
-       */
-      function parseCardLinks(text) {
-        if (!text) return [];
-        
-        const regex = /\[\[([^\]]+)\]\]/g;
-        const matches = [];
-        let match;
-        
-        while ((match = regex.exec(text)) !== null) {
-          matches.push({
-            match: match[0],           // Full match: [[Card Name]]
-            cardName: match[1].trim(), // Extracted card name
-            startIndex: match.index,
-            endIndex: match.index + match[0].length
-          });
-        }
-        
-        return matches;
-      }
-
-      /**
-       * Normalize card name for comparison
-       * @param {string} name - Card name to normalize
-       * @returns {string} Normalized name (lowercase, trimmed, spaces normalized)
-       */
-      function normalizeCardName(name) {
-        if (!name) return '';
-        return name.toLowerCase().trim().replace(/\s+/g, ' ');
-      }
-
-      /**
-       * Check if a card link token exists in text
-       * @param {string} text - Text to search
-       * @param {string} cardName - Card name to look for
-       * @returns {boolean} True if card link exists
-       */
-      function hasCardLink(text, cardName) {
-        if (!text || !cardName) return false;
-        const links = parseCardLinks(text);
-        const normalizedName = normalizeCardName(cardName);
-        return links.some(link => normalizeCardName(link.cardName) === normalizedName);
-      }
-
-      /**
-       * Find card ID by normalized name
-       * @param {string} cardName - Card name to search for
-       * @returns {string|null} Card ID if found, null otherwise
-       */
       function findCardByName(cardName) {
-        if (!cardName) return null;
-        
-        const normalizedSearch = normalizeCardName(cardName);
-        
-        for (const [id, card] of Object.entries(store.cards)) {
-          if (normalizeCardName(card.title) === normalizedSearch) {
-            return id;
-          }
-        }
-        
-        return null;
+        _syncStoreToKernel();
+        return _kernel.findCardByName(cardName);
       }
 
-      /**
-       * Find all cards matching a name pattern
-       * @param {string} cardName - Card name pattern to search for
-       * @param {boolean} exactMatch - If true, requires exact match; if false, allows partial matches
-       * @returns {Array<{id: string, title: string, similarity: number}>} Array of matching cards
-       */
       function findCardsByName(cardName, exactMatch = true) {
-        if (!cardName) return [];
-        
-        const normalizedSearch = normalizeCardName(cardName);
-        const results = [];
-        
-        for (const [id, card] of Object.entries(store.cards)) {
-          const normalizedTitle = normalizeCardName(card.title);
-          
-          if (exactMatch) {
-            if (normalizedTitle === normalizedSearch) {
-              results.push({
-                id,
-                title: card.title,
-                similarity: 1.0
-              });
-            }
-          } else {
-            // Partial match - check if search term is contained
-            if (normalizedTitle.includes(normalizedSearch)) {
-              // Calculate simple similarity score (capped at 1.0)
-              const similarity = Math.min(normalizedSearch.length, normalizedTitle.length) / Math.max(normalizedSearch.length, normalizedTitle.length);
-              results.push({
-                id,
-                title: card.title,
-                similarity
-              });
-            }
-          }
-        }
-        
-        // Sort by similarity (exact matches first, then by similarity score)
-        results.sort((a, b) => b.similarity - a.similarity);
-        
-        return results;
+        _syncStoreToKernel();
+        return _kernel.findCardsByName(cardName, exactMatch);
       }
 
-      /**
-       * Resolve all card links in text to card IDs
-       * @param {string} text - Text containing [[Card Name]] links
-       * @returns {Array<{link: object, cardId: string|null}>} Array of links with resolved IDs
-       */
       function resolveCardLinks(text) {
-        const links = parseCardLinks(text);
-        
-        return links.map(link => ({
-          link,
-          cardId: findCardByName(link.cardName)
-        }));
+        _syncStoreToKernel();
+        return _kernel.resolveCardLinks(text);
       }
 
-      /**
-       * Get all tags for a card
-       * @param {string} cardId - Card ID
-       * @returns {string[]} Array of tags
-       */
       function getTags(cardId) {
-        const card = store.cards[cardId];
-        if (!card) return [];
-        return card.tags || [];
+        return _kernel.getTags(cardId);
       }
 
-      /**
-       * Add a tag to a card
-       * @param {string} cardId - Card ID
-       * @param {string} tag - Tag to add
-       * @param {boolean} skipSave - Skip saving to localStorage
-       * @returns {boolean} True if tag was added, false otherwise
-       */
       function addTag(cardId, tag, skipSave = false) {
-        const card = store.cards[cardId];
-        if (!card) return false;
-        
-        // Normalize tag (remove # if present, lowercase)
-        const normalizedTag = tag.replace(/^#/, '').toLowerCase().trim();
-        if (!normalizedTag) return false;
-        
-        // Initialize tags array if not present
-        if (!card.tags) card.tags = [];
-        
-        // Check if tag already exists (case-insensitive)
-        if (card.tags.some(t => t.toLowerCase() === normalizedTag)) {
-          return false;
+        _syncStoreToKernel();
+        const result = _kernel.addTag(cardId, tag);
+        if (result) {
+          _syncKernelToStore();
+          if (!skipSave) save();
         }
-        
-        // Add the tag
-        card.tags.push(normalizedTag);
-        card.updatedAt = Date.now();
-        
-        if (!skipSave) save();
-        
-        return true;
+        return result;
       }
 
-      /**
-       * Remove a tag from a card
-       * @param {string} cardId - Card ID
-       * @param {string} tag - Tag to remove
-       * @param {boolean} skipSave - Skip saving to localStorage
-       * @returns {boolean} True if tag was removed, false otherwise
-       */
       function removeTag(cardId, tag, skipSave = false) {
-        const card = store.cards[cardId];
-        if (!card || !card.tags) return false;
-        
-        // Normalize tag (remove # if present, lowercase)
-        const normalizedTag = tag.replace(/^#/, '').toLowerCase().trim();
-        
-        // Find and remove the tag (case-insensitive)
-        const initialLength = card.tags.length;
-        card.tags = card.tags.filter(t => t.toLowerCase() !== normalizedTag);
-        
-        // Check if anything was removed
-        if (card.tags.length === initialLength) {
-          return false;
+        _syncStoreToKernel();
+        const result = _kernel.removeTag(cardId, tag);
+        if (result) {
+          _syncKernelToStore();
+          if (!skipSave) save();
         }
-        
-        card.updatedAt = Date.now();
-        
-        if (!skipSave) save();
-        
-        return true;
+        return result;
       }
 
-      /**
-       * Set all tags for a card (replaces existing tags)
-       * @param {string} cardId - Card ID
-       * @param {string[]} tags - Array of tags to set
-       * @param {boolean} skipSave - Skip saving to localStorage
-       * @returns {boolean} True if tags were set successfully
-       */
       function setTags(cardId, tags, skipSave = false) {
-        const card = store.cards[cardId];
-        if (!card) return false;
-        
-        // Normalize all tags
-        const normalizedTags = tags
-          .map(tag => tag.replace(/^#/, '').toLowerCase().trim())
-          .filter(tag => tag.length > 0);
-        
-        // Remove duplicates
-        card.tags = [...new Set(normalizedTags)];
-        card.updatedAt = Date.now();
-        
-        if (!skipSave) save();
-        
-        return true;
+        _syncStoreToKernel();
+        const result = _kernel.setTags(cardId, tags);
+        if (result) {
+          _syncKernelToStore();
+          if (!skipSave) save();
+        }
+        return result;
       }
 
-      /**
-       * Get all unique tags across all cards
-       * @returns {string[]} Array of all unique tags
-       */
       function getAllTags() {
-        const allTags = new Set();
-        Object.values(store.cards).forEach(card => {
-          if (card.tags) {
-            card.tags.forEach(tag => allTags.add(tag));
-          }
-        });
-        return Array.from(allTags).sort();
+        _syncStoreToKernel();
+        return _kernel.getAllTags();
       }
 
       /**
@@ -2398,76 +2180,14 @@ import {
         wrapper.focusInput = () => input.focus();
         return wrapper;
       }
-      /**
-       * Get all cards that link to a specific card (backlinks)
-       * @param {string} cardId - Card ID to find backlinks for
-       * @returns {Array<{id: string, title: string}>} Array of cards that link to this card
-       */
       function getBacklinks(cardId) {
-        if (!cardId) return [];
-        
-        const card = store.cards[cardId];
-        if (!card) return [];
-        
-        const cardTitle = card.title;
-        if (!cardTitle) return [];
-        
-        const backlinks = [];
-        
-        // Search through all cards for [[Card Title]] references
-        for (const [id, otherCard] of Object.entries(store.cards)) {
-          if (id === cardId) continue; // Skip self-references
-          
-          if (otherCard.body && hasCardLink(otherCard.body, cardTitle)) {
-            backlinks.push({
-              id: otherCard.id,
-              title: otherCard.title || '(Untitled)',
-              body: otherCard.body
-            });
-          }
-        }
-        
-        return backlinks;
+        _syncStoreToKernel();
+        return _kernel.getBacklinks(cardId);
       }
 
-      /**
-       * Get related cards based on shared tags
-       * @param {string} cardId - Card ID to find related cards for
-       * @param {number} limit - Maximum number of results (default: 10)
-       * @returns {Array<{id: string, title: string, matchScore: number, matchedTags: string[]}>}
-       */
       function getRelatedCards(cardId, limit = 10) {
-        if (!cardId) return [];
-        
-        const card = store.cards[cardId];
-        if (!card) return [];
-        
-        const cardTags = getTags(cardId);
-        if (cardTags.length === 0) return [];
-        
-        const related = [];
-        
-        for (const [id, otherCard] of Object.entries(store.cards)) {
-          if (id === cardId) continue; // Skip self
-          
-          const otherTags = getTags(id);
-          const matchedTags = cardTags.filter(tag => otherTags.includes(tag));
-          
-          if (matchedTags.length > 0) {
-            const matchScore = matchedTags.length / Math.max(cardTags.length, otherTags.length);
-            related.push({
-              id: otherCard.id,
-              title: otherCard.title || '(Untitled)',
-              matchScore,
-              matchedTags
-            });
-          }
-        }
-        
-        // Sort by match score (highest first)
-        related.sort((a, b) => b.matchScore - a.matchScore);
-        
-        return related.slice(0, limit);
+        _syncStoreToKernel();
+        return _kernel.getRelatedCards(cardId, limit);
       }
 
 
