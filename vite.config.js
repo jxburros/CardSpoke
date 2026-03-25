@@ -17,6 +17,7 @@
 
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import fs from 'fs';
 
 export default defineConfig({
   // Serve from www/ where index.html lives
@@ -60,7 +61,23 @@ export default defineConfig({
   },
 
   // Plugin configuration
-  plugins: [],
+  plugins: [
+    {
+      // app.js is a pre-built IIFE bundle whose srcdoc template literal
+      // contains raw HTML that confuses vite:import-analysis (es-module-lexer
+      // trips on the `<` characters as if they were JSX).  Serve it directly
+      // through the dev-server middleware so Vite never runs its transform
+      // pipeline on it.
+      name: 'serve-prebuilt-bundle',
+      configureServer(server) {
+        server.middlewares.use('/app.js', (_req, res) => {
+          const bundlePath = resolve(__dirname, 'www/app.js');
+          res.setHeader('Content-Type', 'application/javascript');
+          res.end(fs.readFileSync(bundlePath, 'utf-8'));
+        });
+      }
+    }
+  ],
 
   // Define global constants
   define: {
