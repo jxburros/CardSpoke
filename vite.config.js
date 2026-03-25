@@ -99,7 +99,7 @@ function flattenAppScope() {
     // where xxx.js is one of the intra-layer files.
     const LAYER_FILES = ['state\\.js', 'kernel\\.js'];
     const importRe = new RegExp(
-      `import\\s*\\{([^}]*)\\}\\s*from\\s*['"]\\./(?:${LAYER_FILES.join('|')})['"]\s*;?\\s*\\n?`,
+      `import\\s*\\{([^}]*)\\}\\s*from\\s*['"]\\./(?:${LAYER_FILES.join('|')})['"]\\s*;?\\s*\\n?`,
       'g'
     );
     const cleaned = code.replace(importRe, (_, specifiers) => {
