@@ -93,17 +93,11 @@ The following operations are available for interception:
 
 | Operation | Description | Arguments |
 |-----------|-------------|-----------|
-| `card.save` | Card create/update | `[card, saveInfo]` |
-| `card.delete` | Card deletion | `[card]` |
+| `card.create` | Card creation flow | `[id, card]` |
+| `card.update` | Card update flow | `[id, card]` |
+| `card.delete` | Card deletion flow | `[id]` |
+| `card.save` | Store persistence checkpoint | `[store]` |
 | `card.render` | Card rendering | `[card, element]` |
-| `navigation.change` | Navigation change | `[navState]` |
-| `search.execute` | Search execution | `[query, results]` |
-| `data.export` | Data export | `[exportInfo]` |
-| `data.import` | Data import | `[importInfo]` |
-| `theme.change` | Theme change | `[theme]` |
-| `typography.change` | Typography change | `[preset]` |
-| `contrast.change` | High contrast toggle | `[enabled]` |
-| `page.change` | Page change | `[page]` |
 
 ## Examples
 
@@ -113,9 +107,9 @@ The following operations are available for interception:
 window.CardSpoke.Middleware.register({
   name: 'card-validator',
   priority: 100, // Run first
-  operations: ['card.save'],
+  operations: ['card.create', 'card.update'],
   handler: async (ctx, next) => {
-    const card = ctx.args[0];
+    const card = ctx.args[1];
     
     if (!card.title || card.title.length < 3) {
       ctx.preventDefault();
@@ -151,11 +145,10 @@ window.CardSpoke.Middleware.register({
 window.CardSpoke.Middleware.register({
   name: 'auto-tagger',
   priority: 50,
-  operations: ['card.save'],
+  operations: ['card.create', 'card.update'],
   handler: async (ctx, next) => {
-    const card = ctx.args[0];
-    const saveInfo = ctx.args[1];
-    
+    const card = ctx.args[1];
+
     // Add automatic tags based on content
     if (card.body.includes('TODO')) {
       if (!card.tags.includes('todo')) {
@@ -174,14 +167,13 @@ window.CardSpoke.Middleware.register({
 2. **Set appropriate priority**: Higher priority (100+) for validators, lower (-100) for loggers
 3. **Always call next()**: Unless intentionally stopping the pipeline
 4. **Handle errors**: Wrap async operations in try/catch
-5. **Keep it fast**: Middleware runs synchronously in the pipeline
+5. **Keep it fast**: Middleware executes sequentially and awaits each handler
 6. **Document operations**: Specify which operations your middleware handles
 
 ## Performance
 
 - Middleware is cached by operation for fast lookup
 - Priority-sorted execution ensures deterministic order
-- Performance warnings for middleware taking >120ms
 - Error isolation prevents one middleware from breaking others
 
 ## See Also

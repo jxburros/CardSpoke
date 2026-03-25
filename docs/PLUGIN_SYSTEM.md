@@ -244,8 +244,8 @@ const pluginId = await window.CardSpoke.Plugin.install(pluginPackage);
 // Assess plugin risk
 const risk = window.CardSpoke.Plugin.assessModRisk(pluginPackage);
 
-// Monitor middleware performance (if available)
-window.CardSpoke.Middleware.getStats();
+// Inspect registered middleware
+window.CardSpoke.Middleware.list();
 
 // Check component registry (if available)
 window.CardSpoke.ComponentRegistry.list();
@@ -267,9 +267,9 @@ Plugin metadata and enabled state are stored in `window.store.plugins` and persi
 - `cardspoke_dataset`: Current dataset name
 - `cardspoke_theme`: Theme preference (light/dark)
 - `cardspoke_typography`: Typography preset
-- `cardspoke_highContrast`: High contrast mode setting
-- `cardspoke_devMode`: Developer mode flag
-- `cardspoke_richText`: Rich text mode setting
+- `cardspoke_highcontrast`: High contrast mode setting
+- `cardspoke_devmode`: Developer mode flag
+- `cardspoke_richtext`: Rich text mode setting
 - `cardspoke_gridView`: Grid view preference
 
 ## Modern Plugin API
@@ -358,14 +358,11 @@ window.CardSpoke.Middleware.register({
 
 ### Standard Operations
 
-- `card.save` - Card create/update
-- `card.delete` - Card deletion
-- `card.render` - Card rendering
-- `navigation.change` - Navigation change
-- `search.execute` - Search execution
-- `data.export` / `data.import` - Data export/import
-- `theme.change` - Theme change
-- `typography.change` - Typography change
+- `card.create` - Card creation flow (`[id, card]`)
+- `card.update` - Card update flow (`[id, card]`)
+- `card.delete` - Card deletion flow (`[id]`)
+- `card.save` - Store persistence checkpoints (`[store]`)
+- `card.render` - Card rendering (`[card, element]`)
 
 See [Middleware Pipeline Documentation](./api/MIDDLEWARE_PIPELINE.md) for details.
 

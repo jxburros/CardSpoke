@@ -1,5 +1,7 @@
 # CardSpoke
 
+![CardSpoke logo](./CardSpoke.svg)
+
 **Version:** 0.17.0 | **Schema:** v4 | **Release Date:** 2026-02-17
 
 CardSpoke is a lightweight, card-based knowledge system built for extensibility. The core intentionally stays minimal while a plugin framework enables themes, features, and app-layer transformations. Users keep control of their data with a local-first storage model and optional off-device integrations.
