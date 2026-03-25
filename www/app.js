@@ -2076,21 +2076,127 @@
 
 'use strict';
 
-// ── Shared state & constants (ESM) ───────────────────────────────────────────
-import {
-  APP_CREATOR, APP_VERSION, APP_RELEASE_DATE, APP_UPDATER, SCHEMA_VERSION,
-  MAX_UNDO_STACK, MAX_TRASH_SIZE,
-  createDefaultStore,
-  store, setStore,
-  navState, setNavState,
-  navHistory, setNavHistory,
-  instanceKey, setInstanceKey,
-  dirty, setDirty,
-  searchResultsState, setSearchResultsState,
-  draggedCardId, setDraggedCardId,
-  dragOverCardId, setDragOverCardId,
-  undoStack, redoStack, trashBin
-} from './src/state.js';
+
+// ── Shared application state (inlined from state.js) ──────────────
+/*
+ * Copyright 2026 Jeffrey Guntly (JX Holdings, LLC)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * Shared application state (inlined from state.js)
+ *
+ * All mutable cross-bundle state lives here as top-level variables.
+ * Variables that are re-assigned at runtime (store, navState,
+ * instanceKey, …) are paired with a setter function so that all
+ * call sites update the same binding.
+ *
+ * Arrays that are only ever mutated in-place (undoStack, redoStack,
+ * trashBin) are declared as plain `const` references.
+ *
+ * Read-only constants and the `createDefaultStore` factory are also
+ * declared here so every function has a single source of truth.
+ */
+
+// ── App metadata constants ────────────────────────────────────────────────────
+const APP_CREATOR = 'Jeffrey from GX Generations Software';
+const APP_VERSION = '0.17.0';
+const APP_RELEASE_DATE = '2026-02-17';
+const APP_UPDATER = 'Claude Code (Sonnet 4.5)';
+const SCHEMA_VERSION = 4;
+
+// ── Undo / trash size limits ──────────────────────────────────────────────────
+const MAX_UNDO_STACK = 50;
+const MAX_TRASH_SIZE = 100;
+
+// ── Store factory ─────────────────────────────────────────────────────────────
+/**
+ * Return a fresh store object with default values.
+ * @returns {Object} Default store shape
+ */
+function createDefaultStore() {
+  return {
+    rootOrder: [],
+    cards: {},
+    plugins: {},
+    bookmarks: [],
+    recentCards: [],
+    viewMode: 'normal',
+    activeTheme: 'light',
+    richTextEnabled: false
+  };
+}
+
+// ── Mutable application state ─────────────────────────────────────────────────
+// Each `let` export is paired with a setter so that importing modules can
+// trigger a full reassignment (e.g. store = parsedPayload).
+
+let store = createDefaultStore();
+/** Replace the entire store object (e.g. after a fresh load from storage). */
+function setStore(s) { store = s; }
+
+let navState = {
+  page: 'list',
+  cardId: null,
+  parentId: null,
+  searchQuery: ''
+};
+/** Replace the navigation state object. */
+function setNavState(s) { navState = s; }
+
+let navHistory = [];
+/** Replace the navigation history array. */
+function setNavHistory(h) { navHistory = h; }
+
+// instanceKey is read from localStorage at startup (browser-only).
+let instanceKey =
+  (typeof localStorage !== 'undefined' ? localStorage.getItem('activeInstance') : null) ||
+  'nested_cards_store';
+/** Update the active localStorage key used for the current dataset. */
+function setInstanceKey(k) { instanceKey = k; }
+
+let dirty = false;
+/** Mark whether the store has unsaved changes. */
+function setDirty(d) { dirty = d; }
+
+let searchResultsState = {
+  items: [],
+  elements: [],
+  selectedIndex: 0
+};
+/** Replace the fuzzy-search results snapshot. */
+function setSearchResultsState(s) { searchResultsState = s; }
+
+let draggedCardId = null;
+/** Track which card is currently being dragged. */
+function setDraggedCardId(id) { draggedCardId = id; }
+
+let dragOverCardId = null;
+/** Track which card the drag target is hovering over. */
+function setDragOverCardId(id) { dragOverCardId = id; }
+
+// ── Mutable arrays (mutated in-place; no setter needed) ──────────────────────
+
+/** Undo history stack — entries are pushed/shifted, never reassigned. */
+const undoStack = [];
+
+/** Redo history stack — entries are pushed/popped, never reassigned. */
+const redoStack = [];
+
+/** Soft-deleted cards awaiting permanent deletion or restore. */
+const trashBin = [];
+
 
 // =============================================================
 // --- SELF-CONTAINED UTILITIES ---
@@ -2726,13 +2832,7 @@ const header = {
  * limitations under the License.
  */
 
-import {
-  APP_VERSION, SCHEMA_VERSION,
-  store, setStore,
-  navState, setNavState,
-  navHistory, setNavHistory,
-  instanceKey
-} from './src/state.js';
+
 
 
       // Source Part 2/5: Storage drivers, navigation, and plugin runtime
@@ -4679,13 +4779,7 @@ import {
  * limitations under the License.
  */
 
-import {
-  APP_VERSION,
-  createDefaultStore,
-  store, setStore,
-  instanceKey, setInstanceKey,
-  trashBin
-} from './src/state.js';
+
 
 
       // Source Part 3/5: Data CRUD, imports/exports, dataset modals
@@ -7152,14 +7246,7 @@ import {
  * limitations under the License.
  */
 
-import {
-  APP_CREATOR, APP_VERSION, APP_RELEASE_DATE, APP_UPDATER,
-  store,
-  navState,
-  dirty, setDirty,
-  searchResultsState, setSearchResultsState,
-  trashBin
-} from './src/state.js';
+
 
 
       // Source Part 4/5: Rendering, themes, footer, and initialization
@@ -8581,17 +8668,7 @@ import {
  * limitations under the License.
  */
 
-import {
-  APP_VERSION,
-  MAX_UNDO_STACK, MAX_TRASH_SIZE,
-  store,
-  navState, navHistory,
-  instanceKey,
-  dirty,
-  undoStack, redoStack, trashBin,
-  draggedCardId, setDraggedCardId,
-  dragOverCardId, setDragOverCardId
-} from './src/state.js';
+
 
 
       // Source Part 5/5: Advanced systems (undo/redo, tags, search) and boot
