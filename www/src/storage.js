@@ -1785,7 +1785,14 @@ import {
               });
           }
         } catch (e) {
-          bootError('Corrupted data.');
+          console.error('[CardSpoke] Failed to parse stored data — resetting to clean state:', e);
+          setStore(createDefaultStore());
+          try {
+            save();
+          } catch (_saveErr) { /* ignore */ }
+          if (typeof showToast === 'function') {
+            showToast('Stored data was corrupted and has been reset.', 'warning', 6000);
+          }
         }
       }
 

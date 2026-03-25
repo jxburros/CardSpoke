@@ -1138,7 +1138,7 @@ import {
 
       // --- Header Button Handlers ---
       
-      header.themeToggle.onclick = () => {
+      if (header.themeToggle) header.themeToggle.onclick = () => {
         const isDark = document.documentElement.classList.contains('dark');
         applyTheme(isDark ? 'light' : 'dark');
       };
@@ -1152,25 +1152,26 @@ import {
       // Focus trap cleanup function
       let menuFocusTrapCleanup = null;
       
-      header.menuBtn.onclick = () => {
+      if (header.menuBtn && menu.overlay) header.menuBtn.onclick = () => {
         menu.overlay.classList.add('show');
         // Show/hide developer section based on developer mode
         if (menu.developerSection) {
           menu.developerSection.style.display = isDeveloperMode() ? 'block' : 'none';
         }
         // Set up focus trap for accessibility
-        menuFocusTrapCleanup = trapFocus(menu.overlay.querySelector('.menu-panel'));
+        const panel = menu.overlay.querySelector('.menu-panel');
+        if (panel) menuFocusTrapCleanup = trapFocus(panel);
       };
 
-      menu.closeBtn.onclick = () => {
-        menu.overlay.classList.remove('show');
+      if (menu.closeBtn) menu.closeBtn.onclick = () => {
+        if (menu.overlay) menu.overlay.classList.remove('show');
         if (menuFocusTrapCleanup) {
           menuFocusTrapCleanup();
           menuFocusTrapCleanup = null;
         }
       };
 
-      menu.overlay.onclick = (e) => {
+      if (menu.overlay) menu.overlay.onclick = (e) => {
         if (e.target === menu.overlay) {
           menu.overlay.classList.remove('show');
           if (menuFocusTrapCleanup) {
@@ -1180,12 +1181,12 @@ import {
         }
       };
 
-      menu.newCard.onclick = () => {
-        menu.overlay.classList.remove('show');
+      if (menu.newCard) menu.newCard.onclick = () => {
+        if (menu.overlay) menu.overlay.classList.remove('show');
         goTo('edit', { cardId: null, parentId: null });
       };
 
-      menu.upload.onclick = () => {
+      if (menu.upload) menu.upload.onclick = () => {
         menu.overlay.classList.remove('show');
         updateImportLocationOptions();
         
@@ -1214,82 +1215,82 @@ import {
         uploadModal.overlay.classList.add('show');
       };
 
-      menu.pluginManager.onclick = () => {
-        menu.overlay.classList.remove('show');
+      if (menu.pluginManager) menu.pluginManager.onclick = () => {
+        if (menu.overlay) menu.overlay.classList.remove('show');
         showPluginManager('installed');
       };
 
       if (menu.tagManager) {
         menu.tagManager.onclick = () => {
-          menu.overlay.classList.remove('show');
+          if (menu.overlay) menu.overlay.classList.remove('show');
           showTagManager();
         };
       }
 
       if (menu.advancedSearch) {
         menu.advancedSearch.onclick = () => {
-          menu.overlay.classList.remove('show');
+          if (menu.overlay) menu.overlay.classList.remove('show');
           showAdvancedSearch();
         };
       }
 
       if (menu.trashBin) {
         menu.trashBin.onclick = () => {
-          menu.overlay.classList.remove('show');
+          if (menu.overlay) menu.overlay.classList.remove('show');
           showTrashBin();
         };
       }
 
-      menu.appearance.onclick = () => {
-        menu.overlay.classList.remove('show');
+      if (menu.appearance) menu.appearance.onclick = () => {
+        if (menu.overlay) menu.overlay.classList.remove('show');
         showAppearanceSettings();
       };
 
-      menu.bookmarks.onclick = () => {
-        menu.overlay.classList.remove('show');
+      if (menu.bookmarks) menu.bookmarks.onclick = () => {
+        if (menu.overlay) menu.overlay.classList.remove('show');
         showBookmarks();
       };
 
-      menu.recentCards.onclick = () => {
-        menu.overlay.classList.remove('show');
+      if (menu.recentCards) menu.recentCards.onclick = () => {
+        if (menu.overlay) menu.overlay.classList.remove('show');
         showRecentCards();
       };
 
       if (menu.typography) {
         menu.typography.onclick = () => {
-          menu.overlay.classList.remove('show');
+          if (menu.overlay) menu.overlay.classList.remove('show');
           showTypographySelector();
         };
       }
 
-      menu.dataHub.onclick = () => {
-        menu.overlay.classList.remove('show');
+      if (menu.dataHub) menu.dataHub.onclick = () => {
+        if (menu.overlay) menu.overlay.classList.remove('show');
         showDatasetInfo();
       };
 
-      menu.clearAll.onclick = () => {
-        menu.overlay.classList.remove('show');
+      if (menu.clearAll) menu.clearAll.onclick = () => {
+        if (menu.overlay) menu.overlay.classList.remove('show');
         clearAllData();
       };
 
-      menu.gettingStarted.onclick = () => {
-        menu.overlay.classList.remove('show');
+      if (menu.gettingStarted) menu.gettingStarted.onclick = () => {
+        if (menu.overlay) menu.overlay.classList.remove('show');
         showGettingStarted();
       };
 
-      menu.help.onclick = () => {
-        menu.overlay.classList.remove('show');
+      if (menu.help) menu.help.onclick = () => {
+        if (menu.overlay) menu.overlay.classList.remove('show');
         showHelp();
       };
 
-      menu.keyboardShortcuts.onclick = () => {
-        menu.overlay.classList.remove('show');
+      if (menu.keyboardShortcuts) menu.keyboardShortcuts.onclick = () => {
+        if (menu.overlay) menu.overlay.classList.remove('show');
         showKeyboardHelp();
       };
 
       if (menu.developerConsole) {
         menu.developerConsole.onclick = () => {
-          menu.overlay.classList.remove('show');
+          if (menu.overlay) menu.overlay.classList.remove('show');
           showDeveloperConsole();
         };
       }
@@ -1319,86 +1320,89 @@ import {
         if (target?.card?.id) goTo('read', { cardId: target.card.id });
       }
 
-      header.homeBtn.onclick = () => {
+      if (header.homeBtn) header.homeBtn.onclick = () => {
         goTo('list', { cardId: null });
       };
 
-      header.brandBtn.onclick = () => {
+      if (header.brandBtn) header.brandBtn.onclick = () => {
         goTo('list', { cardId: null });
       };
 
-      header.undoBtn.onclick = () => {
+      if (header.undoBtn) header.undoBtn.onclick = () => {
         undo();
       };
 
-      searchInput.addEventListener('input', (e) => {
-        if (e.target.value.trim()) {
-          searchClear.style.display = 'block';
-        } else {
-          searchClear.style.display = 'none';
-        }
-        if (navState.page === 'search') {
-          debouncedNavigateSearch(e.target.value.trim());
-        }
-      });
-
-      searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && searchInput.value.trim()) {
-          if (navState.page === 'search' && searchResultsState.items.length) {
-            e.preventDefault();
-            openSelectedSearchResult();
-            return;
+      if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+          if (e.target.value.trim()) {
+            if (searchClear) searchClear.style.display = 'block';
+          } else {
+            if (searchClear) searchClear.style.display = 'none';
           }
-          goTo('search', { searchQuery: searchInput.value.trim() });
-        }
-        if (navState.page === 'search' && searchResultsState.items.length) {
-          if (e.key === 'ArrowDown') { e.preventDefault(); updateSearchSelection(1); }
-          if (e.key === 'ArrowUp') { e.preventDefault(); updateSearchSelection(-1); }
-        }
-      });
+          if (navState.page === 'search') {
+            debouncedNavigateSearch(e.target.value.trim());
+          }
+        });
 
-      searchClear.onclick = () => {
-        searchInput.value = '';
+        searchInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && searchInput.value.trim()) {
+            if (navState.page === 'search' && searchResultsState.items.length) {
+              e.preventDefault();
+              openSelectedSearchResult();
+              return;
+            }
+            goTo('search', { searchQuery: searchInput.value.trim() });
+          }
+          if (navState.page === 'search' && searchResultsState.items.length) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); updateSearchSelection(1); }
+            if (e.key === 'ArrowUp') { e.preventDefault(); updateSearchSelection(-1); }
+          }
+        });
+      }
+
+      if (searchClear) searchClear.onclick = () => {
+        if (searchInput) searchInput.value = '';
         searchClear.style.display = 'none';
         if (navState.page === 'search') goBack();
       };
 
-      uploadModal.tabs.forEach(tab => {
+      if (uploadModal.tabs) uploadModal.tabs.forEach(tab => {
         tab.addEventListener('click', () => {
           const tabName = tab.getAttribute('data-tab');
           uploadModal.tabs.forEach(t => t.classList.remove('active'));
           tab.classList.add('active');
           uploadModal.tabContents.forEach(content => content.classList.remove('active'));
-          document.getElementById(`tab-${tabName}`).classList.add('active');
+          const tabContent = document.getElementById(`tab-${tabName}`);
+          if (tabContent) tabContent.classList.add('active');
           // Remember last used tab
           localStorage.setItem('cardspoke_lastUploadTab', tabName);
         });
       });
 
-      uploadModal.closeBtn.onclick = () => {
-        uploadModal.overlay.classList.remove('show');
+      if (uploadModal.closeBtn) uploadModal.closeBtn.onclick = () => {
+        if (uploadModal.overlay) uploadModal.overlay.classList.remove('show');
       };
 
-      uploadModal.overlay.onclick = (e) => {
+      if (uploadModal.overlay) uploadModal.overlay.onclick = (e) => {
         if (e.target === uploadModal.overlay) {
           uploadModal.overlay.classList.remove('show');
         }
       };
 
-      uploadModal.fileUploadAreaJSON.onclick = () => {
-        uploadModal.fileInputJSON.click();
+      if (uploadModal.fileUploadAreaJSON) uploadModal.fileUploadAreaJSON.onclick = () => {
+        if (uploadModal.fileInputJSON) uploadModal.fileInputJSON.click();
       };
 
-      uploadModal.fileInputJSON.addEventListener('change', (e) => {
+      if (uploadModal.fileInputJSON) uploadModal.fileInputJSON.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onload = () => {
           try {
             const data = JSON.parse(reader.result);
-            const mode = uploadModal.importLocationSelectJSON.value || 'root';
+            const mode = uploadModal.importLocationSelectJSON ? uploadModal.importLocationSelectJSON.value || 'root' : 'root';
             importJSON(data, mode);
-            uploadModal.overlay.classList.remove('show');
+            if (uploadModal.overlay) uploadModal.overlay.classList.remove('show');
           } catch (err) {
             showToast('Failed to parse JSON: ' + err.message, 'error');
           }
@@ -1406,11 +1410,11 @@ import {
         reader.readAsText(file);
       });
 
-      uploadModal.fileUploadAreaTXT.onclick = () => {
-        uploadModal.fileInputTXT.click();
+      if (uploadModal.fileUploadAreaTXT) uploadModal.fileUploadAreaTXT.onclick = () => {
+        if (uploadModal.fileInputTXT) uploadModal.fileInputTXT.click();
       };
 
-      uploadModal.fileInputTXT.addEventListener('change', (e) => {
+      if (uploadModal.fileInputTXT) uploadModal.fileInputTXT.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
@@ -1418,9 +1422,9 @@ import {
           const text = reader.result;
           const modeRadio = document.querySelector('input[name="txtImportMode"]:checked');
           const mode = modeRadio ? modeRadio.value : 'outline';
-          const location = uploadModal.importLocationSelectTXT.value || 'root';
+          const location = uploadModal.importLocationSelectTXT ? uploadModal.importLocationSelectTXT.value || 'root' : 'root';
           importTXT(text, mode, location);
-          uploadModal.overlay.classList.remove('show');
+          if (uploadModal.overlay) uploadModal.overlay.classList.remove('show');
         };
         reader.readAsText(file);
       });
