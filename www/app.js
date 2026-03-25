@@ -14,6 +14,124 @@
  * limitations under the License.
  */
 
+/**
+ * Shared application state module
+ *
+ * All mutable cross-module state lives here as named ESM exports.
+ * Variables that are re-assigned by consuming modules (store, navState,
+ * instanceKey, …) are paired with a setter function — because ESM only
+ * permits the *declaring* module to reassign a live export.
+ *
+ * Arrays that are only ever mutated in-place (undoStack, redoStack,
+ * trashBin) are exported as plain `const` references.
+ *
+ * Read-only constants and the `createDefaultStore` factory are also
+ * exported here so every module has a single source of truth.
+ */
+
+// ── App metadata constants ────────────────────────────────────────────────────
+export const APP_CREATOR = 'Jeffrey from GX Generations Software';
+export const APP_VERSION = '0.17.0';
+export const APP_RELEASE_DATE = '2026-02-17';
+export const APP_UPDATER = 'Claude Code (Sonnet 4.5)';
+export const SCHEMA_VERSION = 4;
+
+// ── Undo / trash size limits ──────────────────────────────────────────────────
+export const MAX_UNDO_STACK = 50;
+export const MAX_TRASH_SIZE = 100;
+
+// ── Store factory ─────────────────────────────────────────────────────────────
+/**
+ * Return a fresh store object with default values.
+ * @returns {Object} Default store shape
+ */
+export function createDefaultStore() {
+  return {
+    rootOrder: [],
+    cards: {},
+    plugins: {},
+    bookmarks: [],
+    recentCards: [],
+    viewMode: 'normal',
+    activeTheme: 'light',
+    richTextEnabled: false
+  };
+}
+
+// ── Mutable application state ─────────────────────────────────────────────────
+// Each `let` export is paired with a setter so that importing modules can
+// trigger a full reassignment (e.g. store = parsedPayload).
+
+export let store = createDefaultStore();
+/** Replace the entire store object (e.g. after a fresh load from storage). */
+export function setStore(s) { store = s; }
+
+export let navState = {
+  page: 'list',
+  cardId: null,
+  parentId: null,
+  searchQuery: ''
+};
+/** Replace the navigation state object. */
+export function setNavState(s) { navState = s; }
+
+export let navHistory = [];
+/** Replace the navigation history array. */
+export function setNavHistory(h) { navHistory = h; }
+
+// instanceKey is read from localStorage at startup (browser-only).
+export let instanceKey =
+  (typeof localStorage !== 'undefined' ? localStorage.getItem('activeInstance') : null) ||
+  'nested_cards_store';
+/** Update the active localStorage key used for the current dataset. */
+export function setInstanceKey(k) { instanceKey = k; }
+
+export let dirty = false;
+/** Mark whether the store has unsaved changes. */
+export function setDirty(d) { dirty = d; }
+
+export let searchResultsState = {
+  items: [],
+  elements: [],
+  selectedIndex: 0
+};
+/** Replace the fuzzy-search results snapshot. */
+export function setSearchResultsState(s) { searchResultsState = s; }
+
+export let draggedCardId = null;
+/** Track which card is currently being dragged. */
+export function setDraggedCardId(id) { draggedCardId = id; }
+
+export let dragOverCardId = null;
+/** Track which card the drag target is hovering over. */
+export function setDragOverCardId(id) { dragOverCardId = id; }
+
+// ── Mutable arrays (mutated in-place; no setter needed) ──────────────────────
+
+/** Undo history stack — entries are pushed/shifted, never reassigned. */
+export const undoStack = [];
+
+/** Redo history stack — entries are pushed/popped, never reassigned. */
+export const redoStack = [];
+
+/** Soft-deleted cards awaiting permanent deletion or restore. */
+export const trashBin = [];
+/*
+ * Copyright 2026 Jeffrey Guntly (JX Holdings, LLC)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 
 // =============================================================
 // Core Systems Layer (NEW)
@@ -581,17 +699,9 @@
 
         switch (position) {
           case 'before':
-            if (!target.parentNode) {
-              console.warn('[Plugin:' + pluginId + '] Target has no parent node for "before" injection');
-              return () => {};
-            }
             target.parentNode.insertBefore(element, target);
             break;
           case 'after':
-            if (!target.parentNode) {
-              console.warn('[Plugin:' + pluginId + '] Target has no parent node for "after" injection');
-              return () => {};
-            }
             target.parentNode.insertBefore(element, target.nextSibling);
             break;
           case 'prepend':
@@ -625,10 +735,6 @@
         }
 
         const original = target;
-        if (!target.parentNode) {
-          console.warn('[Plugin:' + pluginId + '] Target has no parent node for replace');
-          return () => {};
-        }
         target.parentNode.replaceChild(element, target);
 
         const resource = { type: 'dom', element: element, original: original };
@@ -1115,6 +1221,21 @@
     };
   }
 
+  function _functionToCtxCode(fn) {
+    if (typeof fn !== 'function') return null;
+    return 'return (' + fn.toString() + ')(ctx);';
+  }
+
+  function _createSerializableDefinition(definition) {
+    if (!definition) return null;
+    return {
+      manifest: definition.manifest,
+      css: definition.css,
+      js: (typeof definition.js === 'string' && definition.js) || _functionToCtxCode(definition.setup),
+      teardownJs: (typeof definition.teardownJs === 'string' && definition.teardownJs) || _functionToCtxCode(definition.teardown)
+    };
+  }
+
   const PluginManager = {
     register: function(id, definition) {
       if (!id || !definition) {
@@ -1238,6 +1359,9 @@
         } catch (err) {
           console.error('[Plugin] Setup error for', id, ':', err);
           console.error('[Plugin] Stack trace:', err.stack);
+          if (window.showToast) {
+            window.showToast('Plugin "' + id + '" failed to start: ' + err.message, 'error');
+          }
           // Clean up partially applied resources
           this._removeCSS(id);
           this._cleanupResources(id);
@@ -1474,7 +1598,8 @@
         setup: pkg.setup,
         teardown: pkg.teardown,
         css: pkg.css,
-        js: pkg.js || pkg.javascript  // Preserve raw JS string for Task 2.1 (persistence)
+        js: pkg.js || pkg.javascript,  // Preserve raw JS string for Task 2.1 (persistence)
+        teardownJs: pkg.teardownJs || (typeof pkg.teardown === 'string' ? pkg.teardown : null)
       };
       
       this.register(id, definition);
@@ -1491,7 +1616,7 @@
           window.store.plugins = {};
         }
         window.store.plugins[id] = {
-          definition: definition,
+          definition: _createSerializableDefinition(definition),
           enabled: risk === 'SAFE' || risk === 'LOW'
         };
         if (window.save) {
@@ -2069,6 +2194,22 @@
 
 'use strict';
 
+// ── Shared state & constants (ESM) ───────────────────────────────────────────
+import {
+  APP_CREATOR, APP_VERSION, APP_RELEASE_DATE, APP_UPDATER, SCHEMA_VERSION,
+  MAX_UNDO_STACK, MAX_TRASH_SIZE,
+  createDefaultStore,
+  store, setStore,
+  navState, setNavState,
+  navHistory, setNavHistory,
+  instanceKey, setInstanceKey,
+  dirty, setDirty,
+  searchResultsState, setSearchResultsState,
+  draggedCardId, setDraggedCardId,
+  dragOverCardId, setDragOverCardId,
+  undoStack, redoStack, trashBin
+} from './state.js';
+
 // =============================================================
 // --- SELF-CONTAINED UTILITIES ---
 // All utilities are defined locally to support opening directly
@@ -2077,11 +2218,7 @@
 // =============================================================
 
 // --- APP METADATA & SIGNATURES ---
-const APP_CREATOR = 'Jeffrey from GX Generations Software';
-const APP_VERSION = '0.17.0';
-const APP_RELEASE_DATE = '2026-02-17';
-const APP_UPDATER = 'Claude Code (Sonnet 4.5)';
-const SCHEMA_VERSION = 4;
+// (Imported from ./state.js — APP_CREATOR, APP_VERSION, APP_RELEASE_DATE, APP_UPDATER, SCHEMA_VERSION)
 
 /**
  * Helper function to create DOM elements
@@ -2238,19 +2375,9 @@ function formatBytes(bytes) {
 
 /**
  * Create a fresh store object with default values
+ * @see ./state.js — canonical definition; re-exported here for local use.
  */
-function createDefaultStore() {
-  return {
-    rootOrder: [],
-    cards: {},
-    plugins: {},
-    bookmarks: [],
-    recentCards: [],
-    viewMode: 'normal',
-    activeTheme: 'light',
-    richTextEnabled: false
-  };
-}
+// (imported from ./state.js — createDefaultStore)
 
 /**
  * Check if rich text mode is enabled globally
@@ -2401,21 +2528,11 @@ function showToast(message, type = 'success', duration = 3000) {
 // (see previous versions in git history)
 
 // --- CORE APP STATE ---
-let store = createDefaultStore();
-let navState = {
-  page: 'list',
-  cardId: null,
-  parentId: null,
-  searchQuery: ''
-};
-let navHistory = [];
-let instanceKey = localStorage.getItem('activeInstance') || 'nested_cards_store';
-let dirty = false;
-let searchResultsState = {
-  items: [],
-  elements: [],
-  selectedIndex: 0
-};
+// All mutable state is declared in and exported from ./state.js.
+// The names (store, navState, navHistory, …) are imported at the top of this
+// file so the rest of the module can reference them without qualification.
+
+// renderCleanupCallbacks is private to this module (not shared cross-module).
 let renderCleanupCallbacks = [];
 
 function registerRenderCleanup(fn) {
@@ -2433,15 +2550,6 @@ function runRenderCleanup() {
   });
   renderCleanupCallbacks = [];
 }
-
-// --- UNDO/REDO SYSTEM STATE (v0.12.0) ---
-const undoStack = [];
-const redoStack = [];
-const trashBin = [];
-const MAX_UNDO_STACK = 50;
-const MAX_TRASH_SIZE = 100;
-let draggedCardId = null;
-let dragOverCardId = null;
 
 // Note: save, saveNow, load, clearAllData, showAppearanceSettings, applyTheme 
 // are defined later in this file with local implementations
@@ -2736,6 +2844,14 @@ const header = {
  * limitations under the License.
  */
 
+import {
+  APP_VERSION, SCHEMA_VERSION,
+  store, setStore,
+  navState, setNavState,
+  navHistory, setNavHistory,
+  instanceKey
+} from './state.js';
+
 
       // Source Part 2/5: Storage drivers, navigation, and plugin runtime
       // Concatenated via `npm run build` in lexical order of www/src/*.js
@@ -2926,7 +3042,7 @@ const header = {
       
           for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key && key.startsWith(searchPrefix)) {
+            if (key.startsWith(searchPrefix)) {
               keys.push(key.substring(this.prefix.length));
             }
           }
@@ -3180,11 +3296,8 @@ const header = {
         async ensureAuthenticated() {
           if (this.accessToken) return;
           const accounts = this.msalInstance.getAllAccounts();
-          const request = { scopes: ['Files.ReadWrite', 'User.Read'], account: accounts.length > 0 ? accounts[0] : undefined };
+          const request = { scopes: ['Files.ReadWrite', 'User.Read'], account: accounts[0] };
           try {
-            if (!request.account) {
-              throw new Error('No cached account');
-            }
             const response = await this.msalInstance.acquireTokenSilent(request);
             this.accessToken = response.accessToken;
           } catch (error) {
@@ -4418,13 +4531,13 @@ const header = {
           }
         }
         if (!raw) {
-          store = { rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' };
+          setStore({ rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' });
           save();
           return;
         }
         try {
           const parsed = JSON.parse(raw);
-          store = {
+          setStore({
             rootOrder: parsed.rootOrder || [],
             cards: parsed.cards || {},
             plugins: parsed.plugins || {},
@@ -4433,13 +4546,13 @@ const header = {
             viewMode: parsed.viewMode || 'normal',
             activeTheme: parsed.activeTheme || 'light',
             metadata: parsed.metadata || {}
-          };
+          });
 
           if (store.metadata && store.metadata.navState) {
-            navState = { ...navState, ...store.metadata.navState };
+            setNavState({ ...navState, ...store.metadata.navState });
           }
           if (store.metadata && Array.isArray(store.metadata.navHistory)) {
-            navHistory = store.metadata.navHistory.slice(-100);
+            setNavHistory(store.metadata.navHistory.slice(-100));
           }
 
           const repaired = validateStoreConsistency();
@@ -4456,19 +4569,18 @@ const header = {
                 if (!payload) return;
                 const parsedMirror = typeof payload === 'string' ? JSON.parse(payload) : payload;
                 if (!parsedMirror || typeof parsedMirror !== 'object') return;
-                store = {
+                setStore({
                   rootOrder: parsedMirror.rootOrder || [],
                   cards: parsedMirror.cards || {},
-                  plugins: parsedMirror.plugins || {},
                   plugins: parsedMirror.plugins || {},
                   bookmarks: parsedMirror.bookmarks || [],
                   recentCards: parsedMirror.recentCards || [],
                   viewMode: parsedMirror.viewMode || 'normal',
                   activeTheme: parsedMirror.activeTheme || 'light',
                   metadata: parsedMirror.metadata || store.metadata
-                };
-                if (store.metadata && store.metadata.navState) navState = { ...navState, ...store.metadata.navState };
-                if (store.metadata && Array.isArray(store.metadata.navHistory)) navHistory = store.metadata.navHistory.slice(-100);
+                });
+                if (store.metadata && store.metadata.navState) setNavState({ ...navState, ...store.metadata.navState });
+                if (store.metadata && Array.isArray(store.metadata.navHistory)) setNavHistory(store.metadata.navHistory.slice(-100));
                 if (validateStoreConsistency()) save();
                 render();
               })
@@ -4483,19 +4595,18 @@ const header = {
                 const filePin = (active && active.pin) || (store && store.metadata && store.metadata.pin) || null;
                 const payloadText = filePin ? await decryptStorePayload(payload, filePin) : payload;
                 const parsedFile = JSON.parse(payloadText);
-                store = {
+                setStore({
                   rootOrder: parsedFile.rootOrder || [],
                   cards: parsedFile.cards || {},
-                  plugins: parsedFile.plugins || {},
                   plugins: parsedFile.plugins || {},
                   bookmarks: parsedFile.bookmarks || [],
                   recentCards: parsedFile.recentCards || [],
                   viewMode: parsedFile.viewMode || 'normal',
                   activeTheme: parsedFile.activeTheme || 'light',
                   metadata: parsedFile.metadata || store.metadata
-                };
-                if (store.metadata && store.metadata.navState) navState = { ...navState, ...store.metadata.navState };
-                if (store.metadata && Array.isArray(store.metadata.navHistory)) navHistory = store.metadata.navHistory.slice(-100);
+                });
+                if (store.metadata && store.metadata.navState) setNavState({ ...navState, ...store.metadata.navState });
+                if (store.metadata && Array.isArray(store.metadata.navHistory)) setNavHistory(store.metadata.navHistory.slice(-100));
                 if (validateStoreConsistency()) save();
                 render();
               })
@@ -4512,12 +4623,12 @@ const header = {
 
       function goTo(page, opts = {}) {
         navHistory.push({ ...navState });
-        navState = {
+        setNavState({
           page,
           cardId: opts.cardId ?? null,
           parentId: opts.parentId ?? null,
           searchQuery: opts.searchQuery ?? ''
-        };
+        });
 
         // Add to recent cards when viewing a card
         if (page === 'read' && opts.cardId) {
@@ -4529,7 +4640,7 @@ const header = {
 
       function goBack() {
         if (navHistory.length) {
-          navState = navHistory.pop();
+          setNavState(navHistory.pop());
           render();
         }
       }
@@ -4685,6 +4796,14 @@ const header = {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+import {
+  APP_VERSION,
+  createDefaultStore,
+  store, setStore,
+  instanceKey, setInstanceKey,
+  trashBin
+} from './state.js';
 
 
       // Source Part 3/5: Data CRUD, imports/exports, dataset modals
@@ -5487,7 +5606,7 @@ const header = {
                 className: 'btn btn-primary',
                 onclick: () => {
                   localStorage.setItem('activeInstance', key);
-                  instanceKey = key;
+                  setInstanceKey(key);
                   load();
                   if (!safeMode) {
                   }
@@ -5523,7 +5642,7 @@ const header = {
                     // Switch to another dataset
                     const otherKey = allKeys.find(k => k !== key);
                     localStorage.setItem('activeInstance', otherKey);
-                    instanceKey = otherKey;
+                    setInstanceKey(otherKey);
                     load();
                     render();
                   }
@@ -5710,8 +5829,8 @@ const header = {
 
             // Save to localStorage (for now - cloud sync will happen on subsequent saves)
             localStorage.setItem('activeInstance', newKey);
-            instanceKey = newKey;
-            store = newStore;
+            setInstanceKey(newKey);
+            setStore(newStore);
             save();
             render();
             overlay.remove();
@@ -7151,6 +7270,15 @@ const header = {
  * limitations under the License.
  */
 
+import {
+  APP_CREATOR, APP_VERSION, APP_RELEASE_DATE, APP_UPDATER,
+  store,
+  navState,
+  dirty, setDirty,
+  searchResultsState, setSearchResultsState,
+  trashBin
+} from './state.js';
+
 
       // Source Part 4/5: Rendering, themes, footer, and initialization
       // Concatenated via `npm run build` in lexical order of www/src/*.js
@@ -7654,7 +7782,7 @@ const header = {
         });
         const formGroup1 = h('div', { className: 'form-group' });
         formGroup1.appendChild(h('label', { className: 'form-label' }, 'Title'));
-        formGroup1.appendChild(h('input', { type: 'text', id: 'cardTitle', className: 'form-input', value: card.title, oninput: () => { dirty = true; } }));
+        formGroup1.appendChild(h('input', { type: 'text', id: 'cardTitle', className: 'form-input', value: card.title, oninput: () => { setDirty(true); } }));
         form.appendChild(formGroup1);
         const formGroup2 = h('div', { className: 'form-group' });
         const bodyLabelRow = h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);' });
@@ -7678,7 +7806,7 @@ const header = {
                   } else {
                     currentBody.value = ev.target.result;
                   }
-                  dirty = true;
+                  setDirty(true);
                   showToast('Content imported from ' + file.name);
                 };
                 reader.onerror = function() {
@@ -7696,14 +7824,14 @@ const header = {
         const richToggleRow = h('div', { className: 'form-row' });
         const richToggle = h('input', { type: 'checkbox', id: 'cardRich', checked: card.isRichText });
         const richLabel = h('label', { for: 'cardRich', style: 'margin-left: 6px;' }, 'Enable formatting (Markdown)');
-        richToggle.addEventListener('change', () => { dirty = true; });
+        richToggle.addEventListener('change', () => { setDirty(true); });
         richToggleRow.appendChild(richToggle);
         richToggleRow.appendChild(richLabel);
         formGroup2.appendChild(richToggleRow);
 
         const bodyTextarea = h('textarea', { id: 'cardBody', className: 'form-textarea', 'aria-label': 'Card body' });
         bodyTextarea.value = card.body;
-        bodyTextarea.addEventListener('input', () => { dirty = true; });
+        bodyTextarea.addEventListener('input', () => { setDirty(true); });
 
         const toolbar = h('div', { className: 'rich-toolbar', role: 'toolbar', 'aria-label': 'Formatting toolbar' });
         const applyWrap = (before, after = before) => {
@@ -7715,7 +7843,7 @@ const header = {
           bodyTextarea.focus();
           bodyTextarea.selectionStart = start + before.length;
           bodyTextarea.selectionEnd = start + before.length + selected.length;
-          dirty = true;
+          setDirty(true);
         };
         const addBlockPrefix = (prefix) => {
           const cursor = bodyTextarea.selectionStart;
@@ -7725,7 +7853,7 @@ const header = {
           const newText = before + `\n${prefix}`;
           bodyTextarea.value = newText + after;
           bodyTextarea.focus();
-          dirty = true;
+          setDirty(true);
         };
         const buttons = [
           { label: 'B', action: () => applyWrap('**', '**'), aria: 'Bold' },
@@ -7757,7 +7885,7 @@ const header = {
         });
 
         const tagEditor = createTagEditor(card.tags || [], tagsDatalistId);
-        tagEditor.addEventListener('focusin', () => { dirty = true; });
+        tagEditor.addEventListener('focusin', () => { setDirty(true); });
 
         formGroupTags.appendChild(tagEditor);
         formGroupTags.appendChild(tagsDatalist);
@@ -7789,7 +7917,7 @@ const header = {
           .forEach(c => {
             parentSel.appendChild(h('option', { value: c.id, selected: parVal === c.id }, c.title || '(Untitled)'));
           });
-        parentSel.addEventListener('change', () => { dirty = true; });
+        parentSel.addEventListener('change', () => { setDirty(true); });
         formGroup3.appendChild(parentSel);
         form.appendChild(formGroup3);
         let childrenInpMap = {};
@@ -7801,7 +7929,7 @@ const header = {
             const c = store.cards[cid];
             const row = h('div', { className: 'form-child-row' });
             const chInp = h('input', { type: 'text', value: c.title, className: 'form-input form-child-input' });
-            chInp.addEventListener('input', () => { dirty = true; });
+            chInp.addEventListener('input', () => { setDirty(true); });
             row.appendChild(chInp);
             const delBtn = h('button', {
               type: 'button',
@@ -7826,7 +7954,7 @@ const header = {
           const addChildRow = (title = '') => {
             const r = h('div', { className: 'form-child-row' });
             const t = h('input', { type: 'text', value: title, placeholder: 'Child title...', className: 'form-input form-child-input' });
-            t.addEventListener('input', () => { dirty = true; });
+            t.addEventListener('input', () => { setDirty(true); });
             const d = h('button', { type: 'button', className: 'form-child-delete', onclick: () => { r.remove(); } }, '✕');
             r.appendChild(t);
             r.appendChild(d);
@@ -7843,7 +7971,7 @@ const header = {
           const addChildRow = (title = '') => {
             const r = h('div', { className: 'form-child-row' });
             const t = h('input', { type: 'text', value: title, placeholder: 'Child title...', className: 'form-input form-child-input' });
-            t.addEventListener('input', () => { dirty = true; });
+            t.addEventListener('input', () => { setDirty(true); });
             const d = h('button', { type: 'button', className: 'form-child-delete', onclick: () => { r.remove(); } }, '✕');
             r.appendChild(t);
             r.appendChild(d);
@@ -7987,7 +8115,7 @@ const header = {
             const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
             const gridClass = gridViewEnabled ? 'card-grid grid-view' : 'card-grid';
             const grid = h('div', { className: gridClass, role: 'list', id: 'searchResultGrid' });
-            searchResultsState = { items: fuzzyResults, elements: [], selectedIndex: 0 };
+            setSearchResultsState({ items: fuzzyResults, elements: [], selectedIndex: 0 });
             const batchSize = 50;
             let renderIndex = 0;
             const renderBatch = () => {
@@ -8570,6 +8698,18 @@ const header = {
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+import {
+  APP_VERSION,
+  MAX_UNDO_STACK, MAX_TRASH_SIZE,
+  store,
+  navState, navHistory,
+  instanceKey,
+  dirty,
+  undoStack, redoStack, trashBin,
+  draggedCardId, setDraggedCardId,
+  dragOverCardId, setDragOverCardId
+} from './state.js';
 
 
       // Source Part 5/5: Advanced systems (undo/redo, tags, search) and boot
@@ -9423,7 +9563,7 @@ const header = {
        * Handle drag start
        */
       function handleDragStart(e, cardId) {
-        draggedCardId = cardId;
+        setDraggedCardId(cardId);
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', cardId);
         e.target.style.opacity = '0.5';
@@ -9434,8 +9574,8 @@ const header = {
        */
       function handleDragEnd(e) {
         e.target.style.opacity = '1';
-        draggedCardId = null;
-        dragOverCardId = null;
+        setDraggedCardId(null);
+        setDragOverCardId(null);
         document.querySelectorAll('.drag-over').forEach(function(el) { el.classList.remove('drag-over'); });
       }
       
@@ -9452,7 +9592,7 @@ const header = {
             var tile = e.target.closest('.card-tile');
             if (tile) tile.classList.add('drag-over');
           }
-          dragOverCardId = cardId;
+          setDragOverCardId(cardId);
         }
       }
       

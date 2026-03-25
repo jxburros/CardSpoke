@@ -644,6 +644,21 @@ const dataUpdateListeners = new Map();
     };
   }
 
+  function _functionToCtxCode(fn) {
+    if (typeof fn !== 'function') return null;
+    return 'return (' + fn.toString() + ')(ctx);';
+  }
+
+  function _createSerializableDefinition(definition) {
+    if (!definition) return null;
+    return {
+      manifest: definition.manifest,
+      css: definition.css,
+      js: (typeof definition.js === 'string' && definition.js) || _functionToCtxCode(definition.setup),
+      teardownJs: (typeof definition.teardownJs === 'string' && definition.teardownJs) || _functionToCtxCode(definition.teardown)
+    };
+  }
+
   const PluginManager = {
     register: function(id, definition) {
       if (!id || !definition) {
@@ -772,6 +787,9 @@ const dataUpdateListeners = new Map();
         } catch (err) {
           console.error('[Plugin] Setup error for', id, ':', err);
           console.error('[Plugin] Stack trace:', err.stack);
+          if (window.showToast) {
+            window.showToast('Plugin "' + id + '" failed to start: ' + err.message, 'error');
+          }
           
           // Clean up partially applied resources
           this._removeCSS(id);
@@ -1002,7 +1020,8 @@ const dataUpdateListeners = new Map();
         setup: pkg.setup,
         teardown: pkg.teardown,
         css: pkg.css,
-        js: pkg.js || pkg.javascript
+        js: pkg.js || pkg.javascript,
+        teardownJs: pkg.teardownJs || (typeof pkg.teardown === 'string' ? pkg.teardown : null)
       };
 
       this.register(id, definition);
@@ -1017,7 +1036,7 @@ const dataUpdateListeners = new Map();
           window.store.plugins = {};
         }
         window.store.plugins[id] = {
-          definition: definition,
+          definition: _createSerializableDefinition(definition),
           enabled: risk === 'SAFE' || risk === 'LOW'
         };
         if (window.save) {
