@@ -17,22 +17,47 @@
 /**
  * Application entry point loader.
  * Prefers the stable bundled app.js; falls back to the ESM entry (src/main.js)
- * if app.js fails to load (e.g. file not found).
+ * if app.js fails to load (e.g. file not found) OR fails to execute (runtime error).
  *
  * This is an external script file so it can be served under the 'self' CSP
  * source without requiring 'unsafe-inline'.
  */
 (function() {
+  var loaded = false;
+  var fallbackUsed = false;
+
   function loadModuleEntry() {
+    if (fallbackUsed) return;
+    fallbackUsed = true;
     var entry = document.createElement('script');
     entry.type = 'module';
     entry.src = './src/main.js';
     document.body.appendChild(entry);
   }
 
+  // Catch fatal JS errors that originate from the bundle. The script onerror
+  // event only fires for network failures (404), not for JS execution errors, so
+  // we also install a temporary window.onerror listener during the window in
+  // which the bundle is expected to initialise.
+  var originalOnError = window.onerror;
+  window.onerror = function(msg, src, line, col, err) {
+    if (!loaded && !fallbackUsed) {
+      console.warn('[app-loader] Bundle error detected, falling back to ESM entry:', msg);
+      loadModuleEntry();
+    }
+    // Restore previous handler and propagate
+    window.onerror = originalOnError;
+    return false;
+  };
+
   var bundle = document.createElement('script');
   bundle.src = './app.js';
   bundle.defer = true;
+  bundle.onload = function() {
+    loaded = true;
+    // Bundle executed successfully; remove the onerror safety net.
+    window.onerror = originalOnError;
+  };
   bundle.onerror = loadModuleEntry;
   document.body.appendChild(bundle);
 })();
