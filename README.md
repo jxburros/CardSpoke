@@ -17,7 +17,7 @@ CardSpoke is a lightweight, card-based knowledge system built for extensibility.
    ```bash
    npm install
    ```
-2. Run the web build (concatenates the source slices in `www/src` into `www/app.js`):
+2. Run the web build (bundles the source in `www/src/` into `www/app.js` via Vite):
    ```bash
    npm run build
    ```
@@ -32,7 +32,7 @@ CardSpoke is a lightweight, card-based knowledge system built for extensibility.
 
 ## Project Layout
 - `www/` – Prebuilt web assets for the Capacitor shell. `app.js` embeds utilities, renderer logic, and the plugin runtime; `styles.css` holds the default light/dark styling and typography presets.
-- `www/src/` – Source slices for `app.js`. Run `npm run build` to concatenate the domain-named files into the single bundle for `file://` usage.
+- `www/src/` – Source files for `app.js`. Run `npm run build` to produce the Vite IIFE bundle at `www/app.js`.
 - `www/modules/` – Reference ES module versions kept for documentation (not used at runtime).
 - `tests/` – Automated tests (uvu).
 - `docs/` – Project documentation organized by category (see [Documentation](#documentation) below).
@@ -91,7 +91,7 @@ The plugin system includes:
 
 ```javascript
 // Modern Plugin API
-window.CardSpoke.Plugin.register('my-plugin', {
+window.CardSpoke.registerPlugin('my-plugin', {
   manifest: {
     name: "My Plugin",
     version: "1.0.0",
@@ -120,9 +120,6 @@ CardSpoke is local-first (LocalStorage/IndexedDB). Preferences (rich text, grid 
 - Adhere to safety expectations in [Security & Safety Considerations](./docs/policies/SECURITY_AND_SAFETY.md).
 - Submit issues/PRs with clear metadata and changelog entries.
 - Respect branding restrictions (CardSpoke name/branding cannot be used in forks).
-
-## Support & Questions
-Please open an issue with details about your environment, plugins in use, and schema version. For licensing or branding questions, include your planned distribution channel and whether the work is official or angled.
 
 ## Support & Disclosure Channels
 - General support, bug reports, and feature requests: GitHub Issues at <https://github.com/jxburros/CardSpoke/issues>.
