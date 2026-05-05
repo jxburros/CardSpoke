@@ -2180,14 +2180,53 @@ import {
         wrapper.focusInput = () => input.focus();
         return wrapper;
       }
+      /**
+       * Get all cards that link to a specific card via [[Title]] references.
+       * @param {string} cardId - The ID of the card to find backlinks for
+       * @returns {Array<{id: string, title: string, body: string}>}
+       */
       function getBacklinks(cardId) {
-        _syncStoreToKernel();
-        return _kernel.getBacklinks(cardId);
+        if (!cardId) return [];
+        const card = store.cards[cardId];
+        if (!card) return [];
+        const result = [];
+        for (const id of Object.keys(store.cards)) {
+          if (id === cardId) continue;
+          const otherCard = store.cards[id];
+          if (otherCard.body && hasCardLink(otherCard.body, card.title || '')) {
+            result.push({ id: otherCard.id, title: otherCard.title || '(Untitled)', body: otherCard.body });
+          }
+        }
+        return result;
       }
 
+      /**
+       * Get related cards based on shared tags.
+       * @param {string} cardId - The ID of the card
+       * @param {number} [limit=10] - Maximum number of related cards to return
+       * @returns {Array<{id: string, title: string, matchScore: number, matchedTags: string[]}>}
+       */
       function getRelatedCards(cardId, limit = 10) {
-        _syncStoreToKernel();
-        return _kernel.getRelatedCards(cardId, limit);
+        if (!cardId) return [];
+        const cardTags = getTags(cardId);
+        if (cardTags.length === 0) return [];
+        const related = [];
+        for (const id of Object.keys(store.cards)) {
+          if (id === cardId) continue;
+          const otherCard = store.cards[id];
+          const otherTags = getTags(id);
+          const matchedTags = cardTags.filter(t => otherTags.includes(t));
+          if (matchedTags.length > 0) {
+            related.push({
+              id: otherCard.id,
+              title: otherCard.title || '(Untitled)',
+              matchScore: matchedTags.length / Math.max(cardTags.length, otherTags.length),
+              matchedTags,
+            });
+          }
+        }
+        related.sort((a, b) => b.matchScore - a.matchScore);
+        return related.slice(0, limit);
       }
 
 
