@@ -17,7 +17,7 @@ CardSpoke is a lightweight, card-based knowledge system built for extensibility.
    ```bash
    npm install
    ```
-2. Run the web build (concatenates the source slices in `www/src` into `www/app.js`):
+2. Run the web build (uses Vite to bundle the source slices in `www/src` into `www/app.js`):
    ```bash
    npm run build
    ```
@@ -32,7 +32,7 @@ CardSpoke is a lightweight, card-based knowledge system built for extensibility.
 
 ## Project Layout
 - `www/` – Prebuilt web assets for the Capacitor shell. `app.js` embeds utilities, renderer logic, and the plugin runtime; `styles.css` holds the default light/dark styling and typography presets.
-- `www/src/` – Source slices for `app.js`. Run `npm run build` to concatenate the domain-named files into the single bundle for `file://` usage.
+- `www/src/` – Source slices for `app.js`. Run `npm run build` to produce the single Vite bundle for `file://` usage. The legacy concatenation helper remains available as `npm run build:cat`.
 - `www/modules/` – Reference ES module versions kept for documentation (not used at runtime).
 - `tests/` – Automated tests (uvu).
 - `docs/` – Project documentation organized by category (see [Documentation](#documentation) below).
