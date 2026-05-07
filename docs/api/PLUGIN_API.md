@@ -7,6 +7,7 @@ The Plugin API provides a sandboxed, resource-managed environment for plugin dev
 ## Overview
 
 Key features:
+
 - **Isolated Contexts**: Each plugin gets its own API sandbox
 - **Resource Tracking**: Automatic tracking of DOM elements, listeners, and components
 - **Hot Unloading**: Clean removal without page refresh or ghost elements
@@ -377,7 +378,7 @@ window.CardSpoke.Plugin.register('note-counter', {
 ## Plugin Lifecycle
 
 1. **Register**: Plugin definition registered with system
-2. **Enable**: 
+2. **Enable**:
    - Permissions checked
    - CSS applied
    - `setup()` called
@@ -414,7 +415,6 @@ When a plugin is disabled, all resources are automatically cleaned up.
 - [Middleware Pipeline](./MIDDLEWARE_PIPELINE.md) - Intercept operations
 - [Component Registry](./COMPONENT_REGISTRY.md) - UI components
 - [Plugin System Documentation](../PLUGIN_SYSTEM.md) - Complete plugin system guide including permissions
-
 
 ### Network API
 

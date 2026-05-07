@@ -55,28 +55,32 @@ All complaints will be reviewed and investigated promptly and fairly.
 Community leaders will follow these guidelines in determining consequences:
 
 #### 1. Correction
+
 **Community Impact:** Minor inappropriate behavior
 
 **Consequence:** A private, written warning providing clarity around the nature of the violation and an explanation of why the behavior was inappropriate.
 
 #### 2. Warning
+
 **Community Impact:** A violation through a single incident or series of actions
 
 **Consequence:** A warning with consequences for continued behavior. No interaction with the people involved for a specified period of time.
 
 #### 3. Temporary Ban
+
 **Community Impact:** A serious violation of community standards
 
 **Consequence:** A temporary ban from any sort of interaction or public communication with the community.
 
 #### 4. Permanent Ban
+
 **Community Impact:** Demonstrating a pattern of violation of community standards
 
 **Consequence:** A permanent ban from any sort of public interaction within the community.
 
 ## Attribution
 
-This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org/), version 2.1, available at https://www.contributor-covenant.org/version/2/1/code_of_conduct.html.
+This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org/), version 2.1, available at <https://www.contributor-covenant.org/version/2/1/code_of_conduct.html>.
 
 ## Summary
 
@@ -86,4 +90,4 @@ We're all here to build something great together. Let's make CardSpoke a welcomi
 
 ---
 
-*Last updated: 2025-11-27*
+Last updated: 2025-11-27

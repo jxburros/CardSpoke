@@ -2,7 +2,7 @@
 
 ## Modern Plugin Architecture
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────┐
 │                          CardSpoke App                              │
 │                                                                      │
@@ -81,9 +81,9 @@
 
 ## Data Flow: Card Save Operation
 
-
 ### Card Save Operation Flow
-```
+
+```text
 User clicks Save
     ↓
 Middleware.run('card.save', [card])
@@ -115,7 +115,7 @@ Components re-render via Component Registry
 
 ## Plugin Lifecycle
 
-```
+```text
 ┌────────────────────────────────────────────────┐
 │              Plugin Registration                │
 │  CardSpoke.Plugin.register('my-plugin', def)   │
@@ -155,7 +155,7 @@ Components re-render via Component Registry
 
 ## Component Override Resolution
 
-```
+```text
 Component Request: "Card"
          ↓
 ┌─────────────────────────────┐
@@ -176,6 +176,7 @@ Component Request: "Card"
 ## Key Architectural Principles
 
 ### 1. Separation of Concerns
+
 - **Core**: Business logic and data management
 - **Middleware**: Operation interception and modification
 - **Components**: UI rendering and presentation
@@ -183,22 +184,26 @@ Component Request: "Card"
 - **Storage**: Data persistence abstraction
 
 ### 2. Priority-Based Resolution
+
 - **Middleware**: Higher priority runs first
 - **Components**: Higher priority overrides lower
 - **Deterministic**: Same priority = last registered wins
 
 ### 3. Resource Management
+
 - **Automatic Tracking**: All resources tracked via plugin context
 - **Clean Unload**: Resources removed on plugin disable
 - **No Leaks**: WeakMap/WeakSet prevent memory leaks
 
 ### 4. Security Layers
+
 - **Sandboxing**: Isolated plugin contexts
 - **Permissions**: Explicit capability model
 - **Validation**: Middleware can validate operations
 - **Namespacing**: Storage automatically isolated
 
 ### 5. Backward Compatibility
+
 - **Bridge Layer**: Translates legacy calls
 - **Dual Support**: Both systems coexist
 - **Gradual Migration**: No forced upgrades
@@ -206,7 +211,7 @@ Component Request: "Card"
 
 ## Technology Stack
 
-```
+```text
 ┌─────────────────────────────────────────┐
 │          Development Layer              │
 │  • TypeScript definitions               │
@@ -255,6 +260,7 @@ Component Request: "Card"
 ## Conclusion
 
 The new architecture provides:
+
 - ✅ Modern plugin development experience
 - ✅ Enterprise-grade security and isolation
 - ✅ Type safety and developer tooling
@@ -263,6 +269,7 @@ The new architecture provides:
 - ✅ Minimal performance overhead
 
 While maintaining:
+
 - ✅ Simple API for basic plugins
 - ✅ Local-first data model
 - ✅ Lightweight core bundle

@@ -7,6 +7,7 @@ The Component Registry provides a centralized system for registering and overrid
 ## Overview
 
 Benefits:
+
 - **Centralized Management**: All components in one registry
 - **Priority-Based Resolution**: Higher priority components override lower ones
 - **Type Safety**: With TypeScript definitions
@@ -46,6 +47,7 @@ window.CardSpoke.ComponentRegistry.register('Card', {
 ```
 
 **Priority Guidelines:**
+
 - `100+`: Critical overrides (theme components)
 - `50-99`: Feature enhancements
 - `0-49`: Minor modifications

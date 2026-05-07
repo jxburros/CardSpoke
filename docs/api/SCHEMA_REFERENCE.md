@@ -5,11 +5,13 @@ This file summarizes the persisted data model and schema versioning rules used b
 **Current App Version:** 0.17.0 | **Schema Version:** 4 | **Release Date:** 2026-02-17
 
 ## Versioning
+
 - **Current schema version:** 4.
 - Runtime constant `SCHEMA_VERSION` is defined in `www/src/state.js` (bundled into `www/app.js`) and surfaced to plugins via the plugin context (`ctx.schemaVersion`).
 - Bump the schema version on any backward-incompatible change and ship an accompanying migration plan.
 
 ## Core domains
+
 - **Cards:** `cards` map keyed by id, with `rootOrder` tracking top-level ordering and `children` arrays on each card for hierarchy.
 - **Plugins:** `plugins` registry stores plugin metadata, `enabled` flag, and bundled JS/CSS for replay at startup.
 - **User preferences:** `viewMode`, `activeTheme`, typography preset (`cardspoke_typography`), high contrast (`cardspoke_highcontrast`), grid view (`cardspoke_gridView`), and rich text flags (`cardspoke_richtext`).
@@ -17,7 +19,9 @@ This file summarizes the persisted data model and schema versioning rules used b
 - **Trash/undo:** Undo/redo stacks (up to 50 entries) and `trashBin` entries (up to 100) keep recovery history.
 
 ## Card shape
+
 Each card in the `cards` map has the following structure:
+
 ```javascript
 {
   id: string,           // Unique identifier (timestamp + random)
@@ -34,7 +38,9 @@ Each card in the `cards` map has the following structure:
 ```
 
 ## Default store shape
+
 A new dataset starts with:
+
 ```javascript
 {
   rootOrder: [],        // Ordered array of root card IDs
@@ -49,7 +55,9 @@ A new dataset starts with:
 ```
 
 ## LocalStorage keys
+
 Preferences are stored under `cardspoke_*` keys in LocalStorage:
+
 - `cardspoke_richtext` - Rich text mode enabled (boolean as string)
 - `cardspoke_gridView` - Grid view enabled (boolean as string)
 - `cardspoke_highcontrast` - High contrast mode (boolean as string)
@@ -62,10 +70,12 @@ Preferences are stored under `cardspoke_*` keys in LocalStorage:
 - `activeInstance` - Current active dataset/instance key
 
 ## Storage layers
+
 - **LocalStorage**: lightweight config (preferences, dev mode, active dataset id, typography/high-contrast flags).
 - **IndexedDB**: structured datasets via the `datasets` object store in `CardSpokeDB`.
 - **Optional cloud/file drivers**: Google Drive, OneDrive, WebDAV (see [Storage Driver Interface](./STORAGE_DRIVER_INTERFACE.md)) used only when explicitly configured by the user.
 
 ## Migration expectations
+
 - Keep migrations idempotent and provide fallbacks if a migration fails (e.g., block plugins, fall back to read-only view).
 - Document every migration with from-to versions, change summary, steps, fallback behavior, and plugin impact.

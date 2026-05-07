@@ -27,6 +27,7 @@ The plugin system is built on a modern, powerful architecture featuring:
 ### Plugin Definition Format
 
 **All plugins use one of two formats:**
+
 - **ES6 Module Format**: For development with bundlers (Vite/ESBuild) and modern JavaScript workflows
 - **Runtime Registration Format**: For direct browser usage without a build step
 
@@ -83,6 +84,7 @@ window.CardSpoke.Plugin.register('my-plugin', {
 Used in: Direct browser `<script>` tags or inline code
 
 ### Required Fields
+
 - **id**: Lowercase alphanumeric with hyphens (`/^[a-z0-9-]+$/`). Must be unique within your plugin context.
 - **manifest.name**: Human-readable display name.
 - **manifest.version**: Semver string (`X.Y.Z`).
@@ -90,6 +92,7 @@ Used in: Direct browser `<script>` tags or inline code
 - **manifest.layer**: One of `theme`, `feature`, or `app`.
 
 ### Optional Fields
+
 - **manifest.description**: Short description of the plugin.
 - **manifest.permissions**: Array of requested permissions.
 - **config**: Object of user-configurable settings (arbitrary key/value pairs).
@@ -101,18 +104,21 @@ Used in: Direct browser `<script>` tags or inline code
 ## Three-Layer Architecture
 
 ### 1. Theme Layer
+
 - **Capabilities**: CSS only.
 - **Restrictions**: No JavaScript allowed. No overrides.
 - **Risk Level**: Low (safe).
 - **Use Cases**: Color schemes, typography changes, layout tweaks, dark/light variants.
 
 ### 2. Feature Layer
+
 - **Capabilities**: CSS and JavaScript.
 - **Restrictions**: No overrides.
 - **Risk Level**: Medium.
 - **Use Cases**: New UI panels, keyboard shortcuts, card enhancements, import/export tools, integrations.
 
 ### 3. App Layer
+
 - **Capabilities**: CSS, JavaScript, and overrides.
 - **Restrictions**: None (highest privilege).
 - **Risk Level**: High.
@@ -139,6 +145,7 @@ App-layer plugins can declare overrides that modify core app behavior:
 ```
 
 ### Available Overrides
+
 - **appName**: Replace the brand/title displayed in the header.
 - **hideMenuItems**: Array of menu item element IDs to hide.
 - **customMenuItems**: Array of menu items to inject, each with `id`, `label`, and optional `section`.
@@ -156,6 +163,7 @@ The system automatically assesses risk based on layer and content:
 | app | HIGH | HIGH | HIGH | HIGH |
 
 Risk indicators checked in JavaScript:
+
 - Network access: `fetch(`, `XMLHttpRequest`, `WebSocket`
 - DOM manipulation: `document.write`, `innerHTML`, `eval(`
 - Storage access: `localStorage`, `indexedDB`
@@ -174,6 +182,7 @@ Every plugin defines these lifecycle functions:
 ### Resource Management
 
 The Plugin API automatically manages resources:
+
 - Injected DOM elements are tracked
 - Event listeners are scoped to the plugin
 - Middleware handlers are automatically unregistered on disable
@@ -190,12 +199,15 @@ The Plugin Manager is accessible from the main menu and has three tabs:
 ## Installation Methods
 
 ### File Upload
+
 Upload a plugin definition file through the Upload modal (Plugins tab) or the Plugin Manager's Install tab.
 
 ### Manual Creation
+
 Use the Create tab in the Plugin Manager to define a plugin directly in the app by providing metadata, JavaScript code, and CSS.
 
 ### Programmatic
+
 ```javascript
 window.CardSpoke.Plugin.register('my-plugin', pluginDefinition);
 ```
@@ -207,6 +219,7 @@ Launch with `?safemode` in the URL to disable all plugins. This is useful for tr
 ## Validation Rules
 
 `validateModPackage()` enforces:
+
 1. `manifest` must exist with `name`, `version`, `author`, and `layer`.
 2. `manifest.layer` must be one of `theme`, `feature`, or `app`.
 3. Theme-layer plugins must have no `setup`/`teardown` functions (CSS only).
@@ -216,6 +229,7 @@ Launch with `?safemode` in the URL to disable all plugins. This is useful for tr
 ## Event Bus
 
 Plugins can communicate via the Plugin API event system:
+
 - `ctx.api.events.on(event, callback)`: Subscribe to an event. Returns a cleanup function.
 - `ctx.api.events.off(event, callback)`: Unsubscribe from an event.
 - `ctx.api.events.emit(event, ...args)`: Broadcast an event with optional arguments.
@@ -264,6 +278,7 @@ Plugin data is persisted in localStorage under plugin-namespaced keys. Each plug
 Plugin metadata and enabled state are stored in `window.store.plugins` and persisted via localStorage.
 
 **Core app keys:**
+
 - `cardspoke_dataset`: Current dataset name
 - `cardspoke_theme`: Theme preference (light/dark)
 - `cardspoke_typography`: Typography preset
@@ -462,6 +477,7 @@ card.modsData = {
 ```
 
 The `modsData` field is preserved during:
+
 - Card save/load
 - Export/import
 - Duplication
@@ -471,11 +487,12 @@ The `modsData` field is preserved during:
 
 ## TypeScript Support
 
-TypeScript definitions are available in the `types/` directory of this repository. 
+TypeScript definitions are available in the `types/` directory of this repository.
 
 **Note:** The `@cardspoke/core` npm package is not currently published. To use TypeScript with CardSpoke plugins:
 
 1. **For local development:** Reference the types directly from the repository:
+
    ```typescript
    /// <reference path="path/to/CardSpoke/types/index.d.ts" />
    
@@ -490,6 +507,7 @@ TypeScript definitions are available in the `types/` directory of this repositor
    ```
 
 2. **For standalone plugins:** Copy the type definitions from `types/index.d.ts` into your project or use JSDoc comments for type hints:
+
    ```javascript
    /**
     * @type {CardSpoke.PluginDefinition}

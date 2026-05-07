@@ -1,0 +1,24 @@
+{
+  // MD013: Line length — relaxed; long lines are common in technical docs and tables.
+  "MD013": false,
+
+  // MD033: Inline HTML — allowed; many docs use HTML intentionally.
+  "MD033": false,
+
+  // MD053: Link/image reference definitions — too noisy for generated docs.
+  "MD053": false,
+
+  // MD060: Table column style — alignment enforcement disabled.
+  "MD060": false,
+
+  // MD025: Single H1 — disabled for structured reference docs that use
+  // multiple H1 sections as logical dividers.
+  "MD025": false,
+
+  // MD024: No duplicate headings — disabled; repeated section names like
+  // "Goal" or "Overview" are valid across independent document sections.
+  "MD024": false,
+
+  // All other rules remain at their defaults.
+  "default": true
+}

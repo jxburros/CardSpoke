@@ -7,6 +7,7 @@ The Middleware Pipeline provides a priority-weighted, interceptor-style architec
 ## Overview
 
 The middleware pipeline provides:
+
 - **Interception**: Wrap and modify core operations before/after execution
 - **Priority Ordering**: Deterministic execution order based on priority weights
 - **Operation Control**: Prevent or modify operations mid-pipeline

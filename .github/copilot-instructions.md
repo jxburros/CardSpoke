@@ -1,6 +1,7 @@
 # GitHub Copilot Custom Instructions
 
 ## Overview
+
 These instructions guide my behavior when assisting with code development. Follow these principles in all interactions.
 
 ---
@@ -8,6 +9,7 @@ These instructions guide my behavior when assisting with code development. Follo
 ## 1. Comprehensive Work Completion
 
 ### When Scope is Ambiguous or Open-Ended
+
 - **Default to maximum effort**: If given an open-ended directive like "do as much as possible," "complete Milestone X," or "implement as much as you can," assume you should complete **all work items** in that scope, not just a subset.
 - **Don't self-limit without guidance**: Do not arbitrarily stop after completing a few tasks or reaching an arbitrary time limit. Continue until the entire milestone, feature, or work item is complete.
 - **Ask for clarification on constraints**: If there are genuine constraints (time, complexity, dependencies), ask the user directly rather than assuming limitations.
@@ -19,6 +21,7 @@ These instructions guide my behavior when assisting with code development. Follo
 ## 2. Development Plan Review
 
 ### Before Writing Code
+
 - **Check the development plan**: Before starting implementation, review the project's development plan, roadmap, or architecture document.
 - **Assess future compatibility**: Evaluate whether the current approach will support planned features or if adjustments now would save refactoring later.
 - **Ask clarifying questions**: If the plan suggests future changes that affect the current implementation, discuss with the user:
@@ -32,6 +35,7 @@ These instructions guide my behavior when assisting with code development. Follo
 ## 3. Testing
 
 ### Create Tests When Appropriate
+
 - **Default to testing**: Write tests for:
   - All new functions and methods
   - Logic branches and edge cases
@@ -58,9 +62,11 @@ These instructions guide my behavior when assisting with code development. Follo
 ## 4. Documentation
 
 ### Always Update Documentation
+
 - **Comprehensive updates required**: Every code change must include corresponding documentation updates. This is non-negotiable.
 
 #### What to Document
+
 - **Function/method documentation**:
   - Purpose and behavior
   - Parameters and types
@@ -98,6 +104,7 @@ These instructions guide my behavior when assisting with code development. Follo
   - Include authentication/authorization requirements
 
 #### Documentation Standards
+
 - **Keep it current**: Documentation must reflect the actual code behavior.
 - **Make it clear**: Use plain language; assume the reader is unfamiliar with the code.
 - **Provide examples**: Include code snippets showing real usage.
@@ -105,6 +112,7 @@ These instructions guide my behavior when assisting with code development. Follo
 - **Check consistency**: Ensure terminology and style match existing documentation.
 
 #### Before Declaring Work Done
+
 - Ask yourself: "Would a new developer understand how to use this without asking questions?"
 - If the answer is no, add more documentation.
 - Review your own documentation for clarity and completeness.
@@ -127,9 +135,11 @@ Before marking any work item as complete:
 ## Examples
 
 ### Example 1: Open-Ended Task
+
 **User:** "Complete as much of the authentication module as possible."
 
 **Copilot Response:**
+
 - Review the dev plan to understand the authentication strategy
 - Implement all planned components (login, logout, token refresh, password reset, etc.)
 - Create unit tests for each component
@@ -140,9 +150,11 @@ Before marking any work item as complete:
 - Don't stop after implementing login—continue until the entire scope is done
 
 ### Example 2: Feature Implementation
+
 **User:** "Add user profile settings page."
 
 **Copilot Response:**
+
 - Check the dev plan for planned user profile features (e.g., avatar uploads, two-factor auth)
 - Structure the code to support those future features now
 - Implement the current settings page
@@ -153,9 +165,11 @@ Before marking any work item as complete:
 - Don't just create a basic form—make it production-ready with tests and docs
 
 ### Example 3: Bug Fix with Future Planning
+
 **User:** "Fix the data validation bug in the user input handler."
 
 **Copilot Response:**
+
 - Fix the immediate bug
 - Check if similar validation issues exist elsewhere (prevent future bugs)
 - Add tests to prevent regression

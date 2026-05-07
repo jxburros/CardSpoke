@@ -5,6 +5,7 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 **Current Version:** 0.17.0 | **Schema Version:** 4 | **Release Date:** 2026-02-17
 
 ## Core Product Shape
+
 - **Card-based knowledge system:** Presents information as hierarchical, tiered cards for lightweight knowledge organization.
 - **Intentionally minimal core:** Keeps the built-in experience ultra-light while delegating optional complexity to plugins.
 - **Self-contained bundle:** The `www/app.js` file is self-contained for `file://` protocol compatibility, with all utilities inlined to avoid CORS issues when opening directly from the filesystem.
@@ -13,6 +14,7 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 - **Schema-aware:** Uses an explicit `schemaVersion` (currently 4) to gate features and plugins.
 
 ## User Interface Features
+
 - **Dark/Light theme toggle:** Switch between dark and light modes via the header button or `Alt+T` keyboard shortcut.
 - **Rich Text mode:** Enable markdown-style formatting in card bodies via Appearance settings (`cardspoke_richtext`).
 - **Grid View:** Toggle between list and grid layouts for card display (`cardspoke_gridView`).
@@ -26,6 +28,7 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 - **Getting Started guide:** First-run onboarding for new users.
 
 ## Card Management
+
 - **Hierarchical cards:** Create parent-child relationships between cards with unlimited nesting depth.
 - **Card CRUD:** Create, read, update, and delete cards with full undo/redo support.
 - **Card duplication:** Duplicate cards with or without children.
@@ -36,12 +39,14 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 - **Card links:** Reference other cards using `[[Card Title]]` syntax with backlink detection.
 
 ## Tag System
+
 - **Tag creation:** Add multiple tags per card using comma or space separation.
 - **Tag Manager:** Rename, merge, or delete tags across all cards.
 - **Smart tag suggestions:** AI-like suggestions based on content similarity with other tagged cards.
 - **Tag filtering:** Click tags to filter and search by tag.
 
 ## Search Features
+
 - **Fuzzy search:** Typo-tolerant search using Levenshtein distance scoring.
 - **Multi-dataset search:** Search across current dataset or all datasets simultaneously.
 - **Advanced search:** Filter by text, tag, bookmark status, or date range.
@@ -49,6 +54,7 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 - **Search highlighting:** Matched terms highlighted in results.
 
 ## User Data & Storage
+
 - **Local-first ownership:** User data stays on-device by default; no hosted data or silent syncs.
 - **Storage layers:** Uses LocalStorage for configuration and IndexedDB for structured card data/history. Optional Capacitor Filesystem for exports when running in native shells. Preferences persist under `cardspoke_*` keys.
 - **No default telemetry:** The core avoids analytics/tracking beacons and requires explicit consent before any off-device transmission.
@@ -56,16 +62,19 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 - **Cloud storage drivers:** Optional integration with Google Drive, OneDrive, or WebDAV (requires OAuth configuration).
 
 ## Import & Export
+
 - **Export formats:** JSON (instance/subtree/single card), CSV, Markdown, and TXT.
 - **Import formats:** JSON (CardSpoke format), TXT (outline or append mode), DOCX (text extraction).
 - **Bulk operations:** Bulk export/import of multiple cards with hierarchy preservation.
 - **Backup system:** Create timestamped backups (`cardspoke-backup-*.json`) with one-click restore.
 
 ## Undo/Redo & Recovery
+
 - **Undo/Redo stack:** Up to 50 actions with Ctrl+Z/Ctrl+Y shortcuts.
 - **Trash Bin:** Recover deleted cards from the trash with restore or permanent delete options (up to 100 items).
 
 ## Keyboard Shortcuts
+
 - `Ctrl+N` — New card
 - `Ctrl+F` — Focus search
 - `Ctrl+H` — Go to home
@@ -81,6 +90,7 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 - `Escape` — Close modals/go back
 
 ## Plugin Ecosystem
+
 - **Plugin Manager:** Central UI for managing installed plugins with tabs for viewing installed plugins, installing new ones, and creating plugins directly in-app.
 - **Three-layer system:** Theme (CSS only, lowest risk), Feature (CSS+JS, medium risk), and App (CSS+JS+overrides, highest risk) layers cover the full spectrum from visual tweaks to full app transformations.
 - **Modern Plugin API:** Sandboxed plugin contexts with `api.ui`, `api.data`, `api.storage`, and `api.events` for resource-managed plugin development.
@@ -98,6 +108,7 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 - **Dev tools:** Inspect plugins, view hook stats, access error logs, and manually test hooks.
 
 ## Accessibility Features
+
 - **Focus trapping:** Modal dialogs trap keyboard focus for screen reader compatibility.
 - **ARIA attributes:** Proper labeling for interactive elements.
 - **Reduced motion support:** Respects `prefers-reduced-motion` preference.
@@ -106,15 +117,18 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 - **Dyslexia-friendly typography:** Specialized font sizing and spacing preset.
 
 ## Deviations (Forks)
+
 - **Fork allowance with boundaries:** Community members can ship Deviations but must not use the "CardSpoke" name/branding and must provide mandatory metadata and credit.
 - **Monetization permitted:** Deviations and plugins may be monetized while remaining transparent about authorship and endorsement status.
 
 ## Platform & Build Footprint
+
 - **Prebuilt web bundle:** Ships bundled web assets in `www/` that feed the Capacitor shells. The bundle is self-contained and works via `file://` protocol.
 - **Cross-platform shells:** Capacitor workflows support Android and iOS, with CLI-driven sync/open commands for each platform.
 - **Native integrations:** Uses Capacitor plugins for app lifecycle (`@capacitor/app`), preferences (`@capacitor/preferences`), and filesystem persistence (`@capacitor/filesystem`).
 
 ## Schema, Versioning, and Compatibility
+
 - **Current schema version:** 4 (as of v0.17.0).
 - **Data domains:** Schema covers cards/relationships, user preferences, plugin registry, and optional local file references.
 - **Default store shape:** `rootOrder`, `cards`, `plugins`, `bookmarks`, `recentCards`, `viewMode`, `activeTheme`, `richTextEnabled`.
@@ -122,9 +136,11 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 - **Compatibility safeguards:** Plugins must declare compatibility and refuse to run on unsupported versions.
 
 ## LocalStorage Keys
+
 CardSpoke uses LocalStorage for preferences and lightweight configuration. All keys are prefixed with `cardspoke_`:
 
 ### User Preferences
+
 - `cardspoke_richtext` – Boolean: Enable markdown-style rich text formatting in card bodies
 - `cardspoke_gridView` – Boolean: Toggle between grid and list card layouts
 - `cardspoke_highcontrast` – Boolean: Enable high-contrast mode for accessibility
@@ -134,20 +150,24 @@ CardSpoke uses LocalStorage for preferences and lightweight configuration. All k
 - `cardspoke_activeThemeMod` – String: ID of active theme plugin (if any)
 
 ### Application State
+
 - `cardspoke_datasets` – JSON: Array of dataset metadata objects
 - `cardspoke_dataset_metadata` – JSON: Current dataset manager metadata
 - `cardspoke_lastUploadTab` – String: Last active upload tab (JSON/TXT/DOCX/CSV/MD)
 - `cardspoke_hasSeenGettingStarted` – Boolean: Tracks onboarding guide completion
 
 ### File System Integration
+
 - `cardspoke_file_handle_*` – Various: File handle references for local file storage (Capacitor)
 
 ## Developer & Testing Experience
+
 - **Node/uvu toolchain:** Uses Node (18+) with `npm run build` for web assets and `npm test` (uvu) for automated checks.
 - **Plugin-focused testing:** `sample-extensions.test.js` and related tests target plugin package format and layer system to keep compatibility tight.
 - **Capacitor workflows:** `npm run sync` plus platform-specific `open` scripts accelerate native iteration without manual setup.
 
 ## Community & Governance Features
+
 - **Accountability for angled content:** Community-made plugins must publish versioning, creator identity, AI assistants used, and changelogs to stay transparent.
 - **Credit & ownership rules:** CardSpoke stays free-to-use under JX Holdings, LLC ownership; creators must credit CardSpoke/JX Holdings and avoid implying official endorsement without approval.
 - **Quality expectations:** Plugins should fail safely, avoid data corruption or obfuscation, and document install/removal steps for user trust.

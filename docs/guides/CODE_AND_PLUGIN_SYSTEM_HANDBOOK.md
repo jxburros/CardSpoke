@@ -212,7 +212,6 @@ Common keys you will interact with:
 - `cardspoke_activeThemeMod`
 - `cardspoke_dataset_metadata` (dataset registry metadata)
 
-
 ---
 
 ## 4) Data Flow: Mutation → Save → Render → Hooks
@@ -384,6 +383,7 @@ Common operations:
 - `notifyDataUpdate()` - Notify data listeners of changes
 
 **Deprecated methods** (no longer exist):
+
 - ~~`runHook(hookName, ...args)`~~ - Use middleware pipeline instead
 - ~~`runHookForMod(modId, hookName, ...args)`~~ - Use middleware pipeline instead
 - ~~`reload(modId)`~~ - Not implemented
@@ -492,6 +492,7 @@ Practical use:
 3. Reload normally
 
 In safe mode:
+
 - Runtime warns in console
 - A warning toast indicates plugins are disabled
 - `CardSpoke.Plugin.syncFromStore()` is skipped (no plugins are loaded)
@@ -571,13 +572,17 @@ Ensure app remains functional with your plugin fully bypassed by loading with `?
 
 1. Edit the relevant source slice(s)
 2. Rebuild bundle:
+
    ```bash
    npm run build
    ```
+
 3. Run tests:
+
    ```bash
    npm test
    ```
+
 4. Verify plugin compatibility assumptions:
    - hooks still fire
    - `window.CardSpoke.utils` contract remains intact
