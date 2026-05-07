@@ -58,37 +58,44 @@ export default plugin;
 ## Available Types
 
 ### Core Types
+
 - `Card` - Card data structure
 - `Store` - Application store
 - `ModManifest` - Plugin manifest
 - `PermissionType` - Available permissions
 
 ### Plugin Types
+
 - `PluginDefinition` - Plugin definition
 - `PluginContext` - Plugin execution context
 - `PluginAPI` - Sandboxed API object
 - `PluginInstance` - Running plugin instance
 
 ### API Types
+
 - `UIApi` - UI manipulation API
 - `DataApi` - Data access API
 - `StorageApi` - Persistent storage API
 - `EventApi` - Event system API
 
 ### Middleware Types
+
 - `Middleware` - Middleware definition
 - `MiddlewareContext` - Middleware execution context
 - `MiddlewareFunction` - Middleware handler function
 
 ### Component Types
+
 - `Component` - UI component definition
 - `ComponentRegistryClass` - Component registry manager
 
 ### Storage Types
+
 - `StorageDriver` - Storage driver interface
 - `StorageDriverRegistryClass` - Driver registry manager
 
 ### Utility Types
+
 - `Logger` - Scoped logger
 - `PluginUtils` - Utility functions
 - `NavigationState` - Navigation state

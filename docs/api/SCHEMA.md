@@ -3,6 +3,7 @@
 CardSpoke uses a schema version (`schemaVersion`) to track data model changes across the local-first storage stack (LocalStorage/IndexedDB). Use this document to plan migrations and communicate compatibility.
 
 ## Current Schema Overview
+
 - **Schema version:** 4 (sourced from runtime constant `SCHEMA_VERSION`)
 - **Data domains:**
   - Cards and hierarchical relationships
@@ -16,6 +17,7 @@ CardSpoke uses a schema version (`schemaVersion`) to track data model changes ac
   - Optional filesystem assets via Capacitor Filesystem (documented per plugin)
 
 ## Versioning Rules
+
 - Increment `schemaVersion` on any backward-incompatible change.
 - Provide migration steps and fallback behavior for every version bump.
 - Keep migrations idempotent and safe to re-run.
@@ -30,13 +32,16 @@ CardSpoke uses a schema version (`schemaVersion`) to track data model changes ac
 - **No versioned migrations:** There are currently no explicit migration functions for transitions between schema versions 1→2→3→4. The system starts fresh with v4 or attempts to use existing data as-is.
 
 **Future Migration Work:** To fully support the versioning rules above, future work should implement:
+
 1. Explicit migration functions for each schema version transition
 2. Version compatibility checks before loading data
 3. Comprehensive migration tests for each schema version path
 4. Better error handling and user prompts for failed migrations
 
 ## Migration Template
+
 For each future schema change, record:
+
 - **From → To:** schemaVersion numbers
 - **Change summary:** What changed and why
 - **Migration steps:** Ordered operations, including data transformations
@@ -44,6 +49,7 @@ For each future schema change, record:
 - **Plugin impact:** Which plugins depend on the change
 
 Example:
+
 ```md
 ### schemaVersion 3 → 4
 - **Change:** Added per-card tags collection; normalized card links.
@@ -56,15 +62,18 @@ Example:
 ```
 
 ## Fallback & Compatibility
+
 - On incompatible schema, block plugins and prompt users with remediation steps.
 - Provide read-only access if feasible when migrations cannot complete.
 - Plugins must declare `compatibility` in their manifest and refuse to run on older schemas. Include the expected `cardspoke_*` preference keys any plugin consumes so mismatched schemas do not wipe toggles.
 
 ## Testing Migrations
+
 - Add uvu tests for each migration path (happy path + failure cases).
 - Include sample data fixtures for old versions.
 - Exercise downgrade/remove scenarios when possible.
 
 ## Documentation Updates
+
 - Update this file for every schemaVersion change.
 - Reference schema changes in release notes and relevant plugin documentation.

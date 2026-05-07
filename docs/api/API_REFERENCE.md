@@ -5,6 +5,7 @@ This reference documents the surfaces plugin developers can rely on: the `CardSp
 **Current Version:** 0.17.0 | **Schema Version:** 4 | **Release Date:** 2026-02-17
 
 ## Global objects
+
 - **`window.CardSpoke.utils`**: helpers for card CRUD, tagging, search, accessibility, dataset metadata, and toast UI helpers.
 - **`window.CardSpoke.Plugin`**: the plugin system that manages plugin registration, lifecycle, permissions, and resource management.
 
@@ -121,6 +122,7 @@ The events API provides an event bus for inter-plugin communication. Note: This 
 ### Resource Management
 
 The Plugin API automatically manages resources:
+
 - DOM elements injected via `ctx.api.ui.inject()` or `ctx.api.ui.replace()` are tracked and cleaned up when the plugin is disabled
 - Event listeners registered via `ctx.api.data.onUpdate()` are automatically unsubscribed on disable
 - Components registered via `ctx.api.ui.registerComponent()` are tracked
@@ -147,6 +149,7 @@ The utilities API provides global helper functions available to all plugins and 
 **Note:** The internal `createCard()` function has the signature `createCard(title, body, parentId, skipSave, skipHooks)` and returns a card ID. When using `ctx.api.data.createCard()`, pass an object with `title`, `body`, `parentId`, and `tags` fields.
 
 Direct window functions (available but not recommended for plugin use):
+
 - `window.createCard(title, body, parentId, skipSave, skipHooks)`: Creates a card and returns its ID
 - `window.updateCard(id, updates, skipSave, skipHooks)`: Updates a card's fields
 - `window.deleteCard(id, opts)`: Deletes a card and its children recursively
@@ -156,6 +159,7 @@ Direct window functions (available but not recommended for plugin use):
 ### Tag Operations
 
 Direct window functions for tag management:
+
 - `window.getTags(cardId)`: Returns array of tags for a card
 - `window.addTag(cardId, tag)`: Adds a tag to a card
 - `window.removeTag(cardId, tag)`: Removes a tag from a card  
@@ -186,6 +190,7 @@ Direct window functions for tag management:
 ### Theme and Accessibility
 
 Direct window functions for appearance:
+
 - `window.setTheme(theme)`: Sets the theme (`'light'` or `'dark'`)
 - `window.getTheme()`: Returns the current theme
 - `window.setTypography(preset)`: Sets the typography preset

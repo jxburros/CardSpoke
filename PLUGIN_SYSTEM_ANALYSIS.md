@@ -22,19 +22,24 @@ The standalone ESM equivalents live under `www/src/core/` (`middleware.js`, `com
 ## Capabilities (What Works)
 
 ### 1. Three-Layer Plugin Model
+
 Plugins declare a `layer` in their manifest: `theme`, `feature`, or `app`. This drives the risk assessment system:
+
 - **theme** — CSS-only, auto-assessed as `SAFE`, auto-enabled on install
 - **feature** — CSS + JS, assessed as `LOW` (auto-enabled) unless it has overrides
 - **app** — Full access, assessed as `HIGH`, must be manually enabled
 
 ### 2. Full Lifecycle Management
+
 - `register(id, definition)` → `enable(id)` → `disable(id)` → `unregister(id)`
 - `setup(ctx)` called on enable, `teardown(ctx)` called on disable, both support `async`
 - Failed `setup()` triggers rollback: CSS is removed, resources are cleaned up, error is thrown
 - Failed `teardown()` logs a warning but continues cleanup (app stability prioritized)
 
 ### 3. Sandboxed Plugin Context
+
 Each plugin receives an isolated `ctx` object with:
+
 - `ctx.api.ui` — inject/replace DOM elements, register components, show toasts
 - `ctx.api.data` — CRUD on cards, tag operations, data update listeners
 - `ctx.api.storage` — namespaced key-value storage (`plugin_{id}_` prefix)
@@ -43,43 +48,55 @@ Each plugin receives an isolated `ctx` object with:
 - `ctx.modId`, `ctx.appVersion`, `ctx.schemaVersion` — metadata
 
 ### 4. Automatic Resource Tracking & Cleanup
+
 Every DOM injection, component registration, event listener, and data listener is tracked in a per-plugin `Set`. On `disable()`, all resources are cleaned up automatically with statistics logging. Replaced DOM elements are restored to their originals.
 
 ### 5. InternalAPI Protection
+
 At enable-time, `captureInternalReferences()` snapshots core functions (`createCard`, `updateCard`, `deleteCard`, `showToast`, etc.) to prevent plugins from breaking the app by overwriting `window` globals. The Data and UI APIs always try the captured reference first.
 
 ### 6. Plugin Validation
+
 Before registration, the `PluginValidator` checks:
+
 - Manifest structure (required fields: `name`, `version`, `layer`)
 - CSS size (max 100KB), dangerous patterns stripped (`@import`, `javascript:`, `expression()`, `-moz-binding`, `behavior:`)
 - JS size (max 500KB), dangerous patterns blocked (`eval()`, `new Function()`)
 - Plugin ID format (lowercase alphanumeric + hyphens)
 
 ### 7. Permissions System
+
 Six permission types: `ui-override`, `storage`, `network`, `filesystem`, `core-override`, `data-modify`. Each API call checks permission before executing. Permissions are persisted to `localStorage` and a consent dialog is rendered dynamically when requesting new permissions.
 
 ### 8. Component Registry with Priority
+
 Plugins can register UI components by name (e.g., `'Card'`) with a numeric priority. Higher priority wins. The rendering code in `www/src/rendering.js` checks for a custom `'Card'` component and uses it if available, falling back to the default renderer on failure.
 
 ### 9. Middleware Pipeline
+
 A priority-weighted interceptor system where handlers receive `(ctx, next)` and can `preventDefault()` or `stopPropagation()`. Supports operation filtering (e.g., `['card.save']`) and wildcard `['*']`. Includes an operation-based cache for performance.
 
 ### 10. Plugin Manager UI
+
 A full 3-tab modal accessible from the hamburger menu:
+
 - **Installed** — lists active plugins with risk badges, enable/disable toggles, remove button, legacy plugin export
 - **Install** — upload `.json` file or install from URL
 - **Create** — inline editor with manifest JSON, JavaScript, and CSS textareas
 
 ### 11. Persistence & Boot
+
 - Installed plugins are persisted to `window.store.plugins` and saved via the app's storage driver
 - On boot, `syncFromStore(safeMode)` re-registers and re-enables all plugins
 - Safe mode (`?safemode` URL parameter) loads plugins but does not enable them
 - Plugin state survives page reloads
 
 ### 12. Storage Driver Registry
+
 Plugins can register custom storage backends implementing a 7-method interface (`init`, `get`, `set`, `remove`, `list`, `getSize`, `getKind`). Drivers can be hot-swapped at runtime.
 
 ### 13. Dynamic Plugin Loader (Example)
+
 `www/src/examples/dynamic-plugin-loader.js` provides ES module loading via `import()` — `loadPluginFromURL()`, `loadPluginFromFile()`, `loadPluginsFromManifest()`. This is an example/reference, not integrated into the main app.
 
 ---
@@ -89,57 +106,74 @@ Plugins can register custom storage backends implementing a 7-method interface (
 ### Critical Issues
 
 #### 1. ~~Middleware Pipeline is Dead Code~~ — **FIXED**
+
 `Middleware.run()` is now called from `www/src/data.js` and `www/src/storage.js` for core operations (`card.create`, `card.update`, `card.delete`, `card.save`). The middleware pipeline is live and functional.
 
 #### 2. `new Function()` Used Despite Being Blocked by Validator
+
 The validator blocks `new Function()` in JS strings (`plugin-validator.js:43`). However, the Plugin Manager UI (`www/src/data.js`) uses `new Function('ctx', jsCode)` to convert user-entered JavaScript into setup functions. This means:
+
 - The Create tab and Install tab both use the very pattern the validator forbids
 - If a plugin JSON file contains JS as a string in the `js` field, that string is never executed — it's validated but there's no code path that converts it into a callable function
 - The sample plugin JSON files (kanban-board, card-search-highlight, etc.) embed their JS as self-executing IIFEs that call `window.CardSpoke.Plugin.register()` directly — but this `js` field string is never `eval()`'d or executed by the system
 
 #### 3. ~~Sample Plugin JSON Files Can't Be Loaded~~ — **PARTIALLY FIXED**
+
 The `install()` method in `www/src/core.js` now checks for `pkg.js` (in addition to `pkg.javascript`) and creates a sandboxed setup function from it, so sample plugins with a `js` field can be loaded. The `javascript` field alias is still checked for backwards compatibility.
 
 #### 4. Permissions System Disconnected from Enable Flow
+
 In `PluginManager.enable()`, `_checkPermissions()` is called, which:
+
 - Checks if `window.showPermissionDialog` exists -> calls it -> auto-grants
 - Falls back to auto-granting if dialog not available
 
 But the actual permission checks in the API methods (`hasPermission()` in `permissions.js`) check `grantedPermissions`, which is populated only when `PermissionsManager.grantPermissions()` is called. The `_checkPermissions` flow calls `showPermissionDialog` which calls `requestPermissions` which calls `grantPermissions` — but only if the user clicks "Allow". The issue is that `_checkPermissions` **auto-grants and returns `true`** as a fallback, bypassing the actual permissions system entirely.
 
 #### 5. Event Bus is Plugin-Scoped, Not Global
+
 The `ctx.api.events` bus creates a new `eventHandlers` Map per plugin. Plugin A cannot emit events that Plugin B hears. There is no cross-plugin communication mechanism.
 
 ### Moderate Issues
 
 #### 6. Divergence Between `www/src/core.js` and `www/src/core/` ESM Files
+
 The `www/src/core.js` file (used by the `npm run build` concatenation build) contains the full plugin system with methods such as `install()`, `syncFromStore()`, `assessModRisk()`, `listAll()`, and an enhanced `unregister()` (with store cleanup). The standalone ESM files under `www/src/core/` (used by the `npm run build:vite` Vite build) may not yet have all of these methods. Keeping these two representations in sync is an ongoing maintenance concern.
 
 #### 7. `cloneCard` Fallback Returns Direct Reference
+
 In `createDataApi` (in `www/src/core.js`), if `cloneCard` is not available, `getCard()` returns a direct reference to `window.store.cards[id]`. This means a plugin could mutate the store directly, bypassing all validation, middleware, and permission checks.
 
 #### 8. No Teardown Function Persistence
+
 When a plugin is installed via `Plugin.install()`, the `definition` (including `setup` and `teardown` function references) is persisted to `window.store.plugins`. Functions cannot be serialized to JSON. After a page reload, `syncFromStore()` will re-register the plugin with `pluginData.definition`, but `definition.setup` and `definition.teardown` will be `undefined` (lost during serialization). The plugin will be "enabled" with no functionality.
 
 #### 9. CSS-Only Themes Work, JS Plugins Don't Survive Reload
+
 Because of issue #8, only CSS-only theme plugins actually survive a page reload correctly. Their CSS is stored as a string and reapplied. Any plugin with JavaScript behavior is silently broken after reload.
 
 #### 10. No Plugin Update Mechanism
+
 There is no way to update an installed plugin. Re-installing generates a new unique ID (`id-1`, `id-2`, etc.) instead of replacing the existing version. Users must manually remove and reinstall.
 
 #### 11. `overrides` Field Unused
+
 The plugin JSON schema includes an `overrides` field (and sample plugins like kanban-board use it with `appName` and `customMenuItems`), but no code reads or processes this field.
 
 #### 12. `config` Field Unused
+
 Every sample plugin JSON includes a `config: {}` field, but no code reads, processes, or exposes plugin configuration to the setup function.
 
 #### 13. Component Registry Only Checks `'Card'`
+
 The rendering code only looks up the `'Card'` component from the registry. There is no mechanism for plugins to override other UI components (Sidebar, SearchBar, Header, etc.) — the registry supports it, but the app doesn't query for any other component name.
 
 #### 14. Storage API Inconsistency
+
 `storage.get()` uses `localStorage.getItem()` as fallback (returns raw string), but `storage.set()` uses `localStorage.setItem(key, JSON.stringify(value))`. A `get()` after `set()` via localStorage returns a JSON string, not the parsed value. The plugin would need to `JSON.parse()` manually.
 
 #### 15. No `network` or `filesystem` Permission Enforcement
+
 Permissions `network` and `filesystem` are defined in the descriptions but never checked anywhere in the code. A plugin can `fetch()` any URL without needing `network` permission.
 
 ---
