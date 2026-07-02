@@ -549,6 +549,7 @@
       color: var(--text);
       line-height: 1.3;
       letter-spacing: -0.02em;
+      min-width: 0;
     }
     
     .card-count {
@@ -1033,6 +1034,25 @@
       padding: var(--space-xl);
       overflow-y: auto; max-height: calc(90vh - 100px);
       flex: 1;
+    }
+
+    .modal-message {
+      white-space: pre-wrap;
+      color: var(--text-medium);
+      line-height: 1.6;
+      margin-bottom: var(--space-lg);
+    }
+
+    .dialog-field {
+      margin-bottom: var(--space-lg);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-md);
+      flex-wrap: wrap;
+      margin-top: var(--space-lg);
     }
     
     .tab-content {
@@ -2278,6 +2298,17 @@ button.breadcrumb:focus {
   .card-tile-title {
     font-size: 11pt;
     color: black !important;
+  }
+
+  .page-title,
+  .breadcrumb,
+  .card-title,
+  .card-detail-title,
+  .children-title,
+  .section-title,
+  .card-tile-title {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   /* Page breaks */
