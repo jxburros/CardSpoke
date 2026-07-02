@@ -829,7 +829,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
             if (isCurrent) {
               const storageBtn = h('button', {
                 className: 'btn',
-                onclick: () => {
+                onclick: async () => {
                   overlay.remove();
                   showDatasetStorageSettings();
                 }
@@ -839,7 +839,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
 
             const deleteBtn = h('button', { 
               className: 'btn btn-danger',
-              onclick: () => {
+              onclick: async () => {
                 if (allKeys.length === 1) {
                   showToast('Cannot delete the only dataset', 'error');
                   return;
