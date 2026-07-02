@@ -18,7 +18,7 @@ CardSpoke differentiates between core updates and plugin-driven changes. Use the
 - Update changelog with user-facing summary and breaking changes.
 - Record schema changes and migration notes.
 - Verify plugin compatibility; note any known incompatibilities.
-- Regenerate/validate `www/` assets if source changed. Run `npm run build` (concatenates `www/src/*.js` into `www/app.js`) and confirm the self-contained entry (`www/index.html` + `app.js` + `styles.css`) still opens from `file://` before wrapping it in native shells.
+- Regenerate/validate `www/` assets if source changed. Run `npm run build` (`vite build`, which bundles `www/src/main.js` and its imports into `www/app.js`) and confirm the self-contained entry (`www/index.html` + `app.js` + `styles.css`) still opens from `file://` before wrapping it in native shells. `npm run build:cat` remains available as a legacy, non-authoritative literal-concatenation fallback.
 - Tag release with version and schemaVersion.
 
 ## Release Checklist (Plugin)

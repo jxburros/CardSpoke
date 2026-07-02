@@ -1,29 +1,33 @@
 # CardSpoke API Reference
 
-This reference documents the surfaces plugin developers can rely on: the `CardSpoke.utils` helper bundle and the `CardSpoke.Plugin` plugin runtime. It consolidates the runtime contracts that ship in `www/app.js`.
+This reference documents the surfaces plugin developers can rely on. It consolidates the runtime contracts that ship in `www/src/main.js`.
 
 **Current Version:** 0.17.0 | **Schema Version:** 4 | **Release Date:** 2026-02-17
 
 ## Global objects
 
-- **`window.CardSpoke.utils`**: helpers for card CRUD, tagging, search, accessibility, dataset metadata, and toast UI helpers.
-- **`window.CardSpoke.Plugin`**: the plugin system that manages plugin registration, lifecycle, permissions, and resource management.
+The public `window.CardSpoke` object is frozen and exposes exactly two entry points:
 
-## Plugin Runtime (`CardSpoke.Plugin`)
+- **`window.CardSpoke.registerPlugin(id, definition)`**: Registers a plugin with the given ID and definition (equivalent to what earlier drafts of this doc called `CardSpoke.Plugin.register`).
+- **`window.CardSpoke.requestPermissions(pluginId, pluginName, permissions)`**: Prompts the user to grant the listed permissions to a plugin.
+
+Nothing else is reachable from `window.CardSpoke` in the current build — `window.CardSpoke.utils`, `window.CardSpoke.Plugin`, `window.CardSpoke.Middleware`, `window.CardSpoke.ComponentRegistry`, and `window.CardSpoke.StorageDriverRegistry` do **not** exist as public globals. The internal plugin manager, middleware pipeline, component registry, and storage driver registry are used internally by the core app but are not exposed on `window.CardSpoke`.
+
+## Plugin Runtime
 
 ### Plugin Definition Format
 
 Plugins are registered with the following structure:
 
 ```javascript
-window.CardSpoke.Plugin.register('plugin-id', {
+window.CardSpoke.registerPlugin('plugin-id', {
   manifest: {
     name: "Plugin Name",
     version: "1.0.0",
     author: "Author Name",
     description: "Plugin description",
     layer: "theme | feature | app",
-    permissions: ["ui-override", "storage", "network", "filesystem", "core-override"]
+    permissions: ["ui-override", "storage", "network", "filesystem", "core-override", "data-modify"]
   },
   setup: async (ctx) => {
     // Initialization logic - called when plugin is enabled
@@ -39,7 +43,8 @@ window.CardSpoke.Plugin.register('plugin-id', {
 
 ### Registration and Lifecycle Methods
 
-- **`register(id, definition)`**: Registers a plugin with the given ID and definition. Creates a plugin context and stores the plugin instance. Does not enable the plugin automatically.
+`window.CardSpoke.registerPlugin(id, definition)` is the only registration entry point exposed to plugin code. The remaining lifecycle operations below (`unregister`, `get`, `list`, `enable`, `disable`, `install`, `assessModRisk`, `syncFromStore`, `notifyDataUpdate`) are implemented internally by the plugin manager and used by the core app (e.g. the Plugin Manager UI) — they are not reachable from `window.CardSpoke` in the current build:
+
 - **`unregister(id)`**: Unregisters a plugin, running teardown if enabled, cleaning up resources, and removing from persistent storage.
 - **`get(id)`**: Returns the plugin instance for the given ID, or undefined if not found.
 - **`list()`**: Returns an array of all registered plugin instances.
@@ -63,7 +68,7 @@ The context object passed to setup and teardown functions contains:
 - **`ctx.schemaVersion`**: Current schema version (4)
 - **`ctx.api`**: API object with `ui`, `data`, `storage`, `events`, `network`, and `filesystem` namespaces
 - **`ctx.config`**: Optional manifest config object (present when `manifest.config` is provided).
-- **`ctx.utils`**: Shared utility helper surface from `window.CardSpoke.utils` when available.
+- **`ctx.utils`**: Reserved for a shared utility helper surface. In the current build this is always an empty object `{}` — see the note under "Utils" below.
 - **`ctx.logger`**: Plugin-scoped logger with methods: `log()`, `info()`, `warn()`, `error()`
 
 ### Plugin API (ctx.api)
@@ -78,16 +83,18 @@ The context object passed to setup and teardown functions contains:
 
 #### Data API (ctx.api.data)
 
-- **`onUpdate(callback)`**: Registers a callback to be notified when data changes. Returns a cleanup function that unregisters the callback.
+**Known limitation:** `getCard`, `listCards`, `createCard`, `updateCard`, `deleteCard`, `getTags`, `addTag`, `removeTag`, `setTags`, and `getAllTags` are implemented internally by reading/writing `window.store`, `window.createCard`, `window.updateCard`, `window.deleteCard`, `window.getTags`, `window.addTag`, `window.removeTag`, `window.setTags`, and `window.getAllTags`. None of these window globals are populated in the current build (they exist only as module-local functions), so these calls currently throw (e.g. `"createCard not available"`) or return `undefined`/empty results. Treat this API as not yet functional rather than relying on the examples below.
+
+- **`onUpdate(callback)`**: Registers a callback to be notified when data changes. Returns a cleanup function that unregisters the callback. (This one does work — it doesn't depend on the missing globals.)
 - **`getCard(id)`**: Returns a cloned card object for the given ID, or undefined if not found.
 - **`listCards()`**: Returns an array of all card objects (cloned).
-- **`createCard(data)`**: Creates a new card with the specified data object. Data should contain `title`, `body`, `parentId`, and `tags` fields. Returns the new card ID.
-- **`updateCard(id, updates)`**: Updates the card with the given ID with the provided updates object. Returns the updated card.
-- **`deleteCard(id)`**: Deletes the card with the given ID. Returns true if successful.
+- **`createCard(data)`**: Creates a new card with the specified data object. Data should contain `title`, `body`, `parentId`, and `tags` fields. Returns the new card ID. Requires the `data-modify` permission.
+- **`updateCard(id, updates)`**: Updates the card with the given ID with the provided updates object. Returns the updated card. Requires the `data-modify` permission.
+- **`deleteCard(id)`**: Deletes the card with the given ID. Returns true if successful. Requires the `data-modify` permission.
 - **`getTags(cardId)`**: Returns an array of tags for the specified card.
-- **`addTag(cardId, tag)`**: Adds a tag to the specified card. Returns true if successful.
-- **`removeTag(cardId, tag)`**: Removes a tag from the specified card. Returns true if successful.
-- **`setTags(cardId, tags)`**: Sets the tags for the specified card to the provided array. Returns true if successful.
+- **`addTag(cardId, tag)`**: Adds a tag to the specified card. Returns true if successful. Requires the `data-modify` permission.
+- **`removeTag(cardId, tag)`**: Removes a tag from the specified card. Returns true if successful. Requires the `data-modify` permission.
+- **`setTags(cardId, tags)`**: Sets the tags for the specified card to the provided array. Returns true if successful. Requires the `data-modify` permission.
 - **`getAllTags()`**: Returns an array of all unique tags across all cards.
 
 #### Storage API (ctx.api.storage)
@@ -137,76 +144,25 @@ Plugins must declare required permissions in their manifest:
 - **`network`**: Permission to make network requests (`ctx.api.network.fetch` / `ctx.api.network.xhr`)
 - **`filesystem`**: Permission to access filesystem APIs (mobile only)
 - **`core-override`**: Permission to override core functionality (high risk)
+- **`data-modify`**: Permission to perform mutating calls through `ctx.api.data` (`createCard`, `updateCard`, `deleteCard`, `addTag`, `removeTag`, `setTags`). Read-only data calls (`getCard`, `listCards`, `getTags`, `getAllTags`) do not require it.
 
 Permissions are checked when a plugin is enabled, and users are prompted to grant access.
 
-## Utilities API (`CardSpoke.utils`)
+## Utilities and internal helpers
 
-The utilities API provides global helper functions available to all plugins and the core app.
+Earlier drafts of this document described a `CardSpoke.utils` global and a set of direct `window.*` functions (`window.createCard`, `window.updateCard`, `window.getDatasetMeta`, `window.setTheme`, `window.showToast`, etc.) as part of the public plugin API. **This was inaccurate.** None of these exist as `window` globals in the current build — grepping `www/src/*.js` finds no code that attaches them to `window`. Equivalent logic exists only as internal, module-local functions (e.g. card CRUD helpers, `getDatasetMeta()`, theme/typography setters live inside the app's own modules), not as a reachable plugin API surface.
 
-### Card Operations
+If a future build exposes dataset metadata to plugins, the real internal shape (from the module-local implementation) returns:
 
-**Note:** The internal `createCard()` function has the signature `createCard(title, body, parentId, skipSave, skipHooks)` and returns a card ID. When using `ctx.api.data.createCard()`, pass an object with `title`, `body`, `parentId`, and `tags` fields.
+- `name`: Dataset name
+- `cardCount`: Total number of cards
+- `rootCardCount`: Number of root-level cards
+- `bookmarkCount`: Number of bookmarked cards
+- `recentCount`: Number of recent cards tracked
+- `modCount`: Number of installed plugins
+- `schemaVersion`: Current schema version
+- `appVersion`: Current app version
 
-Direct window functions (available but not recommended for plugin use):
+(Not `rootCount`/`tagCount` as earlier drafts of this document claimed.)
 
-- `window.createCard(title, body, parentId, skipSave, skipHooks)`: Creates a card and returns its ID
-- `window.updateCard(id, updates, skipSave, skipHooks)`: Updates a card's fields
-- `window.deleteCard(id, opts)`: Deletes a card and its children recursively
-- `window.getCard(id)`: Retrieves a card by ID
-- `window.cloneCard(card)`: Creates a deep clone of a card object
-
-### Tag Operations
-
-Direct window functions for tag management:
-
-- `window.getTags(cardId)`: Returns array of tags for a card
-- `window.addTag(cardId, tag)`: Adds a tag to a card
-- `window.removeTag(cardId, tag)`: Removes a tag from a card  
-- `window.setTags(cardId, tags)`: Sets all tags for a card
-- `window.getAllTags()`: Returns all unique tags across all cards
-
-### Search
-
-- `window.searchCards(query)`: Case-insensitive search across card titles, bodies, and tags. Returns array of matching cards.
-
-### Dataset Metadata
-
-- `window.getDatasetMeta()`: Returns metadata about the current dataset including:
-  - `name`: Dataset name
-  - `cardCount`: Total number of cards
-  - `rootCount`: Number of root-level cards
-  - `tagCount`: Number of unique tags
-  - `appVersion`: Current app version
-  - `schemaVersion`: Current schema version
-
-### UI Feedback
-
-- `window.showToast(message, type, duration)`: Displays a toast notification
-  - `message`: Text to display
-  - `type`: One of `'info'`, `'success'`, `'warning'`, `'error'`
-  - `duration`: Display duration in milliseconds (default: 3000)
-
-### Theme and Accessibility
-
-Direct window functions for appearance:
-
-- `window.setTheme(theme)`: Sets the theme (`'light'` or `'dark'`)
-- `window.getTheme()`: Returns the current theme
-- `window.setTypography(preset)`: Sets the typography preset
-- `window.getTypography()`: Returns the current typography preset
-- `window.setHighContrast(enabled)`: Enables or disables high contrast mode
-- `window.isHighContrast()`: Returns whether high contrast mode is enabled
-- `window.prefersReducedMotion()`: Returns whether the user prefers reduced motion
-
-### Storage and Persistence
-
-- `window.save()`: Saves the current state to localStorage
-- `window.load()`: Loads state from localStorage
-
-### Notes
-
-- Most utility functions work with the global `window.store` object
-- Plugins should prefer using `ctx.api.data` methods over direct window functions for better compatibility
-- Functions may return `undefined`, `null`, or empty arrays when data is not available
-- The app uses localStorage plus pluggable storage drivers (including IndexedDB/local-file strategies) for datasets and plugin data
+Plugin authors should use `ctx.api.*` exclusively; there is no supported direct-`window` fallback.

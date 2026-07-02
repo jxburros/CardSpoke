@@ -8,15 +8,17 @@ It is intentionally specific: you’ll find concrete field names, hook signature
 
 ## 1) What Runs in Production
 
-CardSpoke’s runtime is a **single browser bundle** (`www/app.js`) produced by concatenating domain-named source slices in the following order:
+CardSpoke’s runtime is a **single browser bundle** (`www/app.js`) produced by a real Vite build, entry point `www/src/main.js`. A Rollup plugin (`flattenAppScope` in `vite.config.js`) fuses the following domain-named "app-layer" source slices into one shared scope, in this order:
 
 1. `www/src/state.js` (shared application state)
-2. `www/src/core.js` (core plugin architecture bootstrap)
+2. `www/src/kernel.js` (Layer 0: headless, pure data/hierarchy engine, no browser deps)
 3. `www/src/metadata.js` (metadata and utilities)
 4. `www/src/storage.js` (storage drivers and plugin wiring)
 5. `www/src/data.js` (CRUD operations and modals)
 6. `www/src/rendering.js` (rendering and initialization)
 7. `www/src/systems.js` (advanced systems and boot)
+
+`main.js` also imports the real plugin architecture as proper ESM modules from `www/src/core/` (`middleware.js`, `component-registry.js`, `plugin-api.js`, `storage-driver-registry.js`, `permissions.js`) — these are left fully intact by the Rollup plugin rather than fused into the app-layer scope.
 
 Build command:
 
@@ -24,9 +26,9 @@ Build command:
 npm run build
 ```
 
-A Vite IIFE build is also available via `npm run build:vite`, using `www/src/main.js` as the entry point with ESM modules under `www/src/core/`.
+There is no `build:vite` script — `npm run build` **is** the Vite build. A separate legacy script, `npm run build:cat`, performs a literal `cat` concatenation of the source slices (including the top-level `www/src/core.js`) into `www/app.js` as a fallback/reference build. `www/src/core.js` is legacy, unused dead code: it is not referenced by `main.js` and is not part of the real build pipeline. Do not confuse it with the `www/src/core/` ESM directory, which holds the actual plugin architecture described above.
 
-The concatenation build (`npm run build`) is designed to work in `file://` contexts, so many helpers are intentionally inlined rather than split into separate runtime imports. The Vite IIFE build (`npm run build:vite`) uses proper ES module scoping, trapping all internal state inside the IIFE closure.
+The Vite build produces an IIFE, so the fused app layer runs in one shared scope (matching the historical concatenation behavior expected by `file://` deployments and by the test suite's source assertions), while the `www/src/core/` modules keep proper ES module boundaries.
 
 ---
 
@@ -42,18 +44,22 @@ Defines shared application state as named exports:
 - Immutable in-place arrays: `undoStack`, `redoStack`, `trashBin`
 - Size limits: `MAX_UNDO_STACK` (50), `MAX_TRASH_SIZE` (100)
 
-## `core.js`
+## `kernel.js`
 
-Initializes the modern plugin architecture before any other code runs:
+The real Layer 0 of the app: a headless, pure data and hierarchy engine with no browser dependencies (no DOM, no `window`, no storage side effects). It is the second slice fused into the app-layer scope (after `state.js`) and provides the low-level card/hierarchy primitives (e.g. `uid()`, `cloneCard()`) that later slices build on. It is intentionally minimal and portable — it is what `main.js` loads before wiring up storage, rendering, and the plugin architecture.
 
-- **Middleware Pipeline** (`window.CardSpoke.Middleware`):
+## `www/src/core/*.js` (real plugin architecture)
+
+Unlike the unused top-level `www/src/core.js` (legacy dead code, not part of the build), the plugin architecture actually shipped in production lives in ESM modules under `www/src/core/`, imported directly by `www/src/main.js`:
+
+- **Middleware Pipeline** (`www/src/core/middleware.js`, exposed as `window.CardSpoke.Middleware`):
   - `register(middleware)` - Register priority-weighted interceptors
   - `unregister(name)` - Remove middleware by name
   - `run(operation, args)` - Execute middleware pipeline for operation
   - `list()` - List all registered middlewares
   - Operations: `card.create`, `card.update`, `card.delete`, `card.save`, `card.render`
 
-- **Component Registry** (`window.CardSpoke.ComponentRegistry`):
+- **Component Registry** (`www/src/core/component-registry.js`, exposed as `window.CardSpoke.ComponentRegistry`):
   - `register(name, component, priority)` - Register UI components
   - `unregister(name)` - Remove component by name
   - `get(name)` - Retrieve registered component
@@ -62,7 +68,7 @@ Initializes the modern plugin architecture before any other code runs:
   - `list()` - List all components
   - Standard components: `Card`, `CardEditor`, `Sidebar`, `SearchBar`, `SearchResults`, `TagList`, `Modal`, `Toast`, `Menu`
 
-- **Plugin API** (`window.CardSpoke.Plugin`):
+- **Plugin API** (`www/src/core/plugin-api.js`, exposed as `window.CardSpoke.Plugin`):
   - `register(id, plugin)` - Register plugin with manifest and setup/teardown
   - `enable(id)` - Enable plugin and run setup
   - `disable(id)` - Disable plugin and run teardown
@@ -71,7 +77,7 @@ Initializes the modern plugin architecture before any other code runs:
   - Context APIs: `ctx.api.ui`, `ctx.api.data`, `ctx.api.storage`, `ctx.api.events`
   - Resource tracking and automatic cleanup
 
-- **Storage Driver Registry** (`window.CardSpoke.StorageDriverRegistry`):
+- **Storage Driver Registry** (`www/src/core/storage-driver-registry.js`, exposed as `window.CardSpoke.StorageDriverRegistry`):
   - `register(name, driver)` - Register storage backend
   - `unregister(name)` - Remove storage driver
   - `get(name)` - Get driver by name
@@ -79,7 +85,11 @@ Initializes the modern plugin architecture before any other code runs:
   - `getActive()` - Get current active driver
   - `list()` - List all registered drivers
 
-This file loads first to ensure the new architecture is available to all subsequent slices and provides the foundation for the modern plugin-based plugin system.
+- **Permissions** (`www/src/core/permissions.js`, exposed as `window.CardSpoke.Permissions`): user consent gating for sensitive plugin capabilities (ui-override, storage, network, filesystem, core-override).
+
+Because these are real ESM modules (not fused into the app-layer virtual scope), they retain proper module boundaries even inside the single IIFE bundle. `main.js` imports them directly so the architecture is available before the fused app-layer slices run.
+
+Note: `www/src/core/` also hosts a separate, larger "Core Platform Layer" (typed cards, app-mode registry, runtime profiles, action registry, conversions, kind-filterable import/export) with its own build target (`npm run build:core`). That layer is documented separately under `docs/architecture/` and is not part of the plugin-architecture surface described above.
 
 ## `metadata.js`
 

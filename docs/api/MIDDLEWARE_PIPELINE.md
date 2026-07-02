@@ -4,6 +4,8 @@
 
 The Middleware Pipeline provides a priority-weighted, interceptor-style architecture that allows plugins to wrap core operations, modify data, or cancel operations before they complete.
 
+**Note:** The Middleware Pipeline is an internal module. It is not exposed on `window.CardSpoke` (which is frozen to only `registerPlugin` and `requestPermissions`). The `window.CardSpoke.Middleware.*` examples in earlier drafts of this document do not work in the current build — there is no plugin-facing way to register middleware directly.
+
 ## Overview
 
 The middleware pipeline provides:
@@ -43,12 +45,15 @@ Every middleware receives a context object:
 
 ## API Reference
 
-### `CardSpoke.Middleware.register(middleware)`
+The methods below describe the internal middleware module. They are used by the core app itself and are not reachable as `window.CardSpoke.Middleware` from plugin code in the current build.
+
+### `register(middleware)`
 
 Register a new middleware.
 
 ```javascript
-window.CardSpoke.Middleware.register({
+// Internal usage only — not reachable via window.CardSpoke
+Middleware.register({
   name: 'my-interceptor',
   priority: 10,
   operations: ['card.save', 'card.delete'],
@@ -60,31 +65,29 @@ window.CardSpoke.Middleware.register({
 });
 ```
 
-### `CardSpoke.Middleware.unregister(name)`
+**Conflict warning:** If two middlewares are registered with the same `priority` and overlapping `operations`, the pipeline logs a console warning about the conflicting registration (execution order between them is otherwise determined by registration order).
+
+### `unregister(name)`
 
 Unregister a middleware by name.
 
-```javascript
-window.CardSpoke.Middleware.unregister('my-interceptor');
-```
-
-### `CardSpoke.Middleware.run(operation, args)`
+### `run(operation, args)`
 
 Execute the middleware pipeline for an operation.
 
 ```javascript
-const result = await window.CardSpoke.Middleware.run('card.save', [card]);
+const result = await Middleware.run('card.save', [card]);
 if (result.prevented) {
   console.log('Operation was prevented');
 }
 ```
 
-### `CardSpoke.Middleware.list()`
+### `list()`
 
 List all registered middlewares.
 
 ```javascript
-const middlewares = window.CardSpoke.Middleware.list();
+const middlewares = Middleware.list();
 // Returns: [{ name, priority, operations }, ...]
 ```
 
@@ -105,7 +108,8 @@ The following operations are available for interception:
 ### Validation Middleware
 
 ```javascript
-window.CardSpoke.Middleware.register({
+// Internal usage only — not reachable via window.CardSpoke
+Middleware.register({
   name: 'card-validator',
   priority: 100, // Run first
   operations: ['card.create', 'card.update'],
@@ -126,7 +130,7 @@ window.CardSpoke.Middleware.register({
 ### Logging Middleware
 
 ```javascript
-window.CardSpoke.Middleware.register({
+Middleware.register({
   name: 'audit-logger',
   priority: -100, // Run last
   operations: ['*'],
@@ -143,7 +147,7 @@ window.CardSpoke.Middleware.register({
 ### Data Enrichment
 
 ```javascript
-window.CardSpoke.Middleware.register({
+Middleware.register({
   name: 'auto-tagger',
   priority: 50,
   operations: ['card.create', 'card.update'],

@@ -1,5 +1,10 @@
 # Implementation Directive: Prepare CardSpoke for a Lightweight OS-Native Information Suite
 
+> **Status note:** The goals described in this directive have been
+> substantially implemented. See
+> [`docs/architecture/OS_LIGHT_ROADMAP.md`](./docs/architecture/OS_LIGHT_ROADMAP.md)
+> for the up-to-date "what was delivered" counterpart to this directive.
+
 ## 1. Purpose
 
 This directive explains how to prepare the existing **CardSpoke** application so it can become the foundation for a future lightweight OS-native information suite.

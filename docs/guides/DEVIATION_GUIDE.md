@@ -13,7 +13,7 @@ Include the required metadata block for Deviations (see [Plugin System](../PLUGI
 
 ## Licenses & Attribution
 
-- CardSpoke core is licensed under an ISC-style license with branding restrictions (see [LICENSE](../../LICENSE)).
+- CardSpoke core is licensed under the Apache License 2.0 (see [LICENSE](../../LICENSE)).
 - Your Deviation must retain copyright and permission notices.
 - Credit any AI assistants and contributors used.
 
@@ -31,7 +31,7 @@ Include the required metadata block for Deviations (see [Plugin System](../PLUGI
 ## Safety & Data
 
 - Respect the local-first model; do not collect or transmit data without opt-in.
-- Provide migration and rollback instructions if you diverge from core schemas. Note how you handle backups created by the core (`cardspoke-backup-*.json`/CSV/Markdown/TXT) and whether your build can import/export them without loss.
+- Provide migration and rollback instructions if you diverge from core schemas. Note how you handle exports created by the core (JSON/CSV/Markdown/TXT files named `cardspoke-{type}-{timestamp}.{ext}`, e.g. `cardspoke-instance-1719936000000.json`) and whether your build can import/export them without loss.
 
 ## Required Notice Template
 

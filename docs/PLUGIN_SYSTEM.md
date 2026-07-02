@@ -62,7 +62,7 @@ export default {
 This format works directly in the browser without any build step. Use this for quick prototyping or when bundlers are not available.
 
 ```javascript
-window.CardSpoke.Plugin.register('my-plugin', {
+window.CardSpoke.registerPlugin('my-plugin', {
   manifest: {
     name: "My Plugin",
     version: "1.0.0",
@@ -82,6 +82,8 @@ window.CardSpoke.Plugin.register('my-plugin', {
 ```
 
 Used in: Direct browser `<script>` tags or inline code
+
+**Note:** `window.CardSpoke` is frozen and exposes exactly two entry points: `registerPlugin(id, definition)` and `requestPermissions(pluginId, pluginName, permissions)`. Internal systems referenced elsewhere in this document — the plugin manager's lifecycle methods (`list`, `get`, `enable`, `disable`, `install`, `assessModRisk`), the Middleware Pipeline, the Component Registry, and the Storage Driver Registry — are not reachable from `window.CardSpoke`. They are used internally by the core app and, where relevant, surfaced to plugin code only through `ctx.api`.
 
 ### Required Fields
 
@@ -209,7 +211,7 @@ Use the Create tab in the Plugin Manager to define a plugin directly in the app 
 ### Programmatic
 
 ```javascript
-window.CardSpoke.Plugin.register('my-plugin', pluginDefinition);
+window.CardSpoke.registerPlugin('my-plugin', pluginDefinition);
 ```
 
 ## Safe Mode
@@ -239,30 +241,32 @@ Plugins can communicate via the Plugin API event system:
 
 ## Developer Tools
 
-Use the browser console to debug plugins:
+**Note:** The methods below (`list`, `get`, `enable`, `disable`, `install`, `assessModRisk`, and the Middleware/Component Registry inspectors) belong to internal modules and are not reachable from the browser console via `window.CardSpoke` in the current build — `window.CardSpoke` is frozen and exposes only `registerPlugin` and `requestPermissions`. They are shown here to describe what the internal plugin manager, middleware pipeline, and component registry support, not as console-usable snippets:
 
 ```javascript
+// Internal APIs — not reachable via window.CardSpoke in the current build
+
 // List all registered plugins
-window.CardSpoke.Plugin.list();
+PluginManager.list();
 
 // Get plugin info
-window.CardSpoke.Plugin.get('plugin-id');
+PluginManager.get('plugin-id');
 
 // Manually trigger enable/disable
-await window.CardSpoke.Plugin.enable('plugin-id');
-await window.CardSpoke.Plugin.disable('plugin-id');
+await PluginManager.enable('plugin-id');
+await PluginManager.disable('plugin-id');
 
 // Install a plugin package
-const pluginId = await window.CardSpoke.Plugin.install(pluginPackage);
+const pluginId = await PluginManager.install(pluginPackage);
 
 // Assess plugin risk
-const risk = window.CardSpoke.Plugin.assessModRisk(pluginPackage);
+const risk = PluginManager.assessModRisk(pluginPackage);
 
 // Inspect registered middleware
-window.CardSpoke.Middleware.list();
+Middleware.list();
 
-// Check component registry (if available)
-window.CardSpoke.ComponentRegistry.list();
+// Check component registry
+ComponentRegistry.list();
 ```
 
 ## LocalStorage Keys
@@ -294,7 +298,7 @@ The new Plugin API provides a sandboxed environment with automatic resource mana
 ### Basic Usage
 
 ```javascript
-window.CardSpoke.Plugin.register('my-plugin', {
+window.CardSpoke.registerPlugin('my-plugin', {
   manifest: {
     name: "My Plugin",
     version: "1.0.0",
@@ -323,9 +327,12 @@ window.CardSpoke.Plugin.register('my-plugin', {
   }
 });
 
-// Enable the plugin
-await window.CardSpoke.Plugin.enable('my-plugin');
+// Enabling happens through the Plugin Manager UI (or the internal plugin
+// manager during boot) — there is no window.CardSpoke.enable() to call
+// directly; window.CardSpoke exposes only registerPlugin and requestPermissions.
 ```
+
+**Known limitation:** `ctx.api.data.listCards()` above depends on an internal `window.store` global that is not populated in the current build, so it currently returns `[]` rather than the real card list. See [API Reference](./api/API_REFERENCE.md) for details on which `ctx.api.data` methods are affected.
 
 ### Plugin Context APIs
 
@@ -344,12 +351,13 @@ See [Plugin API Documentation](./api/PLUGIN_API.md) and [API Reference](./api/AP
 
 ## Middleware Pipeline
 
-The Middleware Pipeline replaces hooks with a more powerful interceptor pattern.
+The Middleware Pipeline replaces hooks with a more powerful interceptor pattern. It is an internal module used by the core app — it is not exposed on `window.CardSpoke` and there is currently no plugin-facing way to register middleware directly.
 
 ### Basic Usage
 
 ```javascript
-window.CardSpoke.Middleware.register({
+// Internal usage only — not reachable via window.CardSpoke
+Middleware.register({
   name: 'my-interceptor',
   priority: 10,  // Higher runs first
   operations: ['card.save', 'card.delete'],
@@ -383,18 +391,17 @@ See [Middleware Pipeline Documentation](./api/MIDDLEWARE_PIPELINE.md) for detail
 
 ## Component Registry
 
-Override UI components with priority-based resolution.
+Override UI components with priority-based resolution. The Component Registry itself is an internal module (used during core app initialization); plugin code interacts with it only through `ctx.api.ui.registerComponent()` / `ctx.api.ui.unregisterComponent()` — there is no `window.CardSpoke.ComponentRegistry`.
 
 ### Basic Usage
 
 ```javascript
-// Get original component
-const OriginalCard = window.CardSpoke.ComponentRegistry.get('Card');
-
-// Register enhanced version
-window.CardSpoke.ComponentRegistry.register('Card', {
+// In plugin setup(ctx):
+ctx.api.ui.registerComponent('Card', {
   render: (props) => {
-    const cardEl = OriginalCard ? OriginalCard.render(props) : document.createElement('div');
+    // Note: ctx.api.ui has no get()/resolve() lookup for the currently
+    // active component — this assumes access to a previously captured reference.
+    const cardEl = document.createElement('div');
     
     // Add enhancements
     const badge = document.createElement('span');
@@ -404,7 +411,7 @@ window.CardSpoke.ComponentRegistry.register('Card', {
     return cardEl;
   },
   priority: 50
-}, 50);
+});
 ```
 
 ### Standard Components
@@ -422,11 +429,12 @@ See [Component Registry Documentation](./api/COMPONENT_REGISTRY.md) for details.
 
 ## Storage Driver Registry
 
-Register custom storage backends.
+Register custom storage backends. The Storage Driver Registry is an internal module and is not exposed on `window.CardSpoke`.
 
 ### Basic Usage
 
 ```javascript
+// Internal usage only — not reachable via window.CardSpoke
 class CustomStorageDriver {
   async init(config) { /* ... */ }
   async get(key) { /* ... */ }
@@ -437,8 +445,8 @@ class CustomStorageDriver {
   getKind() { return 'custom'; }
 }
 
-window.CardSpoke.StorageDriverRegistry.register('custom', new CustomStorageDriver());
-await window.CardSpoke.StorageDriverRegistry.setActive('custom');
+StorageDriverRegistry.register('custom', new CustomStorageDriver());
+await StorageDriverRegistry.setActive('custom');
 ```
 
 ## Permission System
@@ -452,6 +460,7 @@ Plugins must request permissions for sensitive operations.
 - **`network`**: Make network requests
 - **`filesystem`**: Access filesystem (mobile)
 - **`core-override`**: Override core functions (high risk)
+- **`data-modify`**: Perform mutating `ctx.api.data` calls (`createCard`, `updateCard`, `deleteCard`, `addTag`, `removeTag`, `setTags`)
 
 ### Requesting Permissions
 

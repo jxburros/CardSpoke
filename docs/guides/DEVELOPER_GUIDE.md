@@ -6,7 +6,7 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 
 ## Architecture Overview
 
-- **Ultra-light core:** Keep the main bundle lean. `www/app.js` is a self-contained bundle built by concatenating the domain-named source slices in `www/src/` (via `npm run build`) with inline helpers for DOM creation (`h()`), markdown rendering (`simpleMarkdown()`), accessibility utilities (focus trap, debounce, ID generation), and fuzzy search (Levenshtein distance).
+- **Ultra-light core:** Keep the main bundle lean. `www/app.js` is a self-contained IIFE bundle produced by `npm run build` (Vite, entry point `www/src/main.js`), which fuses the domain-named source slices in `www/src/` into a single shared scope, with inline helpers for DOM creation (`h()`), markdown rendering (`simpleMarkdown()`), accessibility utilities (focus trap, debounce, ID generation), and fuzzy search (Levenshtein distance).
 - **Card model:** UI presents hierarchical, tiered cards for navigating knowledge. The default store shape (`createDefaultStore`) tracks `rootOrder`, per-card records (`cards`), `bookmarks`, `recentCards`, `plugins`, `viewMode`, `activeTheme`, and `richTextEnabled`.
 - **Plugin system:** Core exposes `window.CardSpoke.Plugin`, `window.CardSpoke.Middleware`, and `window.CardSpoke.ComponentRegistry` for extensibility. Plugins should use these modern APIs instead of directly mutating global state where possible.
 - **Local-first:** Default storage is LocalStorage/IndexedDB; avoid adding network dependencies without opt-in controls. Preferences persist under `cardspoke_*` keys:
@@ -28,7 +28,7 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
   - `index.html` - Entry point with modal structures and script loading
   - `capacitor.js` - Capacitor runtime bridge
   - `modules/` - Reference ES module versions (not used at runtime)
-- `tests/` - uvu test suites (26 files; currently 347 passing tests via `npm test`)
+- `tests/` - uvu test suites (37 files; currently 434 passing tests via `npm test`)
 - `docs/` - Project documentation organized by category
 - `capacitor.config.json` - Platform configuration for Capacitor
 
@@ -81,14 +81,15 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
 
 ## Source Mapping & Tooling Status
 
-- Runtime source slices are concatenated into `www/app.js` in the following order:
+- `npm run build` runs the real build: Vite bundles `www/src/main.js` (the entry point) as an IIFE and writes it to `www/app.js`. A Rollup plugin (`flattenAppScope` in `vite.config.js`) fuses the following "app-layer" source slices into one shared scope, in this order:
   1. `www/src/state.js` - Shared application state (store, navState, instanceKey, undo/trash stacks, constants)
-  2. `www/src/core.js` - Core plugin architecture: Middleware Pipeline, Component Registry, Plugin API, Storage Driver Registry, Permissions System
+  2. `www/src/kernel.js` - Layer 0: the headless, pure data/hierarchy engine (no browser deps)
   3. `www/src/metadata.js` - App metadata, DOM helper (`h()`), utilities (debounce, uid, escapeHtml, fuzzy search), accessibility helpers, store factory, preference accessors, toast system
   4. `www/src/storage.js` - Storage drivers (IndexedDB, LocalStorage, LocalFile, Cloud), dataset manager, plugin system wiring
   5. `www/src/data.js` - CRUD operations (createCard, updateCard, deleteCard), data/modals UI
   6. `www/src/rendering.js` - Rendering functions (breadcrumbs, lists, cards, search)
   7. `www/src/systems.js` - Undo/redo, tags, search, advanced UX, boot sequence
-- Build command: `npm run build` (concatenates `www/src/state.js`, `core.js`, `metadata.js`, `storage.js`, `data.js`, `rendering.js`, `systems.js` into `www/app.js`).
-- A Vite IIFE build is also available via `npm run build:vite`, using `www/src/main.js` as entry point with the ESM source under `www/src/core/`.
+- Alongside the fused app layer, `main.js` also imports the real plugin architecture as proper ESM modules from `www/src/core/` — `middleware.js`, `component-registry.js`, `plugin-api.js`, `storage-driver-registry.js`, `permissions.js` — which provide `window.CardSpoke.Middleware`, `ComponentRegistry`, `Plugin`, `StorageDriverRegistry`, and `Permissions`.
+- There is no `build:vite` script; `npm run build` **is** the Vite build. A separate legacy script, `npm run build:cat`, performs a literal `cat` concatenation of `state.js kernel.js core.js metadata.js storage.js data.js rendering.js systems.js` into `www/app.js` as a fallback/reference; note it includes `www/src/core.js`, which is legacy, unused dead code not part of the real build pipeline (do not confuse it with the `www/src/core/` ESM directory above).
+- The `www/src/core/` directory also contains a separate, larger "Core Platform Layer" (typed cards, app-mode registry, runtime profiles, shared action registry, conversion utilities, kind-filterable import/export) with its own build target, `npm run build:core` (outputs `dist/cardspoke-core.js` / `.umd.cjs`). See `docs/architecture/TYPED_CARDS.md`, `APP_MODES.md`, `PROFILES.md`, `ACTION_REGISTRY.md`, and `CONVERSIONS.md` for details.
 - There is currently no repository-enforced linter/formatter configuration. Keep style consistent with surrounding code and validate changes with `npm test`.

@@ -82,7 +82,7 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 
 ## Static Analysis & Code Quality
 
-- Testing: `npm test` currently runs 347 uvu tests across 26 test files
+- Testing: `npm test` currently runs 434 uvu tests across 37 test files
 - Linting: Consider adding ESLint for code quality
 - Security scanning: Run `npm audit` before each release
 - Code review: All plugins should be reviewed before publication
