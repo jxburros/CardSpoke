@@ -1,6 +1,852 @@
 // Version: 0.17.0
 (function() {
   "use strict";
+  const GENERIC_KIND = "generic";
+  const KIND_DEFINITIONS = {
+    note: {
+      payloadKey: "note",
+      schemaVersion: 1,
+      defaults: () => ({ pinned: false })
+    },
+    repository_page: {
+      payloadKey: "repositoryPage",
+      schemaVersion: 1,
+      defaults: () => ({ section: "", source: "user", status: "draft" })
+    },
+    project: {
+      payloadKey: "project",
+      schemaVersion: 1,
+      defaults: () => ({ status: "active", priority: "medium", dueDate: null })
+    },
+    task: {
+      payloadKey: "task",
+      schemaVersion: 1,
+      defaults: () => ({ status: "todo", priority: "medium", dueDate: null, completed: false })
+    },
+    deck: {
+      payloadKey: "deck",
+      schemaVersion: 1,
+      defaults: () => ({ theme: "default", aspectRatio: "16:9" })
+    },
+    slide: {
+      payloadKey: "slide",
+      schemaVersion: 1,
+      defaults: () => ({ layout: "title-bullets", speakerNotes: "", order: 0 })
+    },
+    contact: {
+      payloadKey: "contact",
+      schemaVersion: 1,
+      defaults: () => ({
+        displayName: "",
+        email: "",
+        phone: "",
+        organization: "",
+        relationship: "",
+        trackingEnabled: false
+      })
+    },
+    plant: {
+      payloadKey: "plant",
+      schemaVersion: 1,
+      defaults: () => ({
+        species: "",
+        location: "",
+        trackingEnabled: false,
+        wateringIntervalDays: null,
+        lastWatered: null,
+        lastFertilized: null
+      })
+    },
+    care_log: {
+      payloadKey: "careLog",
+      schemaVersion: 1,
+      defaults: () => ({ targetCardId: null, careType: "water", performedAt: null, notes: "" })
+    },
+    reminder: {
+      payloadKey: "reminder",
+      schemaVersion: 1,
+      defaults: () => ({
+        targetCardId: null,
+        type: "general",
+        dueAt: null,
+        repeat: null,
+        status: "scheduled"
+      })
+    },
+    collection: {
+      payloadKey: "collection",
+      schemaVersion: 1,
+      defaults: () => ({ filter: {}, sort: null })
+    }
+  };
+  const CARD_KINDS = Object.freeze(Object.keys(KIND_DEFINITIONS));
+  function isKnownKind(kind) {
+    return typeof kind === "string" && Object.prototype.hasOwnProperty.call(KIND_DEFINITIONS, kind);
+  }
+  function getKindPayloadKey(kind) {
+    const def = KIND_DEFINITIONS[kind];
+    return def ? def.payloadKey : String(kind);
+  }
+  function getCardKind(card) {
+    if (!card || !card.modsData || typeof card.modsData !== "object") return GENERIC_KIND;
+    const kind = card.modsData.kind;
+    return typeof kind === "string" && kind ? kind : GENERIC_KIND;
+  }
+  function isCardKind(card, kind) {
+    return getCardKind(card) === kind;
+  }
+  function setCardKind(card, kind, payload = {}) {
+    if (!card || typeof kind !== "string" || !kind) return card;
+    if (!card.modsData || typeof card.modsData !== "object") card.modsData = {};
+    const def = KIND_DEFINITIONS[kind];
+    const key = getKindPayloadKey(kind);
+    const base = def ? def.defaults() : {};
+    const existing = card.modsData[key] && typeof card.modsData[key] === "object" ? card.modsData[key] : {};
+    card.modsData.kind = kind;
+    card.modsData.schemaVersion = def ? def.schemaVersion : card.modsData.schemaVersion || 1;
+    card.modsData[key] = { ...base, ...existing, ...payload };
+    return card;
+  }
+  function getKindData(card, kind) {
+    if (!card || !card.modsData || typeof card.modsData !== "object") return null;
+    const k = kind || getCardKind(card);
+    if (k === GENERIC_KIND) return null;
+    const data = card.modsData[getKindPayloadKey(k)];
+    return data && typeof data === "object" ? data : null;
+  }
+  function updateKindData(card, kind, updates) {
+    if (!card || !isCardKind(card, kind)) return card;
+    const key = getKindPayloadKey(kind);
+    const def = KIND_DEFINITIONS[kind];
+    const existing = card.modsData[key] && typeof card.modsData[key] === "object" ? card.modsData[key] : def ? def.defaults() : {};
+    card.modsData[key] = { ...existing, ...updates || {} };
+    return card;
+  }
+  function validateTypedCard(card) {
+    const warnings = [];
+    if (!card || typeof card !== "object") {
+      return { valid: false, kind: GENERIC_KIND, known: false, warnings: ["Card is not an object"] };
+    }
+    const kind = getCardKind(card);
+    if (kind === GENERIC_KIND) {
+      return { valid: true, kind, known: false, warnings };
+    }
+    const mods = card.modsData;
+    const known = isKnownKind(kind);
+    if (!known) {
+      warnings.push(`Unknown card kind "${kind}" — metadata preserved as-is`);
+    }
+    if (mods.schemaVersion !== void 0 && typeof mods.schemaVersion !== "number") {
+      warnings.push(`modsData.schemaVersion should be a number (got ${typeof mods.schemaVersion})`);
+    }
+    const key = getKindPayloadKey(kind);
+    const payload = mods[key];
+    if (payload !== void 0 && (payload === null || typeof payload !== "object" || Array.isArray(payload))) {
+      warnings.push(`modsData.${key} should be an object (got ${payload === null ? "null" : Array.isArray(payload) ? "array" : typeof payload})`);
+    }
+    return { valid: true, kind, known, warnings };
+  }
+  function migrateTypedCard$1(card, options = {}) {
+    const warnings = [];
+    if (!card || typeof card !== "object") return { card, changed: false, warnings };
+    const kind = getCardKind(card);
+    if (kind === GENERIC_KIND || !isKnownKind(kind)) {
+      return { card, changed: false, warnings };
+    }
+    const def = KIND_DEFINITIONS[kind];
+    const key = def.payloadKey;
+    const mods = card.modsData;
+    let changed = false;
+    const fromVersion = typeof mods.schemaVersion === "number" ? mods.schemaVersion : 1;
+    const defaults = def.defaults();
+    const payload = mods[key] && typeof mods[key] === "object" && !Array.isArray(mods[key]) ? mods[key] : {};
+    if (mods[key] !== payload) {
+      if (mods[key] !== void 0) {
+        warnings.push(`Replaced malformed modsData.${key} with defaults (original preserved under modsData.${key}__invalid)`);
+        mods[`${key}__invalid`] = mods[key];
+      }
+      mods[key] = payload;
+      changed = true;
+    }
+    for (const [field, value] of Object.entries(defaults)) {
+      if (!(field in payload)) {
+        payload[field] = value;
+        changed = true;
+      }
+    }
+    if (fromVersion < def.schemaVersion && typeof options.migrateKindData === "function") {
+      try {
+        const migrated = options.migrateKindData(kind, payload, fromVersion, def.schemaVersion);
+        if (migrated && typeof migrated === "object") {
+          mods[key] = migrated;
+          changed = true;
+        }
+      } catch (err) {
+        warnings.push(`Kind data migration failed for "${kind}": ${err && err.message}`);
+      }
+    }
+    if (mods.schemaVersion !== def.schemaVersion) {
+      mods.schemaVersion = def.schemaVersion;
+      changed = true;
+    }
+    return { card, changed, warnings };
+  }
+  function listCardsByKind(store2, kind) {
+    if (!store2 || !store2.cards || typeof store2.cards !== "object") return [];
+    return Object.values(store2.cards).filter((card) => isCardKind(card, kind));
+  }
+  function listChildrenByKind(store2, parentId, kind) {
+    if (!store2 || !store2.cards || typeof store2.cards !== "object") return [];
+    let childIds;
+    if (!parentId) {
+      childIds = Array.isArray(store2.rootOrder) ? store2.rootOrder : [];
+    } else {
+      const parent = store2.cards[parentId];
+      childIds = parent && Array.isArray(parent.children) ? parent.children : [];
+    }
+    return childIds.map((id) => store2.cards[id]).filter((card) => card && isCardKind(card, kind));
+  }
+  function createTypedModsData(kind, payload = {}) {
+    const def = KIND_DEFINITIONS[kind];
+    const key = getKindPayloadKey(kind);
+    return {
+      kind,
+      schemaVersion: def ? def.schemaVersion : 1,
+      [key]: { ...def ? def.defaults() : {}, ...payload }
+    };
+  }
+  const kindMigrations = {};
+  function registerKindMigration(kind, fromVersion, migrate) {
+    if (!kind || typeof migrate !== "function") return;
+    if (!kindMigrations[kind]) kindMigrations[kind] = {};
+    kindMigrations[kind][fromVersion] = migrate;
+  }
+  function clearKindMigrations() {
+    for (const key of Object.keys(kindMigrations)) delete kindMigrations[key];
+  }
+  function migrateKindData(kind, data, fromVersion, toVersion) {
+    let current = data;
+    for (let v = fromVersion; v < toVersion; v++) {
+      const step = kindMigrations[kind] && kindMigrations[kind][v];
+      if (typeof step === "function") {
+        const next = step(current);
+        if (next && typeof next === "object") current = next;
+      }
+    }
+    return current;
+  }
+  function migrateTypedCard(card) {
+    return migrateTypedCard$1(card, { migrateKindData });
+  }
+  function migrateCard(card) {
+    if (!card || typeof card !== "object") return { card, changed: false, warnings: [] };
+    let changed = false;
+    if (!Array.isArray(card.children)) {
+      card.children = [];
+      changed = true;
+    }
+    if (!Array.isArray(card.tags)) {
+      card.tags = [];
+      changed = true;
+    }
+    if (card.modsData == null || typeof card.modsData !== "object") {
+      card.modsData = {};
+      changed = true;
+    }
+    const typed = migrateTypedCard(card);
+    return { card, changed: changed || typed.changed, warnings: typed.warnings };
+  }
+  function migrateStore(store2) {
+    const warnings = [];
+    let changed = false;
+    let migratedCount = 0;
+    if (!store2 || !store2.cards || typeof store2.cards !== "object") {
+      return { store: store2, changed, migratedCount, warnings };
+    }
+    for (const [id, card] of Object.entries(store2.cards)) {
+      try {
+        const result = migrateCard(card);
+        if (result.changed) {
+          changed = true;
+          migratedCount++;
+        }
+        for (const w of result.warnings) warnings.push(`[${id}] ${w}`);
+      } catch (err) {
+        warnings.push(`[${id}] Migration failed: ${err && err.message}`);
+      }
+    }
+    return { store: store2, changed, migratedCount, warnings };
+  }
+  const actions = /* @__PURE__ */ new Map();
+  function registerAction(action) {
+    if (!action || typeof action.id !== "string" || !action.id) return false;
+    if (typeof action.run !== "function") return false;
+    actions.set(action.id, {
+      icon: null,
+      appliesTo: () => true,
+      ...action
+    });
+    return true;
+  }
+  function unregisterAction(actionId) {
+    return actions.delete(actionId);
+  }
+  function getAction(actionId) {
+    return actions.get(actionId) || null;
+  }
+  function listActions() {
+    return Array.from(actions.values());
+  }
+  function getActionsForCard(card, ctx = {}) {
+    return listActions().filter((action) => {
+      try {
+        return !!action.appliesTo(card, ctx);
+      } catch (_err) {
+        return false;
+      }
+    });
+  }
+  function runAction(actionId, card, ctx = {}) {
+    const action = actions.get(actionId);
+    if (!action) return { ok: false, error: `Unknown action "${actionId}"` };
+    try {
+      if (!action.appliesTo(card, ctx)) {
+        return { ok: false, error: `Action "${actionId}" does not apply to this card` };
+      }
+      const result = action.run(card, ctx);
+      return { ok: true, result };
+    } catch (err) {
+      return { ok: false, error: err && err.message || String(err) };
+    }
+  }
+  function clearActions() {
+    actions.clear();
+  }
+  function applyCardChange(card, ctx, mutate) {
+    if (ctx && typeof ctx.updateCard === "function") {
+      const draft = JSON.parse(JSON.stringify(card));
+      mutate(draft);
+      ctx.updateCard(card.id, { modsData: draft.modsData });
+      return draft;
+    }
+    const target = ctx && ctx.store && ctx.store.cards && ctx.store.cards[card.id] || card;
+    mutate(target);
+    return target;
+  }
+  function registerCoreCardActions(handlers = {}) {
+    const defs = [
+      { id: "card.edit", label: "Edit", icon: "edit", handler: handlers.edit },
+      { id: "card.bookmark", label: "Bookmark", icon: "bookmark", handler: handlers.bookmark },
+      { id: "card.duplicate", label: "Duplicate", icon: "copy", handler: handlers.duplicate },
+      { id: "card.share", label: "Share", icon: "share", handler: handlers.share },
+      { id: "card.addChild", label: "Add Child", icon: "plus", handler: handlers.addChild },
+      { id: "card.delete", label: "Delete", icon: "trash", handler: handlers.remove },
+      { id: "card.importText", label: "Import TXT", icon: "upload", handler: handlers.importText }
+    ];
+    for (const def of defs) {
+      registerAction({
+        id: def.id,
+        label: def.label,
+        icon: def.icon,
+        appliesTo: () => true,
+        run: (card, ctx) => typeof def.handler === "function" ? def.handler(card, ctx) : void 0
+      });
+    }
+  }
+  function registerTypedCardActions() {
+    registerAction({
+      id: "task.markDone",
+      label: "Mark Done",
+      icon: "check",
+      appliesTo: (card) => {
+        if (getCardKind(card) !== "task") return false;
+        const task = getKindData(card, "task");
+        return !(task && task.completed);
+      },
+      run: (card, ctx) => applyCardChange(card, ctx, (c) => {
+        updateKindData(c, "task", { completed: true, status: "done" });
+      })
+    });
+    registerAction({
+      id: "task.markTodo",
+      label: "Mark To-Do",
+      icon: "circle",
+      appliesTo: (card) => {
+        if (getCardKind(card) !== "task") return false;
+        const task = getKindData(card, "task");
+        return !!(task && task.completed);
+      },
+      run: (card, ctx) => applyCardChange(card, ctx, (c) => {
+        updateKindData(c, "task", { completed: false, status: "todo" });
+      })
+    });
+    registerAction({
+      id: "plant.logWatering",
+      label: "Log Watering",
+      icon: "droplet",
+      appliesTo: (card) => getCardKind(card) === "plant",
+      run: (card, ctx) => applyCardChange(card, ctx, (c) => {
+        updateKindData(c, "plant", { lastWatered: ctx && ctx.now || Date.now() });
+      })
+    });
+    registerAction({
+      id: "plant.toggleTracking",
+      label: "Toggle Tracking",
+      icon: "activity",
+      appliesTo: (card) => getCardKind(card) === "plant",
+      run: (card, ctx) => applyCardChange(card, ctx, (c) => {
+        const plant = getKindData(c, "plant") || {};
+        updateKindData(c, "plant", { trackingEnabled: !plant.trackingEnabled });
+      })
+    });
+    const stubs = [
+      { id: "note.convertToTask", label: "Convert to Task", icon: "check-square", kind: "note", capability: "convertNoteToTask" },
+      { id: "note.convertToSlide", label: "Convert to Slide", icon: "monitor", kind: "note", capability: "convertNoteToSlide" },
+      { id: "project.addTask", label: "Add Task", icon: "plus", kind: "project", capability: "addTask" },
+      { id: "deck.addSlide", label: "Add Slide", icon: "plus", kind: "deck", capability: "addSlide" },
+      { id: "deck.present", label: "Present", icon: "play", kind: "deck", capability: "present" },
+      { id: "contact.addNote", label: "Add Note", icon: "file-text", kind: "contact", capability: "addNote" }
+    ];
+    for (const stub of stubs) {
+      registerAction({
+        id: stub.id,
+        label: stub.label,
+        icon: stub.icon,
+        appliesTo: (card) => getCardKind(card) === stub.kind,
+        run: (card, ctx) => {
+          if (ctx && typeof ctx[stub.capability] === "function") {
+            return ctx[stub.capability](card, ctx);
+          }
+          return { stub: true, action: stub.id };
+        }
+      });
+    }
+  }
+  function uid$1() {
+    return Date.now().toString(36) + Math.random().toString(36).substring(2);
+  }
+  function resolveOps(store2, options = {}) {
+    const ops = options.ops || {};
+    return {
+      updateCard: ops.updateCard || ((id, updates) => {
+        const card = store2.cards[id];
+        if (!card) return;
+        Object.assign(card, updates, { updatedAt: Date.now() });
+      }),
+      createCard: ops.createCard || ((title, body, parentId = null) => {
+        const id = uid$1();
+        const now = Date.now();
+        store2.cards[id] = {
+          id,
+          title: title || "",
+          body: body || "",
+          parentId: parentId || null,
+          children: [],
+          tags: [],
+          createdAt: now,
+          updatedAt: now,
+          isRichText: false,
+          modsData: {}
+        };
+        if (parentId && store2.cards[parentId]) {
+          if (!Array.isArray(store2.cards[parentId].children)) store2.cards[parentId].children = [];
+          if (!store2.cards[parentId].children.includes(id)) store2.cards[parentId].children.push(id);
+        } else if (Array.isArray(store2.rootOrder)) {
+          store2.rootOrder.push(id);
+        }
+        return id;
+      }),
+      reparent: ops.reparent || ((id, newParentId) => {
+        const card = store2.cards[id];
+        if (!card) return;
+        if (card.parentId && store2.cards[card.parentId]) {
+          store2.cards[card.parentId].children = (store2.cards[card.parentId].children || []).filter((c) => c !== id);
+        } else if (Array.isArray(store2.rootOrder)) {
+          store2.rootOrder = store2.rootOrder.filter((c) => c !== id);
+        }
+        card.parentId = newParentId || null;
+        if (newParentId && store2.cards[newParentId]) {
+          if (!Array.isArray(store2.cards[newParentId].children)) store2.cards[newParentId].children = [];
+          if (!store2.cards[newParentId].children.includes(id)) store2.cards[newParentId].children.push(id);
+        } else if (Array.isArray(store2.rootOrder) && !store2.rootOrder.includes(id)) {
+          store2.rootOrder.push(id);
+        }
+      })
+    };
+  }
+  function convertCardKind(store2, cardId, targetKind, options = {}) {
+    const card = store2 && store2.cards && store2.cards[cardId];
+    if (!card) return { ok: false, error: `Card "${cardId}" not found` };
+    const ops = resolveOps(store2, options);
+    const previousKind = getCardKind(card);
+    const modsData = JSON.parse(JSON.stringify(card.modsData || {}));
+    const draft = { ...card, modsData };
+    setCardKind(draft, targetKind, options.payload || {});
+    if (previousKind !== GENERIC_KIND && previousKind !== targetKind) {
+      draft.modsData.previousKind = previousKind;
+    }
+    ops.updateCard(cardId, { modsData: draft.modsData });
+    return { ok: true, cardId };
+  }
+  function convertNoteToTask(store2, cardId, options = {}) {
+    const result = convertCardKind(store2, cardId, "task", {
+      ops: options.ops,
+      payload: {
+        status: "todo",
+        priority: options.priority || "medium",
+        dueDate: options.dueDate ?? null,
+        completed: false
+      }
+    });
+    if (result.ok && options.projectId && store2.cards[options.projectId]) {
+      resolveOps(store2, options).reparent(cardId, options.projectId);
+    }
+    return result;
+  }
+  function convertNoteToSlide(store2, cardId, deckId, options = {}) {
+    const deck = deckId && store2 && store2.cards ? store2.cards[deckId] : null;
+    const order = deck && Array.isArray(deck.children) ? deck.children.length + 1 : 1;
+    const result = convertCardKind(store2, cardId, "slide", {
+      ops: options.ops,
+      payload: {
+        layout: options.layout || "title-bullets",
+        speakerNotes: "",
+        order
+      }
+    });
+    if (result.ok && deck) {
+      resolveOps(store2, options).reparent(cardId, deckId);
+    }
+    return result;
+  }
+  function createDeckFromOutline(store2, cardId, options = {}) {
+    const card = store2 && store2.cards && store2.cards[cardId];
+    if (!card) return { ok: false, error: `Card "${cardId}" not found` };
+    const deckResult = convertCardKind(store2, cardId, "deck", {
+      ops: options.ops,
+      payload: {
+        theme: options.theme || "default",
+        aspectRatio: options.aspectRatio || "16:9"
+      }
+    });
+    if (!deckResult.ok) return deckResult;
+    const slides = createSlidesFromChildren(store2, cardId, options);
+    return { ok: true, deckId: cardId, slideIds: slides.slideIds };
+  }
+  function createSlidesFromChildren(store2, parentId, options = {}) {
+    const parent = store2 && store2.cards && store2.cards[parentId];
+    if (!parent) return { ok: false, slideIds: [] };
+    const slideIds = [];
+    (parent.children || []).forEach((childId, index) => {
+      const result = convertCardKind(store2, childId, "slide", {
+        ops: options.ops,
+        payload: {
+          layout: options.layout || "title-bullets",
+          speakerNotes: "",
+          order: index + 1
+        }
+      });
+      if (result.ok) slideIds.push(childId);
+    });
+    return { ok: true, slideIds };
+  }
+  function createProjectFromOutline(store2, cardId, options = {}) {
+    const card = store2 && store2.cards && store2.cards[cardId];
+    if (!card) return { ok: false, error: `Card "${cardId}" not found` };
+    const projectResult = convertCardKind(store2, cardId, "project", {
+      ops: options.ops,
+      payload: { status: "active", priority: options.priority || "medium", dueDate: null }
+    });
+    if (!projectResult.ok) return projectResult;
+    const taskIds = [];
+    (card.children || []).forEach((childId) => {
+      const result = convertCardKind(store2, childId, "task", {
+        ops: options.ops,
+        payload: { status: "todo", priority: options.priority || "medium", dueDate: null, completed: false }
+      });
+      if (result.ok) taskIds.push(childId);
+    });
+    return { ok: true, projectId: cardId, taskIds };
+  }
+  function createReminderForCard(store2, cardId, reminderData = {}) {
+    const target = store2 && store2.cards && store2.cards[cardId];
+    if (!target) return { ok: false, error: `Card "${cardId}" not found` };
+    const ops = resolveOps(store2, reminderData);
+    const title = reminderData.title || `Reminder: ${target.title || "Untitled"}`;
+    const reminderId = ops.createCard(title, reminderData.body || "", cardId);
+    if (!reminderId || !store2.cards[reminderId]) {
+      return { ok: false, error: "Failed to create reminder card" };
+    }
+    const result = convertCardKind(store2, reminderId, "reminder", {
+      ops: reminderData.ops,
+      payload: {
+        targetCardId: cardId,
+        type: reminderData.type || "general",
+        dueAt: reminderData.dueAt ?? null,
+        repeat: reminderData.repeat ?? null,
+        status: "scheduled"
+      }
+    });
+    if (!result.ok) return result;
+    return { ok: true, reminderId };
+  }
+  function revertCardKind(store2, cardId, options = {}) {
+    const card = store2 && store2.cards && store2.cards[cardId];
+    if (!card) return { ok: false, error: `Card "${cardId}" not found` };
+    const previousKind = card.modsData && card.modsData.previousKind;
+    if (!previousKind) return { ok: false, error: "No previous kind recorded" };
+    return convertCardKind(store2, cardId, previousKind, options);
+  }
+  const EXPORT_FORMATS = Object.freeze(["json", "markdown", "txt", "csv", "html"]);
+  function collectSubtree(store2, rootId) {
+    const out = [];
+    const walk = (id) => {
+      const card = store2.cards[id];
+      if (!card) return;
+      out.push(card);
+      (card.children || []).forEach(walk);
+    };
+    walk(rootId);
+    return out;
+  }
+  function selectCardsForExport(store2, options = {}) {
+    if (!store2 || !store2.cards) return [];
+    let cards;
+    if (options.rootId) {
+      const includeChildren = options.includeChildren !== false;
+      cards = includeChildren ? collectSubtree(store2, options.rootId) : [store2.cards[options.rootId]].filter(Boolean);
+    } else {
+      cards = Object.values(store2.cards);
+    }
+    const kinds = options.kinds || (options.kind ? [options.kind] : null);
+    if (kinds) {
+      cards = cards.filter((card) => kinds.includes(getCardKind(card)));
+    }
+    if (options.tag) {
+      const normalized = String(options.tag).replace(/^#/, "").toLowerCase().trim();
+      cards = cards.filter((card) => Array.isArray(card.tags) && card.tags.some((t) => String(t).toLowerCase() === normalized));
+    }
+    return cards;
+  }
+  function csvCell(value) {
+    const str = value == null ? "" : String(value);
+    if (/[",\n\r]/.test(str)) return '"' + str.replace(/"/g, '""') + '"';
+    return str;
+  }
+  function escapeHtml$1(str) {
+    return String(str == null ? "" : str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function depthWithin(card, byId) {
+    let depth = 0;
+    let current = card;
+    while (current && current.parentId && byId[current.parentId]) {
+      depth++;
+      current = byId[current.parentId];
+    }
+    return depth;
+  }
+  function orderAsOutline(cards) {
+    const byId = {};
+    cards.forEach((c) => {
+      byId[c.id] = c;
+    });
+    const roots = cards.filter((c) => !c.parentId || !byId[c.parentId]);
+    const out = [];
+    const walk = (card) => {
+      out.push(card);
+      (card.children || []).forEach((id) => {
+        if (byId[id]) walk(byId[id]);
+      });
+    };
+    roots.forEach(walk);
+    cards.forEach((c) => {
+      if (!out.includes(c)) out.push(c);
+    });
+    return { ordered: out, byId };
+  }
+  function exportCards(store2, options = {}) {
+    const format = options.format || "json";
+    if (!EXPORT_FORMATS.includes(format)) {
+      return { ok: false, format, count: 0, error: `Unsupported format "${format}"` };
+    }
+    const cards = selectCardsForExport(store2, options);
+    const count = cards.length;
+    if (format === "json") {
+      const cardsById = {};
+      cards.forEach((card) => {
+        cardsById[card.id] = card;
+      });
+      const includedIds = new Set(Object.keys(cardsById));
+      const rootIds = cards.filter((card) => !card.parentId || !includedIds.has(card.parentId)).map((card) => card.id);
+      const payload = {
+        exportType: "cards",
+        timestamp: Date.now(),
+        filter: {
+          kind: options.kind || null,
+          kinds: options.kinds || null,
+          tag: options.tag || null,
+          rootId: options.rootId || null
+        },
+        cards: cardsById,
+        rootIds
+      };
+      return { ok: true, format, content: JSON.stringify(payload, null, 2), count };
+    }
+    const { ordered, byId } = orderAsOutline(cards);
+    if (format === "markdown") {
+      const lines = ordered.map((card) => {
+        const depth = Math.min(depthWithin(card, byId), 5);
+        const heading = "#".repeat(depth + 1);
+        const body = card.body ? `
+
+${card.body}` : "";
+        return `${heading} ${card.title || "Untitled"}${body}`;
+      });
+      return { ok: true, format, content: lines.join("\n\n"), count };
+    }
+    if (format === "txt") {
+      const lines = ordered.map((card) => {
+        const indent = "	".repeat(depthWithin(card, byId));
+        const body = card.body ? "\n" + card.body.split("\n").map((l) => `${indent}	${l}`).join("\n") : "";
+        return `${indent}${card.title || "Untitled"}${body}`;
+      });
+      return { ok: true, format, content: lines.join("\n"), count };
+    }
+    if (format === "csv") {
+      const header2 = ["id", "title", "body", "parentId", "tags", "kind", "createdAt", "updatedAt"];
+      const rows = ordered.map((card) => [
+        card.id,
+        card.title || "",
+        card.body || "",
+        card.parentId || "",
+        (card.tags || []).join("; "),
+        getCardKind(card),
+        card.createdAt || "",
+        card.updatedAt || ""
+      ].map(csvCell).join(","));
+      return { ok: true, format, content: [header2.join(","), ...rows].join("\n"), count };
+    }
+    const items = ordered.map((card) => {
+      const depth = depthWithin(card, byId);
+      const level = Math.min(depth + 1, 6);
+      const body = card.body ? `<p>${escapeHtml$1(card.body).replace(/\n/g, "<br>")}</p>` : "";
+      const tags = (card.tags || []).length ? `<p class="tags">${(card.tags || []).map((t) => `#${escapeHtml$1(t)}`).join(" ")}</p>` : "";
+      return `<section class="card kind-${escapeHtml$1(getCardKind(card))}"><h${level}>${escapeHtml$1(card.title || "Untitled")}</h${level}>${body}${tags}</section>`;
+    });
+    const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>CardSpoke Export</title></head>
+<body>
+${items.join("\n")}
+</body>
+</html>`;
+    return { ok: true, format, content: html, count };
+  }
+  function prepareImportCards(payload) {
+    const warnings = [];
+    let pkg = payload;
+    if (typeof pkg === "string") {
+      try {
+        pkg = JSON.parse(pkg);
+      } catch (err) {
+        return { ok: false, cards: {}, rootIds: [], warnings, error: "Invalid JSON: " + err.message };
+      }
+    }
+    if (!pkg || typeof pkg !== "object" || pkg.cards && typeof pkg.cards !== "object") {
+      return { ok: false, cards: {}, rootIds: [], warnings, error: "Invalid import payload" };
+    }
+    const cards = {};
+    for (const [id, original] of Object.entries(pkg.cards || {})) {
+      if (!original || typeof original !== "object") {
+        warnings.push(`[${id}] Skipped: card is not an object`);
+        continue;
+      }
+      const card = JSON.parse(JSON.stringify(original));
+      const validation = validateTypedCard(card);
+      for (const w of validation.warnings) warnings.push(`[${id}] ${w}`);
+      const kind = getCardKind(card);
+      if (kind !== "generic" && !isKnownKind(kind)) {
+      } else {
+        const migrated = migrateCard(card);
+        for (const w of migrated.warnings) warnings.push(`[${id}] ${w}`);
+      }
+      cards[id] = card;
+    }
+    const rootIds = Array.isArray(pkg.rootIds) ? pkg.rootIds.filter((id) => cards[id]) : Object.values(cards).filter((c) => !c.parentId || !cards[c.parentId]).map((c) => c.id);
+    return { ok: true, cards, rootIds, warnings };
+  }
+  const PROFILES = Object.freeze(["full", "lite", "os"]);
+  const DEFAULT_PROFILE = "full";
+  const FEATURE_FLAGS = Object.freeze({
+    pluginManager: true,
+    developerConsole: true,
+    advancedSearch: true,
+    dataHub: true,
+    typedCards: true,
+    appModes: false,
+    actionRegistry: true,
+    conversionHelpers: true
+  });
+  const PROFILE_FEATURES = Object.freeze({
+    full: Object.freeze({
+      pluginManager: true,
+      developerConsole: true,
+      advancedSearch: true,
+      dataHub: true,
+      appModes: false
+    }),
+    lite: Object.freeze({
+      pluginManager: false,
+      developerConsole: false,
+      advancedSearch: true,
+      dataHub: false,
+      appModes: false
+    }),
+    os: Object.freeze({
+      pluginManager: false,
+      developerConsole: false,
+      advancedSearch: true,
+      dataHub: false,
+      appModes: true
+    })
+  });
+  function resolveProfile(name) {
+    return PROFILES.includes(name) ? name : DEFAULT_PROFILE;
+  }
+  function getFeatureFlags(profile) {
+    const resolved = resolveProfile(profile);
+    return { ...FEATURE_FLAGS, ...PROFILE_FEATURES[resolved] || {} };
+  }
+  let activeProfile$1 = DEFAULT_PROFILE;
+  function setActiveProfile(profile) {
+    activeProfile$1 = resolveProfile(profile);
+    return activeProfile$1;
+  }
+  function getActiveProfile() {
+    return activeProfile$1;
+  }
+  function isFeatureEnabled(feature) {
+    const flags = getFeatureFlags(activeProfile$1);
+    return !!flags[feature];
+  }
+  function detectProfile(env = {}) {
+    let search = env.search;
+    if (search === void 0 && typeof globalThis !== "undefined" && globalThis.location) {
+      search = globalThis.location.search;
+    }
+    if (typeof search === "string" && search) {
+      const match = /[?&]profile=([^&]+)/.exec(search);
+      if (match && PROFILES.includes(decodeURIComponent(match[1]))) {
+        return decodeURIComponent(match[1]);
+      }
+    }
+    const globalProfile = env.globalProfile !== void 0 ? env.globalProfile : typeof globalThis !== "undefined" ? globalThis.CardSpokeProfile : void 0;
+    if (PROFILES.includes(globalProfile)) return globalProfile;
+    return resolveProfile(env.fallback);
+  }
+  function initProfile(env = {}) {
+    return setActiveProfile(detectProfile(env));
+  }
   "use strict";
   const APP_CREATOR = "Jeffrey from GX Generations Software";
   const APP_VERSION = '0.17.0';
@@ -26,6 +872,7 @@
     store = s;
   }
   let navState = {
+    mode: "cardspoke",
     page: "list",
     cardId: null,
     parentId: null,
@@ -2162,6 +3009,16 @@
     }
     return changed;
   }
+  function migrateTypedCards() {
+    try {
+      const result = migrateStore(store);
+      result.warnings.forEach((w) => console.warn("[TypedCards]", w));
+      return result.changed;
+    } catch (err) {
+      console.error("[TypedCards] Migration failed (data left untouched):", err);
+      return false;
+    }
+  }
   let cloudSyncTimeout = null;
   let lastCloudSyncTime = 0;
   const CLOUD_SYNC_DEBOUNCE_MS = 6e4;
@@ -2371,9 +3228,10 @@
         setNavHistory(store.metadata.navHistory.slice(-100));
       }
       const repaired = validateStoreConsistency();
-      if (repaired) {
+      const typedChanged = migrateTypedCards();
+      if (repaired || typedChanged) {
         save();
-        showToast("Data integrity check repaired structural metadata", "info");
+        if (repaired) showToast("Data integrity check repaired structural metadata", "info");
       }
       const storageType = getStorageType();
       if (storageType === "indexeddb") {
@@ -2393,7 +3251,9 @@
           });
           if (store.metadata && store.metadata.navState) setNavState({ ...navState, ...store.metadata.navState });
           if (store.metadata && Array.isArray(store.metadata.navHistory)) setNavHistory(store.metadata.navHistory.slice(-100));
-          if (validateStoreConsistency()) save();
+          const mirrorRepaired = validateStoreConsistency();
+          const mirrorTypedChanged = migrateTypedCards();
+          if (mirrorRepaired || mirrorTypedChanged) save();
           render();
         }).catch((err) => {
           console.error("[IndexedDB] Load failed, using LocalStorage fallback:", err);
@@ -2417,7 +3277,9 @@
           });
           if (store.metadata && store.metadata.navState) setNavState({ ...navState, ...store.metadata.navState });
           if (store.metadata && Array.isArray(store.metadata.navHistory)) setNavHistory(store.metadata.navHistory.slice(-100));
-          if (validateStoreConsistency()) save();
+          const fileRepaired = validateStoreConsistency();
+          const fileTypedChanged = migrateTypedCards();
+          if (fileRepaired || fileTypedChanged) save();
           render();
         }).catch((err) => {
           console.error("[Local File] Load failed, using LocalStorage fallback:", err);
@@ -2438,6 +3300,9 @@
   function goTo(page, opts = {}) {
     navHistory.push({ ...navState });
     setNavState({
+      // Mode-aware routing: missing mode defaults to the full CardSpoke
+      // experience so existing pages/routes stay backward compatible.
+      mode: opts.mode ?? navState.mode ?? "cardspoke",
       page,
       cardId: opts.cardId ?? null,
       parentId: opts.parentId ?? null,
@@ -3047,12 +3912,18 @@ Do you want to import the plugins?
           }
         });
       }
-      save();
       importedIds.forEach((cardId) => {
         const storedCard = store.cards[cardId];
         if (storedCard) {
+          try {
+            const migrated = migrateCard(storedCard);
+            migrated.warnings.forEach((w) => console.warn(`[TypedCards] Import ${cardId}:`, w));
+          } catch (err) {
+            console.warn("[TypedCards] Import validation skipped for", cardId, err);
+          }
         }
       });
+      save();
       showToast(`Imported ${Object.keys(remappedCards).length} cards`);
       render();
     } finally {
@@ -3160,7 +4031,7 @@ Do you want to import the plugins?
         datasetInfo.appendChild(datasetName);
         datasetInfo.appendChild(datasetMeta);
         datasetItem.appendChild(datasetInfo);
-        const actions = h("div", { style: "display: flex; gap: var(--space-sm);" });
+        const actions2 = h("div", { style: "display: flex; gap: var(--space-sm);" });
         if (!isCurrent) {
           const openBtn = h("button", {
             className: "btn btn-primary",
@@ -3175,7 +4046,7 @@ Do you want to import the plugins?
               showToast("Switched to: " + key);
             }
           }, "Open");
-          actions.appendChild(openBtn);
+          actions2.appendChild(openBtn);
         }
         if (isCurrent) {
           const storageBtn = h("button", {
@@ -3185,7 +4056,7 @@ Do you want to import the plugins?
               showDatasetStorageSettings();
             }
           }, "Storage Settings");
-          actions.appendChild(storageBtn);
+          actions2.appendChild(storageBtn);
         }
         const deleteBtn = h("button", {
           className: "btn btn-danger",
@@ -3213,8 +4084,8 @@ This action cannot be undone!`)) {
             }
           }
         }, "Delete");
-        actions.appendChild(deleteBtn);
-        datasetItem.appendChild(actions);
+        actions2.appendChild(deleteBtn);
+        datasetItem.appendChild(actions2);
         datasetList.appendChild(datasetItem);
       });
       modalBody.appendChild(datasetList);
@@ -3588,7 +4459,7 @@ This action cannot be undone!`)) {
         var info = h("div", { style: "font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-sm);" });
         info.textContent = "v" + (manifest.version || "1.0.0") + " by " + (manifest.author || "Unknown") + (manifest.description ? " — " + manifest.description : "");
         card.appendChild(info);
-        var actions = h("div", { style: "display: flex; gap: var(--space-sm); margin-top: var(--space-md);" });
+        var actions2 = h("div", { style: "display: flex; gap: var(--space-sm); margin-top: var(--space-md);" });
         var toggleBtn = h("button", {
           className: "btn btn-sm",
           style: "font-size: var(--text-sm);",
@@ -3607,7 +4478,7 @@ This action cannot be undone!`)) {
             }
           }
         }, plugin.enabled ? "Disable" : "Enable");
-        actions.appendChild(toggleBtn);
+        actions2.appendChild(toggleBtn);
         var removeBtn = h("button", {
           className: "btn btn-sm",
           style: "font-size: var(--text-sm); background: var(--danger, #ef4444); color: white;",
@@ -3619,8 +4490,8 @@ This action cannot be undone!`)) {
             }
           }
         }, "Remove");
-        actions.appendChild(removeBtn);
-        card.appendChild(actions);
+        actions2.appendChild(removeBtn);
+        card.appendChild(actions2);
         container.appendChild(card);
       });
       var modIds = Object.keys(store.plugins || {});
@@ -4396,6 +5267,66 @@ This action cannot be undone!`)) {
         related.sort((a, b) => b.matchScore - a.matchScore);
         return related.slice(0, limit);
       }
+  function shellConversionOps() {
+    return {
+      updateCard: (id, updates) => updateCard(id, updates),
+      createCard: (title, body, parentId) => createCard(title, body, parentId)
+    };
+  }
+  function buildActionContext(extra = {}) {
+    return {
+      store,
+      updateCard: (id, updates) => updateCard(id, updates),
+      createCard: (title, body, parentId) => createCard(title, body, parentId),
+      convertNoteToTask: (card, ctx) => convertNoteToTask(store, card.id, { ...ctx && ctx.options, ops: shellConversionOps() }),
+      convertNoteToSlide: (card, ctx) => convertNoteToSlide(store, card.id, ctx && ctx.deckId, { ops: shellConversionOps() }),
+      addTask: (card) => createCard("New Task", "", card.id),
+      addSlide: (card) => createCard("New Slide", "", card.id),
+      addNote: (card) => createCard("New Note", "", card.id),
+      createReminder: (card, ctx) => createReminderForCard(store, card.id, { ...ctx && ctx.reminderData, ops: shellConversionOps() }),
+      ...extra
+    };
+  }
+  function runCardAction(actionId, cardId, extraCtx = {}) {
+    const card = store.cards[cardId];
+    if (!card) return { ok: false, error: "Card not found" };
+    return runAction(actionId, card, buildActionContext(extraCtx));
+  }
+  function listCardActions(cardId) {
+    const card = store.cards[cardId];
+    if (!card) return [];
+    return getActionsForCard(card, buildActionContext());
+  }
+  registerCoreCardActions({
+    edit: (card) => goTo("edit", { cardId: card.id }),
+    bookmark: (card) => toggleBookmark(card.id),
+    duplicate: (card) => duplicateCard(card.id),
+    share: (card) => showShareCard(card.id),
+    addChild: (card) => goTo("edit", { cardId: null, parentId: card.id }),
+    remove: (card) => deleteCard(card.id),
+    importText: (card) => openUploadModalForCard(card.id, "txt")
+  });
+  registerTypedCardActions();
+  function exportCardsFiltered(options = {}) {
+    const result = exportCards(store, options);
+    if (!result.ok) {
+      showToast("Export failed: " + result.error, "error");
+      return result;
+    }
+    const mimeTypes = {
+      json: "application/json",
+      markdown: "text/markdown",
+      txt: "text/plain",
+      csv: "text/csv",
+      html: "text/html"
+    };
+    const extensions = { json: "json", markdown: "md", txt: "txt", csv: "csv", html: "html" };
+    const blob = new Blob([result.content], { type: mimeTypes[result.format] || "text/plain" });
+    const suffix = options.kind || options.kinds && options.kinds.join("-") || "cards";
+    const filename = `cardspoke-${suffix}-${Date.now()}.${extensions[result.format] || "txt"}`;
+    downloadWithFeedback(blob, filename, result.format.toUpperCase());
+    return result;
+  }
   function renderBreadcrumbs() {
     breadcrumbs.innerHTML = "";
     if (navState.page === "search") {
@@ -4656,17 +5587,17 @@ This action cannot be undone!`)) {
       _tags.forEach((t) => tagsWrap.appendChild(h("span", { className: "card-tag" }, t)));
       detail.appendChild(tagsWrap);
     }
-    const actions = h("div", { className: "card-detail-actions" });
-    actions.appendChild(h("button", { className: "btn btn-primary", onclick: () => goTo('edit', { cardId: card.id }) }, "Edit"));
+    const actions2 = h("div", { className: "card-detail-actions" });
+    actions2.appendChild(h("button", { className: "btn btn-primary", onclick: () => goTo('edit', { cardId: card.id }) }, "Edit"));
     const bookmarkBtnText = isBookmarked(card.id) ? "★ Unbookmark" : "☆ Bookmark";
-    actions.appendChild(h("button", {
+    actions2.appendChild(h("button", {
       className: "btn",
       onclick: (e) => {
         e.stopPropagation();
         toggleBookmark(card.id);
       }
     }, bookmarkBtnText));
-    actions.appendChild(h("button", {
+    actions2.appendChild(h("button", {
       className: "btn",
       onclick: () => {
         const choice = confirm("Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)");
@@ -4677,22 +5608,22 @@ This action cannot be undone!`)) {
         }
       }
     }, "Duplicate"));
-    actions.appendChild(h("button", {
+    actions2.appendChild(h("button", {
       className: "btn",
       onclick: () => showShareCard(card.id)
     }, "Share"));
-    actions.appendChild(h("button", { className: "btn", onclick: () => {
+    actions2.appendChild(h("button", { className: "btn", onclick: () => {
       const newId = createCard("", "", card.id);
       goTo("edit", { cardId: newId });
     } }, "Add Child"));
-    actions.appendChild(h("button", { className: "btn", onclick: () => openUploadModalForCard(card.id, "txt") }, "Import TXT"));
-    actions.appendChild(h("button", { className: "btn btn-danger", onclick: () => {
+    actions2.appendChild(h("button", { className: "btn", onclick: () => openUploadModalForCard(card.id, "txt") }, "Import TXT"));
+    actions2.appendChild(h("button", { className: "btn btn-danger", onclick: () => {
       if (confirm("Delete this card and all its children?")) {
         deleteCard(card.id);
         goTo("list", { cardId: card.parentId });
       }
     } }, "Delete"));
-    detail.appendChild(actions);
+    detail.appendChild(actions2);
     if (card.children && card.children.length > 0) {
       const childrenSection = h("div", { className: "children-section" });
       childrenSection.appendChild(h("div", { className: "children-title" }, `Children (${card.children.length})`));
@@ -5326,6 +6257,22 @@ ${prefix}`;
   }
   const savedTheme = store.activeTheme || localStorage.getItem("cardspoke_theme") || "light";
   applyTheme(savedTheme);
+  const activeProfile = initProfile();
+  if (activeProfile !== "full") {
+    console.log(`[Profile] Running with "${activeProfile}" profile`);
+  }
+  function applyProfileToMenu() {
+    const gated = [
+      [menu.pluginManager, "pluginManager"],
+      [menu.developerConsole, "developerConsole"],
+      [menu.advancedSearch, "advancedSearch"],
+      [menu.dataHub, "dataHub"]
+    ];
+    for (const [el, feature] of gated) {
+      if (el) el.style.display = isFeatureEnabled(feature) ? "" : "none";
+    }
+  }
+  applyProfileToMenu();
   if (header.themeToggle) header.themeToggle.onclick = () => {
     const isDark = document.documentElement.classList.contains("dark");
     applyTheme(isDark ? "light" : "dark");
@@ -5336,8 +6283,9 @@ ${prefix}`;
   if (header.menuBtn && menu.overlay) header.menuBtn.onclick = () => {
     menu.overlay.classList.add("show");
     if (menu.developerSection) {
-      menu.developerSection.style.display = isDeveloperMode() ? "block" : "none";
+      menu.developerSection.style.display = isDeveloperMode() && isFeatureEnabled("developerConsole") ? "block" : "none";
     }
+    applyProfileToMenu();
     const panel = menu.overlay.querySelector(".menu-panel");
     if (panel) menuFocusTrapCleanup = trapFocus(panel);
   };
@@ -5832,7 +6780,7 @@ ${prefix}`;
           "Deleted: " + new Date(item.deletedAt).toLocaleString()
         ));
         itemDiv.appendChild(info);
-        const actions = h("div", { style: "display: flex; gap: var(--space-sm);" });
+        const actions2 = h("div", { style: "display: flex; gap: var(--space-sm);" });
         const restoreBtn = h("button", {
           className: "btn btn-primary",
           onclick: () => {
@@ -5855,7 +6803,7 @@ ${prefix}`;
             render();
           }
         }, "Restore");
-        actions.appendChild(restoreBtn);
+        actions2.appendChild(restoreBtn);
         const deleteBtn = h("button", {
           className: "btn btn-danger",
           onclick: () => {
@@ -5867,8 +6815,8 @@ ${prefix}`;
             }
           }
         }, "Delete");
-        actions.appendChild(deleteBtn);
-        itemDiv.appendChild(actions);
+        actions2.appendChild(deleteBtn);
+        itemDiv.appendChild(actions2);
         modalBody.appendChild(itemDiv);
       });
       const emptyBtn = h("button", {
@@ -5978,7 +6926,7 @@ ${prefix}`;
         tagInfo.appendChild(tagChip);
         tagInfo.appendChild(h("span", { style: "color: var(--text-secondary);" }, "(" + count + " card" + (count !== 1 ? "s" : "") + ")"));
         tagItem.appendChild(tagInfo);
-        const actions = h("div", { style: "display: flex; gap: var(--space-sm);" });
+        const actions2 = h("div", { style: "display: flex; gap: var(--space-sm);" });
         const renameBtn = h("button", {
           className: "btn",
           style: "font-size: var(--text-sm);",
@@ -5994,7 +6942,7 @@ ${prefix}`;
             }
           }
         }, "Rename");
-        actions.appendChild(renameBtn);
+        actions2.appendChild(renameBtn);
         const mergeBtn = h("button", {
           className: "btn",
           style: "font-size: var(--text-sm);",
@@ -6019,7 +6967,7 @@ ${prefix}`;
             }
           }
         }, "Merge");
-        actions.appendChild(mergeBtn);
+        actions2.appendChild(mergeBtn);
         const deleteBtn = h("button", {
           className: "btn btn-danger",
           style: "font-size: var(--text-sm);",
@@ -6032,8 +6980,8 @@ ${prefix}`;
             }
           }
         }, "Delete");
-        actions.appendChild(deleteBtn);
-        tagItem.appendChild(actions);
+        actions2.appendChild(deleteBtn);
+        tagItem.appendChild(actions2);
         modalBody.appendChild(tagItem);
       });
     }
@@ -6157,11 +7105,11 @@ ${prefix}`;
       showToast("No cards selected for export", "error");
       return;
     }
-    const exportCards = {};
+    const exportCards2 = {};
     function includeChildren(id) {
       const card = store.cards[id];
       if (!card) return;
-      exportCards[id] = cloneCard(card);
+      exportCards2[id] = cloneCard(card);
       card.children.forEach(function(childId) {
         includeChildren(childId);
       });
@@ -6171,7 +7119,7 @@ ${prefix}`;
     });
     var content, filename, mimeType;
     if (format === "markdown") {
-      content = Object.values(exportCards).map(function(card) {
+      content = Object.values(exportCards2).map(function(card) {
         var md = "# " + (card.title || "(Untitled)") + "\n\n";
         if (card.tags && card.tags.length) {
           md += "Tags: " + card.tags.map(function(t) {
@@ -6184,7 +7132,7 @@ ${prefix}`;
       filename = "cardspoke-export-" + Date.now() + ".md";
       mimeType = "text/markdown";
     } else if (format === "txt") {
-      content = Object.values(exportCards).map(function(card) {
+      content = Object.values(exportCards2).map(function(card) {
         var txt = "=== " + (card.title || "(Untitled)") + " ===\n\n";
         if (card.tags && card.tags.length) {
           txt += "Tags: " + card.tags.join(", ") + "\n\n";
@@ -6197,14 +7145,14 @@ ${prefix}`;
     } else {
       content = JSON.stringify({
         exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        cardCount: Object.keys(exportCards).length,
-        cards: exportCards
+        cardCount: Object.keys(exportCards2).length,
+        cards: exportCards2
       }, null, 2);
       filename = "cardspoke-export-" + Date.now() + ".json";
       mimeType = "application/json";
     }
     downloadWithFeedback(content, filename, mimeType);
-    showToast("Exported " + Object.keys(exportCards).length + " card(s)");
+    showToast("Exported " + Object.keys(exportCards2).length + " card(s)");
   }
   function bulkImportCards(importData, targetParentId) {
     try {
@@ -9057,6 +10005,79 @@ ${prefix}`;
     globalEventBus.clear();
     pluginSandboxRuntime = null;
   }
+  const DEFAULT_MODE_ID = "cardspoke";
+  const modes = /* @__PURE__ */ new Map();
+  let activeModeId = DEFAULT_MODE_ID;
+  function registerAppMode(mode) {
+    if (!mode || typeof mode.id !== "string" || !mode.id) return false;
+    modes.set(mode.id, {
+      icon: null,
+      accepts: () => true,
+      renderList: null,
+      renderDetail: null,
+      renderEditor: null,
+      getActions: () => [],
+      ...mode
+    });
+    return true;
+  }
+  function unregisterAppMode(modeId) {
+    if (modeId === DEFAULT_MODE_ID) return false;
+    const removed = modes.delete(modeId);
+    if (removed && activeModeId === modeId) activeModeId = DEFAULT_MODE_ID;
+    return removed;
+  }
+  function getAppMode(modeId) {
+    return modes.get(modeId) || null;
+  }
+  function listAppModes() {
+    return Array.from(modes.values());
+  }
+  function getModesForCard(card) {
+    return listAppModes().filter((mode) => {
+      try {
+        return !!mode.accepts(card);
+      } catch (_err) {
+        return false;
+      }
+    });
+  }
+  function setActiveMode(modeId) {
+    activeModeId = modes.has(modeId) ? modeId : DEFAULT_MODE_ID;
+    return activeModeId;
+  }
+  function getActiveMode() {
+    return modes.get(activeModeId) || modes.get(DEFAULT_MODE_ID) || null;
+  }
+  function getActiveModeId() {
+    return activeModeId;
+  }
+  function filterCardsForMode(store2, modeId) {
+    const mode = modes.get(modeId);
+    if (!mode || !store2 || !store2.cards) return [];
+    return Object.values(store2.cards).filter((card) => {
+      try {
+        return !!mode.accepts(card);
+      } catch (_err) {
+        return false;
+      }
+    });
+  }
+  function clearAppModes() {
+    modes.clear();
+    activeModeId = DEFAULT_MODE_ID;
+  }
+  function registerBuiltInModes() {
+    const byKinds = (...kinds) => (card) => kinds.includes(getCardKind(card));
+    registerAppMode({ id: "cardspoke", title: "CardSpoke", icon: "grid", accepts: () => true });
+    registerAppMode({ id: "repository", title: "Repository", icon: "book", accepts: byKinds("repository_page") });
+    registerAppMode({ id: "notes", title: "Notes", icon: "note", accepts: byKinds("note") });
+    registerAppMode({ id: "projects", title: "Projects", icon: "briefcase", accepts: byKinds("project", "task") });
+    registerAppMode({ id: "decks", title: "Decks", icon: "monitor", accepts: byKinds("deck", "slide") });
+    registerAppMode({ id: "contacts", title: "Contacts", icon: "users", accepts: byKinds("contact") });
+    registerAppMode({ id: "plants", title: "Plant Pal", icon: "leaf", accepts: byKinds("plant", "care_log") });
+  }
+  registerBuiltInModes();
   window.CardSpoke = Object.freeze({
     /**
      * Register and activate a plugin.

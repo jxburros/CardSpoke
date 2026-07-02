@@ -30,6 +30,19 @@ import {
   hasCardLink as kernelHasCardLink,
   extractTags as kernelExtractTags
 } from './kernel.js';
+import {
+  registerCoreCardActions as coreRegisterCardActions,
+  registerTypedCardActions as coreRegisterTypedActions,
+  runAction as coreRunAction,
+  getActionsForCard as coreGetActionsForCard
+} from '@core/actions.js';
+import {
+  convertNoteToTask as coreConvertNoteToTask,
+  convertNoteToSlide as coreConvertNoteToSlide,
+  createReminderForCard as coreCreateReminderForCard
+} from '@core/conversions.js';
+import { exportCards as coreExportCards } from '@core/import-export.js';
+import { migrateCard as coreMigrateCard } from '@core/migrations.js';
 
       // Source Part 3/5: Data CRUD, imports/exports, dataset modals
       // Concatenated via `npm run build` in lexical order of www/src/*.js
@@ -649,13 +662,22 @@ import {
           });
         }
         
-        save();
-
+        // Typed-card import safeguards: validate/migrate imported typed
+        // metadata in place. Preserves modsData (including unknown/future
+        // kinds) and warns on invalid typed metadata instead of stripping it.
         importedIds.forEach(cardId => {
           const storedCard = store.cards[cardId];
           if (storedCard) {
+            try {
+              const migrated = coreMigrateCard(storedCard);
+              migrated.warnings.forEach(w => console.warn(`[TypedCards] Import ${cardId}:`, w));
+            } catch (err) {
+              console.warn('[TypedCards] Import validation skipped for', cardId, err);
+            }
           }
         });
+
+        save();
         
         showToast(`Imported ${Object.keys(remappedCards).length} cards`);
         render();
@@ -2230,3 +2252,109 @@ import {
       }
 
 
+
+      // =============================================================
+      // --- SHARED ACTION REGISTRY WIRING (OS preparation) ---
+      // Maps the existing hardcoded card behaviors onto the reusable
+      // action registry (www/src/core/actions.js) and wires typed-card
+      // workflows to the core conversion helpers. Changes made through
+      // these actions flow through updateCard()/createCard(), so undo,
+      // save, and middleware hooks keep working.
+      // =============================================================
+
+      /** Shell ops handed to core conversion helpers (undo/save included). */
+      function shellConversionOps() {
+        return {
+          updateCard: (id, updates) => updateCard(id, updates),
+          createCard: (title, body, parentId) => createCard(title, body, parentId)
+        };
+      }
+
+      /**
+       * Build the action context passed to registry actions run by this
+       * shell. Supplies data capabilities plus conversion workflows.
+       */
+      function buildActionContext(extra = {}) {
+        return {
+          store,
+          updateCard: (id, updates) => updateCard(id, updates),
+          createCard: (title, body, parentId) => createCard(title, body, parentId),
+          convertNoteToTask: (card, ctx) =>
+            coreConvertNoteToTask(store, card.id, { ...(ctx && ctx.options), ops: shellConversionOps() }),
+          convertNoteToSlide: (card, ctx) =>
+            coreConvertNoteToSlide(store, card.id, ctx && ctx.deckId, { ops: shellConversionOps() }),
+          addTask: (card) => createCard('New Task', '', card.id),
+          addSlide: (card) => createCard('New Slide', '', card.id),
+          addNote: (card) => createCard('New Note', '', card.id),
+          createReminder: (card, ctx) =>
+            coreCreateReminderForCard(store, card.id, { ...(ctx && ctx.reminderData), ops: shellConversionOps() }),
+          ...extra
+        };
+      }
+
+      /**
+       * Run a registered action against a card by ID with the shell context.
+       * @param {string} actionId - e.g. "card.bookmark" or "task.markDone"
+       * @param {string} cardId
+       * @param {Object} [extraCtx]
+       * @returns {{ ok: boolean, result?: any, error?: string }}
+       */
+      function runCardAction(actionId, cardId, extraCtx = {}) {
+        const card = store.cards[cardId];
+        if (!card) return { ok: false, error: 'Card not found' };
+        return coreRunAction(actionId, card, buildActionContext(extraCtx));
+      }
+
+      /**
+       * List the registry actions applicable to a card (for menus/modes).
+       * @param {string} cardId
+       * @returns {Object[]}
+       */
+      function listCardActions(cardId) {
+        const card = store.cards[cardId];
+        if (!card) return [];
+        return coreGetActionsForCard(card, buildActionContext());
+      }
+
+      // Register the existing card behaviors as shared actions.
+      coreRegisterCardActions({
+        edit: (card) => goTo('edit', { cardId: card.id }),
+        bookmark: (card) => toggleBookmark(card.id),
+        duplicate: (card) => duplicateCard(card.id),
+        share: (card) => showShareCard(card.id),
+        addChild: (card) => goTo('edit', { cardId: null, parentId: card.id }),
+        remove: (card) => deleteCard(card.id),
+        importText: (card) => openUploadModalForCard(card.id, 'txt')
+      });
+      // Register typed-card actions (task/plant data actions + workflow stubs).
+      coreRegisterTypedActions();
+
+      // =============================================================
+      // --- KIND-FILTERABLE EXPORT (OS preparation) ---
+      // =============================================================
+
+      /**
+       * Export cards filtered by kind(s), tag, or subtree and download the
+       * result. Pure transform lives in www/src/core/import-export.js.
+       * @param {Object} options - { format, kind, kinds, tag, rootId, includeChildren }
+       */
+      function exportCardsFiltered(options = {}) {
+        const result = coreExportCards(store, options);
+        if (!result.ok) {
+          showToast('Export failed: ' + result.error, 'error');
+          return result;
+        }
+        const mimeTypes = {
+          json: 'application/json',
+          markdown: 'text/markdown',
+          txt: 'text/plain',
+          csv: 'text/csv',
+          html: 'text/html'
+        };
+        const extensions = { json: 'json', markdown: 'md', txt: 'txt', csv: 'csv', html: 'html' };
+        const blob = new Blob([result.content], { type: mimeTypes[result.format] || 'text/plain' });
+        const suffix = options.kind || (options.kinds && options.kinds.join('-')) || 'cards';
+        const filename = `cardspoke-${suffix}-${Date.now()}.${extensions[result.format] || 'txt'}`;
+        downloadWithFeedback(blob, filename, result.format.toUpperCase());
+        return result;
+      }

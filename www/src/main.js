@@ -33,6 +33,7 @@ import { PluginValidator } from './core/plugin-validator.js';
 import { Permissions, showPermissionDialog } from './core/permissions.js';
 import { StorageDriverRegistry } from './core/storage-driver-registry.js';
 import { Plugin as PluginAPI, PluginSandbox } from './core/plugin-api.js';
+import { registerBuiltInModes } from './core/app-modes.js';
 
 // ── Shared application state (ESM live bindings) ─────────────────────────────
 import './state.js';
@@ -48,6 +49,12 @@ import './storage.js';
 import './data.js';
 import './rendering.js';
 import './systems.js';
+
+// ── App mode registry (OS preparation) ──────────────────────────────────────
+// Registers the built-in stub modes (cardspoke, repository, notes, projects,
+// decks, contacts, plants). The default "cardspoke" mode preserves current
+// behavior; the others filter cards by kind for future lightweight shells.
+registerBuiltInModes();
 
 // ── Public plugin API — frozen, read-only surface on window ─────────────────
 // Plugins access exactly two entry-points; everything else is internal.

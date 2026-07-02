@@ -21,6 +21,7 @@ import {
   navHistory, setNavHistory,
   instanceKey
 } from './state.js';
+import { migrateStore as coreMigrateStore } from '@core/migrations.js';
 
 
       // Source Part 2/5: Storage drivers, navigation, and plugin runtime
@@ -1448,6 +1449,24 @@ import {
         return changed;
       }
 
+      /**
+       * Run the typed-card migration layer over the loaded store.
+       * Idempotent and loss-free (see www/src/core/migrations.js): fills
+       * missing kind defaults, preserves unknown kinds/metadata, and logs
+       * warnings instead of dropping data.
+       * @returns {boolean} True if any card changed and a save is needed.
+       */
+      function migrateTypedCards() {
+        try {
+          const result = coreMigrateStore(store);
+          result.warnings.forEach(w => console.warn('[TypedCards]', w));
+          return result.changed;
+        } catch (err) {
+          console.error('[TypedCards] Migration failed (data left untouched):', err);
+          return false;
+        }
+      }
+
       // Cloud sync tracking
       let cloudSyncTimeout = null;
       let lastCloudSyncTime = 0;
@@ -1726,9 +1745,10 @@ import {
           }
 
           const repaired = validateStoreConsistency();
-          if (repaired) {
+          const typedChanged = migrateTypedCards();
+          if (repaired || typedChanged) {
             save();
-            showToast('Data integrity check repaired structural metadata', 'info');
+            if (repaired) showToast('Data integrity check repaired structural metadata', 'info');
           }
 
           const storageType = getStorageType();
@@ -1751,7 +1771,9 @@ import {
                 });
                 if (store.metadata && store.metadata.navState) setNavState({ ...navState, ...store.metadata.navState });
                 if (store.metadata && Array.isArray(store.metadata.navHistory)) setNavHistory(store.metadata.navHistory.slice(-100));
-                if (validateStoreConsistency()) save();
+                const mirrorRepaired = validateStoreConsistency();
+                const mirrorTypedChanged = migrateTypedCards();
+                if (mirrorRepaired || mirrorTypedChanged) save();
                 render();
               })
               .catch(err => {
@@ -1777,7 +1799,9 @@ import {
                 });
                 if (store.metadata && store.metadata.navState) setNavState({ ...navState, ...store.metadata.navState });
                 if (store.metadata && Array.isArray(store.metadata.navHistory)) setNavHistory(store.metadata.navHistory.slice(-100));
-                if (validateStoreConsistency()) save();
+                const fileRepaired = validateStoreConsistency();
+                const fileTypedChanged = migrateTypedCards();
+                if (fileRepaired || fileTypedChanged) save();
                 render();
               })
               .catch(err => {
@@ -1801,6 +1825,9 @@ import {
       function goTo(page, opts = {}) {
         navHistory.push({ ...navState });
         setNavState({
+          // Mode-aware routing: missing mode defaults to the full CardSpoke
+          // experience so existing pages/routes stay backward compatible.
+          mode: opts.mode ?? navState.mode ?? 'cardspoke',
           page,
           cardId: opts.cardId ?? null,
           parentId: opts.parentId ?? null,
