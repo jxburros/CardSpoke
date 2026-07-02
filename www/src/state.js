@@ -67,6 +67,7 @@ export let store = createDefaultStore();
 export function setStore(s) { store = s; }
 
 export let navState = {
+  mode: 'cardspoke',
   page: 'list',
   cardId: null,
   parentId: null,

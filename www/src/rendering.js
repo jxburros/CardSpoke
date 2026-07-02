@@ -22,6 +22,10 @@ import {
   searchResultsState, setSearchResultsState,
   trashBin
 } from './state.js';
+import {
+  initProfile as coreInitProfile,
+  isFeatureEnabled as coreIsFeatureEnabled
+} from '@core/profiles.js';
 
 
       // Source Part 4/5: Rendering, themes, footer, and initialization
@@ -1136,6 +1140,31 @@ import {
       const savedTheme = store.activeTheme || localStorage.getItem('cardspoke_theme') || 'light';
       applyTheme(savedTheme);
 
+      // Initialize the runtime profile (full / lite / os). Resolution order:
+      // ?profile= URL override, then window.CardSpokeProfile, then 'full'.
+      // Invalid values fall back safely to the full profile.
+      const activeProfile = coreInitProfile();
+      if (activeProfile !== 'full') {
+        console.log(`[Profile] Running with "${activeProfile}" profile`);
+      }
+
+      /**
+       * Show or hide menu entries according to the active profile's
+       * feature flags (see www/src/core/profiles.js).
+       */
+      function applyProfileToMenu() {
+        const gated = [
+          [menu.pluginManager, 'pluginManager'],
+          [menu.developerConsole, 'developerConsole'],
+          [menu.advancedSearch, 'advancedSearch'],
+          [menu.dataHub, 'dataHub']
+        ];
+        for (const [el, feature] of gated) {
+          if (el) el.style.display = coreIsFeatureEnabled(feature) ? '' : 'none';
+        }
+      }
+      applyProfileToMenu();
+
       // --- Header Button Handlers ---
       
       if (header.themeToggle) header.themeToggle.onclick = () => {
@@ -1154,10 +1183,12 @@ import {
       
       if (header.menuBtn && menu.overlay) header.menuBtn.onclick = () => {
         menu.overlay.classList.add('show');
-        // Show/hide developer section based on developer mode
+        // Show/hide developer section based on developer mode and profile
         if (menu.developerSection) {
-          menu.developerSection.style.display = isDeveloperMode() ? 'block' : 'none';
+          menu.developerSection.style.display =
+            (isDeveloperMode() && coreIsFeatureEnabled('developerConsole')) ? 'block' : 'none';
         }
+        applyProfileToMenu();
         // Set up focus trap for accessibility
         const panel = menu.overlay.querySelector('.menu-panel');
         if (panel) menuFocusTrapCleanup = trapFocus(panel);
