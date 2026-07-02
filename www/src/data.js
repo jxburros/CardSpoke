@@ -540,7 +540,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         else if (type === 'plugins-json') exportJSON('plugins');
       }
 
-      function importJSON(data, mode = 'root') {
+      async function importJSON(data, mode = 'root') {
         const groupedUndo = window.startUndoGroup && window.startUndoGroup('importJSON');
         try {
           let pkg;
@@ -588,13 +588,19 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         if (pkg.plugins && pkg.exportType === 'instance') {
           const modCount = Object.keys(pkg.plugins).length;
           if (modCount > 0) {
-            const confirmImportMods = confirm(
+            const confirmImportMods = await showConfirmDialog(
               `⚠️ SECURITY WARNING\n\n` +
               `This import includes ${modCount} plugin(s).\n\n` +
               `Plugins can execute code and access your data. ` +
               `Only import plugins from sources you trust.\n\n` +
               `Do you want to import the plugins?\n` +
-              `(Click Cancel to import only the cards without plugins)`
+              `(Click Cancel to import only the cards without plugins)`,
+              {
+                title: 'Plugin Import Warning',
+                confirmLabel: 'Import Plugins',
+                cancelLabel: 'Cards Only',
+                confirmClassName: 'btn btn-danger'
+              }
             );
             if (!confirmImportMods) {
               delete pkg.plugins;
@@ -806,7 +812,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
             if (!isCurrent) {
               const openBtn = h('button', { 
                 className: 'btn btn-primary',
-                onclick: () => {
+                onclick: async () => {
                   localStorage.setItem('activeInstance', key);
                   setInstanceKey(key);
                   load();
@@ -823,7 +829,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
             if (isCurrent) {
               const storageBtn = h('button', {
                 className: 'btn',
-                onclick: () => {
+                onclick: async () => {
                   overlay.remove();
                   showDatasetStorageSettings();
                 }
@@ -833,12 +839,17 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
 
             const deleteBtn = h('button', { 
               className: 'btn btn-danger',
-              onclick: () => {
+              onclick: async () => {
                 if (allKeys.length === 1) {
                   showToast('Cannot delete the only dataset', 'error');
                   return;
                 }
-                if (confirm(`Delete dataset "${key}"?\n\nThis will permanently delete all cards and data in this dataset.\n\nThis action cannot be undone!`)) {
+                if (await showConfirmDialog(`Delete dataset "${key}"?\n\nThis will permanently delete all cards and data in this dataset.\n\nThis action cannot be undone!`, {
+                  title: 'Delete Dataset',
+                  confirmLabel: 'Delete Dataset',
+                  cancelLabel: 'Cancel',
+                  confirmClassName: 'btn btn-danger'
+                })) {
                   localStorage.removeItem(key);
                   if (isCurrent && allKeys.length > 1) {
                     // Switch to another dataset
@@ -1319,8 +1330,13 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
             var removeBtn = h('button', {
               className: 'btn btn-sm',
               style: 'font-size: var(--text-sm); background: var(--danger, #ef4444); color: white;',
-              onclick: function() {
-                if (confirm('Remove plugin "' + manifest.name + '"?')) {
+              onclick: async function() {
+                if (await showConfirmDialog('Remove plugin "' + manifest.name + '"?', {
+                  title: 'Remove Plugin',
+                  confirmLabel: 'Remove',
+                  cancelLabel: 'Cancel',
+                  confirmClassName: 'btn btn-danger'
+                })) {
                   window.CardSpoke.Plugin.unregister(plugin.id);
                   showToast('Plugin removed: ' + manifest.name);
                   renderInstalledTab();

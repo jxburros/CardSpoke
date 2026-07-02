@@ -361,8 +361,13 @@ import {
             
             const deleteBtn = h('button', {
               className: 'btn btn-danger',
-              onclick: () => {
-                if (confirm('Permanently delete this card?')) {
+              onclick: async () => {
+                if (await showConfirmDialog('Permanently delete this card?', {
+                  title: 'Delete Card',
+                  confirmLabel: 'Delete',
+                  cancelLabel: 'Cancel',
+                  confirmClassName: 'btn btn-danger'
+                })) {
                   trashBin.splice(index, 1);
                   overlay.remove();
                   showTrashBin();
@@ -379,8 +384,13 @@ import {
           const emptyBtn = h('button', {
             className: 'btn btn-danger',
             style: 'width: 100%; margin-top: var(--space-lg);',
-            onclick: () => {
-              if (confirm('Permanently delete all items in trash?')) {
+            onclick: async () => {
+              if (await showConfirmDialog('Permanently delete all items in trash?', {
+                title: 'Empty Trash',
+                confirmLabel: 'Empty Trash',
+                cancelLabel: 'Cancel',
+                confirmClassName: 'btn btn-danger'
+              })) {
                 trashBin.length = 0;
                 overlay.remove();
                 showToast('Trash emptied');
@@ -523,8 +533,15 @@ import {
             const renameBtn = h('button', {
               className: 'btn',
               style: 'font-size: var(--text-sm);',
-              onclick: function() {
-                const newName = prompt('Rename tag "' + tag + '" to:', tag);
+              onclick: async function() {
+                const newName = await showPromptDialog({
+                  title: 'Rename Tag',
+                  message: `Rename tag "${tag}" to:`,
+                  label: 'Tag name',
+                  defaultValue: tag,
+                  confirmLabel: 'Rename',
+                  cancelLabel: 'Cancel'
+                });
                 if (newName && newName.trim() !== tag) {
                   const affected = renameTag(tag, newName.trim());
                   if (affected > 0) {
@@ -540,13 +557,21 @@ import {
             const mergeBtn = h('button', {
               className: 'btn',
               style: 'font-size: var(--text-sm);',
-              onclick: function() {
+              onclick: async function() {
                 const otherTags = tagStats.map(function(t) { return t.tag; }).filter(function(t) { return t !== tag; });
                 if (otherTags.length === 0) {
                   showToast('No other tags to merge with', 'info');
                   return;
                 }
-                const targetTag = prompt('Merge "' + tag + '" into which tag?\n\nAvailable: ' + otherTags.join(', '));
+                const targetTag = await showPromptDialog({
+                  title: 'Merge Tags',
+                  message: 'Merge "' + tag + '" into which tag?\n\nAvailable: ' + otherTags.join(', '),
+                  label: 'Target tag',
+                  placeholder: 'Enter existing tag name',
+                  suggestions: otherTags,
+                  confirmLabel: 'Merge',
+                  cancelLabel: 'Cancel'
+                });
                 if (targetTag && otherTags.includes(targetTag.trim().toLowerCase())) {
                   const affected = mergeTags(tag, targetTag.trim());
                   if (affected > 0) {
@@ -562,8 +587,13 @@ import {
             const deleteBtn = h('button', {
               className: 'btn btn-danger',
               style: 'font-size: var(--text-sm);',
-              onclick: function() {
-                if (confirm('Delete tag "' + tag + '" from all ' + count + ' card(s)?')) {
+              onclick: async function() {
+                if (await showConfirmDialog('Delete tag "' + tag + '" from all ' + count + ' card(s)?', {
+                  title: 'Delete Tag',
+                  confirmLabel: 'Delete Tag',
+                  cancelLabel: 'Cancel',
+                  confirmClassName: 'btn btn-danger'
+                })) {
                   const affected = deleteTagGlobal(tag);
                   showToast('Deleted tag "' + tag + '" from ' + affected + ' card(s)');
                   overlay.remove();
@@ -607,7 +637,25 @@ import {
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
         
-        const modalBody = h('div', { className: 'modal-body' });
+        // Use a real form so pressing Enter in the query field submits search.
+        const modalBody = h('form', { className: 'modal-body' });
+        const submitSearch = function() {
+          const query = queryInput.value.trim();
+          const tagFilter = tagSelect.value;
+          const bookmarkOnly = bookmarkInput.checked;
+          const dateFilter = dateSelect.value;
+          
+          sessionStorage.setItem('searchFilters', JSON.stringify({
+            query: query, tagFilter: tagFilter, bookmarkOnly: bookmarkOnly, dateFilter: dateFilter
+          }));
+          
+          overlay.remove();
+          goTo('search', { searchQuery: query || '*' });
+        };
+        modalBody.onsubmit = function(e) {
+          e.preventDefault();
+          submitSearch();
+        };
         
         // Add help text at the top
         const helpText = h('div', { 
@@ -623,6 +671,12 @@ import {
           placeholder: 'Search in titles and content...',
           'aria-label': 'Search text input',
           style: 'width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-primary); color: var(--text-primary); font-size: 1rem;'
+        });
+        queryInput.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            submitSearch();
+          }
         });
         queryGroup.appendChild(queryInput);
         modalBody.appendChild(queryGroup);
@@ -666,22 +720,9 @@ import {
         
         // Search button
         const searchBtn = h('button', {
+          type: 'submit',
           className: 'btn btn-primary',
-          style: 'width: 100%;',
-          onclick: function() {
-            const query = queryInput.value.trim();
-            const tagFilter = tagSelect.value;
-            const bookmarkOnly = bookmarkInput.checked;
-            const dateFilter = dateSelect.value;
-            
-            // Store filters
-            sessionStorage.setItem('searchFilters', JSON.stringify({
-              query: query, tagFilter: tagFilter, bookmarkOnly: bookmarkOnly, dateFilter: dateFilter
-            }));
-            
-            overlay.remove();
-            goTo('search', { searchQuery: query || '*' });
-          }
+          style: 'width: 100%;'
         }, 'Search');
         modalBody.appendChild(searchBtn);
         
@@ -989,9 +1030,16 @@ import {
       /**
        * Edit dataset name
        */
-      function editDatasetName() {
+      async function editDatasetName() {
         var currentName = (store.metadata && store.metadata.name) || instanceKey;
-        var newName = prompt('Enter new dataset name:', currentName);
+        var newName = await showPromptDialog({
+          title: 'Rename Dataset',
+          message: 'Enter new dataset name:',
+          label: 'Dataset name',
+          defaultValue: currentName,
+          confirmLabel: 'Rename',
+          cancelLabel: 'Cancel'
+        });
         if (newName && newName.trim() && newName.trim() !== currentName) {
           if (!store.metadata) store.metadata = {};
           store.metadata.name = newName.trim();
@@ -1028,11 +1076,16 @@ import {
         'escape': { action: () => handleEscape(), description: 'Close modals/go back' },
         'alt+t': { action: () => { header.themeToggle.click(); }, description: 'Toggle theme' },
         'alt+c': { action: () => toggleViewMode(), description: 'Toggle compact view' },
-        'ctrl+d': { action: () => { 
+        'ctrl+d': { action: async () => { 
           if (navState.page === 'read' && navState.cardId) {
             const card = store.cards[navState.cardId];
             if (card) {
-              const choice = confirm('Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)');
+              const choice = await showConfirmDialog('Duplicate this card with all of its children?', {
+                title: 'Duplicate Card',
+                confirmLabel: 'With Children',
+                cancelLabel: 'Only This Card',
+                confirmClassName: 'btn btn-primary'
+              });
               const newId = duplicateCard(navState.cardId, choice);
               if (newId) {
                 showToast('Card duplicated successfully');

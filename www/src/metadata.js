@@ -71,7 +71,10 @@ function h(tag, props = {}, ...children) {
   });
   children.flat().forEach(ch => {
     if (typeof ch === 'string') el.appendChild(document.createTextNode(ch));
-    else if (ch) el.appendChild(ch);
+    else if (ch instanceof Node) el.appendChild(ch);
+    else if (typeof ch === 'number' || typeof ch === 'boolean' || typeof ch === 'bigint') {
+      el.appendChild(document.createTextNode(String(ch)));
+    }
   });
   return el;
 }
@@ -311,6 +314,238 @@ function showToast(message, type = 'success', duration = 3000) {
       isPaused = false;
       scheduleRemoval();
     }
+
+    /**
+     * Show an in-app modal dialog and resolve with the chosen value.
+     * @param {Object} options - Dialog configuration
+     * @returns {Promise<any>}
+     */
+    function showModalDialog(options = {}) {
+      const {
+        title = 'Dialog',
+        message = '',
+        content = null,
+        actions = [],
+        dismissValue = null,
+        width = '520px',
+        ariaLabelledBy = '',
+        onOpen = null
+      } = options;
+
+      return new Promise(resolve => {
+        const previousActive = document.activeElement;
+        const overlay = h('div', { className: 'modal-overlay show' });
+        const modal = h('div', {
+          className: 'modal',
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-labelledby': ariaLabelledBy || `dialog-title-${uid()}`,
+          style: `max-width: ${width};`
+        });
+        const modalHeader = h('div', { className: 'modal-header' });
+        const titleEl = h('div', {
+          className: 'modal-title',
+          id: modal.getAttribute('aria-labelledby')
+        }, title);
+        modalHeader.appendChild(titleEl);
+
+        const closeBtn = h('button', {
+          className: 'modal-close',
+          type: 'button',
+          'aria-label': 'Close dialog'
+        }, '×');
+        modalHeader.appendChild(closeBtn);
+        modal.appendChild(modalHeader);
+
+        const modalBody = h('div', { className: 'modal-body' });
+        if (message) {
+          modalBody.appendChild(h('div', { className: 'modal-message' }, message));
+        }
+        if (content) {
+          modalBody.appendChild(content);
+        }
+
+        const modalActions = h('div', { className: 'modal-actions' });
+        modalBody.appendChild(modalActions);
+        modal.appendChild(modalBody);
+        overlay.appendChild(modal);
+
+        let releasedFocus = null;
+        let settled = false;
+
+        const finish = value => {
+          if (settled) return;
+          settled = true;
+          document.removeEventListener('keydown', onKeyDown);
+          if (releasedFocus) releasedFocus();
+          overlay.remove();
+          if (previousActive && typeof previousActive.focus === 'function') {
+            previousActive.focus();
+          }
+          resolve(value);
+        };
+
+        const onKeyDown = e => {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            finish(dismissValue);
+          }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+        closeBtn.onclick = () => finish(dismissValue);
+        overlay.onclick = e => {
+          if (e.target === overlay) finish(dismissValue);
+        };
+
+        actions.forEach(action => {
+          const btn = h('button', {
+            type: 'button',
+            className: action.className || 'btn',
+            onclick: () => finish(typeof action.getValue === 'function' ? action.getValue() : action.value)
+          }, action.label);
+          if (typeof action.onCreate === 'function') {
+            action.onCreate(btn);
+          }
+          if (action.autoFocus) {
+            btn.dataset.autofocus = 'true';
+          }
+          modalActions.appendChild(btn);
+        });
+
+        document.body.appendChild(overlay);
+        releasedFocus = trapFocus(modal);
+
+        requestAnimationFrame(() => {
+          if (typeof onOpen === 'function') {
+            onOpen({ overlay, modal, modalBody, finish });
+          }
+          const preferred = modal.querySelector('[data-autofocus="true"]');
+          if (preferred && typeof preferred.focus === 'function') {
+            preferred.focus();
+          }
+        });
+      });
+    }
+
+    /**
+     * Show an in-app confirmation dialog.
+     * @param {string} message - Dialog body
+     * @param {Object} options - Labels and title
+     * @returns {Promise<boolean>}
+     */
+    function showConfirmDialog(message, options = {}) {
+      return showModalDialog({
+        title: options.title || 'Confirm Action',
+        message,
+        width: options.width || '520px',
+        dismissValue: false,
+        actions: [
+          {
+            label: options.cancelLabel || 'Cancel',
+            value: false,
+            className: 'btn',
+            autoFocus: !options.confirmFirst
+          },
+          {
+            label: options.confirmLabel || 'Confirm',
+            value: true,
+            className: options.confirmClassName || 'btn btn-primary',
+            autoFocus: !!options.confirmFirst
+          }
+        ]
+      });
+    }
+
+    /**
+     * Show an in-app multi-action dialog.
+     * @param {string} message - Dialog body
+     * @param {Object} options - Dialog options
+     * @returns {Promise<any>}
+     */
+    function showChoiceDialog(message, options = {}) {
+      return showModalDialog({
+        title: options.title || 'Choose Action',
+        message,
+        width: options.width || '520px',
+        dismissValue: options.dismissValue ?? null,
+        actions: options.actions || []
+      });
+    }
+
+    /**
+     * Show an in-app text input dialog.
+     * @param {Object} options - Prompt configuration
+     * @returns {Promise<string|null>}
+     */
+    function showPromptDialog(options = {}) {
+      const fieldId = `dialog-input-${uid()}`;
+      const inputWrap = h('div', { className: 'form-group dialog-field' });
+      if (options.label) {
+        inputWrap.appendChild(h('label', { className: 'form-label', for: fieldId }, options.label));
+      }
+
+      const input = h('input', {
+        id: fieldId,
+        type: options.type || 'text',
+        className: 'form-input',
+        value: options.defaultValue || '',
+        placeholder: options.placeholder || '',
+        autocomplete: 'off'
+      });
+      input.dataset.autofocus = 'true';
+
+      if (Array.isArray(options.suggestions) && options.suggestions.length > 0) {
+        const datalistId = `dialog-datalist-${uid()}`;
+        input.setAttribute('list', datalistId);
+        const datalist = h('datalist', { id: datalistId });
+        options.suggestions.forEach(suggestion => {
+          datalist.appendChild(h('option', { value: suggestion }));
+        });
+        inputWrap.appendChild(input);
+        inputWrap.appendChild(datalist);
+      } else {
+        inputWrap.appendChild(input);
+      }
+
+      let submitBtn = null;
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && submitBtn) {
+          e.preventDefault();
+          submitBtn.click();
+        }
+      });
+
+      return showModalDialog({
+        title: options.title || 'Enter Value',
+        message: options.message || '',
+        content: inputWrap,
+        width: options.width || '520px',
+        dismissValue: null,
+        actions: [
+          {
+            label: options.cancelLabel || 'Cancel',
+            value: null,
+            className: 'btn'
+          },
+          {
+            label: options.confirmLabel || 'Save',
+            className: options.confirmClassName || 'btn btn-primary',
+            getValue: () => input.value,
+            onCreate: btn => {
+              submitBtn = btn;
+            }
+          }
+        ],
+        onOpen: () => {
+          input.focus();
+          input.select();
+        }
+      }).then(value => {
+        submitBtn = null;
+        return value;
+      });
+    }
   };
   
   toast.addEventListener('mouseenter', pauseTimer);
@@ -507,8 +742,17 @@ const header = {
        * @returns {number} - Match score
        */
       function fuzzyMatchScore(query, text) {
+        // Compare a short prefix window before falling back to word windows so
+        // small typos near the start of a title still score well without
+        // overmatching long unrelated bodies.
+        const FUZZY_PREFIX_PADDING = 10;
         const queryLower = query.toLowerCase();
         const textLower = text.toLowerCase();
+        if (!queryLower || !textLower) return 0;
+        const queryTerms = queryLower.split(/\s+/).filter(Boolean);
+        if (queryTerms.length > 1 && !queryTerms.some(term => textLower.includes(term))) {
+          return 0;
+        }
         
         // Exact match gets highest score
         if (textLower.includes(queryLower)) {
@@ -516,13 +760,28 @@ const header = {
           // Bonus for matches at start of text
           return 100 - (position * 0.5);
         }
+
+        const candidates = new Set();
+        candidates.add(textLower.substring(0, query.length + FUZZY_PREFIX_PADDING));
+
+        const words = textLower.split(/\s+/).filter(Boolean);
+        if (words.length > 0) {
+          const windowSize = Math.min(words.length, Math.max(1, queryTerms.length));
+          for (let i = 0; i <= words.length - windowSize; i++) {
+            candidates.add(words.slice(i, i + windowSize).join(' '));
+          }
+        }
         
-        // Calculate fuzzy score based on edit distance
-        const distance = levenshteinDistance(queryLower, textLower.substring(0, query.length + 5));
-        const maxLen = Math.max(queryLower.length, textLower.length);
-        const similarity = 1 - (distance / maxLen);
+        let bestScore = 0;
+        candidates.forEach(candidate => {
+          if (!candidate) return;
+          const distance = levenshteinDistance(queryLower, candidate);
+          const maxLen = Math.max(queryLower.length, candidate.length);
+          const similarity = 1 - (distance / maxLen);
+          bestScore = Math.max(bestScore, Math.max(0, similarity * 70));
+        });
         
-        return Math.max(0, similarity * 70); // Fuzzy matches get up to 70 points
+        return bestScore;
       }
 
       /**
@@ -532,29 +791,45 @@ const header = {
        * @returns {Array} - Sorted results with scores
        */
       function fuzzySearchCards(store, query) {
+        // Direct substring matches stay permissive, while approximate matches
+        // require stronger scores—especially for multi-term queries—to keep
+        // stress-test phrases from returning broad unrelated results.
+        const EXACT_MATCH_THRESHOLD = 30;
+        const MULTI_TERM_APPROX_THRESHOLD = 62;
+        const SINGLE_TERM_APPROX_THRESHOLD = 48;
         if (!query || query.trim() === '') {
           return [];
         }
         
         const results = [];
         const queryLower = query.toLowerCase().trim();
+        const queryTerms = queryLower.split(/\s+/).filter(Boolean);
         
         Object.values(store.cards).forEach(card => {
+          const titleText = (card.title || '').toLowerCase();
+          const bodyText = (card.body || '').toLowerCase();
+          const tags = Array.isArray(card.tags) ? card.tags : [];
+          const exactTitleMatch = titleText.includes(queryLower);
+          const exactBodyMatch = bodyText.includes(queryLower);
+          const exactTagMatch = tags.some(tag => tag.toLowerCase().includes(queryLower));
           const titleScore = fuzzyMatchScore(queryLower, card.title || '');
-          const bodyScore = fuzzyMatchScore(queryLower, card.body || '') * 0.7; // Body matches worth less
-          const tagScore = card.tags ? card.tags.some(tag => 
-            fuzzyMatchScore(queryLower, tag) > 50
-          ) ? 30 : 0 : 0;
+          const bodyScore = fuzzyMatchScore(queryLower, card.body || '') * 0.55;
+          const tagScore = tags.length
+            ? Math.max(...tags.map(tag => fuzzyMatchScore(queryLower, tag) * 0.9), 0)
+            : 0;
+          const totalScore = Math.max(titleScore, bodyScore, tagScore);
+          const hasDirectMatch = exactTitleMatch || exactBodyMatch || exactTagMatch;
+          const threshold = hasDirectMatch
+            ? EXACT_MATCH_THRESHOLD
+            : (queryTerms.length > 1 ? MULTI_TERM_APPROX_THRESHOLD : SINGLE_TERM_APPROX_THRESHOLD);
           
-          const totalScore = Math.max(titleScore, bodyScore) + tagScore;
-          
-          // Only include results with score > 30 (reasonable match threshold)
-          if (totalScore > 30) {
+          if (totalScore >= threshold) {
             results.push({
               card,
               score: totalScore,
-              titleMatch: titleScore > 50,
-              bodyMatch: bodyScore > 35
+              approximate: !hasDirectMatch,
+              titleMatch: exactTitleMatch || titleScore >= 70,
+              bodyMatch: exactBodyMatch || bodyScore >= 50
             });
           }
         });

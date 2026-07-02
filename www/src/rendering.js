@@ -38,6 +38,11 @@ import {
       /**
        * Render breadcrumb navigation
        */
+      function getEditPageLabel() {
+        if (navState.cardId) return 'Edit Card';
+        return navState.parentId ? 'Add Child Card' : 'New Card';
+      }
+
       function renderBreadcrumbs() {
         breadcrumbs.innerHTML = '';
         if (navState.page === 'search') {
@@ -45,7 +50,7 @@ import {
           return;
         }
         if (navState.page === 'edit') {
-          breadcrumbs.appendChild(h('span', { className: 'breadcrumb current', 'aria-current': 'page' }, navState.cardId ? 'Edit Card' : 'New Card'));
+          breadcrumbs.appendChild(h('span', { className: 'breadcrumb current', 'aria-current': 'page' }, getEditPageLabel()));
           return;
         }
         let current = navState.cardId;
@@ -161,7 +166,7 @@ import {
         const contentEl = h('div', { className: 'card-content' });
         
         // Add bookmark indicator if bookmarked
-        const titleWrapper = h('div', { style: 'display: flex; align-items: center; gap: 8px;' });
+        const titleWrapper = h('div', { style: 'display: flex; align-items: center; gap: 8px; min-width: 0;' });
         if (isBookmarked(card.id)) {
           titleWrapper.appendChild(h('span', { 
             style: 'color: gold; font-size: 18px;',
@@ -272,14 +277,19 @@ import {
           }, link.cardName);
           
           // Add click handler
-          linkEl.addEventListener('click', (e) => {
+          linkEl.addEventListener('click', async e => {
             e.stopPropagation();
             if (cardId) {
               // Card exists, navigate to it
               goTo('read', { cardId });
             } else {
               // Card doesn't exist, offer to create it
-              if (confirm(`Card "${link.cardName}" doesn't exist. Create it?`)) {
+              if (await showConfirmDialog(`Card "${link.cardName}" doesn't exist. Create it?`, {
+                title: 'Create Linked Card',
+                confirmLabel: 'Create Card',
+                cancelLabel: 'Cancel',
+                confirmClassName: 'btn btn-primary'
+              })) {
                 const newId = createCard(link.cardName, '', null);
                 goTo('edit', { cardId: newId });
               }
@@ -373,8 +383,13 @@ import {
         // Duplicate button with dropdown-like behavior
         actions.appendChild(h('button', {
           className: 'btn',
-          onclick: () => {
-            const choice = confirm('Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)');
+          onclick: async () => {
+            const choice = await showConfirmDialog('Duplicate this card with all of its children?', {
+              title: 'Duplicate Card',
+              confirmLabel: 'With Children',
+              cancelLabel: 'Only This Card',
+              confirmClassName: 'btn btn-primary'
+            });
             const newId = duplicateCard(card.id, choice);
             if (newId) {
               showToast('Card duplicated successfully');
@@ -390,14 +405,18 @@ import {
         }, 'Share'));
 
         actions.appendChild(h('button', { className: 'btn', onclick: () => {
-          const newId = createCard('', '', card.id);
-          goTo('edit', { cardId: newId });
+          goTo('edit', { parentId: card.id });
         } }, 'Add Child'));
         
         actions.appendChild(h('button', { className: 'btn', onclick: () => openUploadModalForCard(card.id, 'txt') }, 'Import TXT'));
         
-        actions.appendChild(h('button', { className: 'btn btn-danger', onclick: () => {
-          if (confirm('Delete this card and all its children?')) {
+        actions.appendChild(h('button', { className: 'btn btn-danger', onclick: async () => {
+          if (await showConfirmDialog('Delete this card and all of its children?', {
+            title: 'Delete Card',
+            confirmLabel: 'Delete',
+            cancelLabel: 'Cancel',
+            confirmClassName: 'btn btn-danger'
+          })) {
             deleteCard(card.id);
             goTo('list', { cardId: card.parentId });
           }
@@ -547,9 +566,24 @@ import {
               const file = e.target.files[0];
               if (file) {
                 const reader = new FileReader();
-                reader.onload = function(ev) {
+                reader.onload = async function(ev) {
                   const currentBody = document.getElementById('cardBody');
-                  if (currentBody.value && !confirm('Replace existing content?')) {
+                  const importAction = !currentBody.value ? 'replace' : await showChoiceDialog(
+                    'How would you like to apply the imported file contents to this card body?',
+                    {
+                      title: 'Import Text File',
+                      dismissValue: 'cancel',
+                      actions: [
+                        { label: 'Cancel', value: 'cancel', className: 'btn' },
+                        { label: 'Append', value: 'append', className: 'btn' },
+                        { label: 'Replace', value: 'replace', className: 'btn btn-primary' }
+                      ]
+                    }
+                  );
+                  if (importAction === 'cancel') {
+                    return;
+                  }
+                  if (importAction === 'append') {
                     currentBody.value += '\n\n' + ev.target.result;
                   } else {
                     currentBody.value = ev.target.result;
@@ -682,8 +716,13 @@ import {
             const delBtn = h('button', {
               type: 'button',
               className: 'form-child-delete',
-              onclick: () => {
-                if (confirm('Delete child and all its children?')) {
+              onclick: async () => {
+                if (await showConfirmDialog('Delete this child card and all of its children?', {
+                  title: 'Delete Child Card',
+                  confirmLabel: 'Delete',
+                  cancelLabel: 'Cancel',
+                  confirmClassName: 'btn btn-danger'
+                })) {
                   deleteCard(cid);
                   save();
                   render();
@@ -737,8 +776,13 @@ import {
           formActions.appendChild(h('button', {
             type: 'button',
             className: 'btn btn-danger',
-            onclick: () => {
-              if (confirm('Delete this card and all children?')) {
+            onclick: async () => {
+              if (await showConfirmDialog('Delete this card and all of its children?', {
+                title: 'Delete Card',
+                confirmLabel: 'Delete',
+                cancelLabel: 'Cancel',
+                confirmClassName: 'btn btn-danger'
+              })) {
                 deleteCard(card.id);
                 save();
                 goTo('list', { cardId: card.parentId ?? null });
@@ -747,7 +791,7 @@ import {
           }, 'Delete'));
         }
         form.appendChild(formActions);
-        main.appendChild(h('div', { className: 'page-title' }, editing ? 'Edit Card' : 'New Card'));
+        main.appendChild(h('div', { className: 'page-title' }, editing ? 'Edit Card' : getEditPageLabel()));
         main.appendChild(form);
       }
 
@@ -840,7 +884,7 @@ import {
             const resultInfo = h('div', {
               className: 'search-info',
               style: 'padding: 12px; margin-bottom: 8px; background: var(--bg-secondary); border-radius: 8px; font-size: 14px; color: var(--text-secondary);'
-            }, `Found ${fuzzyResults.length} result${fuzzyResults.length === 1 ? '' : 's'}${scopeText} (fuzzy matching enabled)`);
+            }, `Found ${fuzzyResults.length} result${fuzzyResults.length === 1 ? '' : 's'}${scopeText}${fuzzyResults.some(result => result.approximate) ? ' (approximate matches marked with ~)' : ''}`);
             main.appendChild(resultInfo);
 
             // Keyboard navigation hint (v1.0.0)
@@ -889,7 +933,7 @@ import {
                 }
 
                 // Add match quality indicator
-                if (result.score < 60) {
+                if (result.approximate) {
                   const matchBadge = h('span', {
                     style: 'position: absolute; top: 8px; right: 8px; background: #fbbf24; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;'
                   }, '~');
@@ -1428,11 +1472,11 @@ import {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = () => {
+        reader.onload = async () => {
           try {
             const data = JSON.parse(reader.result);
             const mode = uploadModal.importLocationSelectJSON ? uploadModal.importLocationSelectJSON.value || 'root' : 'root';
-            importJSON(data, mode);
+            await importJSON(data, mode);
             if (uploadModal.overlay) uploadModal.overlay.classList.remove('show');
           } catch (err) {
             showToast('Failed to parse JSON: ' + err.message, 'error');

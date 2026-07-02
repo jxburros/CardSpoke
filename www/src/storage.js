@@ -624,11 +624,17 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
           // Security: Validate HTTPS usage
           const url = config.url.toLowerCase();
           if (url.startsWith('http://') && !url.includes('localhost') && !url.includes('127.0.0.1')) {
-            const useInsecure = confirm(
+            const useInsecure = await showConfirmDialog(
               '⚠️ SECURITY WARNING: You are connecting to WebDAV over HTTP (not HTTPS).\n\n' +
               'Your credentials and data will be transmitted unencrypted and could be intercepted.\n\n' +
               'We strongly recommend using HTTPS for WebDAV connections.\n\n' +
-              'Do you want to continue with insecure HTTP anyway?'
+              'Do you want to continue with insecure HTTP anyway?',
+              {
+                title: 'Insecure WebDAV Connection',
+                confirmLabel: 'Continue Anyway',
+                cancelLabel: 'Cancel',
+                confirmClassName: 'btn btn-danger'
+              }
             );
             if (!useInsecure) {
               throw new Error('WebDAV connection rejected: HTTPS required for security');
@@ -1674,12 +1680,22 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
         }
       }
 
-      function clearAllData() {
-        if (!confirm('WARNING: This will DELETE ALL instances and data from localStorage.\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?')) {
+      async function clearAllData() {
+        if (!await showConfirmDialog('WARNING: This will DELETE ALL instances and data from localStorage.\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?', {
+          title: 'Delete All Data',
+          confirmLabel: 'Continue',
+          cancelLabel: 'Cancel',
+          confirmClassName: 'btn btn-danger'
+        })) {
           return;
         }
 
-        if (!confirm('This is your FINAL warning.\n\nAll card data, all instances, and all settings will be permanently deleted.\n\nContinue?')) {
+        if (!await showConfirmDialog('This is your FINAL warning.\n\nAll card data, all instances, and all settings will be permanently deleted.\n\nContinue?', {
+          title: 'Final Warning',
+          confirmLabel: 'Delete Everything',
+          cancelLabel: 'Cancel',
+          confirmClassName: 'btn btn-danger'
+        })) {
           return;
         }
 
@@ -1984,4 +2000,3 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
       if (isDeveloperMode()) {
         console.log('[CardSpoke.utils] API initialized and available at window.CardSpoke.utils');
       }
-

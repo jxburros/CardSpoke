@@ -1441,7 +1441,10 @@ ${items.join("\n")}
     });
     children.flat().forEach((ch) => {
       if (typeof ch === "string") el.appendChild(document.createTextNode(ch));
-      else if (ch) el.appendChild(ch);
+      else if (ch instanceof Node) el.appendChild(ch);
+      else if (typeof ch === "number" || typeof ch === "boolean" || typeof ch === "bigint") {
+        el.appendChild(document.createTextNode(String(ch)));
+      }
     });
     return el;
   }
@@ -1576,6 +1579,197 @@ ${items.join("\n")}
         isPaused = false;
         scheduleRemoval();
       }
+      function showModalDialog(options = {}) {
+        const {
+          title = "Dialog",
+          message: message2 = "",
+          content = null,
+          actions: actions2 = [],
+          dismissValue = null,
+          width = "520px",
+          ariaLabelledBy = "",
+          onOpen = null
+        } = options;
+        return new Promise((resolve) => {
+          const previousActive = document.activeElement;
+          const overlay = h("div", { className: "modal-overlay show" });
+          const modal = h("div", {
+            className: "modal",
+            role: "dialog",
+            "aria-modal": "true",
+            "aria-labelledby": ariaLabelledBy || `dialog-title-${uid()}`,
+            style: `max-width: ${width};`
+          });
+          const modalHeader = h("div", { className: "modal-header" });
+          const titleEl = h("div", {
+            className: "modal-title",
+            id: modal.getAttribute("aria-labelledby")
+          }, title);
+          modalHeader.appendChild(titleEl);
+          const closeBtn = h("button", {
+            className: "modal-close",
+            type: "button",
+            "aria-label": "Close dialog"
+          }, "×");
+          modalHeader.appendChild(closeBtn);
+          modal.appendChild(modalHeader);
+          const modalBody = h("div", { className: "modal-body" });
+          if (message2) {
+            modalBody.appendChild(h("div", { className: "modal-message" }, message2));
+          }
+          if (content) {
+            modalBody.appendChild(content);
+          }
+          const modalActions = h("div", { className: "modal-actions" });
+          modalBody.appendChild(modalActions);
+          modal.appendChild(modalBody);
+          overlay.appendChild(modal);
+          let releasedFocus = null;
+          let settled = false;
+          const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            document.removeEventListener("keydown", onKeyDown);
+            if (releasedFocus) releasedFocus();
+            overlay.remove();
+            if (previousActive && typeof previousActive.focus === "function") {
+              previousActive.focus();
+            }
+            resolve(value);
+          };
+          const onKeyDown = (e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              finish(dismissValue);
+            }
+          };
+          document.addEventListener("keydown", onKeyDown);
+          closeBtn.onclick = () => finish(dismissValue);
+          overlay.onclick = (e) => {
+            if (e.target === overlay) finish(dismissValue);
+          };
+          actions2.forEach((action) => {
+            const btn = h("button", {
+              type: "button",
+              className: action.className || "btn",
+              onclick: () => finish(typeof action.getValue === "function" ? action.getValue() : action.value)
+            }, action.label);
+            if (typeof action.onCreate === "function") {
+              action.onCreate(btn);
+            }
+            if (action.autoFocus) {
+              btn.dataset.autofocus = "true";
+            }
+            modalActions.appendChild(btn);
+          });
+          document.body.appendChild(overlay);
+          releasedFocus = trapFocus(modal);
+          requestAnimationFrame(() => {
+            if (typeof onOpen === "function") {
+              onOpen({ overlay, modal, modalBody, finish });
+            }
+            const preferred = modal.querySelector('[data-autofocus="true"]');
+            if (preferred && typeof preferred.focus === "function") {
+              preferred.focus();
+            }
+          });
+        });
+      }
+      function showConfirmDialog2(message2, options = {}) {
+        return showModalDialog({
+          title: options.title || "Confirm Action",
+          message: message2,
+          width: options.width || "520px",
+          dismissValue: false,
+          actions: [
+            {
+              label: options.cancelLabel || "Cancel",
+              value: false,
+              className: "btn",
+              autoFocus: !options.confirmFirst
+            },
+            {
+              label: options.confirmLabel || "Confirm",
+              value: true,
+              className: options.confirmClassName || "btn btn-primary",
+              autoFocus: !!options.confirmFirst
+            }
+          ]
+        });
+      }
+      function showChoiceDialog2(message2, options = {}) {
+        return showModalDialog({
+          title: options.title || "Choose Action",
+          message: message2,
+          width: options.width || "520px",
+          dismissValue: options.dismissValue ?? null,
+          actions: options.actions || []
+        });
+      }
+      function showPromptDialog2(options = {}) {
+        const fieldId = `dialog-input-${uid()}`;
+        const inputWrap = h("div", { className: "form-group dialog-field" });
+        if (options.label) {
+          inputWrap.appendChild(h("label", { className: "form-label", for: fieldId }, options.label));
+        }
+        const input = h("input", {
+          id: fieldId,
+          type: options.type || "text",
+          className: "form-input",
+          value: options.defaultValue || "",
+          placeholder: options.placeholder || "",
+          autocomplete: "off"
+        });
+        input.dataset.autofocus = "true";
+        if (Array.isArray(options.suggestions) && options.suggestions.length > 0) {
+          const datalistId = `dialog-datalist-${uid()}`;
+          input.setAttribute("list", datalistId);
+          const datalist = h("datalist", { id: datalistId });
+          options.suggestions.forEach((suggestion) => {
+            datalist.appendChild(h("option", { value: suggestion }));
+          });
+          inputWrap.appendChild(input);
+          inputWrap.appendChild(datalist);
+        } else {
+          inputWrap.appendChild(input);
+        }
+        let submitBtn = null;
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && submitBtn) {
+            e.preventDefault();
+            submitBtn.click();
+          }
+        });
+        return showModalDialog({
+          title: options.title || "Enter Value",
+          message: options.message || "",
+          content: inputWrap,
+          width: options.width || "520px",
+          dismissValue: null,
+          actions: [
+            {
+              label: options.cancelLabel || "Cancel",
+              value: null,
+              className: "btn"
+            },
+            {
+              label: options.confirmLabel || "Save",
+              className: options.confirmClassName || "btn btn-primary",
+              getValue: () => input.value,
+              onCreate: (btn) => {
+                submitBtn = btn;
+              }
+            }
+          ],
+          onOpen: () => {
+            input.focus();
+            input.select();
+          }
+        }).then((value) => {
+          submitBtn = null;
+          return value;
+        });
+      }
     };
     toast.addEventListener("mouseenter", pauseTimer);
     toast.addEventListener("mouseleave", resumeTimer);
@@ -1697,36 +1891,67 @@ ${items.join("\n")}
     return matrix[b.length][a.length];
   }
   function fuzzyMatchScore(query, text) {
+    const FUZZY_PREFIX_PADDING = 10;
     const queryLower = query.toLowerCase();
     const textLower = text.toLowerCase();
+    if (!queryLower || !textLower) return 0;
+    const queryTerms = queryLower.split(/\s+/).filter(Boolean);
+    if (queryTerms.length > 1 && !queryTerms.some((term) => textLower.includes(term))) {
+      return 0;
+    }
     if (textLower.includes(queryLower)) {
       const position = textLower.indexOf(queryLower);
       return 100 - position * 0.5;
     }
-    const distance = levenshteinDistance(queryLower, textLower.substring(0, query.length + 5));
-    const maxLen = Math.max(queryLower.length, textLower.length);
-    const similarity = 1 - distance / maxLen;
-    return Math.max(0, similarity * 70);
+    const candidates = /* @__PURE__ */ new Set();
+    candidates.add(textLower.substring(0, query.length + FUZZY_PREFIX_PADDING));
+    const words = textLower.split(/\s+/).filter(Boolean);
+    if (words.length > 0) {
+      const windowSize = Math.min(words.length, Math.max(1, queryTerms.length));
+      for (let i = 0; i <= words.length - windowSize; i++) {
+        candidates.add(words.slice(i, i + windowSize).join(" "));
+      }
+    }
+    let bestScore = 0;
+    candidates.forEach((candidate) => {
+      if (!candidate) return;
+      const distance = levenshteinDistance(queryLower, candidate);
+      const maxLen = Math.max(queryLower.length, candidate.length);
+      const similarity = 1 - distance / maxLen;
+      bestScore = Math.max(bestScore, Math.max(0, similarity * 70));
+    });
+    return bestScore;
   }
   function fuzzySearchCards(store2, query) {
+    const EXACT_MATCH_THRESHOLD = 30;
+    const MULTI_TERM_APPROX_THRESHOLD = 62;
+    const SINGLE_TERM_APPROX_THRESHOLD = 48;
     if (!query || query.trim() === "") {
       return [];
     }
     const results = [];
     const queryLower = query.toLowerCase().trim();
+    const queryTerms = queryLower.split(/\s+/).filter(Boolean);
     Object.values(store2.cards).forEach((card) => {
+      const titleText = (card.title || "").toLowerCase();
+      const bodyText = (card.body || "").toLowerCase();
+      const tags = Array.isArray(card.tags) ? card.tags : [];
+      const exactTitleMatch = titleText.includes(queryLower);
+      const exactBodyMatch = bodyText.includes(queryLower);
+      const exactTagMatch = tags.some((tag) => tag.toLowerCase().includes(queryLower));
       const titleScore = fuzzyMatchScore(queryLower, card.title || "");
-      const bodyScore = fuzzyMatchScore(queryLower, card.body || "") * 0.7;
-      const tagScore = card.tags ? card.tags.some(
-        (tag) => fuzzyMatchScore(queryLower, tag) > 50
-      ) ? 30 : 0 : 0;
-      const totalScore = Math.max(titleScore, bodyScore) + tagScore;
-      if (totalScore > 30) {
+      const bodyScore = fuzzyMatchScore(queryLower, card.body || "") * 0.55;
+      const tagScore = tags.length ? Math.max(...tags.map((tag) => fuzzyMatchScore(queryLower, tag) * 0.9), 0) : 0;
+      const totalScore = Math.max(titleScore, bodyScore, tagScore);
+      const hasDirectMatch = exactTitleMatch || exactBodyMatch || exactTagMatch;
+      const threshold = hasDirectMatch ? EXACT_MATCH_THRESHOLD : queryTerms.length > 1 ? MULTI_TERM_APPROX_THRESHOLD : SINGLE_TERM_APPROX_THRESHOLD;
+      if (totalScore >= threshold) {
         results.push({
           card,
           score: totalScore,
-          titleMatch: titleScore > 50,
-          bodyMatch: bodyScore > 35
+          approximate: !hasDirectMatch,
+          titleMatch: exactTitleMatch || titleScore >= 70,
+          bodyMatch: exactBodyMatch || bodyScore >= 50
         });
       }
     });
@@ -2312,8 +2537,14 @@ ${items.join("\n")}
       }
       const url = config.url.toLowerCase();
       if (url.startsWith("http://") && !url.includes("localhost") && !url.includes("127.0.0.1")) {
-        const useInsecure = confirm(
-          "⚠️ SECURITY WARNING: You are connecting to WebDAV over HTTP (not HTTPS).\n\nYour credentials and data will be transmitted unencrypted and could be intercepted.\n\nWe strongly recommend using HTTPS for WebDAV connections.\n\nDo you want to continue with insecure HTTP anyway?"
+        const useInsecure = await showConfirmDialog(
+          "⚠️ SECURITY WARNING: You are connecting to WebDAV over HTTP (not HTTPS).\n\nYour credentials and data will be transmitted unencrypted and could be intercepted.\n\nWe strongly recommend using HTTPS for WebDAV connections.\n\nDo you want to continue with insecure HTTP anyway?",
+          {
+            title: "Insecure WebDAV Connection",
+            confirmLabel: "Continue Anyway",
+            cancelLabel: "Cancel",
+            confirmClassName: "btn btn-danger"
+          }
         );
         if (!useInsecure) {
           throw new Error("WebDAV connection rejected: HTTPS required for security");
@@ -3168,11 +3399,21 @@ ${items.join("\n")}
         indicator.title = "";
     }
   }
-  function clearAllData() {
-    if (!confirm("WARNING: This will DELETE ALL instances and data from localStorage.\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?")) {
+  async function clearAllData() {
+    if (!await showConfirmDialog("WARNING: This will DELETE ALL instances and data from localStorage.\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?", {
+      title: "Delete All Data",
+      confirmLabel: "Continue",
+      cancelLabel: "Cancel",
+      confirmClassName: "btn btn-danger"
+    })) {
       return;
     }
-    if (!confirm("This is your FINAL warning.\n\nAll card data, all instances, and all settings will be permanently deleted.\n\nContinue?")) {
+    if (!await showConfirmDialog("This is your FINAL warning.\n\nAll card data, all instances, and all settings will be permanently deleted.\n\nContinue?", {
+      title: "Final Warning",
+      confirmLabel: "Delete Everything",
+      cancelLabel: "Cancel",
+      confirmClassName: "btn btn-danger"
+    })) {
       return;
     }
     try {
@@ -3807,7 +4048,7 @@ ${items.join("\n")}
     else if (type === "instance-txt") exportTXT();
     else if (type === "plugins-json") exportJSON("plugins");
   }
-  function importJSON(data, mode = "root") {
+  async function importJSON(data, mode = "root") {
     const groupedUndo = window.startUndoGroup && window.startUndoGroup("importJSON");
     try {
       let pkg;
@@ -3844,7 +4085,7 @@ ${items.join("\n")}
       if (pkg.plugins && pkg.exportType === "instance") {
         const modCount = Object.keys(pkg.plugins).length;
         if (modCount > 0) {
-          const confirmImportMods = confirm(
+          const confirmImportMods = await showConfirmDialog(
             `⚠️ SECURITY WARNING
 
 This import includes ${modCount} plugin(s).
@@ -3852,7 +4093,13 @@ This import includes ${modCount} plugin(s).
 Plugins can execute code and access your data. Only import plugins from sources you trust.
 
 Do you want to import the plugins?
-(Click Cancel to import only the cards without plugins)`
+(Click Cancel to import only the cards without plugins)`,
+            {
+              title: "Plugin Import Warning",
+              confirmLabel: "Import Plugins",
+              cancelLabel: "Cards Only",
+              confirmClassName: "btn btn-danger"
+            }
           );
           if (!confirmImportMods) {
             delete pkg.plugins;
@@ -4035,7 +4282,7 @@ Do you want to import the plugins?
         if (!isCurrent) {
           const openBtn = h("button", {
             className: "btn btn-primary",
-            onclick: () => {
+            onclick: async () => {
               localStorage.setItem("activeInstance", key);
               setInstanceKey(key);
               load();
@@ -4051,7 +4298,7 @@ Do you want to import the plugins?
         if (isCurrent) {
           const storageBtn = h("button", {
             className: "btn",
-            onclick: () => {
+            onclick: async () => {
               overlay.remove();
               showDatasetStorageSettings();
             }
@@ -4060,16 +4307,21 @@ Do you want to import the plugins?
         }
         const deleteBtn = h("button", {
           className: "btn btn-danger",
-          onclick: () => {
+          onclick: async () => {
             if (allKeys.length === 1) {
               showToast("Cannot delete the only dataset", "error");
               return;
             }
-            if (confirm(`Delete dataset "${key}"?
+            if (await showConfirmDialog(`Delete dataset "${key}"?
 
 This will permanently delete all cards and data in this dataset.
 
-This action cannot be undone!`)) {
+This action cannot be undone!`, {
+              title: "Delete Dataset",
+              confirmLabel: "Delete Dataset",
+              cancelLabel: "Cancel",
+              confirmClassName: "btn btn-danger"
+            })) {
               localStorage.removeItem(key);
               if (isCurrent && allKeys.length > 1) {
                 const otherKey = allKeys.find((k) => k !== key);
@@ -4482,8 +4734,13 @@ This action cannot be undone!`)) {
         var removeBtn = h("button", {
           className: "btn btn-sm",
           style: "font-size: var(--text-sm); background: var(--danger, #ef4444); color: white;",
-          onclick: function() {
-            if (confirm('Remove plugin "' + manifest.name + '"?')) {
+          onclick: async function() {
+            if (await showConfirmDialog('Remove plugin "' + manifest.name + '"?', {
+              title: "Remove Plugin",
+              confirmLabel: "Remove",
+              cancelLabel: "Cancel",
+              confirmClassName: "btn btn-danger"
+            })) {
               window.CardSpoke.Plugin.unregister(plugin.id);
               showToast("Plugin removed: " + manifest.name);
               renderInstalledTab();
@@ -5327,6 +5584,10 @@ This action cannot be undone!`)) {
     downloadWithFeedback(blob, filename, result.format.toUpperCase());
     return result;
   }
+  function getEditPageLabel() {
+    if (navState.cardId) return "Edit Card";
+    return navState.parentId ? "Add Child Card" : "New Card";
+  }
   function renderBreadcrumbs() {
     breadcrumbs.innerHTML = "";
     if (navState.page === "search") {
@@ -5334,7 +5595,7 @@ This action cannot be undone!`)) {
       return;
     }
     if (navState.page === "edit") {
-      breadcrumbs.appendChild(h("span", { className: "breadcrumb current", "aria-current": "page" }, navState.cardId ? "Edit Card" : "New Card"));
+      breadcrumbs.appendChild(h("span", { className: "breadcrumb current", "aria-current": "page" }, getEditPageLabel()));
       return;
     }
     let current = navState.cardId;
@@ -5432,7 +5693,7 @@ This action cannot be undone!`)) {
     cardEl.dataset.cardId = card.id;
     cardEl.dataset.renderType = "list";
     const contentEl = h("div", { className: "card-content" });
-    const titleWrapper = h("div", { style: "display: flex; align-items: center; gap: 8px;" });
+    const titleWrapper = h("div", { style: "display: flex; align-items: center; gap: 8px; min-width: 0;" });
     if (isBookmarked(card.id)) {
       titleWrapper.appendChild(h("span", {
         style: "color: gold; font-size: 18px;",
@@ -5511,12 +5772,17 @@ This action cannot be undone!`)) {
         style: "cursor: pointer;",
         title: cardId ? `Go to: ${link.cardName}` : `Card not found: ${link.cardName} (click to create)`
       }, link.cardName);
-      linkEl.addEventListener("click", (e) => {
+      linkEl.addEventListener("click", async (e) => {
         e.stopPropagation();
         if (cardId) {
           goTo("read", { cardId });
         } else {
-          if (confirm(`Card "${link.cardName}" doesn't exist. Create it?`)) {
+          if (await showConfirmDialog(`Card "${link.cardName}" doesn't exist. Create it?`, {
+            title: "Create Linked Card",
+            confirmLabel: "Create Card",
+            cancelLabel: "Cancel",
+            confirmClassName: "btn btn-primary"
+          })) {
             const newId = createCard(link.cardName, "", null);
             goTo("edit", { cardId: newId });
           }
@@ -5599,8 +5865,13 @@ This action cannot be undone!`)) {
     }, bookmarkBtnText));
     actions2.appendChild(h("button", {
       className: "btn",
-      onclick: () => {
-        const choice = confirm("Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)");
+      onclick: async () => {
+        const choice = await showConfirmDialog("Duplicate this card with all of its children?", {
+          title: "Duplicate Card",
+          confirmLabel: "With Children",
+          cancelLabel: "Only This Card",
+          confirmClassName: "btn btn-primary"
+        });
         const newId = duplicateCard(card.id, choice);
         if (newId) {
           showToast("Card duplicated successfully");
@@ -5613,12 +5884,16 @@ This action cannot be undone!`)) {
       onclick: () => showShareCard(card.id)
     }, "Share"));
     actions2.appendChild(h("button", { className: "btn", onclick: () => {
-      const newId = createCard("", "", card.id);
-      goTo("edit", { cardId: newId });
+      goTo("edit", { parentId: card.id });
     } }, "Add Child"));
     actions2.appendChild(h("button", { className: "btn", onclick: () => openUploadModalForCard(card.id, "txt") }, "Import TXT"));
-    actions2.appendChild(h("button", { className: "btn btn-danger", onclick: () => {
-      if (confirm("Delete this card and all its children?")) {
+    actions2.appendChild(h("button", { className: "btn btn-danger", onclick: async () => {
+      if (await showConfirmDialog("Delete this card and all of its children?", {
+        title: "Delete Card",
+        confirmLabel: "Delete",
+        cancelLabel: "Cancel",
+        confirmClassName: "btn btn-danger"
+      })) {
         deleteCard(card.id);
         goTo("list", { cardId: card.parentId });
       }
@@ -5760,9 +6035,24 @@ This action cannot be undone!`)) {
           const file = e.target.files[0];
           if (file) {
             const reader = new FileReader();
-            reader.onload = function(ev) {
+            reader.onload = async function(ev) {
               const currentBody = document.getElementById("cardBody");
-              if (currentBody.value && !confirm("Replace existing content?")) {
+              const importAction = !currentBody.value ? "replace" : await showChoiceDialog(
+                "How would you like to apply the imported file contents to this card body?",
+                {
+                  title: "Import Text File",
+                  dismissValue: "cancel",
+                  actions: [
+                    { label: "Cancel", value: "cancel", className: "btn" },
+                    { label: "Append", value: "append", className: "btn" },
+                    { label: "Replace", value: "replace", className: "btn btn-primary" }
+                  ]
+                }
+              );
+              if (importAction === "cancel") {
+                return;
+              }
+              if (importAction === "append") {
                 currentBody.value += "\n\n" + ev.target.result;
               } else {
                 currentBody.value = ev.target.result;
@@ -5891,8 +6181,13 @@ ${prefix}`;
         const delBtn = h("button", {
           type: "button",
           className: "form-child-delete",
-          onclick: () => {
-            if (confirm("Delete child and all its children?")) {
+          onclick: async () => {
+            if (await showConfirmDialog("Delete this child card and all of its children?", {
+              title: "Delete Child Card",
+              confirmLabel: "Delete",
+              cancelLabel: "Cancel",
+              confirmClassName: "btn btn-danger"
+            })) {
               deleteCard(cid);
               save();
               render();
@@ -5954,8 +6249,13 @@ ${prefix}`;
       formActions.appendChild(h("button", {
         type: "button",
         className: "btn btn-danger",
-        onclick: () => {
-          if (confirm("Delete this card and all children?")) {
+        onclick: async () => {
+          if (await showConfirmDialog("Delete this card and all of its children?", {
+            title: "Delete Card",
+            confirmLabel: "Delete",
+            cancelLabel: "Cancel",
+            confirmClassName: "btn btn-danger"
+          })) {
             deleteCard(card.id);
             save();
             goTo("list", { cardId: card.parentId ?? null });
@@ -5964,7 +6264,7 @@ ${prefix}`;
       }, "Delete"));
     }
     form.appendChild(formActions);
-    main.appendChild(h("div", { className: "page-title" }, editing ? "Edit Card" : "New Card"));
+    main.appendChild(h("div", { className: "page-title" }, editing ? "Edit Card" : getEditPageLabel()));
     main.appendChild(form);
   }
   function renderSearchResults() {
@@ -6030,7 +6330,7 @@ ${prefix}`;
         const resultInfo = h("div", {
           className: "search-info",
           style: "padding: 12px; margin-bottom: 8px; background: var(--bg-secondary); border-radius: 8px; font-size: 14px; color: var(--text-secondary);"
-        }, `Found ${fuzzyResults.length} result${fuzzyResults.length === 1 ? "" : "s"}${scopeText} (fuzzy matching enabled)`);
+        }, `Found ${fuzzyResults.length} result${fuzzyResults.length === 1 ? "" : "s"}${scopeText}${fuzzyResults.some((result) => result.approximate) ? " (approximate matches marked with ~)" : ""}`);
         main.appendChild(resultInfo);
         const keyboardHint = h(
           "div",
@@ -6076,7 +6376,7 @@ ${prefix}`;
               cardEl.style.position = "relative";
               cardEl.appendChild(datasetBadge);
             }
-            if (result.score < 60) {
+            if (result.approximate) {
               const matchBadge = h("span", {
                 style: "position: absolute; top: 8px; right: 8px; background: #fbbf24; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;"
               }, "~");
@@ -6489,11 +6789,11 @@ ${prefix}`;
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const data = JSON.parse(reader.result);
         const mode = uploadModal.importLocationSelectJSON ? uploadModal.importLocationSelectJSON.value || "root" : "root";
-        importJSON(data, mode);
+        await importJSON(data, mode);
         if (uploadModal.overlay) uploadModal.overlay.classList.remove("show");
       } catch (err) {
         showToast("Failed to parse JSON: " + err.message, "error");
@@ -6806,8 +7106,13 @@ ${prefix}`;
         actions2.appendChild(restoreBtn);
         const deleteBtn = h("button", {
           className: "btn btn-danger",
-          onclick: () => {
-            if (confirm("Permanently delete this card?")) {
+          onclick: async () => {
+            if (await showConfirmDialog("Permanently delete this card?", {
+              title: "Delete Card",
+              confirmLabel: "Delete",
+              cancelLabel: "Cancel",
+              confirmClassName: "btn btn-danger"
+            })) {
               trashBin.splice(index, 1);
               overlay.remove();
               showTrashBin();
@@ -6822,8 +7127,13 @@ ${prefix}`;
       const emptyBtn = h("button", {
         className: "btn btn-danger",
         style: "width: 100%; margin-top: var(--space-lg);",
-        onclick: () => {
-          if (confirm("Permanently delete all items in trash?")) {
+        onclick: async () => {
+          if (await showConfirmDialog("Permanently delete all items in trash?", {
+            title: "Empty Trash",
+            confirmLabel: "Empty Trash",
+            cancelLabel: "Cancel",
+            confirmClassName: "btn btn-danger"
+          })) {
             trashBin.length = 0;
             overlay.remove();
             showToast("Trash emptied");
@@ -6930,8 +7240,15 @@ ${prefix}`;
         const renameBtn = h("button", {
           className: "btn",
           style: "font-size: var(--text-sm);",
-          onclick: function() {
-            const newName = prompt('Rename tag "' + tag + '" to:', tag);
+          onclick: async function() {
+            const newName = await showPromptDialog({
+              title: "Rename Tag",
+              message: `Rename tag "${tag}" to:`,
+              label: "Tag name",
+              defaultValue: tag,
+              confirmLabel: "Rename",
+              cancelLabel: "Cancel"
+            });
             if (newName && newName.trim() !== tag) {
               const affected = renameTag(tag, newName.trim());
               if (affected > 0) {
@@ -6946,7 +7263,7 @@ ${prefix}`;
         const mergeBtn = h("button", {
           className: "btn",
           style: "font-size: var(--text-sm);",
-          onclick: function() {
+          onclick: async function() {
             const otherTags = tagStats.map(function(t) {
               return t.tag;
             }).filter(function(t) {
@@ -6956,7 +7273,15 @@ ${prefix}`;
               showToast("No other tags to merge with", "info");
               return;
             }
-            const targetTag = prompt('Merge "' + tag + '" into which tag?\n\nAvailable: ' + otherTags.join(", "));
+            const targetTag = await showPromptDialog({
+              title: "Merge Tags",
+              message: 'Merge "' + tag + '" into which tag?\n\nAvailable: ' + otherTags.join(", "),
+              label: "Target tag",
+              placeholder: "Enter existing tag name",
+              suggestions: otherTags,
+              confirmLabel: "Merge",
+              cancelLabel: "Cancel"
+            });
             if (targetTag && otherTags.includes(targetTag.trim().toLowerCase())) {
               const affected = mergeTags(tag, targetTag.trim());
               if (affected > 0) {
@@ -6971,8 +7296,13 @@ ${prefix}`;
         const deleteBtn = h("button", {
           className: "btn btn-danger",
           style: "font-size: var(--text-sm);",
-          onclick: function() {
-            if (confirm('Delete tag "' + tag + '" from all ' + count + " card(s)?")) {
+          onclick: async function() {
+            if (await showConfirmDialog('Delete tag "' + tag + '" from all ' + count + " card(s)?", {
+              title: "Delete Tag",
+              confirmLabel: "Delete Tag",
+              cancelLabel: "Cancel",
+              confirmClassName: "btn btn-danger"
+            })) {
               const affected = deleteTagGlobal(tag);
               showToast('Deleted tag "' + tag + '" from ' + affected + " card(s)");
               overlay.remove();
@@ -7004,7 +7334,25 @@ ${prefix}`;
     }, "X");
     modalHeader.appendChild(closeBtn);
     modal.appendChild(modalHeader);
-    const modalBody = h("div", { className: "modal-body" });
+    const modalBody = h("form", { className: "modal-body" });
+    const submitSearch = function() {
+      const query = queryInput.value.trim();
+      const tagFilter = tagSelect.value;
+      const bookmarkOnly = bookmarkInput.checked;
+      const dateFilter = dateSelect.value;
+      sessionStorage.setItem("searchFilters", JSON.stringify({
+        query,
+        tagFilter,
+        bookmarkOnly,
+        dateFilter
+      }));
+      overlay.remove();
+      goTo("search", { searchQuery: query || "*" });
+    };
+    modalBody.onsubmit = function(e) {
+      e.preventDefault();
+      submitSearch();
+    };
     const helpText = h("div", {
       style: "background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius); margin-bottom: var(--space-lg); font-size: 14px; color: var(--text-secondary);"
     }, "💡 Tip: Use advanced filters to narrow down your search results by tag, bookmark status, or date.");
@@ -7016,6 +7364,12 @@ ${prefix}`;
       placeholder: "Search in titles and content...",
       "aria-label": "Search text input",
       style: "width: 100%; padding: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-primary); color: var(--text-primary); font-size: 1rem;"
+    });
+    queryInput.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submitSearch();
+      }
     });
     queryGroup.appendChild(queryInput);
     modalBody.appendChild(queryGroup);
@@ -7051,22 +7405,9 @@ ${prefix}`;
     dateGroup.appendChild(dateSelect);
     modalBody.appendChild(dateGroup);
     const searchBtn = h("button", {
+      type: "submit",
       className: "btn btn-primary",
-      style: "width: 100%;",
-      onclick: function() {
-        const query = queryInput.value.trim();
-        const tagFilter = tagSelect.value;
-        const bookmarkOnly = bookmarkInput.checked;
-        const dateFilter = dateSelect.value;
-        sessionStorage.setItem("searchFilters", JSON.stringify({
-          query,
-          tagFilter,
-          bookmarkOnly,
-          dateFilter
-        }));
-        overlay.remove();
-        goTo("search", { searchQuery: query || "*" });
-      }
+      style: "width: 100%;"
     }, "Search");
     modalBody.appendChild(searchBtn);
     modal.appendChild(modalBody);
@@ -7296,9 +7637,16 @@ ${prefix}`;
     save();
     render();
   }
-  function editDatasetName() {
+  async function editDatasetName() {
     var currentName = store.metadata && store.metadata.name || instanceKey;
-    var newName = prompt("Enter new dataset name:", currentName);
+    var newName = await showPromptDialog({
+      title: "Rename Dataset",
+      message: "Enter new dataset name:",
+      label: "Dataset name",
+      defaultValue: currentName,
+      confirmLabel: "Rename",
+      cancelLabel: "Cancel"
+    });
     if (newName && newName.trim() && newName.trim() !== currentName) {
       if (!store.metadata) store.metadata = {};
       store.metadata.name = newName.trim();
@@ -7345,11 +7693,16 @@ ${prefix}`;
       header.themeToggle.click();
     }, description: "Toggle theme" },
     "alt+c": { action: () => toggleViewMode(), description: "Toggle compact view" },
-    "ctrl+d": { action: () => {
+    "ctrl+d": { action: async () => {
       if (navState.page === "read" && navState.cardId) {
         const card = store.cards[navState.cardId];
         if (card) {
-          const choice = confirm("Duplicate with children?\n\nOK = Yes (with children)\nCancel = No (only this card)");
+          const choice = await showConfirmDialog("Duplicate this card with all of its children?", {
+            title: "Duplicate Card",
+            confirmLabel: "With Children",
+            cancelLabel: "Only This Card",
+            confirmClassName: "btn btn-primary"
+          });
           const newId = duplicateCard(navState.cardId, choice);
           if (newId) {
             showToast("Card duplicated successfully");
