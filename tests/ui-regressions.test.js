@@ -11,7 +11,7 @@ const styles = readFileSync('./www/styles.css', 'utf8');
 
 test('add child opens create flow with child-specific title', () => {
   assert.ok(
-    rendering.includes("goTo('edit', { cardId: null, parentId: card.id });"),
+    rendering.includes("goTo('edit', { parentId: card.id });"),
     'Add Child should open the create-child flow'
   );
   assert.ok(
@@ -45,6 +45,10 @@ test('long titles and breadcrumbs wrap instead of overflowing', () => {
 });
 
 test('fuzzy search requires stronger approximate matches', () => {
+  assert.ok(
+    metadata.includes('const MULTI_TERM_APPROX_THRESHOLD = 62;'),
+    'Approximate fuzzy thresholds should be explicit constants'
+  );
   assert.ok(
     metadata.includes('queryTerms.length > 1 && !queryTerms.some(term => textLower.includes(term))'),
     'Multi-term fuzzy search should require some term overlap'

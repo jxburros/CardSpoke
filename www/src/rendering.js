@@ -401,7 +401,7 @@ import {
         }, 'Share'));
 
         actions.appendChild(h('button', { className: 'btn', onclick: () => {
-          goTo('edit', { cardId: null, parentId: card.id });
+          goTo('edit', { parentId: card.id });
         } }, 'Add Child'));
         
         actions.appendChild(h('button', { className: 'btn', onclick: () => openUploadModalForCard(card.id, 'txt') }, 'Import TXT'));
@@ -564,13 +564,22 @@ import {
                 const reader = new FileReader();
                 reader.onload = async function(ev) {
                   const currentBody = document.getElementById('cardBody');
-                  const shouldReplace = !currentBody.value || await showConfirmDialog('Replace the existing card body with the imported file contents?', {
-                    title: 'Replace Existing Content',
-                    confirmLabel: 'Replace',
-                    cancelLabel: 'Append Instead',
-                    confirmClassName: 'btn btn-primary'
-                  });
-                  if (!shouldReplace) {
+                  const importAction = !currentBody.value ? 'replace' : await showChoiceDialog(
+                    'How would you like to apply the imported file contents to this card body?',
+                    {
+                      title: 'Import Text File',
+                      dismissValue: 'cancel',
+                      actions: [
+                        { label: 'Cancel', value: 'cancel', className: 'btn' },
+                        { label: 'Append', value: 'append', className: 'btn' },
+                        { label: 'Replace', value: 'replace', className: 'btn btn-primary' }
+                      ]
+                    }
+                  );
+                  if (importAction === 'cancel') {
+                    return;
+                  }
+                  if (importAction === 'append') {
                     currentBody.value += '\n\n' + ev.target.result;
                   } else {
                     currentBody.value = ev.target.result;

@@ -71,7 +71,8 @@ function h(tag, props = {}, ...children) {
   });
   children.flat().forEach(ch => {
     if (typeof ch === 'string') el.appendChild(document.createTextNode(ch));
-    else if (ch) el.appendChild(ch);
+    else if (ch instanceof Node) el.appendChild(ch);
+    else if (ch) el.appendChild(document.createTextNode(String(ch)));
   });
   return el;
 }
@@ -455,6 +456,22 @@ function showToast(message, type = 'success', duration = 3000) {
     }
 
     /**
+     * Show an in-app multi-action dialog.
+     * @param {string} message - Dialog body
+     * @param {Object} options - Dialog options
+     * @returns {Promise<any>}
+     */
+    function showChoiceDialog(message, options = {}) {
+      return showModalDialog({
+        title: options.title || 'Choose Action',
+        message,
+        width: options.width || '520px',
+        dismissValue: options.dismissValue ?? null,
+        actions: options.actions || []
+      });
+    }
+
+    /**
      * Show an in-app text input dialog.
      * @param {Object} options - Prompt configuration
      * @returns {Promise<string|null>}
@@ -723,9 +740,14 @@ const header = {
        * @returns {number} - Match score
        */
       function fuzzyMatchScore(query, text) {
+        const FUZZY_PREFIX_PADDING = 10;
         const queryLower = query.toLowerCase();
         const textLower = text.toLowerCase();
         if (!queryLower || !textLower) return 0;
+        const queryTerms = queryLower.split(/\s+/).filter(Boolean);
+        if (queryTerms.length > 1 && !queryTerms.some(term => textLower.includes(term))) {
+          return 0;
+        }
         
         // Exact match gets highest score
         if (textLower.includes(queryLower)) {
@@ -734,13 +756,8 @@ const header = {
           return 100 - (position * 0.5);
         }
 
-        const queryTerms = queryLower.split(/\s+/).filter(Boolean);
-        if (queryTerms.length > 1 && !queryTerms.some(term => textLower.includes(term))) {
-          return 0;
-        }
-
         const candidates = new Set();
-        candidates.add(textLower.substring(0, query.length + 10));
+        candidates.add(textLower.substring(0, query.length + FUZZY_PREFIX_PADDING));
 
         const words = textLower.split(/\s+/).filter(Boolean);
         if (words.length > 0) {
@@ -769,6 +786,9 @@ const header = {
        * @returns {Array} - Sorted results with scores
        */
       function fuzzySearchCards(store, query) {
+        const EXACT_MATCH_THRESHOLD = 30;
+        const MULTI_TERM_APPROX_THRESHOLD = 62;
+        const SINGLE_TERM_APPROX_THRESHOLD = 48;
         if (!query || query.trim() === '') {
           return [];
         }
@@ -791,7 +811,9 @@ const header = {
             : 0;
           const totalScore = Math.max(titleScore, bodyScore, tagScore);
           const hasDirectMatch = exactTitleMatch || exactBodyMatch || exactTagMatch;
-          const threshold = hasDirectMatch ? 30 : (queryTerms.length > 1 ? 62 : 48);
+          const threshold = hasDirectMatch
+            ? EXACT_MATCH_THRESHOLD
+            : (queryTerms.length > 1 ? MULTI_TERM_APPROX_THRESHOLD : SINGLE_TERM_APPROX_THRESHOLD);
           
           if (totalScore >= threshold) {
             results.push({
