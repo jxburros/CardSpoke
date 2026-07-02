@@ -1442,7 +1442,9 @@ ${items.join("\n")}
     children.flat().forEach((ch) => {
       if (typeof ch === "string") el.appendChild(document.createTextNode(ch));
       else if (ch instanceof Node) el.appendChild(ch);
-      else if (ch) el.appendChild(document.createTextNode(String(ch)));
+      else if (typeof ch === "number" || typeof ch === "boolean" || typeof ch === "bigint") {
+        el.appendChild(document.createTextNode(String(ch)));
+      }
     });
     return el;
   }
@@ -5582,6 +5584,10 @@ This action cannot be undone!`, {
     downloadWithFeedback(blob, filename, result.format.toUpperCase());
     return result;
   }
+  function getEditPageLabel() {
+    if (navState.cardId) return "Edit Card";
+    return navState.parentId ? "Add Child Card" : "New Card";
+  }
   function renderBreadcrumbs() {
     breadcrumbs.innerHTML = "";
     if (navState.page === "search") {
@@ -5589,8 +5595,7 @@ This action cannot be undone!`, {
       return;
     }
     if (navState.page === "edit") {
-      const editLabel = navState.cardId ? "Edit Card" : navState.parentId ? "Add Child Card" : "New Card";
-      breadcrumbs.appendChild(h("span", { className: "breadcrumb current", "aria-current": "page" }, editLabel));
+      breadcrumbs.appendChild(h("span", { className: "breadcrumb current", "aria-current": "page" }, getEditPageLabel()));
       return;
     }
     let current = navState.cardId;
@@ -6259,7 +6264,7 @@ ${prefix}`;
       }, "Delete"));
     }
     form.appendChild(formActions);
-    main.appendChild(h("div", { className: "page-title" }, editing ? "Edit Card" : navState.parentId ? "Add Child Card" : "New Card"));
+    main.appendChild(h("div", { className: "page-title" }, editing ? "Edit Card" : getEditPageLabel()));
     main.appendChild(form);
   }
   function renderSearchResults() {

@@ -38,6 +38,11 @@ import {
       /**
        * Render breadcrumb navigation
        */
+      function getEditPageLabel() {
+        if (navState.cardId) return 'Edit Card';
+        return navState.parentId ? 'Add Child Card' : 'New Card';
+      }
+
       function renderBreadcrumbs() {
         breadcrumbs.innerHTML = '';
         if (navState.page === 'search') {
@@ -45,8 +50,7 @@ import {
           return;
         }
         if (navState.page === 'edit') {
-          const editLabel = navState.cardId ? 'Edit Card' : (navState.parentId ? 'Add Child Card' : 'New Card');
-          breadcrumbs.appendChild(h('span', { className: 'breadcrumb current', 'aria-current': 'page' }, editLabel));
+          breadcrumbs.appendChild(h('span', { className: 'breadcrumb current', 'aria-current': 'page' }, getEditPageLabel()));
           return;
         }
         let current = navState.cardId;
@@ -787,7 +791,7 @@ import {
           }, 'Delete'));
         }
         form.appendChild(formActions);
-        main.appendChild(h('div', { className: 'page-title' }, editing ? 'Edit Card' : (navState.parentId ? 'Add Child Card' : 'New Card')));
+        main.appendChild(h('div', { className: 'page-title' }, editing ? 'Edit Card' : getEditPageLabel()));
         main.appendChild(form);
       }
 

@@ -72,7 +72,9 @@ function h(tag, props = {}, ...children) {
   children.flat().forEach(ch => {
     if (typeof ch === 'string') el.appendChild(document.createTextNode(ch));
     else if (ch instanceof Node) el.appendChild(ch);
-    else if (ch) el.appendChild(document.createTextNode(String(ch)));
+    else if (typeof ch === 'number' || typeof ch === 'boolean' || typeof ch === 'bigint') {
+      el.appendChild(document.createTextNode(String(ch)));
+    }
   });
   return el;
 }
@@ -740,6 +742,9 @@ const header = {
        * @returns {number} - Match score
        */
       function fuzzyMatchScore(query, text) {
+        // Compare a short prefix window before falling back to word windows so
+        // small typos near the start of a title still score well without
+        // overmatching long unrelated bodies.
         const FUZZY_PREFIX_PADDING = 10;
         const queryLower = query.toLowerCase();
         const textLower = text.toLowerCase();
@@ -786,6 +791,9 @@ const header = {
        * @returns {Array} - Sorted results with scores
        */
       function fuzzySearchCards(store, query) {
+        // Direct substring matches stay permissive, while approximate matches
+        // require stronger scores—especially for multi-term queries—to keep
+        // stress-test phrases from returning broad unrelated results.
         const EXACT_MATCH_THRESHOLD = 30;
         const MULTI_TERM_APPROX_THRESHOLD = 62;
         const SINGLE_TERM_APPROX_THRESHOLD = 48;

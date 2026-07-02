@@ -637,6 +637,7 @@ import {
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
         
+        // Use a real form so pressing Enter in the query field submits search.
         const modalBody = h('form', { className: 'modal-body' });
         const submitSearch = function() {
           const query = queryInput.value.trim();
