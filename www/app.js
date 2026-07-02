@@ -1441,7 +1441,8 @@ ${items.join("\n")}
     });
     children.flat().forEach((ch) => {
       if (typeof ch === "string") el.appendChild(document.createTextNode(ch));
-      else if (ch) el.appendChild(ch);
+      else if (ch instanceof Node) el.appendChild(ch);
+      else if (ch) el.appendChild(document.createTextNode(String(ch)));
     });
     return el;
   }
@@ -1694,6 +1695,15 @@ ${items.join("\n")}
           ]
         });
       }
+      function showChoiceDialog2(message2, options = {}) {
+        return showModalDialog({
+          title: options.title || "Choose Action",
+          message: message2,
+          width: options.width || "520px",
+          dismissValue: options.dismissValue ?? null,
+          actions: options.actions || []
+        });
+      }
       function showPromptDialog2(options = {}) {
         const fieldId = `dialog-input-${uid()}`;
         const inputWrap = h("div", { className: "form-group dialog-field" });
@@ -1879,19 +1889,20 @@ ${items.join("\n")}
     return matrix[b.length][a.length];
   }
   function fuzzyMatchScore(query, text) {
+    const FUZZY_PREFIX_PADDING = 10;
     const queryLower = query.toLowerCase();
     const textLower = text.toLowerCase();
     if (!queryLower || !textLower) return 0;
-    if (textLower.includes(queryLower)) {
-      const position = textLower.indexOf(queryLower);
-      return 100 - position * 0.5;
-    }
     const queryTerms = queryLower.split(/\s+/).filter(Boolean);
     if (queryTerms.length > 1 && !queryTerms.some((term) => textLower.includes(term))) {
       return 0;
     }
+    if (textLower.includes(queryLower)) {
+      const position = textLower.indexOf(queryLower);
+      return 100 - position * 0.5;
+    }
     const candidates = /* @__PURE__ */ new Set();
-    candidates.add(textLower.substring(0, query.length + 10));
+    candidates.add(textLower.substring(0, query.length + FUZZY_PREFIX_PADDING));
     const words = textLower.split(/\s+/).filter(Boolean);
     if (words.length > 0) {
       const windowSize = Math.min(words.length, Math.max(1, queryTerms.length));
@@ -1910,6 +1921,9 @@ ${items.join("\n")}
     return bestScore;
   }
   function fuzzySearchCards(store2, query) {
+    const EXACT_MATCH_THRESHOLD = 30;
+    const MULTI_TERM_APPROX_THRESHOLD = 62;
+    const SINGLE_TERM_APPROX_THRESHOLD = 48;
     if (!query || query.trim() === "") {
       return [];
     }
@@ -1928,7 +1942,7 @@ ${items.join("\n")}
       const tagScore = tags.length ? Math.max(...tags.map((tag) => fuzzyMatchScore(queryLower, tag) * 0.9), 0) : 0;
       const totalScore = Math.max(titleScore, bodyScore, tagScore);
       const hasDirectMatch = exactTitleMatch || exactBodyMatch || exactTagMatch;
-      const threshold = hasDirectMatch ? 30 : queryTerms.length > 1 ? 62 : 48;
+      const threshold = hasDirectMatch ? EXACT_MATCH_THRESHOLD : queryTerms.length > 1 ? MULTI_TERM_APPROX_THRESHOLD : SINGLE_TERM_APPROX_THRESHOLD;
       if (totalScore >= threshold) {
         results.push({
           card,
@@ -5865,7 +5879,7 @@ This action cannot be undone!`, {
       onclick: () => showShareCard(card.id)
     }, "Share"));
     actions2.appendChild(h("button", { className: "btn", onclick: () => {
-      goTo("edit", { cardId: null, parentId: card.id });
+      goTo("edit", { parentId: card.id });
     } }, "Add Child"));
     actions2.appendChild(h("button", { className: "btn", onclick: () => openUploadModalForCard(card.id, "txt") }, "Import TXT"));
     actions2.appendChild(h("button", { className: "btn btn-danger", onclick: async () => {
@@ -6018,13 +6032,22 @@ This action cannot be undone!`, {
             const reader = new FileReader();
             reader.onload = async function(ev) {
               const currentBody = document.getElementById("cardBody");
-              const shouldReplace = !currentBody.value || await showConfirmDialog("Replace the existing card body with the imported file contents?", {
-                title: "Replace Existing Content",
-                confirmLabel: "Replace",
-                cancelLabel: "Append Instead",
-                confirmClassName: "btn btn-primary"
-              });
-              if (!shouldReplace) {
+              const importAction = !currentBody.value ? "replace" : await showChoiceDialog(
+                "How would you like to apply the imported file contents to this card body?",
+                {
+                  title: "Import Text File",
+                  dismissValue: "cancel",
+                  actions: [
+                    { label: "Cancel", value: "cancel", className: "btn" },
+                    { label: "Append", value: "append", className: "btn" },
+                    { label: "Replace", value: "replace", className: "btn btn-primary" }
+                  ]
+                }
+              );
+              if (importAction === "cancel") {
+                return;
+              }
+              if (importAction === "append") {
                 currentBody.value += "\n\n" + ev.target.result;
               } else {
                 currentBody.value = ev.target.result;
