@@ -4,8 +4,8 @@ CardSpoke is local-first. Users own their data, and the app does not silently sy
 
 ## Storage Model
 
-- **LocalStorage:** Lightweight configuration, session data, and feature toggles.
-- **IndexedDB:** Structured card content, relationships, histories, and plugin registries. Datasets are namespaced and tracked with metadata (name, card counts, recent/bookmark counts, schema/app version) so multiple vaults can coexist.
+- **LocalStorage:** Lightweight configuration, session data, and feature toggles. Also the default driver for structured card content, relationships, histories, and plugin registries — datasets are namespaced and tracked with metadata (name, card counts, recent/bookmark counts, schema/app version) so multiple vaults can coexist.
+- **IndexedDB:** An optional, per-dataset storage driver users can select instead of LocalStorage for card content and relationships. Also used internally for Local File System handle persistence, unrelated to card storage.
 - **Filesystem (via Capacitor Filesystem):** Optional for attachments or exports; only used when explicitly enabled.
 
 ## Default Behavior

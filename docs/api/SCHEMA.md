@@ -25,18 +25,20 @@ CardSpoke uses a schema version (`schemaVersion`) to track data model changes ac
 
 ## Current Migration Implementation
 
-**Note:** The current implementation (v0.17.0, schema v4) includes minimal migration support:
+**Note:** The current implementation (v0.17.0, schema v4) does include a versioned migration system, implemented in `www/src/core/migrations.js` and re-exported via `www/src/core/index.js`. It is **per-typed-card-kind**, not a single whole-store `schemaVersion` N→N+1 table:
+
+- **`registerKindMigration(kind, fromVersion, migrate)`**: Registers a single-step upgrade function for a given typed-card `kind`, transforming data at `fromVersion` to `fromVersion + 1`. Migration steps are stored per kind, keyed by version number.
+- **`migrateKindData(kind, data, fromVersion, toVersion)`**: Walks the registered steps for a kind from `fromVersion` up to `toVersion - 1`, applying each in sequence. Missing steps in the sequence are skipped rather than treated as errors, so gaps don't destroy data.
+- **`migrateTypedCard(card)`**: Migrates a single card's typed metadata (structure and versioned data) using `migrateKindData` under the hood. Cards with legacy/unknown kinds pass through unchanged. Returns `{ card, changed, warnings }`.
+- **`migrateCard(card)`**: Ensures baseline fields exist (`children` array, `tags` array, `modsData` object) without removing any existing fields, then calls `migrateTypedCard(card)`. Returns `{ card, changed, warnings }`.
+- **`migrateStore(store)`**: Iterates every card in `store.cards` and runs `migrateCard` on each, catching per-card errors as warnings rather than dropping data. Returns `{ store, changed, migratedCount, warnings }`.
+
+Additionally:
 
 - **Root-order rebuild logic:** During IndexedDB initialization, the system detects missing root cards and reconstructs the `rootOrder` array. This ensures data integrity when cards are orphaned.
 - **Fallback behavior:** If migration fails, the app attempts to fall back to read-only mode.
-- **No versioned migrations:** There are currently no explicit migration functions for transitions between schema versions 1→2→3→4. The system starts fresh with v4 or attempts to use existing data as-is.
 
-**Future Migration Work:** To fully support the versioning rules above, future work should implement:
-
-1. Explicit migration functions for each schema version transition
-2. Version compatibility checks before loading data
-3. Comprehensive migration tests for each schema version path
-4. Better error handling and user prompts for failed migrations
+**Nuance:** There is no single migration table that maps the overall store `schemaVersion` (e.g. 3 → 4) to a transformation function — migrations are scoped to individual typed-card kinds and their own version numbers, not to the store-level schema version as a whole. Future work could still add a store-level schemaVersion migration table on top of this per-kind system if a change requires it, along with version compatibility checks before loading data and more comprehensive migration test coverage.
 
 ## Migration Template
 

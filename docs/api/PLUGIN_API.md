@@ -34,7 +34,7 @@ const plugin = {
   css: '/* Optional CSS */'
 };
 
-window.CardSpoke.Plugin.register('my-plugin', plugin);
+window.CardSpoke.registerPlugin('my-plugin', plugin);
 ```
 
 ## Plugin Context
@@ -54,7 +54,7 @@ Every plugin receives a context object:
     network: NetworkApi,       // Permission-gated network access
     filesystem: FilesystemApi  // Permission-gated Capacitor filesystem access
   },
-  utils: object,              // CardSpoke shared utility surface
+  utils: object,              // Reserved; always {} in the current build (see Utils section below)
   config?: object,            // Plugin manifest config (when provided)
   logger: Logger              // Scoped logger
 }
@@ -111,6 +111,8 @@ ctx.api.ui.showToast('Saved!', 'success', 3000);
 
 ### Data API
 
+**Known limitation:** `getCard`, `listCards`, `createCard`, `updateCard`, `deleteCard`, `getTags`, `addTag`, `removeTag`, `setTags`, and `getAllTags` are all implemented by reading/writing internal `window.store`/`window.createCard`/etc. globals that are never attached to `window` in the current build (verified across `www/src/*.js`). Only `onUpdate` works reliably today; the rest should be treated as not yet functional. See the per-method notes below.
+
 #### `ctx.api.data.onUpdate(callback)`
 
 Listen for data changes.
@@ -125,7 +127,7 @@ const unlisten = ctx.api.data.onUpdate((event) => {
 
 #### `ctx.api.data.getCard(id)`
 
-Get a card by ID.
+Get a card by ID. Depends on `window.store`, which is not populated in the current build, so this currently returns `undefined`.
 
 ```javascript
 const card = ctx.api.data.getCard('card-123');
@@ -133,7 +135,7 @@ const card = ctx.api.data.getCard('card-123');
 
 #### `ctx.api.data.listCards()`
 
-List all cards.
+List all cards. Depends on `window.store`, which is not populated in the current build, so this currently returns `[]`.
 
 ```javascript
 const cards = ctx.api.data.listCards();
@@ -141,7 +143,9 @@ const cards = ctx.api.data.listCards();
 
 #### `ctx.api.data.createCard(data)`
 
-Create a new card.
+Create a new card. Requires the `data-modify` permission.
+
+**Known limitation:** This method delegates to an internal `window.createCard` global that is not populated in the current build, so calling it currently throws `"createCard not available"` rather than returning a new card ID as shown below.
 
 ```javascript
 const id = ctx.api.data.createCard({
@@ -153,7 +157,9 @@ const id = ctx.api.data.createCard({
 
 #### `ctx.api.data.updateCard(id, updates)`
 
-Update a card.
+Update a card. Requires the `data-modify` permission.
+
+**Known limitation:** Depends on an internal `window.updateCard` global that is not populated in the current build; calling it currently throws `"updateCard not available"`.
 
 ```javascript
 const updated = ctx.api.data.updateCard('card-123', {
@@ -163,13 +169,17 @@ const updated = ctx.api.data.updateCard('card-123', {
 
 #### `ctx.api.data.deleteCard(id)`
 
-Delete a card.
+Delete a card. Requires the `data-modify` permission.
+
+**Known limitation:** Depends on an internal `window.deleteCard` global that is not populated in the current build; calling it currently returns `false` instead of deleting the card.
 
 ```javascript
 ctx.api.data.deleteCard('card-123');
 ```
 
 #### Tag Management
+
+`addTag`, `removeTag`, and `setTags` require the `data-modify` permission. Like the card CRUD methods above, all of the tag methods depend on internal `window.getTags`/`window.addTag`/`window.removeTag`/`window.setTags`/`window.getAllTags` globals that are not populated in the current build, so these calls currently return empty/`false` results rather than working as shown.
 
 ```javascript
 // Get tags
@@ -280,9 +290,11 @@ Output: `[Plugin:my-plugin] Info message`
 
 ### Utils
 
-Utility functions for common operations.
+**Known limitation:** `ctx.utils` is currently always an empty object `{}` in the shipped build. It is defined as `window.CardSpoke && window.CardSpoke.utils ? window.CardSpoke.utils : {}`, but `window.CardSpoke.utils` does not survive the `Object.freeze()` applied to the public `window.CardSpoke` object (which exposes only `registerPlugin` and `requestPermissions`). As a result, none of the helper methods below are currently reachable through `ctx.utils`, even though equivalent internal functions (`uid`, `debounce`, `escapeHtml`, `normalizeTagInput`, `cloneCard`, `highlightText`) exist in `www/src/metadata.js`. The examples below describe the intended shape of this API, not working code:
 
 ```javascript
+// NOT CURRENTLY FUNCTIONAL — ctx.utils is always {} today.
+
 // Generate unique ID
 const id = ctx.utils.uid();
 
@@ -315,7 +327,8 @@ manifest: {
     'storage',         // Access local storage
     'network',         // Make network requests
     'filesystem',      // Access filesystem (mobile)
-    'core-override'    // Override core functions (high risk)
+    'core-override',   // Override core functions (high risk)
+    'data-modify'      // Perform mutating ctx.api.data calls (createCard, updateCard, deleteCard, addTag, removeTag, setTags)
   ]
 }
 ```
@@ -325,7 +338,7 @@ Users are prompted to approve permissions on first install.
 ## Complete Example
 
 ```javascript
-window.CardSpoke.Plugin.register('note-counter', {
+window.CardSpoke.registerPlugin('note-counter', {
   manifest: {
     name: 'Note Counter',
     version: '1.0.0',

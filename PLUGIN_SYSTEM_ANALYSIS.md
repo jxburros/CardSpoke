@@ -1,5 +1,15 @@
 # CardSpoke Plugin/Mod Loader System — Complete Code Analysis
 
+> **Disclaimer:** This is a historical, point-in-time analysis snapshot and
+> has since been superseded by [`docs/PLUGIN_SYSTEM.md`](./docs/PLUGIN_SYSTEM.md)
+> for current, accurate plugin API documentation. Some specific findings below
+> no longer reflect the current codebase — for example, the reference to an
+> `npm run build:vite` script (no such script exists; `npm run build` is
+> `vite build`) and the "`new Function()` blocked" issue described under
+> Critical Issues (the plugin validator now explicitly allows
+> `new Function('ctx', ...)`). The remainder of this document is left as-is
+> and should be read as a snapshot, not current fact.
+
 > Analysis based solely on reading the source code, no documentation referenced.
 
 ## Architecture Overview

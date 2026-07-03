@@ -4,6 +4,8 @@
 
 The Component Registry provides a centralized system for registering and overriding UI components. Instead of using CSS/JS to "find and replace" elements, plugins register their versions of components with priority-based resolution.
 
+**Note:** The Component Registry is an internal module used during core app initialization. It is not exposed on `window.CardSpoke` (which is frozen to only `registerPlugin` and `requestPermissions`). Plugin code interacts with it exclusively through `ctx.api.ui.registerComponent()` / `ctx.api.ui.unregisterComponent()`, documented under [Integration with Plugin API](#integration-with-plugin-api) below. The `window.CardSpoke.ComponentRegistry.*` examples in earlier drafts of this document do not work in the current build.
+
 ## Overview
 
 Benefits:
@@ -27,12 +29,15 @@ A component is an object with a `render` function:
 
 ## API Reference
 
-### `CardSpoke.ComponentRegistry.register(name, component, priority)`
+The methods below describe the internal registry module (`www/src/core/component-registry.js`). They are used internally by the core app during initialization and are surfaced to plugins only through `ctx.api.ui.registerComponent()` / `ctx.api.ui.unregisterComponent()` — there is no `window.CardSpoke.ComponentRegistry` in the current build.
+
+### `register(name, component, priority)`
 
 Register a component.
 
 ```javascript
-window.CardSpoke.ComponentRegistry.register('Card', {
+// Internal usage (not reachable from plugin code as window.CardSpoke.ComponentRegistry)
+ComponentRegistry.register('Card', {
   render: (props) => {
     const el = document.createElement('div');
     el.className = 'custom-card';
@@ -53,51 +58,43 @@ window.CardSpoke.ComponentRegistry.register('Card', {
 - `0-49`: Minor modifications
 - `-100`: Default/fallback implementations
 
-### `CardSpoke.ComponentRegistry.unregister(name)`
+**Conflict warning:** If two components are registered under the same `name` with the same `priority`, the registry logs a console warning about the conflict; the most recently registered component wins (last registration wins).
+
+### `unregister(name)`
 
 Unregister a component.
 
-```javascript
-window.CardSpoke.ComponentRegistry.unregister('Card');
-```
-
-### `CardSpoke.ComponentRegistry.get(name)`
+### `get(name)`
 
 Get a registered component.
 
 ```javascript
-const CardComponent = window.CardSpoke.ComponentRegistry.get('Card');
+const CardComponent = ComponentRegistry.get('Card');
 if (CardComponent) {
   const element = CardComponent.render({ title: 'Hello', body: 'World' });
 }
 ```
 
-### `CardSpoke.ComponentRegistry.resolve(name)`
+### `resolve(name)`
 
 Resolve a component (same as `get` but for API consistency).
 
-```javascript
-const component = window.CardSpoke.ComponentRegistry.resolve('Card');
-```
-
-### `CardSpoke.ComponentRegistry.has(name)`
+### `has(name)`
 
 Check if a component is registered.
 
-```javascript
-if (window.CardSpoke.ComponentRegistry.has('CustomWidget')) {
-  // Component is available
-}
-```
-
-### `CardSpoke.ComponentRegistry.list()`
+### `list()`
 
 List all registered components.
 
 ```javascript
-const components = window.CardSpoke.ComponentRegistry.list();
+const components = ComponentRegistry.list();
 // Returns: [{ name: 'Card', priority: 10 }, ...]
 ```
+
+### `clear()`
+
+Clears all registered components from the registry. Used internally (e.g. during teardown/reset); not exposed to plugin code.
 
 ## Standard Components
 
@@ -120,7 +117,8 @@ The following core components are available for override:
 ### Custom Card Component
 
 ```javascript
-window.CardSpoke.ComponentRegistry.register('Card', {
+// In plugin setup(ctx): ctx.api.ui.registerComponent('Card', { ... })
+ctx.api.ui.registerComponent('Card', {
   render: (props) => {
     const card = document.createElement('article');
     card.className = 'enhanced-card';
@@ -153,13 +151,13 @@ window.CardSpoke.ComponentRegistry.register('Card', {
     return card;
   },
   priority: 50
-}, 50);
+});
 ```
 
 ### Custom Search Bar
 
 ```javascript
-window.CardSpoke.ComponentRegistry.register('SearchBar', {
+ctx.api.ui.registerComponent('SearchBar', {
   render: (props) => {
     const container = document.createElement('div');
     container.className = 'search-container';
@@ -183,7 +181,7 @@ window.CardSpoke.ComponentRegistry.register('SearchBar', {
     return container;
   },
   priority: 75
-}, 75);
+});
 ```
 
 ### Wrapper Component
@@ -191,11 +189,13 @@ window.CardSpoke.ComponentRegistry.register('SearchBar', {
 Enhance existing components without replacing them:
 
 ```javascript
-// Get the original component
-const OriginalCard = window.CardSpoke.ComponentRegistry.get('Card');
+// Note: ctx.api.ui does not expose a get()/resolve() lookup — this pattern
+// assumes access to the previously-registered component reference (e.g.
+// captured by the plugin that registered it originally).
+const OriginalCard = /* reference to previously registered 'Card' component */;
 
 // Register enhanced version
-window.CardSpoke.ComponentRegistry.register('Card', {
+ctx.api.ui.registerComponent('Card', {
   render: (props) => {
     // Render original
     const originalElement = OriginalCard ? 
@@ -216,7 +216,7 @@ window.CardSpoke.ComponentRegistry.register('Card', {
     return wrapper;
   },
   priority: 5  // Lower priority than original
-}, 5);
+});
 ```
 
 ## Component Resolution
@@ -230,11 +230,11 @@ When a component is requested:
 
 ## Usage in Core App
 
-The core app checks the registry before rendering:
+The core app checks the registry before rendering. This uses the internal `ComponentRegistry` module directly (not `window.CardSpoke`, which plugin code is confined to):
 
 ```javascript
 function renderCard(card) {
-  const CardComponent = window.CardSpoke.ComponentRegistry.get('Card');
+  const CardComponent = ComponentRegistry.get('Card');
   
   if (CardComponent) {
     // Use registered component
@@ -284,7 +284,7 @@ const MyCard: CardSpoke.Component = {
   priority: 50
 };
 
-window.CardSpoke.ComponentRegistry.register('Card', MyCard);
+ctx.api.ui.registerComponent('Card', MyCard);
 ```
 
 **Note:** The `@cardspoke/core` package is not currently published to npm. Reference the type definitions directly from the `types/` directory in the repository.
@@ -311,7 +311,7 @@ Use:
 
 ```javascript
 // New way - robust
-window.CardSpoke.ComponentRegistry.register('Card', {
+ctx.api.ui.registerComponent('Card', {
   render: (props) => {
     const el = OriginalCard.render(props);
     el.style.background = 'blue';

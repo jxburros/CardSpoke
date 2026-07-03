@@ -18,8 +18,14 @@ CardSpoke uses `uvu` for automated tests. This guide covers how to run and write
 
 ## Test Locations
 
-- `tests/` – Primary uvu suites.
+- `tests/` – Primary uvu suites (37 files; 434 passing tests via `npm test`).
 - `sample-extensions.test.js` – Plugin package format and layer system checks.
+- `core-entry.test.js` – Validates the `www/src/core/` ESM entry points used by `main.js` (Middleware, ComponentRegistry, PluginAPI, StorageDriverRegistry, Permissions).
+- `typed-*.test.js` – Core Platform Layer typed-card behavior (creation, validation, kind-specific fields).
+- `profiles.test.js` – Runtime profile registry (full/lite/os) behavior and profile-gated feature availability.
+- `app-modes.test.js` – App-mode registry (mode registration, activation, and switching).
+- `action-registry.test.js` – Shared action registry (registration, dispatch, and override semantics).
+- `conversions.test.js` – Conversion utilities between typed cards (e.g. note→task, outline→deck).
 
 ## Writing Tests
 
@@ -42,6 +48,6 @@ CardSpoke uses `uvu` for automated tests. This guide covers how to run and write
 
 ## Coverage & Scope
 
-- Current baseline is the `npm test` uvu suite in `tests/`, which covers core data model behavior, navigation/search flows, storage drivers, tags, links/backlinks, and plugin samples.
+- Current baseline is the `npm test` uvu suite in `tests/` (37 files, 434 passing tests), which covers core data model behavior, navigation/search flows, storage drivers, tags, links/backlinks, plugin samples, and the Core Platform Layer (typed cards, app modes, runtime profiles, action registry, conversions).
 - Add regression tests for every bug fix that changes card state, schema behavior, storage behavior, or plugin/runtime APIs.
 - Snapshot/DOM test tooling is not currently configured; prefer deterministic unit/behavior tests unless a future test runner is introduced.

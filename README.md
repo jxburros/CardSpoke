@@ -18,8 +18,10 @@ local-first storage model and optional off-device integrations.
   app) lets the community expand the product without bloating the core. The
   runtime exposes modern Plugin API and Middleware Pipeline for extensions.
 - **User ownership:** Data stays local by default; no hosted data or silent
-  syncs. LocalStorage is used for preferences and datasets, while IndexedDB
-  stores the graph of cards.
+  syncs. Preferences and datasets default to LocalStorage; IndexedDB is an
+  optional, per-dataset storage driver users can select instead (it is also
+  used internally for Local File System handle persistence, unrelated to card
+  storage).
 - **Open ecosystem:** Clear metadata, authorship, and changelog expectations
   for all community-contributed plugins and themes.
 
@@ -127,17 +129,25 @@ layers:
 The plugin system includes:
 
 - **Middleware Pipeline**: Priority-weighted interceptors for core operations
-  (card save, delete, render, etc.)
+  (card save, delete, render, etc.). Internal-only; not exposed on
+  `window.CardSpoke`.
 - **Plugin API**: Sandboxed contexts with `api.ui`, `api.data`, `api.storage`,
   and `api.events`
 - **Component Registry**: Type-safe UI component overrides with priority-based
-  resolution
+  resolution. Internal-only; not exposed on `window.CardSpoke`.
 - **Storage Driver Registry**: Pluggable storage backends (IndexedDB, cloud,
-  git, etc.)
+  git, etc.). Internal-only; not exposed on `window.CardSpoke`.
 - **Permission System**: User consent for sensitive operations with explicit
   permission requests
 - **TypeScript Support**: Type definitions available in `types/` directory for
   local development
+
+The public plugin-facing surface on `window.CardSpoke` is intentionally
+limited to two entry points, `registerPlugin(id, definition)` and
+`requestPermissions(pluginId, pluginName, permissions)`; the Middleware
+Pipeline, Component Registry, and Storage Driver Registry are internal
+systems used during core init and are not reachable through
+`window.CardSpoke`.
 
 ### Quick Example
 
@@ -171,10 +181,12 @@ JX Holdings, and avoid implying official endorsement.
 
 CardSpoke is local-first (LocalStorage/IndexedDB). Preferences (rich text, grid
 view, typography, high-contrast, dev mode) live under `cardspoke_*` keys in
-LocalStorage. Datasets are namespaced to allow multiple vaults with their own
-metadata, and backups are exported as JSON/CSV/Markdown/TXT directly from the
-UI. Optional off-device storage may be wired through integrations chosen by the
-user; no automatic sync or hosted data.
+LocalStorage. Datasets default to the LocalStorage driver but are namespaced
+to allow multiple vaults with their own metadata; IndexedDB is available as an
+optional, per-dataset storage driver a user can select instead. Backups are
+exported as JSON/CSV/Markdown/TXT directly from the UI. Optional off-device
+storage may be wired through integrations chosen by the user; no automatic
+sync or hosted data.
 
 ## Environment & Configuration
 

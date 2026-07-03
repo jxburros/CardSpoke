@@ -66,13 +66,17 @@
 │  │  │   ctx.api.ui     │   ctx.api.data   │                  │   │
 │  │  │   • inject()     │   • getCard()    │                  │   │
 │  │  │   • replace()    │   • listCards()  │                  │   │
-│  │  │   • register()   │   • onUpdate()   │                  │   │
+│  │  │   • registerComponent() │ • onUpdate() │               │   │
+│  │  │   • unregisterComponent()│           │                  │   │
 │  │  └──────────────────┴──────────────────┘                  │   │
 │  │  ┌──────────────────┬──────────────────┐                  │   │
 │  │  │ ctx.api.storage  │  ctx.api.events  │                  │   │
 │  │  │   • get()        │   • on()         │                  │   │
 │  │  │   • set()        │   • emit()       │                  │   │
-│  │  │   • namespaced   │   • once()       │                  │   │
+│  │  │   • remove()     │   • once()       │                  │   │
+│  │  │   • list()       │                  │                  │   │
+│  │  │   • getNamespace()│  (keys auto-namespaced per plugin, │   │
+│  │  │                  │   prefixed plugin_<pluginId>_)      │   │
 │  │  └──────────────────┴──────────────────┘                  │   │
 │  └────────────────────────────────────────────────────────────┘   │
 │                                                                      │
@@ -118,7 +122,7 @@ Components re-render via Component Registry
 ```text
 ┌────────────────────────────────────────────────┐
 │              Plugin Registration                │
-│  CardSpoke.Plugin.register('my-plugin', def)   │
+│  CardSpoke.registerPlugin('my-plugin', def)    │
 └────────────────────────────────────────────────┘
                      ↓
 ┌────────────────────────────────────────────────┐

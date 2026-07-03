@@ -64,9 +64,9 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 ## Import & Export
 
 - **Export formats:** JSON (instance/subtree/single card), CSV, Markdown, and TXT.
-- **Import formats:** JSON (CardSpoke format), TXT (outline or append mode), DOCX (text extraction).
+- **Import formats:** JSON (CardSpoke format), TXT (outline or append mode).
 - **Bulk operations:** Bulk export/import of multiple cards with hierarchy preservation.
-- **Backup system:** Create timestamped backups (`cardspoke-backup-*.json`) with one-click restore.
+- **Timestamped exports:** JSON/TXT/Markdown/CSV exports are named `cardspoke-{type}-{timestamp}.{ext}` (e.g. `cardspoke-instance-1719936000000.json`); re-importing a JSON export restores that data into the active or a new dataset.
 
 ## Undo/Redo & Recovery
 
@@ -82,6 +82,9 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 - `Ctrl+R` — Show recent cards
 - `Ctrl+Z` / `Ctrl+Y` — Undo / Redo
 - `Ctrl+D` — Duplicate current card
+- `Ctrl+E` — Show plugin manager
+- `Ctrl+U` — Upload data
+- `Ctrl+T` — Focus tags input (when editing a card)
 - `Ctrl+G` — Toggle grid/list view
 - `Ctrl+[` / `Ctrl+]` — Navigate to parent/first child
 - `Ctrl+/` — Show keyboard shortcuts help
@@ -106,6 +109,17 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 - **Metadata transparency:** Every plugin declares name, version, author, description, layer, compatibility, and permissions in its manifest.
 - **TypeScript support:** Type definitions available in `types/` directory for type-safe plugin development.
 - **Dev tools:** Inspect plugins, view hook stats, access error logs, and manually test hooks.
+
+## Core Platform Layer
+
+A separate, larger platform layer lives under `www/src/core/` alongside the plugin-architecture modules, providing building blocks for richer app variants and integrations. It has its own dedicated build target, `npm run build:core` (Vite build via `vite.core.config.js`, producing `dist/cardspoke-core.js` and `dist/cardspoke-core.umd.cjs`), and is documented in detail under `docs/architecture/`:
+
+- **Typed cards:** Cards can carry a `kind` (e.g. note, task) with kind-specific fields and validation. See [TYPED_CARDS.md](../architecture/TYPED_CARDS.md).
+- **Shared action registry:** A registry for declaring and dispatching named actions across core and plugin code, with override semantics. See [ACTION_REGISTRY.md](../architecture/ACTION_REGISTRY.md).
+- **Conversion utilities:** Convert between typed cards (e.g. note→task, outline→deck). See [CONVERSIONS.md](../architecture/CONVERSIONS.md).
+- **Runtime profiles:** Named profiles (`full`, `lite`, `os`) that gate available features/surfaces for different deployment targets. See [PROFILES.md](../architecture/PROFILES.md).
+- **App-mode registry:** Registration and switching between distinct application modes. See [APP_MODES.md](../architecture/APP_MODES.md).
+- **Kind-filterable import/export:** Import/export utilities that can filter or target specific card kinds.
 
 ## Accessibility Features
 
@@ -153,7 +167,7 @@ CardSpoke uses LocalStorage for preferences and lightweight configuration. All k
 
 - `cardspoke_datasets` – JSON: Array of dataset metadata objects
 - `cardspoke_dataset_metadata` – JSON: Current dataset manager metadata
-- `cardspoke_lastUploadTab` – String: Last active upload tab (JSON/TXT/DOCX/CSV/MD)
+- `cardspoke_lastUploadTab` – String: Last active upload tab (JSON/TXT/CSV/MD)
 - `cardspoke_hasSeenGettingStarted` – Boolean: Tracks onboarding guide completion
 
 ### File System Integration

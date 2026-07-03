@@ -49,6 +49,12 @@ www/src/
   main.js                build entry: wires core + shell, exposes window.CardSpoke
 ```
 
+> **Note:** `www/src/core.js` (a top-level file, not the `core/` folder above)
+> is a legacy pre-split file kept only for the old `npm run build:cat`
+> concatenation script. It is not imported by `main.js`, not part of the
+> `npm run build` (Vite) pipeline, and not part of this architecture — don't
+> confuse it with the `core/` folder.
+
 ## The Architectural Boundary
 
 ```txt
