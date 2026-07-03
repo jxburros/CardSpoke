@@ -3383,15 +3383,15 @@ ${items.join("\n")}
     const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     switch (status) {
       case "pending":
-        indicator.textContent = "●";
-        indicator.title = `Saving... (${timeStr})`;
+        indicator.textContent = "Saving…";
+        indicator.title = `Saving… (${timeStr})`;
         break;
       case "saved":
-        indicator.textContent = "✓";
+        indicator.textContent = "Saved";
         indicator.title = `Last saved at ${timeStr}`;
         break;
       case "error":
-        indicator.textContent = "✕";
+        indicator.textContent = "Save failed";
         indicator.title = `Save failed at ${timeStr}`;
         break;
       default:
@@ -5637,7 +5637,13 @@ This action cannot be undone!`, {
     main.appendChild(h("div", { className: "page-title" }, title));
     kids.sort((a, b) => (a.title || "").toLowerCase().localeCompare((b.title || "").toLowerCase()));
     if (kids.length === 0) {
-      main.appendChild(h("div", { className: "empty" }, "No cards yet. Create one to get started!"));
+      const emptyEl = h("div", { className: "empty empty-state" });
+      emptyEl.appendChild(h("p", {}, "No cards yet. Create one to get started!"));
+      emptyEl.appendChild(h("button", {
+        className: "empty-new-card-btn",
+        onclick: () => goTo('edit', { cardId: null, parentId: parentId || null })
+      }, parentId ? "+ Add Child Card" : "+ New Card"));
+      main.appendChild(emptyEl);
     } else {
       const gridViewEnabled = localStorage.getItem("cardspoke_gridView") === "true";
       const gridClass = gridViewEnabled ? "card-grid grid-view" : "card-grid";
@@ -6264,8 +6270,10 @@ ${prefix}`;
       }, "Delete"));
     }
     form.appendChild(formActions);
+    const editWrapper = h("div", { className: "card-edit-form" });
     main.appendChild(h("div", { className: "page-title" }, editing ? "Edit Card" : getEditPageLabel()));
-    main.appendChild(form);
+    editWrapper.appendChild(form);
+    main.appendChild(editWrapper);
   }
   function renderSearchResults() {
     searchContainer.style.display = "none";
@@ -6580,8 +6588,15 @@ ${prefix}`;
   const savedHC = localStorage.getItem("cardspoke_highcontrast") === "true";
   if (savedHC) document.documentElement.classList.add("high-contrast");
   let menuFocusTrapCleanup = null;
+  function lockBodyScroll() {
+    document.body.classList.add("scroll-locked");
+  }
+  function unlockBodyScroll() {
+    document.body.classList.remove("scroll-locked");
+  }
   if (header.menuBtn && menu.overlay) header.menuBtn.onclick = () => {
     menu.overlay.classList.add("show");
+    lockBodyScroll();
     if (menu.developerSection) {
       menu.developerSection.style.display = isDeveloperMode() && isFeatureEnabled("developerConsole") ? "block" : "none";
     }
@@ -6591,6 +6606,7 @@ ${prefix}`;
   };
   if (menu.closeBtn) menu.closeBtn.onclick = () => {
     if (menu.overlay) menu.overlay.classList.remove("show");
+    unlockBodyScroll();
     if (menuFocusTrapCleanup) {
       menuFocusTrapCleanup();
       menuFocusTrapCleanup = null;
@@ -6599,6 +6615,7 @@ ${prefix}`;
   if (menu.overlay) menu.overlay.onclick = (e) => {
     if (e.target === menu.overlay) {
       menu.overlay.classList.remove("show");
+      unlockBodyScroll();
       if (menuFocusTrapCleanup) {
         menuFocusTrapCleanup();
         menuFocusTrapCleanup = null;
@@ -6607,6 +6624,7 @@ ${prefix}`;
   };
   if (menu.newCard) menu.newCard.onclick = () => {
     if (menu.overlay) menu.overlay.classList.remove("show");
+    unlockBodyScroll();
     goTo("edit", { cardId: null, parentId: null });
   };
   if (menu.upload) menu.upload.onclick = () => {
@@ -6628,6 +6646,7 @@ ${prefix}`;
     if (tabToActivate) tabToActivate.classList.add("active");
     if (contentToActivate) contentToActivate.classList.add("active");
     uploadModal.overlay.classList.add("show");
+    lockBodyScroll();
   };
   if (menu.pluginManager) menu.pluginManager.onclick = () => {
     if (menu.overlay) menu.overlay.classList.remove("show");
@@ -6763,6 +6782,14 @@ ${prefix}`;
     searchClear.style.display = "none";
     if (navState.page === "search") goBack();
   };
+  const searchSubmit = document.getElementById("searchSubmit");
+  if (searchSubmit && searchInput) {
+    searchSubmit.onclick = () => {
+      const q = searchInput.value.trim();
+      if (q) goTo("search", { searchQuery: q });
+      else searchInput.focus();
+    };
+  }
   if (uploadModal.tabs) uploadModal.tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       const tabName = tab.getAttribute("data-tab");
@@ -6776,10 +6803,12 @@ ${prefix}`;
   });
   if (uploadModal.closeBtn) uploadModal.closeBtn.onclick = () => {
     if (uploadModal.overlay) uploadModal.overlay.classList.remove("show");
+    unlockBodyScroll();
   };
   if (uploadModal.overlay) uploadModal.overlay.onclick = (e) => {
     if (e.target === uploadModal.overlay) {
       uploadModal.overlay.classList.remove("show");
+      unlockBodyScroll();
     }
   };
   if (uploadModal.fileUploadAreaJSON) uploadModal.fileUploadAreaJSON.onclick = () => {
@@ -7749,6 +7778,7 @@ ${prefix}`;
     }
     if (uploadModal.overlay.classList.contains("show")) {
       uploadModal.overlay.classList.remove("show");
+      if (typeof unlockBodyScroll === "function") unlockBodyScroll();
       return;
     }
     const helpModal = document.getElementById("keyboardHelpModal");
@@ -7762,6 +7792,7 @@ ${prefix}`;
   }
   function closeMenu() {
     menu.overlay.classList.remove("show");
+    if (typeof unlockBodyScroll === "function") unlockBodyScroll();
   }
   function showTypographySelector() {
     const currentTypography = localStorage.getItem("cardspoke_typography") || "default";

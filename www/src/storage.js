@@ -1660,18 +1660,18 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
         indicator.className = 'save-status ' + status;
         const now = new Date();
         const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        
+
         switch (status) {
           case 'pending':
-            indicator.textContent = '●';
-            indicator.title = `Saving... (${timeStr})`;
+            indicator.textContent = 'Saving…';
+            indicator.title = `Saving… (${timeStr})`;
             break;
           case 'saved':
-            indicator.textContent = '✓';
+            indicator.textContent = 'Saved';
             indicator.title = `Last saved at ${timeStr}`;
             break;
           case 'error':
-            indicator.textContent = '✕';
+            indicator.textContent = 'Save failed';
             indicator.title = `Save failed at ${timeStr}`;
             break;
           default:

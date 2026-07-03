@@ -100,7 +100,13 @@ import {
         kids.sort((a, b) => (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase()));
         
         if (kids.length === 0) {
-          main.appendChild(h('div', { className: 'empty' }, 'No cards yet. Create one to get started!'));
+          const emptyEl = h('div', { className: 'empty empty-state' });
+          emptyEl.appendChild(h('p', {}, 'No cards yet. Create one to get started!'));
+          emptyEl.appendChild(h('button', {
+            className: 'empty-new-card-btn',
+            onclick: () => goTo('edit', { cardId: null, parentId: parentId || null })
+          }, parentId ? '+ Add Child Card' : '+ New Card'));
+          main.appendChild(emptyEl);
         } else {
           const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
           const gridClass = gridViewEnabled ? 'card-grid grid-view' : 'card-grid';
@@ -791,8 +797,10 @@ import {
           }, 'Delete'));
         }
         form.appendChild(formActions);
+        const editWrapper = h('div', { className: 'card-edit-form' });
         main.appendChild(h('div', { className: 'page-title' }, editing ? 'Edit Card' : getEditPageLabel()));
-        main.appendChild(form);
+        editWrapper.appendChild(form);
+        main.appendChild(editWrapper);
       }
 
       /**
@@ -1225,8 +1233,17 @@ import {
       // Focus trap cleanup function
       let menuFocusTrapCleanup = null;
       
+      function lockBodyScroll() {
+        document.body.classList.add('scroll-locked');
+      }
+
+      function unlockBodyScroll() {
+        document.body.classList.remove('scroll-locked');
+      }
+
       if (header.menuBtn && menu.overlay) header.menuBtn.onclick = () => {
         menu.overlay.classList.add('show');
+        lockBodyScroll();
         // Show/hide developer section based on developer mode and profile
         if (menu.developerSection) {
           menu.developerSection.style.display =
@@ -1240,6 +1257,7 @@ import {
 
       if (menu.closeBtn) menu.closeBtn.onclick = () => {
         if (menu.overlay) menu.overlay.classList.remove('show');
+        unlockBodyScroll();
         if (menuFocusTrapCleanup) {
           menuFocusTrapCleanup();
           menuFocusTrapCleanup = null;
@@ -1249,6 +1267,7 @@ import {
       if (menu.overlay) menu.overlay.onclick = (e) => {
         if (e.target === menu.overlay) {
           menu.overlay.classList.remove('show');
+          unlockBodyScroll();
           if (menuFocusTrapCleanup) {
             menuFocusTrapCleanup();
             menuFocusTrapCleanup = null;
@@ -1258,6 +1277,7 @@ import {
 
       if (menu.newCard) menu.newCard.onclick = () => {
         if (menu.overlay) menu.overlay.classList.remove('show');
+        unlockBodyScroll();
         goTo('edit', { cardId: null, parentId: null });
       };
 
@@ -1288,6 +1308,7 @@ import {
         
         // Show modal
         uploadModal.overlay.classList.add('show');
+        lockBodyScroll();
       };
 
       if (menu.pluginManager) menu.pluginManager.onclick = () => {
@@ -1441,6 +1462,15 @@ import {
         if (navState.page === 'search') goBack();
       };
 
+      const searchSubmit = document.getElementById('searchSubmit');
+      if (searchSubmit && searchInput) {
+        searchSubmit.onclick = () => {
+          const q = searchInput.value.trim();
+          if (q) goTo('search', { searchQuery: q });
+          else searchInput.focus();
+        };
+      }
+
       if (uploadModal.tabs) uploadModal.tabs.forEach(tab => {
         tab.addEventListener('click', () => {
           const tabName = tab.getAttribute('data-tab');
@@ -1456,11 +1486,13 @@ import {
 
       if (uploadModal.closeBtn) uploadModal.closeBtn.onclick = () => {
         if (uploadModal.overlay) uploadModal.overlay.classList.remove('show');
+        unlockBodyScroll();
       };
 
       if (uploadModal.overlay) uploadModal.overlay.onclick = (e) => {
         if (e.target === uploadModal.overlay) {
           uploadModal.overlay.classList.remove('show');
+          unlockBodyScroll();
         }
       };
 

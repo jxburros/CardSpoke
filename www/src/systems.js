@@ -1136,6 +1136,7 @@ import {
         // Close upload modal if open
         if (uploadModal.overlay.classList.contains('show')) {
           uploadModal.overlay.classList.remove('show');
+          if (typeof unlockBodyScroll === 'function') unlockBodyScroll();
           return;
         }
         // Close help if open
@@ -1152,6 +1153,7 @@ import {
       
       function closeMenu() {
         menu.overlay.classList.remove('show');
+        if (typeof unlockBodyScroll === 'function') unlockBodyScroll();
       }
       
       
