@@ -309,10 +309,10 @@ import {
         const modal = h('div', { className: 'modal', style: 'max-width: 600px;' });
         const modalHeader = h('div', { className: 'modal-header' });
         modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Trash Bin'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, 'X');
+        const closeBtn = h('button', { className: 'modal-close', 'aria-label': 'Close trash bin', onclick: () => overlay.remove() }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
-        
+
         const modalBody = h('div', { className: 'modal-body' });
         
         if (trashBin.length === 0) {
@@ -1136,6 +1136,7 @@ import {
         // Close upload modal if open
         if (uploadModal.overlay.classList.contains('show')) {
           uploadModal.overlay.classList.remove('show');
+          if (typeof unlockBodyScroll === 'function') unlockBodyScroll();
           return;
         }
         // Close help if open
@@ -1152,6 +1153,7 @@ import {
       
       function closeMenu() {
         menu.overlay.classList.remove('show');
+        if (typeof unlockBodyScroll === 'function') unlockBodyScroll();
       }
       
       
