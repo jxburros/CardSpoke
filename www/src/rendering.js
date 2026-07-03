@@ -109,6 +109,37 @@ import {
           main.appendChild(emptyEl);
         } else {
           const gridViewEnabled = localStorage.getItem('cardspoke_gridView') === 'true';
+          const isCompactMode = store.viewMode === 'compact';
+
+          // Density picker bar
+          const densityBar = h('div', { className: 'density-bar', 'aria-label': 'Card density' });
+          const densityOptions = [
+            { key: 'default', label: 'Default', active: !gridViewEnabled && !isCompactMode },
+            { key: 'compact', label: 'Compact', active: !gridViewEnabled && isCompactMode },
+            { key: 'grid', label: 'Grid', active: gridViewEnabled },
+          ];
+          densityOptions.forEach(opt => {
+            const btn = h('button', {
+              className: 'density-btn' + (opt.active ? ' active' : ''),
+              'aria-pressed': opt.active ? 'true' : 'false',
+              onclick: () => {
+                if (opt.key === 'grid') {
+                  localStorage.setItem('cardspoke_gridView', 'true');
+                  if (store.viewMode === 'compact') toggleViewMode();
+                } else if (opt.key === 'compact') {
+                  localStorage.removeItem('cardspoke_gridView');
+                  if (store.viewMode !== 'compact') toggleViewMode();
+                } else {
+                  localStorage.removeItem('cardspoke_gridView');
+                  if (store.viewMode === 'compact') toggleViewMode();
+                }
+                render();
+              }
+            }, opt.label);
+            densityBar.appendChild(btn);
+          });
+          main.appendChild(densityBar);
+
           const gridClass = gridViewEnabled ? 'card-grid grid-view' : 'card-grid';
           const grid = h('div', { className: gridClass, role: 'list' });
           let renderIndex = 0;
@@ -643,18 +674,25 @@ import {
           bodyTextarea.focus();
           setDirty(true);
         };
-        const buttons = [
-          { label: 'B', action: () => applyWrap('**', '**'), aria: 'Bold' },
-          { label: 'I', action: () => applyWrap('_', '_'), aria: 'Italic' },
-          { label: 'H1', action: () => addBlockPrefix('# '), aria: 'Heading 1' },
-          { label: 'H2', action: () => addBlockPrefix('## '), aria: 'Heading 2' },
-          { label: 'H3', action: () => addBlockPrefix('### '), aria: 'Heading 3' },
-          { label: '• List', action: () => addBlockPrefix('- '), aria: 'Bullet list' }
+        const buttonGroups = [
+          [
+            { label: 'B', action: () => applyWrap('**', '**'), aria: 'Bold' },
+            { label: 'I', action: () => applyWrap('_', '_'), aria: 'Italic' },
+          ],
+          [
+            { label: 'H1', action: () => addBlockPrefix('# '), aria: 'Heading 1' },
+            { label: 'H2', action: () => addBlockPrefix('## '), aria: 'Heading 2' },
+            { label: 'H3', action: () => addBlockPrefix('### '), aria: 'Heading 3' },
+            { label: '• List', action: () => addBlockPrefix('- '), aria: 'Bullet list' },
+          ]
         ];
-        buttons.forEach(btn => {
-          const el = h('button', { type: 'button', className: 'btn btn-ghost', 'aria-label': btn.aria, onclick: btn.action });
-          el.textContent = btn.label;
-          toolbar.appendChild(el);
+        buttonGroups.forEach((grp, gi) => {
+          if (gi > 0) toolbar.appendChild(h('span', { className: 'toolbar-sep', 'aria-hidden': 'true' }));
+          grp.forEach(btn => {
+            const el = h('button', { type: 'button', className: 'btn btn-ghost', 'aria-label': btn.aria, title: btn.aria, onclick: btn.action });
+            el.textContent = btn.label;
+            toolbar.appendChild(el);
+          });
         });
 
         formGroup2.appendChild(toolbar);
@@ -692,20 +730,30 @@ import {
     
         const formGroup3 = h('div', { className: 'form-group' });
         formGroup3.appendChild(h('label', { className: 'form-label' }, 'Parent Card'));
+        const parentFilter = h('input', {
+          type: 'text',
+          className: 'form-input parent-filter-input',
+          placeholder: 'Filter parent cards…',
+          'aria-label': 'Filter parent cards',
+        });
         const parentSel = h('select', { id: 'cardParent', className: 'form-select' });
         const parVal = card.parentId || '';
         parentSel.appendChild(h('option', { value: '', selected: !parVal }, '(Root Level)'));
-        Object.values(store.cards)
+        const parentCards = Object.values(store.cards)
           .filter(c => c.id !== card.id)
-          .sort((a, b) => {
-            const A = (a.title || '').toLowerCase();
-            const B = (b.title || '').toLowerCase();
-            return A.localeCompare(B);
-          })
-          .forEach(c => {
-            parentSel.appendChild(h('option', { value: c.id, selected: parVal === c.id }, c.title || '(Untitled)'));
+          .sort((a, b) => (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase()));
+        parentCards.forEach(c => {
+          parentSel.appendChild(h('option', { value: c.id, selected: parVal === c.id }, c.title || '(Untitled)'));
+        });
+        parentFilter.addEventListener('input', () => {
+          const val = parentFilter.value.toLowerCase();
+          Array.from(parentSel.options).forEach(opt => {
+            if (opt.value === '') return;
+            opt.hidden = val.length > 0 && !opt.text.toLowerCase().includes(val);
           });
+        });
         parentSel.addEventListener('change', () => { setDirty(true); });
+        formGroup3.appendChild(parentFilter);
         formGroup3.appendChild(parentSel);
         form.appendChild(formGroup3);
         let childrenInpMap = {};
@@ -722,6 +770,8 @@ import {
             const delBtn = h('button', {
               type: 'button',
               className: 'form-child-delete',
+              'aria-label': 'Delete child card',
+              title: 'Delete child card',
               onclick: async () => {
                 if (await showConfirmDialog('Delete this child card and all of its children?', {
                   title: 'Delete Child Card',
@@ -748,7 +798,7 @@ import {
             const r = h('div', { className: 'form-child-row' });
             const t = h('input', { type: 'text', value: title, placeholder: 'Child title...', className: 'form-input form-child-input' });
             t.addEventListener('input', () => { setDirty(true); });
-            const d = h('button', { type: 'button', className: 'form-child-delete', onclick: () => { r.remove(); } }, '✕');
+            const d = h('button', { type: 'button', className: 'form-child-delete', 'aria-label': 'Remove child row', title: 'Remove child row', onclick: () => { r.remove(); } }, '✕');
             r.appendChild(t);
             r.appendChild(d);
             newKidsWrap.appendChild(r);
@@ -765,7 +815,7 @@ import {
             const r = h('div', { className: 'form-child-row' });
             const t = h('input', { type: 'text', value: title, placeholder: 'Child title...', className: 'form-input form-child-input' });
             t.addEventListener('input', () => { setDirty(true); });
-            const d = h('button', { type: 'button', className: 'form-child-delete', onclick: () => { r.remove(); } }, '✕');
+            const d = h('button', { type: 'button', className: 'form-child-delete', 'aria-label': 'Remove child row', title: 'Remove child row', onclick: () => { r.remove(); } }, '✕');
             r.appendChild(t);
             r.appendChild(d);
             kidsWrap.appendChild(r);
@@ -894,6 +944,44 @@ import {
               style: 'padding: 12px; margin-bottom: 8px; background: var(--bg-secondary); border-radius: 8px; font-size: 14px; color: var(--text-secondary);'
             }, `Found ${fuzzyResults.length} result${fuzzyResults.length === 1 ? '' : 's'}${scopeText}${fuzzyResults.some(result => result.approximate) ? ' (approximate matches marked with ~)' : ''}`);
             main.appendChild(resultInfo);
+
+            // Sort bar
+            let currentSortMode = 'relevance';
+            const sortBar = h('div', { className: 'sort-bar', 'aria-label': 'Sort results' });
+            sortBar.appendChild(h('span', { className: 'sort-bar-label' }, 'Sort:'));
+            const sortOptions = [
+              { key: 'relevance', label: 'Relevance' },
+              { key: 'title', label: 'Title' },
+              { key: 'newest', label: 'Newest' },
+              { key: 'updated', label: 'Updated' },
+            ];
+            const applySortMode = (mode) => {
+              currentSortMode = mode;
+              sortBar.querySelectorAll('.sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sortKey === mode));
+              const grid = main.querySelector('#searchResultGrid');
+              if (!grid) return;
+              const sorted = fuzzyResults.slice().sort((a, b) => {
+                if (mode === 'title') return (a.card.title || '').toLowerCase().localeCompare((b.card.title || '').toLowerCase());
+                if (mode === 'newest') return ((b.card.createdAt || 0) - (a.card.createdAt || 0));
+                if (mode === 'updated') return ((b.card.updatedAt || b.card.createdAt || 0) - (a.card.updatedAt || a.card.createdAt || 0));
+                return 0;
+              });
+              const frag = document.createDocumentFragment();
+              sorted.forEach((result, i) => {
+                const el = grid.querySelector(`[data-result-index="${fuzzyResults.indexOf(result)}"]`);
+                if (el) frag.appendChild(el);
+              });
+              grid.appendChild(frag);
+            };
+            sortOptions.forEach(opt => {
+              const btn = h('button', {
+                className: 'sort-btn' + (opt.key === 'relevance' ? ' active' : ''),
+                'data-sort-key': opt.key,
+                onclick: () => applySortMode(opt.key)
+              }, opt.label);
+              sortBar.appendChild(btn);
+            });
+            main.appendChild(sortBar);
 
             // Keyboard navigation hint (v1.0.0)
             const keyboardHint = h('div', {
