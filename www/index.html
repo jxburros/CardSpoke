@@ -6,24 +6,23 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="app:version" content="0.17.0">
   <meta name="app:author" content="jxburros">
+  <meta name="theme-color" content="#111111">
+  <link rel="manifest" href="manifest.webmanifest">
 
   <!-- Content Security Policy -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src 'self' 'unsafe-eval' https://accounts.google.com https://alcdn.msauth.net;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    font-src 'self' https://fonts.gstatic.com;
+    style-src 'self' 'unsafe-inline';
+    font-src 'self';
     connect-src 'self' https://www.googleapis.com https://graph.microsoft.com https://login.microsoftonline.com *;
     img-src 'self' data: blob: https:;
     frame-src https://accounts.google.com https://login.microsoftonline.com;
+    worker-src 'self';
     object-src 'none';
     base-uri 'self';
     form-action 'self';
   ">
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&family=Outfit:wght@400;700&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -215,12 +214,15 @@
     </div>
   </div>
 
-  <!-- Cloud Storage Libraries -->
+  <!-- Cloud Storage Libraries: optional online features only. Core editing must work without them. -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://alcdn.msauth.net/browser/2.30.0/js/msal-browser.min.js"></script>
 
   <!-- Capacitor script - must be loaded before app scripts -->
   <script src="capacitor.js"></script>
+
+  <!-- Offline status and PWA registration. Keeps local save state separate from remote sync state. -->
+  <script src="offline-status.js"></script>
 
   <!-- Application entry point loader: prefers stable bundled app.js, falls back to ESM entry -->
   <script src="app-loader.js"></script>
