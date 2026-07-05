@@ -1,0 +1,6 @@
+interface:
+  display_name: "CardSpoke Plugin Runtime Author"
+  short_description: "Use when changing CardSpoke plugin APIs, middleware, or sample plugins."
+  default_prompt: "Use $cardspoke-plugin-runtime-author to work safely on the relevant repository task."
+policy:
+  allow_implicit_invocation: true

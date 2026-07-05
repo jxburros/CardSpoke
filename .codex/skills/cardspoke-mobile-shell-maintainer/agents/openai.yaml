@@ -1,0 +1,6 @@
+interface:
+  display_name: "CardSpoke Mobile Shell Maintainer"
+  short_description: "Use when working on CardSpoke Vite builds and Capacitor mobile shells."
+  default_prompt: "Use $cardspoke-mobile-shell-maintainer to work safely on the relevant repository task."
+policy:
+  allow_implicit_invocation: true
