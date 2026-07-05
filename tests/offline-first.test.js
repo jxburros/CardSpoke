@@ -21,6 +21,8 @@ test('service worker caches app shell assets', () => {
   assert.ok(worker.includes('./styles.css'));
   assert.ok(worker.includes('./offline-status.js'));
   assert.ok(worker.includes('url.origin !== self.location.origin'));
+  assert.ok(worker.includes('response.status === 200'));
+  assert.ok(worker.includes("response.type === 'basic'"));
 });
 
 test('offline status separates local save from remote sync', () => {
@@ -28,6 +30,9 @@ test('offline status separates local save from remote sync', () => {
   assert.ok(status.includes('Saved locally'));
   assert.ok(status.includes('Sync pending'));
   assert.ok(status.includes('Local save failed'));
+  assert.ok(status.includes('cardspoke_dataset_metadata'));
+  assert.ok(status.includes("localStorage.getItem('activeInstance')"));
+  assert.ok(status.includes("indicator.textContent !== text"));
   assert.ok(status.includes('googledrive'));
   assert.ok(status.includes('onedrive'));
   assert.ok(status.includes('webdav'));

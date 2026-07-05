@@ -10,6 +10,11 @@
     pending: 'Saving locally...',
     error: 'Local save failed'
   };
+  var REMOTE_STORAGE_KINDS = {
+    googledrive: true,
+    onedrive: true,
+    webdav: true
+  };
 
   function isOnline() {
     return typeof navigator.onLine === 'boolean' ? navigator.onLine : true;
@@ -17,11 +22,27 @@
 
   function getRemoteStorageKind() {
     try {
-      var raw = localStorage.getItem('nested_cards_store');
+      var metaRaw = localStorage.getItem('cardspoke_dataset_metadata');
+      if (metaRaw) {
+        var metadata = JSON.parse(metaRaw);
+        var activeId = metadata && metadata.activeDatasetId;
+        var activeDataset = activeId && metadata.datasets && metadata.datasets[activeId];
+        var driver = activeDataset && activeDataset.storage && activeDataset.storage.driver;
+        if (REMOTE_STORAGE_KINDS[driver]) {
+          return driver;
+        }
+      }
+    } catch (_metadataError) {
+      // Fallback to direct store parsing if dataset metadata is unavailable.
+    }
+
+    try {
+      var activeKey = localStorage.getItem('activeInstance') || 'nested_cards_store';
+      var raw = localStorage.getItem(activeKey);
       if (!raw) return null;
       var parsed = JSON.parse(raw);
       var storageType = parsed && parsed.metadata && parsed.metadata.storageType;
-      if (storageType === 'googledrive' || storageType === 'onedrive' || storageType === 'webdav') {
+      if (REMOTE_STORAGE_KINDS[storageType]) {
         return storageType;
       }
     } catch (_err) {
@@ -33,8 +54,12 @@
   function setStatus(text, title) {
     var indicator = document.getElementById('saveStatus');
     if (!indicator) return;
-    indicator.textContent = text;
-    if (title) indicator.title = title;
+    if (indicator.textContent !== text) {
+      indicator.textContent = text;
+    }
+    if (typeof title === 'string' && indicator.title !== title) {
+      indicator.title = title;
+    }
   }
 
   function describeRemote(kind) {
@@ -77,16 +102,16 @@
     if (!indicator) return;
 
     var current = (indicator.textContent || '').trim();
-    if (current === 'Saved') {
+    if (current === 'Saved' || current === '✓') {
       var remoteKind = getRemoteStorageKind();
       if (!isOnline() && remoteKind) {
         setStatus('Saved locally · Sync pending', describeRemote(remoteKind) + ' will sync when this device is online.');
       } else {
         setStatus(LOCAL_SAVE_TEXT.saved, 'Saved on this device.');
       }
-    } else if (current === 'Saving…') {
+    } else if (current === 'Saving…' || current === 'Saving...' || current === '●') {
       setStatus(LOCAL_SAVE_TEXT.pending, 'Saving to this device.');
-    } else if (current === 'Save failed') {
+    } else if (current === 'Save failed' || current === '✕') {
       setStatus(LOCAL_SAVE_TEXT.error, 'CardSpoke could not save to this device.');
     }
   }
