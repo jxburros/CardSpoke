@@ -4,7 +4,16 @@
 
 The Component Registry provides a centralized system for registering and overriding UI components. Instead of using CSS/JS to "find and replace" elements, plugins register their versions of components with priority-based resolution.
 
-**Note:** The Component Registry is an internal module used during core app initialization. It is not exposed on `window.CardSpoke` (which is frozen to only `registerPlugin` and `requestPermissions`). Plugin code interacts with it exclusively through `ctx.api.ui.registerComponent()` / `ctx.api.ui.unregisterComponent()`, documented under [Integration with Plugin API](#integration-with-plugin-api) below. The `window.CardSpoke.ComponentRegistry.*` examples in earlier drafts of this document do not work in the current build.
+**How plugins use it:** register components from your setup body via
+`ctx.api.ui.registerComponent(name, component)` /
+`ctx.api.ui.unregisterComponent(name)` (permission: `ui-override`), documented
+under [Integration with Plugin API](#integration-with-plugin-api) below. Those
+registrations are tracked and removed automatically on suspend/delete. The
+registry is also reachable as `window.CardSpoke.ComponentRegistry` for the
+host app and advanced app-layer plugins, but `ctx.api.ui.registerComponent` is
+the preferred surface. The app queries these component names: `Card` (live,
+per card-tile render) and `Header` / `Sidebar` / `SearchBar` (applied once at
+boot).
 
 ## Overview
 
@@ -29,15 +38,18 @@ A component is an object with a `render` function:
 
 ## API Reference
 
-The methods below describe the internal registry module (`www/src/core/component-registry.js`). They are used internally by the core app during initialization and are surfaced to plugins only through `ctx.api.ui.registerComponent()` / `ctx.api.ui.unregisterComponent()` — there is no `window.CardSpoke.ComponentRegistry` in the current build.
+The methods below are available on `window.CardSpoke.ComponentRegistry`
+(module: `www/src/core/component-registry.js`). From plugin code, prefer
+`ctx.api.ui.registerComponent()` / `ctx.api.ui.unregisterComponent()`, which
+wrap `register`/`unregister` with automatic per-plugin cleanup.
 
 ### `register(name, component, priority)`
 
 Register a component.
 
 ```javascript
-// Internal usage (not reachable from plugin code as window.CardSpoke.ComponentRegistry)
-ComponentRegistry.register('Card', {
+// From plugin code, prefer: ctx.api.ui.registerComponent('Card', { ... })
+window.CardSpoke.ComponentRegistry.register('Card', {
   render: (props) => {
     const el = document.createElement('div');
     el.className = 'custom-card';

@@ -2,22 +2,77 @@
 
 **Version:** 0.17.0
 
-The Plugin API provides a sandboxed, resource-managed environment for plugin development with isolated contexts and automatic cleanup support.
+The Plugin API provides a permission-gated, resource-managed environment for
+plugin development. Plugin JS runs on the **main thread** (there is no iframe
+or Worker sandbox); the safety model is consent-based — the validator screens
+packages, every sensitive `ctx` call is permission-gated, and everything a
+plugin creates is tracked and automatically removed when it is suspended.
+
+This page is the per-method reference for the `ctx` API. For the narrative
+guide, package format, and lifecycle walkthrough see
+[`../PLUGIN_SYSTEM.md`](../PLUGIN_SYSTEM.md); for the stability contract see
+[`../PLUGIN_INVARIANTS.md`](../PLUGIN_INVARIANTS.md). Working examples live in
+[`../../sample-plugins/`](../../sample-plugins/) (nine packages, three per
+layer, plus `TEMPLATE.json`).
 
 ## Overview
 
 Key features:
 
-- **Isolated Contexts**: Each plugin gets its own API sandbox
-- **Resource Tracking**: Automatic tracking of DOM elements, listeners, and components
-- **Hot Unloading**: Clean removal without page refresh or ghost elements
-- **Namespaced Storage**: Plugin-specific storage namespace
-- **Permission System**: User consent for sensitive operations
+- **Per-plugin context**: Each plugin gets its own `ctx` with a
+  permission-checked API surface.
+- **Resource Tracking**: Automatic tracking of DOM elements, listeners,
+  components, and middleware.
+- **Hot Unloading**: Clean removal without page refresh or ghost elements.
+- **Namespaced Storage**: Plugin-specific storage namespace.
+- **Permission System**: User consent for sensitive operations.
 
 ## Plugin Structure
 
+A plugin is a **JSON package**. The `js` field is the *body of your setup
+function* — it receives the plugin context as `ctx` and is compiled once per
+enable as `new Function('ctx', '"use strict";\n' + js)` on the main thread
+(see `_createSandboxedFunction` in `www/src/core/plugin-api.js`). Write
+statements, not a wrapper, and never call `registerPlugin` from inside `js`
+(the package IS the plugin; self-registration throws a duplicate-id error).
+
+```json
+{
+  "id": "my-plugin",
+  "manifest": {
+    "id": "my-plugin",
+    "name": "My Plugin",
+    "version": "1.0.0",
+    "author": "Author Name",
+    "layer": "feature",
+    "permissions": ["ui-override", "storage"]
+  },
+  "css": "/* Optional CSS, injected while enabled */",
+  "js": "ctx.logger.info('enabled'); ctx.api.ui.showToast('Hello', 'success');",
+  "teardownJs": "/* optional extra cleanup */"
+}
+```
+
+Install a package **persistently** (validates, registers, persists to
+`store.plugins`, and auto-enables SAFE/LOW-risk layers) via the Plugin
+Manager UI or programmatically:
+
 ```javascript
-const plugin = {
+await window.CardSpoke.Plugin.install(pkg);   // or window.CardSpoke.installPlugin(pkg)
+```
+
+Persisted string-form packages survive a reload: at boot,
+`Plugin.syncFromStore()` (in `www/src/systems.js`) re-registers every stored
+plugin from its persisted `js`/`teardownJs` strings and re-enables the ones
+marked enabled.
+
+For **development only**, you can register a module-form definition with real
+`setup`/`teardown` **functions**. This registers *and* enables in one step
+but is **session-only** — functions cannot be persisted, so it is gone after
+a reload:
+
+```javascript
+window.CardSpoke.registerPlugin('my-plugin', {
   manifest: {
     name: 'My Plugin',
     version: '1.0.0',
@@ -25,16 +80,10 @@ const plugin = {
     layer: 'feature',
     permissions: ['ui-override', 'storage']
   },
-  setup: async (ctx) => {
-    // Plugin initialization
-  },
-  teardown: async (ctx) => {
-    // Plugin cleanup
-  },
+  setup: async (ctx) => { /* real function — session only */ },
+  teardown: async (ctx) => { /* optional */ },
   css: '/* Optional CSS */'
-};
-
-window.CardSpoke.registerPlugin('my-plugin', plugin);
+});
 ```
 
 ## Plugin Context
@@ -47,14 +96,15 @@ Every plugin receives a context object:
   appVersion: string,         // App version (0.17.0)
   schemaVersion: number,      // Schema version (4)
   api: {
-    ui: UIApi,                // UI manipulation
-    data: DataApi,            // Data access
-    storage: StorageApi,      // Persistent storage
-    events: EventApi,         // Shared cross-plugin event bus
+    ui: UIApi,                 // UI manipulation
+    data: DataApi,             // Data access
+    storage: StorageApi,       // Persistent storage
+    events: EventApi,          // Shared cross-plugin event bus
+    middleware: MiddlewareApi, // Core-operation interceptors
     network: NetworkApi,       // Permission-gated network access
     filesystem: FilesystemApi  // Permission-gated Capacitor filesystem access
   },
-  utils: object,              // Reserved; always {} in the current build (see Utils section below)
+  utils: object,              // Async host helpers (same object as window.CardSpoke.utils)
   config?: object,            // Plugin manifest config (when provided)
   logger: Logger              // Scoped logger
 }
@@ -111,7 +161,12 @@ ctx.api.ui.showToast('Saved!', 'success', 3000);
 
 ### Data API
 
-**Known limitation:** `getCard`, `listCards`, `createCard`, `updateCard`, `deleteCard`, `getTags`, `addTag`, `removeTag`, `setTags`, and `getAllTags` are all implemented by reading/writing internal `window.store`/`window.createCard`/etc. globals that are never attached to `window` in the current build (verified across `www/src/*.js`). Only `onUpdate` works reliably today; the rest should be treated as not yet functional. See the per-method notes below.
+The data API is backed by the **host-bridge globals**
+(`window.createCard`, `window.updateCard`, `window.deleteCard`,
+`window.getTags`, …) that `www/src/systems.js` assigns before the boot
+sequence runs, plus `window.store` (kept in sync by `setStore` in
+`www/src/state.js`). Reads (`getCard`, `listCards`, `getTags`, `getAllTags`,
+`onUpdate`) are ungated; writes require the `data-modify` permission.
 
 #### `ctx.api.data.onUpdate(callback)`
 
@@ -123,11 +178,12 @@ const unlisten = ctx.api.data.onUpdate((event) => {
 });
 ```
 
-**Event Types**: `'create'`, `'update'`, `'delete'`
+**Event Types**: `'card.create'`, `'card.update'`, `'card.delete'`
 
 #### `ctx.api.data.getCard(id)`
 
-Get a card by ID. Depends on `window.store`, which is not populated in the current build, so this currently returns `undefined`.
+Get a card by ID. Returns a deep clone of the card, or `undefined` if it does
+not exist. No permission required.
 
 ```javascript
 const card = ctx.api.data.getCard('card-123');
@@ -135,7 +191,7 @@ const card = ctx.api.data.getCard('card-123');
 
 #### `ctx.api.data.listCards()`
 
-List all cards. Depends on `window.store`, which is not populated in the current build, so this currently returns `[]`.
+List all cards (deep clones). No permission required.
 
 ```javascript
 const cards = ctx.api.data.listCards();
@@ -143,9 +199,8 @@ const cards = ctx.api.data.listCards();
 
 #### `ctx.api.data.createCard(data)`
 
-Create a new card. Requires the `data-modify` permission.
-
-**Known limitation:** This method delegates to an internal `window.createCard` global that is not populated in the current build, so calling it currently throws `"createCard not available"` rather than returning a new card ID as shown below.
+Create a new card. Requires the `data-modify` permission. Tags in `data.tags`
+are applied in the same call. Returns the new card id.
 
 ```javascript
 const id = ctx.api.data.createCard({
@@ -157,9 +212,8 @@ const id = ctx.api.data.createCard({
 
 #### `ctx.api.data.updateCard(id, updates)`
 
-Update a card. Requires the `data-modify` permission.
-
-**Known limitation:** Depends on an internal `window.updateCard` global that is not populated in the current build; calling it currently throws `"updateCard not available"`.
+Update a card. Requires the `data-modify` permission. Returns the updated
+clone.
 
 ```javascript
 const updated = ctx.api.data.updateCard('card-123', {
@@ -169,9 +223,8 @@ const updated = ctx.api.data.updateCard('card-123', {
 
 #### `ctx.api.data.deleteCard(id)`
 
-Delete a card. Requires the `data-modify` permission.
-
-**Known limitation:** Depends on an internal `window.deleteCard` global that is not populated in the current build; calling it currently returns `false` instead of deleting the card.
+Delete a card (and its children). Requires the `data-modify` permission.
+Returns `true` on success.
 
 ```javascript
 ctx.api.data.deleteCard('card-123');
@@ -179,7 +232,8 @@ ctx.api.data.deleteCard('card-123');
 
 #### Tag Management
 
-`addTag`, `removeTag`, and `setTags` require the `data-modify` permission. Like the card CRUD methods above, all of the tag methods depend on internal `window.getTags`/`window.addTag`/`window.removeTag`/`window.setTags`/`window.getAllTags` globals that are not populated in the current build, so these calls currently return empty/`false` results rather than working as shown.
+`addTag`, `removeTag`, and `setTags` require the `data-modify` permission;
+`getTags` and `getAllTags` are read-only and ungated.
 
 ```javascript
 // Get tags
@@ -275,6 +329,41 @@ ctx.api.events.once('init-complete', () => {
 });
 ```
 
+### Middleware API
+
+Intercept core operations. Registrations are namespaced `<pluginId>:<name>`
+and tracked (automatically removed on disable/unregister). No permission
+required.
+
+#### `ctx.api.middleware.register({ name, priority?, operations?, handler })`
+
+```javascript
+const unregister = ctx.api.middleware.register({
+  name: 'my-interceptor',       // required
+  priority: 10,                 // higher runs first (default 0)
+  operations: ['card.save'],    // default ['*']
+  handler: async (mw, next) => {
+    // mw.operation, mw.args, mw.preventDefault(), mw.stopPropagation()
+    await next();               // ALWAYS call next() unless intercepting
+  }
+});
+```
+
+Operations fired by the host app:
+
+| Operation | `mw.args` | `preventDefault()` |
+|---|---|---|
+| `card.create` | `[cardId, card]` | no effect (fires after creation) |
+| `card.update` | `[cardId, card]` | no effect (fires after update) |
+| `card.delete` | `[cardId]` | no effect (fires after delete) |
+| `card.save` | `[store]` | **aborts the save** |
+| `card.render` | `[card, cardTileElement]` | no effect (post-processing) |
+
+#### `ctx.api.middleware.unregister(name)`
+
+Remove one of this plugin's middlewares (the `<pluginId>:` prefix is added
+automatically).
+
 ### Logger
 
 Scoped logging with plugin prefix.
@@ -290,30 +379,18 @@ Output: `[Plugin:my-plugin] Info message`
 
 ### Utils
 
-**Known limitation:** `ctx.utils` is currently always an empty object `{}` in the shipped build. It is defined as `window.CardSpoke && window.CardSpoke.utils ? window.CardSpoke.utils : {}`, but `window.CardSpoke.utils` does not survive the `Object.freeze()` applied to the public `window.CardSpoke` object (which exposes only `registerPlugin` and `requestPermissions`). As a result, none of the helper methods below are currently reachable through `ctx.utils`, even though equivalent internal functions (`uid`, `debounce`, `escapeHtml`, `normalizeTagInput`, `cloneCard`, `highlightText`) exist in `www/src/metadata.js`. The examples below describe the intended shape of this API, not working code:
+`ctx.utils` is the same object as `window.CardSpoke.utils`. The root
+`window.CardSpoke` object is frozen, but `utils` is an intentionally mutable
+inner object that the host app layer (`www/src/storage.js`) populates **in
+place** with async helpers once those functions exist — so plugin code
+reaches them through `ctx.utils`. Treat it as read-only.
 
 ```javascript
-// NOT CURRENTLY FUNCTIONAL — ctx.utils is always {} today.
-
-// Generate unique ID
-const id = ctx.utils.uid();
-
-// Debounce function
-const debounced = ctx.utils.debounce(() => {
-  console.log('Debounced');
-}, 500);
-
-// Escape HTML
-const safe = ctx.utils.escapeHtml('<script>');
-
-// Normalize tags
-const tags = ctx.utils.normalizeTagInput('#tag1, tag2');
-
-// Clone card
-const copy = ctx.utils.cloneCard(card);
-
-// Highlight text
-const highlighted = ctx.utils.highlightText('text', 'query');
+// Async host helpers (see the CardSpoke.utils block in www/src/storage.js
+// and the API_REFERENCE Utilities section for the full list).
+await ctx.utils.createCard({ title: 'Note', body: '...' });
+await ctx.utils.showToast('Done', 'success');
+const meta = await ctx.utils.getDatasetMeta();
 ```
 
 ## Permission System
@@ -336,6 +413,11 @@ manifest: {
 Users are prompted to approve permissions on first install.
 
 ## Complete Example
+
+Shown here in the **session-only** module form (real `setup`/`teardown`
+functions) for quick development. To ship it, move the `setup` body into a
+package `js` string and install it with `window.CardSpoke.Plugin.install(pkg)`
+so it persists across reloads.
 
 ```javascript
 window.CardSpoke.registerPlugin('note-counter', {
@@ -363,7 +445,7 @@ window.CardSpoke.registerPlugin('note-counter', {
     
     // Listen for data changes
     ctx.api.data.onUpdate(async (event) => {
-      if (event.type === 'create') {
+      if (event.type === 'card.create') {
         const newCount = count + 1;
         await ctx.api.storage.set('count', newCount);
         counter.textContent = `Total notes: ${newCount}`;
@@ -390,18 +472,30 @@ window.CardSpoke.registerPlugin('note-counter', {
 
 ## Plugin Lifecycle
 
-1. **Register**: Plugin definition registered with system
-2. **Enable**:
-   - Permissions checked
+1. **Install** (`Plugin.install(pkg)`): validate → register → persist the
+   package (source strings, not compiled functions) into `store.plugins` →
+   auto-enable SAFE/LOW-risk layers (HIGH-risk `app` plugins install
+   suspended). Reinstalling the same id updates it in place.
+2. **Register**: Plugin definition registered with the runtime (`register`
+   throws on a duplicate id).
+3. **Enable**:
+   - Permissions checked (consent dialog on first enable)
    - CSS applied
-   - `setup()` called
+   - `setup(ctx)` called (the compiled `js` body)
    - Resources tracked
-3. **Active**: Plugin responds to events, modifies UI
-4. **Disable**:
-   - `teardown()` called
+   - `enabled: true` persisted
+4. **Active**: Plugin responds to events, modifies UI.
+5. **Disable** ("suspend"):
+   - `teardown(ctx)` called
    - CSS removed
-   - Resources cleaned up
-   - Storage persists
+   - Tracked resources cleaned up
+   - `enabled: false` persisted (survives reload)
+6. **Unregister** (delete): disable + cleanup + **revoke granted
+   permissions** + remove the `store.plugins` entry.
+7. **Reload**: at boot, `Plugin.syncFromStore()` re-registers every stored
+   plugin from its persisted `js`/`teardownJs` strings and re-enables the
+   ones marked enabled. Idempotent; `?safemode` registers everything but
+   enables nothing.
 
 ## Resource Management
 
@@ -425,9 +519,12 @@ When a plugin is disabled, all resources are automatically cleaned up.
 
 ## See Also
 
+- [Plugin System Documentation](../PLUGIN_SYSTEM.md) - Complete plugin system guide including permissions
+- [API Reference](./API_REFERENCE.md) - Consolidated runtime contracts
+- [Plugin Invariants](../PLUGIN_INVARIANTS.md) - The stability contract
+- [`sample-plugins/`](../../sample-plugins/) - Nine working packages + `TEMPLATE.json`
 - [Middleware Pipeline](./MIDDLEWARE_PIPELINE.md) - Intercept operations
 - [Component Registry](./COMPONENT_REGISTRY.md) - UI components
-- [Plugin System Documentation](../PLUGIN_SYSTEM.md) - Complete plugin system guide including permissions
 
 ### Network API
 

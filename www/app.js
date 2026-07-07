@@ -1,6 +1,1727 @@
 // Version: 0.17.0
 (function() {
   "use strict";
+  const middlewares = [];
+  const middlewaresByOperation = /* @__PURE__ */ new Map();
+  class MiddlewareContextImpl {
+    constructor(operation, args) {
+      this.operation = operation;
+      this.args = args;
+      this.result = void 0;
+      this.error = void 0;
+      this._stopped = false;
+      this._prevented = false;
+    }
+    stopPropagation() {
+      this._stopped = true;
+    }
+    preventDefault() {
+      this._prevented = true;
+    }
+    get stopped() {
+      return this._stopped;
+    }
+    get prevented() {
+      return this._prevented;
+    }
+  }
+  const MiddlewareManager = {
+    /**
+     * Register a new middleware
+     * @param {Object} middleware - { name, priority, operations, handler }
+     */
+    register: function(middleware) {
+      if (!middleware.name || !middleware.handler) {
+        throw new Error("Middleware must have name and handler");
+      }
+      middleware.priority = middleware.priority || 0;
+      middleware.operations = middleware.operations || ["*"];
+      const existing = middlewares.findIndex((m) => m.name === middleware.name);
+      if (existing !== -1) {
+        middlewares[existing] = middleware;
+      } else {
+        middlewares.push(middleware);
+      }
+      middlewares.sort((a, b) => b.priority - a.priority);
+      middlewaresByOperation.clear();
+      const conflicts = middlewares.filter(function(m) {
+        if (m.name === middleware.name) return false;
+        if (m.priority !== middleware.priority) return false;
+        return m.operations.some(function(op) {
+          return op === "*" || middleware.operations.includes("*") || middleware.operations.includes(op);
+        });
+      });
+      if (conflicts.length > 0) {
+        console.warn('[Middleware] Conflict: "' + middleware.name + '" registered at priority ' + middleware.priority + " conflicts with: " + conflicts.map(function(m) {
+          return m.name;
+        }).join(", ") + ". Consider using different priority levels to ensure deterministic execution order.");
+      }
+      console.log("[Middleware] Registered:", middleware.name, "priority:", middleware.priority);
+    },
+    /**
+     * Unregister a middleware by name
+     */
+    unregister: function(name) {
+      const index = middlewares.findIndex((m) => m.name === name);
+      if (index !== -1) {
+        middlewares.splice(index, 1);
+        middlewaresByOperation.clear();
+        console.log("[Middleware] Unregistered:", name);
+      }
+    },
+    /**
+     * Get middlewares for a specific operation
+     */
+    _getMiddlewaresForOperation: function(operation) {
+      if (middlewaresByOperation.has(operation)) {
+        return middlewaresByOperation.get(operation);
+      }
+      const matching = middlewares.filter(
+        (m) => m.operations.includes("*") || m.operations.includes(operation)
+      );
+      middlewaresByOperation.set(operation, matching);
+      return matching;
+    },
+    /**
+     * Run middleware pipeline for an operation
+     * @param {string} operation - Operation name (e.g., 'card.save', 'card.delete')
+     * @param {Array} args - Arguments for the operation
+     * @returns {Promise<any>} Result of the operation
+     */
+    run: async function(operation, args) {
+      const ctx = new MiddlewareContextImpl(operation, args);
+      const matching = this._getMiddlewaresForOperation(operation);
+      if (matching.length === 0) {
+        return { context: ctx, prevented: false };
+      }
+      let index = 0;
+      const next = async () => {
+        if (ctx.stopped || index >= matching.length) {
+          return;
+        }
+        const middleware = matching[index++];
+        try {
+          await middleware.handler(ctx, next);
+        } catch (err) {
+          ctx.error = err;
+          console.error("[Middleware] Error in", middleware.name, ":", err);
+          throw err;
+        }
+      };
+      try {
+        await next();
+      } catch (err) {
+        console.error("[Middleware] Pipeline error for", operation, ":", err);
+      }
+      return { context: ctx, prevented: ctx.prevented };
+    },
+    /**
+     * List all registered middlewares
+     */
+    list: function() {
+      return middlewares.map((m) => ({
+        name: m.name,
+        priority: m.priority,
+        operations: m.operations
+      }));
+    },
+    /**
+     * Clear all middlewares
+     */
+    clear: function() {
+      middlewares.length = 0;
+      middlewaresByOperation.clear();
+    }
+  };
+  console.log("[Middleware] Pipeline system initialized");
+  const components = /* @__PURE__ */ new Map();
+  const componentPriorities = /* @__PURE__ */ new Map();
+  const ComponentRegistry = {
+    /**
+     * Register a component
+     * @param {string} name - Component name (e.g., 'Card', 'Sidebar', 'SearchBar')
+     * @param {Object} component - { render, priority? }
+     * @param {number} priority - Priority (higher wins, default 0)
+     */
+    register: function(name, component, priority) {
+      if (!name || !component) {
+        throw new Error("Component name and definition are required");
+      }
+      priority = priority !== void 0 ? priority : component.priority || 0;
+      const existing = components.get(name);
+      if (existing && componentPriorities.get(name) > priority) {
+        console.warn("[ComponentRegistry] Component", name, "not overridden (lower priority)");
+        return;
+      }
+      if (existing && componentPriorities.get(name) === priority) {
+        console.warn('[ComponentRegistry] Conflict: Component "' + name + '" is already registered at priority ' + priority + ". The previous registration will be overridden. Consider using different priority levels to avoid ambiguous overrides.");
+      }
+      components.set(name, component);
+      componentPriorities.set(name, priority);
+      console.log("[ComponentRegistry] Registered:", name, "priority:", priority);
+    },
+    /**
+     * Unregister a component
+     */
+    unregister: function(name) {
+      if (components.has(name)) {
+        components.delete(name);
+        componentPriorities.delete(name);
+        console.log("[ComponentRegistry] Unregistered:", name);
+      }
+    },
+    /**
+     * Get a component by name
+     */
+    get: function(name) {
+      return components.get(name);
+    },
+    /**
+     * Resolve a component (same as get, but for API compatibility)
+     */
+    resolve: function(name) {
+      return this.get(name);
+    },
+    /**
+     * Check if a component is registered
+     */
+    has: function(name) {
+      return components.has(name);
+    },
+    /**
+     * List all registered components
+     */
+    list: function() {
+      const result = [];
+      components.forEach((component, name) => {
+        result.push({
+          name,
+          priority: componentPriorities.get(name)
+        });
+      });
+      return result;
+    },
+    /**
+     * Clear all components
+     */
+    clear: function() {
+      components.clear();
+      componentPriorities.clear();
+    }
+  };
+  console.log("[ComponentRegistry] System initialized");
+  var VALID_LAYERS = ["theme", "feature", "app"];
+  var VALID_PERMISSIONS = ["ui-override", "storage", "network", "filesystem", "core-override", "data-modify"];
+  var MAX_CSS_LENGTH = 1e5;
+  var MAX_JS_LENGTH = 5e5;
+  var DANGEROUS_CSS_PATTERNS = [
+    { pattern: /@import/gi, name: "@import (external resource loading)" },
+    { pattern: /javascript:/gi, name: "javascript: protocol" },
+    { pattern: /behavior:/gi, name: "behavior: (IE behavior)" },
+    { pattern: /-moz-binding/gi, name: "-moz-binding (Mozilla binding)" },
+    { pattern: /expression\s*\(/gi, name: "expression() (IE expressions)" }
+  ];
+  var DANGEROUS_JS_PATTERNS = [
+    { pattern: /\beval\s*\(/g, name: "eval()" },
+    { pattern: /\bnew\s+Function\s*\(\s*(?!['"]ctx['"])/g, name: "new Function()" }
+  ];
+  var PluginValidator = {
+    /**
+     * Validate a complete plugin package
+     * @param {Object} plugin - Plugin object to validate
+     * @returns {Object} { valid: boolean, errors: string[], warnings: string[], sanitized: Object }
+     */
+    validate: function(plugin) {
+      var errors = [];
+      var warnings = [];
+      if (!plugin) {
+        return { valid: false, errors: ["Plugin object is required"], warnings: [], sanitized: null };
+      }
+      if (!plugin.id || typeof plugin.id !== "string") {
+        errors.push("Plugin must have a string id");
+      } else if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(plugin.id)) {
+        warnings.push("Plugin id should use lowercase letters, numbers, and hyphens only");
+      }
+      var manifestResult = this.validateManifest(plugin.manifest);
+      errors = errors.concat(manifestResult.errors);
+      warnings = warnings.concat(manifestResult.warnings);
+      if (plugin.css) {
+        var cssResult = this.validateCSS(plugin.css);
+        errors = errors.concat(cssResult.errors);
+        warnings = warnings.concat(cssResult.warnings);
+        if (cssResult.sanitized !== plugin.css) {
+          plugin.css = cssResult.sanitized;
+        }
+      }
+      if (plugin.js) {
+        var jsResult = this.validateJS(plugin.js);
+        errors = errors.concat(jsResult.errors);
+        warnings = warnings.concat(jsResult.warnings);
+      }
+      return {
+        valid: errors.length === 0,
+        errors,
+        warnings,
+        sanitized: errors.length === 0 ? plugin : null
+      };
+    },
+    /**
+     * Validate plugin manifest structure
+     * @param {Object} manifest - Plugin manifest
+     * @returns {Object} { errors: string[], warnings: string[] }
+     */
+    validateManifest: function(manifest) {
+      var errors = [];
+      var warnings = [];
+      if (!manifest || typeof manifest !== "object") {
+        errors.push("Plugin manifest is required and must be an object");
+        return { errors, warnings };
+      }
+      if (!manifest.name || typeof manifest.name !== "string") {
+        errors.push("manifest.name is required and must be a string");
+      } else if (manifest.name.length > 100) {
+        errors.push("manifest.name must be 100 characters or less");
+      }
+      if (!manifest.version || typeof manifest.version !== "string") {
+        errors.push("manifest.version is required and must be a string");
+      } else if (!/^\d+\.\d+\.\d+/.test(manifest.version)) {
+        warnings.push("manifest.version should follow semver format (e.g., 1.0.0)");
+      }
+      if (!manifest.layer || typeof manifest.layer !== "string") {
+        errors.push("manifest.layer is required and must be a string");
+      } else if (VALID_LAYERS.indexOf(manifest.layer) === -1) {
+        errors.push("manifest.layer must be one of: " + VALID_LAYERS.join(", "));
+      }
+      if (manifest.author && typeof manifest.author !== "string") {
+        warnings.push("manifest.author should be a string");
+      } else if (manifest.author && manifest.author.length > 200) {
+        warnings.push("manifest.author should be 200 characters or less");
+      }
+      if (manifest.description && typeof manifest.description !== "string") {
+        warnings.push("manifest.description should be a string");
+      } else if (manifest.description && manifest.description.length > 500) {
+        warnings.push("manifest.description should be 500 characters or less");
+      }
+      if (manifest.permissions) {
+        if (!Array.isArray(manifest.permissions)) {
+          errors.push("manifest.permissions must be an array");
+        } else {
+          manifest.permissions.forEach(function(perm) {
+            if (VALID_PERMISSIONS.indexOf(perm) === -1) {
+              warnings.push("Unknown permission: " + perm);
+            }
+          });
+        }
+      }
+      return { errors, warnings };
+    },
+    /**
+     * Validate and sanitize CSS content
+     * @param {string} css - CSS string to validate
+     * @returns {Object} { errors: string[], warnings: string[], sanitized: string }
+     */
+    validateCSS: function(css) {
+      var errors = [];
+      var warnings = [];
+      var sanitized = css;
+      if (typeof css !== "string") {
+        return { errors: ["CSS must be a string"], warnings: [], sanitized: "" };
+      }
+      if (css.length > MAX_CSS_LENGTH) {
+        errors.push("CSS exceeds maximum size of " + MAX_CSS_LENGTH + " characters");
+        return { errors, warnings, sanitized: css };
+      }
+      DANGEROUS_CSS_PATTERNS.forEach(function(entry) {
+        if (entry.pattern.test(sanitized)) {
+          warnings.push("Removed dangerous CSS pattern: " + entry.name);
+          sanitized = sanitized.replace(entry.pattern, "/* removed */");
+        }
+        entry.pattern.lastIndex = 0;
+      });
+      return { errors, warnings, sanitized };
+    },
+    /**
+     * Validate JS content for dangerous patterns
+     * @param {string} js - JS string to validate
+     * @returns {Object} { errors: string[], warnings: string[] }
+     */
+    validateJS: function(js) {
+      var errors = [];
+      var warnings = [];
+      if (typeof js !== "string") {
+        return { errors: ["JS must be a string"], warnings: [] };
+      }
+      if (js.length > MAX_JS_LENGTH) {
+        errors.push("JS exceeds maximum size of " + MAX_JS_LENGTH + " characters");
+        return { errors, warnings };
+      }
+      DANGEROUS_JS_PATTERNS.forEach(function(entry) {
+        if (entry.pattern.test(js)) {
+          errors.push("Plugin contains " + entry.name + " - not allowed");
+        }
+        entry.pattern.lastIndex = 0;
+      });
+      return { errors, warnings };
+    }
+  };
+  console.log("[PluginValidator] Validation system initialized");
+  const STORAGE_KEY = "cardspoke_plugin_permissions";
+  const grantedPermissions = /* @__PURE__ */ new Map();
+  function loadPermissions() {
+    try {
+      if (typeof localStorage === "undefined") return;
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        Object.keys(parsed).forEach((pluginId) => {
+          grantedPermissions.set(pluginId, new Set(parsed[pluginId]));
+        });
+      }
+    } catch (err) {
+      console.error("[Permissions] Failed to load saved permissions:", err);
+    }
+  }
+  function savePermissions() {
+    try {
+      if (typeof localStorage === "undefined") return;
+      const data = {};
+      grantedPermissions.forEach((perms, pluginId) => {
+        data[pluginId] = Array.from(perms);
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (err) {
+      console.error("[Permissions] Failed to save permissions:", err);
+    }
+  }
+  const PERMISSION_DESCRIPTIONS = {
+    "ui-override": "Modify the user interface and inject custom elements",
+    "storage": "Access and modify local storage",
+    "network": "Make network requests to external services",
+    "filesystem": "Access the file system (mobile platforms)",
+    "core-override": "Override core application functions (high risk)",
+    "data-modify": "Create, update, and delete cards"
+  };
+  const PermissionsManager = {
+    /**
+     * Check if a plugin has a specific permission
+     */
+    hasPermission: function(pluginId, permission) {
+      const perms = grantedPermissions.get(pluginId);
+      return perms && perms.has(permission);
+    },
+    /**
+     * Check if a plugin has all required permissions
+     */
+    hasAllPermissions: function(pluginId, permissions) {
+      if (!permissions || permissions.length === 0) {
+        return true;
+      }
+      const perms = grantedPermissions.get(pluginId);
+      if (!perms) {
+        return false;
+      }
+      return permissions.every((p) => perms.has(p));
+    },
+    /**
+     * Grant permissions to a plugin
+     */
+    grantPermissions: function(pluginId, permissions) {
+      if (!permissions || permissions.length === 0) {
+        return;
+      }
+      let perms = grantedPermissions.get(pluginId);
+      if (!perms) {
+        perms = /* @__PURE__ */ new Set();
+        grantedPermissions.set(pluginId, perms);
+      }
+      permissions.forEach((p) => perms.add(p));
+      savePermissions();
+      console.log("[Permissions] Granted to", pluginId, ":", permissions);
+    },
+    /**
+     * Revoke permissions from a plugin
+     */
+    revokePermissions: function(pluginId, permissions) {
+      const perms = grantedPermissions.get(pluginId);
+      if (!perms) {
+        return;
+      }
+      if (!permissions) {
+        grantedPermissions.delete(pluginId);
+      } else {
+        permissions.forEach((p) => perms.delete(p));
+        if (perms.size === 0) {
+          grantedPermissions.delete(pluginId);
+        }
+      }
+      savePermissions();
+      console.log("[Permissions] Revoked from", pluginId, ":", permissions || "all");
+    },
+    /**
+     * Get all permissions for a plugin
+     */
+    getPermissions: function(pluginId) {
+      const perms = grantedPermissions.get(pluginId);
+      return perms ? Array.from(perms) : [];
+    },
+    /**
+     * Request permissions with user consent
+     */
+    requestPermissions: async function(pluginId, pluginName, permissions) {
+      if (!permissions || permissions.length === 0) {
+        return true;
+      }
+      if (this.hasAllPermissions(pluginId, permissions)) {
+        return true;
+      }
+      const granted = await this._showConsentDialog(pluginId, pluginName, permissions);
+      if (granted) {
+        this.grantPermissions(pluginId, permissions);
+      }
+      return granted;
+    },
+    /**
+     * Show permission consent dialog
+     */
+    _showConsentDialog: async function(pluginId, pluginName, permissions) {
+      return new Promise((resolve) => {
+        const modal = document.createElement("div");
+        modal.className = "modal permission-modal";
+        modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;";
+        const content = document.createElement("div");
+        content.style.cssText = "background:var(--bg-primary,#fff);padding:2rem;border-radius:8px;max-width:500px;box-shadow:0 4px 20px rgba(0,0,0,0.2);";
+        const title = document.createElement("h2");
+        title.textContent = "Permission Request";
+        title.style.cssText = "margin:0 0 1rem;font-size:1.5rem;color:var(--text-primary,#000);";
+        const desc = document.createElement("p");
+        desc.textContent = '"' + pluginName + '" requests the following permissions:';
+        desc.style.cssText = "margin:0 0 1rem;color:var(--text-secondary,#666);";
+        const list = document.createElement("ul");
+        list.style.cssText = "margin:0 0 1.5rem;padding-left:1.5rem;";
+        permissions.forEach((perm) => {
+          const item = document.createElement("li");
+          item.style.cssText = "margin:0.5rem 0;color:var(--text-primary,#000);";
+          const permName = document.createElement("strong");
+          permName.textContent = perm;
+          const permDesc = document.createTextNode(": " + (PERMISSION_DESCRIPTIONS[perm] || "Unknown permission"));
+          item.appendChild(permName);
+          item.appendChild(permDesc);
+          list.appendChild(item);
+        });
+        const buttons = document.createElement("div");
+        buttons.style.cssText = "display:flex;gap:1rem;justify-content:flex-end;";
+        const denyBtn = document.createElement("button");
+        denyBtn.textContent = "Deny";
+        denyBtn.className = "btn btn-secondary";
+        denyBtn.style.cssText = "padding:0.5rem 1.5rem;border:1px solid #ccc;background:#fff;border-radius:4px;cursor:pointer;";
+        denyBtn.onclick = function() {
+          document.body.removeChild(modal);
+          resolve(false);
+        };
+        const allowBtn = document.createElement("button");
+        allowBtn.textContent = "Allow";
+        allowBtn.className = "btn btn-primary";
+        allowBtn.style.cssText = "padding:0.5rem 1.5rem;border:none;background:var(--accent,#007bff);color:#fff;border-radius:4px;cursor:pointer;";
+        allowBtn.onclick = function() {
+          document.body.removeChild(modal);
+          resolve(true);
+        };
+        buttons.appendChild(denyBtn);
+        buttons.appendChild(allowBtn);
+        content.appendChild(title);
+        content.appendChild(desc);
+        content.appendChild(list);
+        content.appendChild(buttons);
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+      });
+    },
+    /**
+     * Get permission description
+     */
+    getPermissionDescription: function(permission) {
+      return PERMISSION_DESCRIPTIONS[permission] || "Unknown permission";
+    },
+    /**
+     * List all available permissions
+     */
+    listAvailablePermissions: function() {
+      return Object.keys(PERMISSION_DESCRIPTIONS).map((perm) => ({
+        name: perm,
+        description: PERMISSION_DESCRIPTIONS[perm]
+      }));
+    },
+    /**
+     * Clear all permissions (for testing)
+     */
+    clearAll: function() {
+      grantedPermissions.clear();
+      savePermissions();
+    }
+  };
+  loadPermissions();
+  console.log("[Permissions] System initialized");
+  function showPermissionDialog(pluginId, permissions) {
+    const pluginName = pluginId;
+    return PermissionsManager.requestPermissions(pluginId, pluginName, permissions);
+  }
+  const drivers = /* @__PURE__ */ new Map();
+  let activeDriver = null;
+  const StorageDriverRegistry = {
+    /**
+     * Register a storage driver
+     * @param {string} name - Driver name (e.g., 'indexeddb', 'cloud', 'git')
+     * @param {Object} driver - Driver instance implementing StorageDriver interface
+     */
+    register: function(name, driver) {
+      if (!name || !driver) {
+        throw new Error("Driver name and instance are required");
+      }
+      const required = ["init", "get", "set", "remove", "list", "getSize", "getKind"];
+      for (const method of required) {
+        if (typeof driver[method] !== "function") {
+          throw new Error("Driver missing required method: " + method);
+        }
+      }
+      drivers.set(name, driver);
+      console.log("[StorageDriverRegistry] Registered:", name);
+    },
+    /**
+     * Unregister a storage driver
+     */
+    unregister: function(name) {
+      if (drivers.has(name)) {
+        if (activeDriver && activeDriver.getKind() === name) {
+          console.warn("[StorageDriverRegistry] Cannot unregister active driver:", name);
+          return false;
+        }
+        drivers.delete(name);
+        console.log("[StorageDriverRegistry] Unregistered:", name);
+        return true;
+      }
+      return false;
+    },
+    /**
+     * Get a driver by name
+     */
+    get: function(name) {
+      return drivers.get(name);
+    },
+    /**
+     * Set the active storage driver
+     */
+    setActive: async function(name) {
+      const driver = drivers.get(name);
+      if (!driver) {
+        throw new Error("Storage driver not found: " + name);
+      }
+      if (!driver._initialized) {
+        await driver.init();
+        driver._initialized = true;
+      }
+      activeDriver = driver;
+      console.log("[StorageDriverRegistry] Active driver set to:", name);
+    },
+    /**
+     * Get the active storage driver
+     */
+    getActive: function() {
+      return activeDriver;
+    },
+    /**
+     * List all registered drivers
+     */
+    list: function() {
+      const result = [];
+      drivers.forEach((driver, name) => {
+        result.push({
+          name,
+          kind: driver.getKind(),
+          active: activeDriver === driver
+        });
+      });
+      return result;
+    },
+    /**
+     * Clear all drivers (except active)
+     */
+    clear: function() {
+      const activeKind = activeDriver ? activeDriver.getKind() : null;
+      drivers.forEach((driver, name) => {
+        if (activeKind !== name) {
+          drivers.delete(name);
+        }
+      });
+    }
+  };
+  console.log("[StorageDriverRegistry] System initialized");
+  const plugins = /* @__PURE__ */ new Map();
+  const pluginResources = /* @__PURE__ */ new Map();
+  const dataUpdateListeners = /* @__PURE__ */ new Map();
+  const globalEventBus = /* @__PURE__ */ new Map();
+  const InternalAPI = {
+    data: {},
+    ui: {},
+    utils: {}
+  };
+  function captureInternalReferences() {
+    if (!InternalAPI.data.createCard && window.createCard) InternalAPI.data.createCard = window.createCard;
+    if (!InternalAPI.data.updateCard && window.updateCard) InternalAPI.data.updateCard = window.updateCard;
+    if (!InternalAPI.data.deleteCard && window.deleteCard) InternalAPI.data.deleteCard = window.deleteCard;
+    if (!InternalAPI.utils.cloneCard && window.cloneCard) InternalAPI.utils.cloneCard = window.cloneCard;
+    if (!InternalAPI.data.getTags && window.getTags) InternalAPI.data.getTags = window.getTags;
+    if (!InternalAPI.data.addTag && window.addTag) InternalAPI.data.addTag = window.addTag;
+    if (!InternalAPI.data.removeTag && window.removeTag) InternalAPI.data.removeTag = window.removeTag;
+    if (!InternalAPI.data.setTags && window.setTags) InternalAPI.data.setTags = window.setTags;
+    if (!InternalAPI.data.getAllTags && window.getAllTags) InternalAPI.data.getAllTags = window.getAllTags;
+    if (!InternalAPI.ui.showToast && window.showToast) InternalAPI.ui.showToast = window.showToast;
+  }
+  function hasPermission(pluginId, permission) {
+    if (PermissionsManager) {
+      return PermissionsManager.hasPermission(pluginId, permission);
+    }
+    return true;
+  }
+  function createUIApi(pluginId) {
+    const resources = pluginResources.get(pluginId) || /* @__PURE__ */ new Set();
+    return {
+      inject: function(selector, element, position) {
+        if (!hasPermission(pluginId, "ui-override")) {
+          throw new Error("Plugin does not have ui-override permission");
+        }
+        position = position || "append";
+        const target = document.querySelector(selector);
+        if (!target) {
+          console.warn("[Plugin:" + pluginId + "] Selector not found:", selector);
+          return () => {
+          };
+        }
+        switch (position) {
+          case "before":
+            if (!target.parentNode) {
+              console.warn("[Plugin:" + pluginId + '] Target has no parent node for "before" injection');
+              return () => {
+              };
+            }
+            target.parentNode.insertBefore(element, target);
+            break;
+          case "after":
+            if (!target.parentNode) {
+              console.warn("[Plugin:" + pluginId + '] Target has no parent node for "after" injection');
+              return () => {
+              };
+            }
+            target.parentNode.insertBefore(element, target.nextSibling);
+            break;
+          case "prepend":
+            target.insertBefore(element, target.firstChild);
+            break;
+          case "append":
+          default:
+            target.appendChild(element);
+            break;
+        }
+        const resource = { type: "dom", element };
+        resources.add(resource);
+        return function() {
+          if (element.parentNode) {
+            element.parentNode.removeChild(element);
+          }
+          resources.delete(resource);
+        };
+      },
+      replace: function(selector, element) {
+        if (!hasPermission(pluginId, "ui-override")) {
+          throw new Error("Plugin does not have ui-override permission");
+        }
+        const target = document.querySelector(selector);
+        if (!target) {
+          console.warn("[Plugin:" + pluginId + "] Selector not found:", selector);
+          return () => {
+          };
+        }
+        const original = target;
+        if (!target.parentNode) {
+          console.warn("[Plugin:" + pluginId + "] Target has no parent node for replace");
+          return () => {
+          };
+        }
+        target.parentNode.replaceChild(element, target);
+        const resource = { type: "dom", element, original };
+        resources.add(resource);
+        return function() {
+          if (element.parentNode) {
+            element.parentNode.replaceChild(original, element);
+          }
+          resources.delete(resource);
+        };
+      },
+      registerComponent: function(name, component) {
+        if (!hasPermission(pluginId, "ui-override")) {
+          throw new Error("Plugin does not have ui-override permission");
+        }
+        if (ComponentRegistry) {
+          ComponentRegistry.register(name, component, component.priority || 0);
+          const resource = { type: "component", name };
+          resources.add(resource);
+        }
+      },
+      unregisterComponent: function(name) {
+        if (ComponentRegistry) {
+          ComponentRegistry.unregister(name);
+        }
+      },
+      showToast: function(message, type, duration) {
+        var fn = InternalAPI.ui.showToast || window.showToast;
+        if (fn) {
+          fn(message, type || "info", duration);
+        }
+      }
+    };
+  }
+  function createDataApi(pluginId) {
+    const resources = pluginResources.get(pluginId) || /* @__PURE__ */ new Set();
+    return {
+      onUpdate: function(callback) {
+        const listeners = dataUpdateListeners.get(pluginId) || [];
+        listeners.push(callback);
+        dataUpdateListeners.set(pluginId, listeners);
+        const resource = { type: "listener", callback };
+        resources.add(resource);
+        return function() {
+          const idx = listeners.indexOf(callback);
+          if (idx !== -1) {
+            listeners.splice(idx, 1);
+          }
+          resources.delete(resource);
+        };
+      },
+      getCard: function(id) {
+        if (window.store && window.store.cards && window.store.cards[id]) {
+          var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
+          if (cloneFn) return cloneFn(window.store.cards[id]);
+          if (typeof structuredClone === "function") return structuredClone(window.store.cards[id]);
+          return JSON.parse(JSON.stringify(window.store.cards[id]));
+        }
+        return void 0;
+      },
+      listCards: function() {
+        if (window.store && window.store.cards) {
+          var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
+          return Object.values(window.store.cards).map(function(card) {
+            if (cloneFn) return cloneFn(card);
+            if (typeof structuredClone === "function") return structuredClone(card);
+            return JSON.parse(JSON.stringify(card));
+          });
+        }
+        return [];
+      },
+      createCard: function(data) {
+        if (!hasPermission(pluginId, "data-modify")) {
+          throw new Error("Plugin does not have data-modify permission");
+        }
+        var fn = InternalAPI.data.createCard || window.createCard;
+        if (fn) {
+          var hasTags = Array.isArray(data.tags) && data.tags.length > 0;
+          var newId = fn(data.title || "", data.body || "", data.parentId || null, false, hasTags);
+          if (hasTags && newId) {
+            var setTagsFn = InternalAPI.data.setTags || window.setTags;
+            if (setTagsFn) {
+              setTagsFn(newId, data.tags);
+            }
+            var createdCard = window.store && window.store.cards ? window.store.cards[newId] : void 0;
+            if (window.CardSpoke && window.CardSpoke.Middleware) {
+              window.CardSpoke.Middleware.run("card.create", [newId, createdCard]).catch(function(err) {
+                console.error("[Middleware] card.create error:", err);
+              });
+            }
+            PluginManager.notifyDataUpdate({ type: "card.create", cardId: newId, card: createdCard });
+          }
+          return newId;
+        }
+        throw new Error("createCard not available");
+      },
+      updateCard: function(id, updates) {
+        if (!hasPermission(pluginId, "data-modify")) {
+          throw new Error("Plugin does not have data-modify permission");
+        }
+        var fn = InternalAPI.data.updateCard || window.updateCard;
+        if (fn) {
+          fn(id, updates, false, false);
+          return this.getCard(id);
+        }
+        throw new Error("updateCard not available");
+      },
+      deleteCard: function(id) {
+        if (!hasPermission(pluginId, "data-modify")) {
+          throw new Error("Plugin does not have data-modify permission");
+        }
+        var fn = InternalAPI.data.deleteCard || window.deleteCard;
+        if (fn) {
+          fn(id);
+          return true;
+        }
+        return false;
+      },
+      getTags: function(cardId) {
+        var fn = InternalAPI.data.getTags || window.getTags;
+        if (fn) {
+          return fn(cardId);
+        }
+        return [];
+      },
+      addTag: function(cardId, tag) {
+        if (!hasPermission(pluginId, "data-modify")) {
+          throw new Error("Plugin does not have data-modify permission");
+        }
+        var fn = InternalAPI.data.addTag || window.addTag;
+        if (fn) {
+          return fn(cardId, tag);
+        }
+        return false;
+      },
+      removeTag: function(cardId, tag) {
+        if (!hasPermission(pluginId, "data-modify")) {
+          throw new Error("Plugin does not have data-modify permission");
+        }
+        var fn = InternalAPI.data.removeTag || window.removeTag;
+        if (fn) {
+          return fn(cardId, tag);
+        }
+        return false;
+      },
+      setTags: function(cardId, tags) {
+        if (!hasPermission(pluginId, "data-modify")) {
+          throw new Error("Plugin does not have data-modify permission");
+        }
+        var fn = InternalAPI.data.setTags || window.setTags;
+        if (fn) {
+          return fn(cardId, tags);
+        }
+        return false;
+      },
+      getAllTags: function() {
+        var fn = InternalAPI.data.getAllTags || window.getAllTags;
+        if (fn) {
+          return fn();
+        }
+        return [];
+      }
+    };
+  }
+  function createStorageApi(pluginId) {
+    const namespace = "plugin_" + pluginId + "_";
+    return {
+      getNamespace: function() {
+        return namespace;
+      },
+      get: async function(key) {
+        if (!hasPermission(pluginId, "storage")) {
+          throw new Error("Plugin does not have storage permission");
+        }
+        const fullKey = namespace + key;
+        if (window.storageDriver && window.storageDriver.get) {
+          return await window.storageDriver.get(fullKey);
+        }
+        const raw = localStorage.getItem(fullKey);
+        if (raw === null) return null;
+        try {
+          return JSON.parse(raw);
+        } catch (e) {
+          return raw;
+        }
+      },
+      set: async function(key, value) {
+        if (!hasPermission(pluginId, "storage")) {
+          throw new Error("Plugin does not have storage permission");
+        }
+        const fullKey = namespace + key;
+        if (window.storageDriver && window.storageDriver.set) {
+          return await window.storageDriver.set(fullKey, value);
+        }
+        localStorage.setItem(fullKey, JSON.stringify(value));
+      },
+      remove: async function(key) {
+        if (!hasPermission(pluginId, "storage")) {
+          throw new Error("Plugin does not have storage permission");
+        }
+        const fullKey = namespace + key;
+        if (window.storageDriver && window.storageDriver.remove) {
+          return await window.storageDriver.remove(fullKey);
+        }
+        localStorage.removeItem(fullKey);
+      },
+      list: async function(prefix) {
+        if (!hasPermission(pluginId, "storage")) {
+          throw new Error("Plugin does not have storage permission");
+        }
+        const fullPrefix = namespace + (prefix || "");
+        if (window.storageDriver && window.storageDriver.list) {
+          return await window.storageDriver.list(fullPrefix);
+        }
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith(fullPrefix)) {
+            keys.push(key.substring(namespace.length));
+          }
+        }
+        return keys;
+      }
+    };
+  }
+  function createEventApi(pluginId) {
+    const resources = pluginResources.get(pluginId) || /* @__PURE__ */ new Set();
+    return {
+      on: function(event, callback) {
+        if (!globalEventBus.has(event)) {
+          globalEventBus.set(event, []);
+        }
+        const handlers = globalEventBus.get(event);
+        handlers.push({ pluginId, callback });
+        const resource = { type: "event", event, callback };
+        resources.add(resource);
+        return function() {
+          const list = globalEventBus.get(event);
+          if (list) {
+            const idx = list.findIndex(function(h2) {
+              return h2.callback === callback && h2.pluginId === pluginId;
+            });
+            if (idx !== -1) {
+              list.splice(idx, 1);
+            }
+          }
+          resources.delete(resource);
+        };
+      },
+      emit: function(event) {
+        const handlers = globalEventBus.get(event);
+        if (handlers) {
+          const args = Array.prototype.slice.call(arguments, 1);
+          handlers.slice().forEach(function(entry) {
+            try {
+              entry.callback.apply(null, args);
+            } catch (err) {
+              console.error("[EventBus] Handler error in plugin " + entry.pluginId + ":", err);
+            }
+          });
+        }
+      },
+      once: function(event, callback) {
+        const self = this;
+        const wrapper = function() {
+          self.off(event, wrapper);
+          callback.apply(null, arguments);
+        };
+        return this.on(event, wrapper);
+      },
+      off: function(event, callback) {
+        const list = globalEventBus.get(event);
+        if (list) {
+          const idx = list.findIndex(function(h2) {
+            return h2.callback === callback && h2.pluginId === pluginId;
+          });
+          if (idx !== -1) {
+            list.splice(idx, 1);
+          }
+        }
+      }
+    };
+  }
+  function createMiddlewareApi(pluginId) {
+    const resources = pluginResources.get(pluginId) || /* @__PURE__ */ new Set();
+    return {
+      /**
+       * Register a middleware interceptor for core operations
+       * ('card.create', 'card.update', 'card.delete', 'card.save',
+       * 'card.render', or '*'). The name is namespaced per plugin, and the
+       * registration is tracked so it is automatically removed when the
+       * plugin is disabled or unregistered.
+       *
+       * @param {Object} middleware - { name, priority?, operations?, handler }
+       * @returns {Function} Unregister function
+       */
+      register: function(middleware) {
+        if (!middleware || !middleware.name || typeof middleware.handler !== "function") {
+          throw new Error("Middleware must have a name and a handler function");
+        }
+        if (!MiddlewareManager) {
+          throw new Error("Middleware pipeline not available");
+        }
+        const namespacedName = pluginId + ":" + middleware.name;
+        MiddlewareManager.register({
+          name: namespacedName,
+          priority: middleware.priority || 0,
+          operations: middleware.operations || ["*"],
+          handler: middleware.handler
+        });
+        const resource = { type: "middleware", name: namespacedName };
+        resources.add(resource);
+        return function() {
+          MiddlewareManager.unregister(namespacedName);
+          resources.delete(resource);
+        };
+      },
+      unregister: function(name) {
+        if (MiddlewareManager) {
+          MiddlewareManager.unregister(pluginId + ":" + name);
+        }
+      }
+    };
+  }
+  function createNetworkApi(pluginId) {
+    return {
+      fetch: async function(url, options) {
+        if (!hasPermission(pluginId, "network")) {
+          throw new Error("Plugin does not have network permission");
+        }
+        return window.fetch(url, options);
+      },
+      xhr: function() {
+        if (!hasPermission(pluginId, "network")) {
+          throw new Error("Plugin does not have network permission");
+        }
+        return new XMLHttpRequest();
+      }
+    };
+  }
+  function createFilesystemApi(pluginId) {
+    return {
+      readFile: async function(path, options) {
+        if (!hasPermission(pluginId, "filesystem")) {
+          throw new Error("Plugin does not have filesystem permission");
+        }
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+          return window.Capacitor.Plugins.Filesystem.readFile(Object.assign({}, options, { path }));
+        }
+        throw new Error("Filesystem not available on this platform");
+      },
+      writeFile: async function(path, data, options) {
+        if (!hasPermission(pluginId, "filesystem")) {
+          throw new Error("Plugin does not have filesystem permission");
+        }
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+          return window.Capacitor.Plugins.Filesystem.writeFile(Object.assign({}, options, { path, data }));
+        }
+        throw new Error("Filesystem not available on this platform");
+      }
+    };
+  }
+  function createLogger(pluginId) {
+    const prefix = "[Plugin:" + pluginId + "]";
+    return {
+      log: function() {
+        console.log.apply(console, [prefix].concat(Array.from(arguments)));
+      },
+      info: function() {
+        console.info.apply(console, [prefix].concat(Array.from(arguments)));
+      },
+      warn: function() {
+        console.warn.apply(console, [prefix].concat(Array.from(arguments)));
+      },
+      error: function() {
+        console.error.apply(console, [prefix].concat(Array.from(arguments)));
+      }
+    };
+  }
+  function createPluginContext(pluginId) {
+    return {
+      modId: pluginId,
+      appVersion: window.APP_VERSION || "0.17.0",
+      schemaVersion: window.SCHEMA_VERSION || 4,
+      api: {
+        ui: createUIApi(pluginId),
+        data: createDataApi(pluginId),
+        storage: createStorageApi(pluginId),
+        events: createEventApi(pluginId),
+        middleware: createMiddlewareApi(pluginId),
+        network: createNetworkApi(pluginId),
+        filesystem: createFilesystemApi(pluginId)
+      },
+      utils: window.CardSpoke && window.CardSpoke.utils ? window.CardSpoke.utils : {},
+      logger: createLogger(pluginId)
+    };
+  }
+  function _createSandboxedFunction(code) {
+    const compiled = new Function("ctx", '"use strict";\n' + code);
+    const wrapper = function(ctx) {
+      return compiled(ctx);
+    };
+    wrapper.__cardspokeCompiled = true;
+    return wrapper;
+  }
+  function _functionToCtxCode(fn) {
+    if (typeof fn !== "function") return null;
+    if (fn.__cardspokeCompiled) return null;
+    return "return (" + fn.toString() + ")(ctx);";
+  }
+  function _createSerializableDefinition(definition) {
+    if (!definition) return null;
+    return {
+      manifest: definition.manifest,
+      css: definition.css,
+      js: typeof definition.js === "string" && definition.js || _functionToCtxCode(definition.setup),
+      teardownJs: typeof definition.teardownJs === "string" && definition.teardownJs || _functionToCtxCode(definition.teardown)
+    };
+  }
+  const PluginManager = {
+    register: function(id, definition) {
+      if (!id || !definition) {
+        throw new Error("Plugin ID and definition are required");
+      }
+      if (!definition.manifest) {
+        throw new Error("Plugin manifest is required");
+      }
+      if (plugins.has(id)) {
+        throw new Error(
+          'Plugin "' + id + '" is already registered. Use install() to update an existing plugin, or unregister() it first.'
+        );
+      }
+      if (PluginValidator) {
+        var validationResult = PluginValidator.validate({
+          id,
+          manifest: definition.manifest,
+          css: definition.css,
+          js: definition.js
+        });
+        if (validationResult.warnings.length > 0) {
+          validationResult.warnings.forEach(function(w) {
+            console.warn("[Plugin] Validation warning for " + id + ":", w);
+          });
+        }
+        if (!validationResult.valid) {
+          throw new Error("Plugin validation failed: " + validationResult.errors.join("; "));
+        }
+      }
+      const resources = /* @__PURE__ */ new Set();
+      pluginResources.set(id, resources);
+      const context = createPluginContext(id);
+      const instance = {
+        id,
+        definition,
+        context,
+        enabled: false,
+        resources
+      };
+      plugins.set(id, instance);
+      console.log("[Plugin] Registered:", id);
+    },
+    unregister: async function(id) {
+      const instance = plugins.get(id);
+      if (instance) {
+        if (instance.enabled) {
+          await this.disable(id);
+        }
+        this._cleanupResources(id);
+        plugins.delete(id);
+        pluginResources.delete(id);
+        dataUpdateListeners.delete(id);
+        if (PermissionsManager && PermissionsManager.revokePermissions) {
+          PermissionsManager.revokePermissions(id);
+        }
+        if (window.store && window.store.plugins) {
+          delete window.store.plugins[id];
+          if (window.save) {
+            window.save();
+          }
+        }
+        console.log("[Plugin] Unregistered:", id);
+      }
+    },
+    get: function(id) {
+      return plugins.get(id);
+    },
+    list: function() {
+      return Array.from(plugins.values());
+    },
+    enable: async function(id) {
+      const instance = plugins.get(id);
+      if (!instance) {
+        throw new Error("Plugin not found: " + id);
+      }
+      if (instance.enabled) {
+        return;
+      }
+      captureInternalReferences();
+      if (instance.definition.manifest.config) {
+        instance.context.config = instance.definition.manifest.config;
+      }
+      if (instance.definition.manifest.overrides) {
+        const overrides = instance.definition.manifest.overrides;
+        if (overrides.appName && typeof overrides.appName === "string") {
+          const brandBtn = document.getElementById && document.getElementById("brandBtn");
+          if (brandBtn) {
+            if (instance._savedBrandHTML == null) instance._savedBrandHTML = brandBtn.innerHTML;
+            brandBtn.textContent = overrides.appName;
+          }
+        }
+      }
+      if (instance.definition.manifest.permissions) {
+        const granted = await this._checkPermissions(id, instance.definition.manifest.permissions);
+        if (!granted) {
+          throw new Error("Permissions not granted for plugin: " + id);
+        }
+      }
+      if (instance.definition.css) {
+        this._applyCSS(id, instance.definition.css);
+      }
+      if (instance.definition.setup) {
+        try {
+          await instance.definition.setup(instance.context);
+        } catch (err) {
+          console.error("[Plugin] Setup error for", id, ":", err);
+          console.error("[Plugin] Stack trace:", err.stack);
+          if (window.showToast) {
+            window.showToast('Plugin "' + id + '" failed to start: ' + err.message, "error");
+          }
+          this._removeCSS(id);
+          this._cleanupResources(id);
+          if (instance.context && instance.context.logger) {
+            instance.context.logger.error("Plugin setup failed and was disabled: " + err.message);
+          }
+          throw err;
+        }
+      }
+      instance.enabled = true;
+      this._persistEnabledState(id, true);
+      console.log("[Plugin] Enabled:", id);
+    },
+    disable: async function(id) {
+      const instance = plugins.get(id);
+      if (!instance) {
+        throw new Error("Plugin not found: " + id);
+      }
+      if (!instance.enabled) {
+        return;
+      }
+      if (instance.definition.teardown) {
+        try {
+          await instance.definition.teardown(instance.context);
+        } catch (err) {
+          console.error("[Plugin] Teardown error for", id, ":", err);
+          console.error("[Plugin] Stack trace:", err.stack);
+          if (instance.context && instance.context.logger) {
+            instance.context.logger.warn("Plugin cleanup had errors but continuing: " + err.message);
+          }
+        }
+      }
+      if (instance._savedBrandHTML != null) {
+        const brandBtn = document.getElementById && document.getElementById("brandBtn");
+        if (brandBtn) brandBtn.innerHTML = instance._savedBrandHTML;
+        instance._savedBrandHTML = null;
+      }
+      this._removeCSS(id);
+      this._cleanupResources(id);
+      instance.enabled = false;
+      this._persistEnabledState(id, false);
+      console.log("[Plugin] Disabled:", id);
+    },
+    /**
+     * Keep the persisted enabled flag in sync with the runtime state so that
+     * enabling/suspending a plugin survives a page reload. No-op for plugins
+     * that were registered without install() (session-only plugins have no
+     * store entry).
+     */
+    _persistEnabledState: function(id, enabled) {
+      if (window.store && window.store.plugins && window.store.plugins[id] && window.store.plugins[id].enabled !== enabled) {
+        window.store.plugins[id].enabled = enabled;
+        if (window.save) {
+          window.save();
+        }
+      }
+    },
+    _applyCSS: function(id, css) {
+      const existing = document.querySelector('style[data-plugin-id="' + id + '"]');
+      if (existing) {
+        existing.textContent = css;
+      } else {
+        const style = document.createElement("style");
+        style.setAttribute("data-plugin-id", id);
+        style.textContent = css;
+        document.head.appendChild(style);
+      }
+    },
+    _removeCSS: function(id) {
+      const style = document.querySelector('style[data-plugin-id="' + id + '"]');
+      if (style && style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+    },
+    _cleanupResources: function(id) {
+      const resources = pluginResources.get(id);
+      if (!resources || resources.size === 0) {
+        return;
+      }
+      const cleanup = {
+        domElements: 0,
+        components: 0,
+        listeners: 0,
+        events: 0,
+        errors: 0
+      };
+      resources.forEach(function(resource) {
+        try {
+          if (resource.type === "dom") {
+            if (resource.original) {
+              if (resource.element && resource.element.parentNode) {
+                resource.element.parentNode.replaceChild(resource.original, resource.element);
+                cleanup.domElements++;
+              }
+            } else if (resource.element && resource.element.parentNode) {
+              resource.element.parentNode.removeChild(resource.element);
+              cleanup.domElements++;
+            }
+          } else if (resource.type === "component") {
+            if (ComponentRegistry) {
+              ComponentRegistry.unregister(resource.name);
+              cleanup.components++;
+            }
+          } else if (resource.type === "middleware") {
+            if (MiddlewareManager) {
+              MiddlewareManager.unregister(resource.name);
+              cleanup.listeners++;
+            }
+          } else if (resource.type === "listener") {
+            cleanup.listeners++;
+          } else if (resource.type === "event") {
+            const list = globalEventBus.get(resource.event);
+            if (list) {
+              const idx = list.findIndex(function(h2) {
+                return h2.callback === resource.callback && h2.pluginId === id;
+              });
+              if (idx !== -1) {
+                list.splice(idx, 1);
+              }
+            }
+            cleanup.events++;
+          }
+        } catch (err) {
+          cleanup.errors++;
+          console.error("[Plugin] Resource cleanup error for", id, ":", err);
+        }
+      });
+      resources.clear();
+      const listeners = dataUpdateListeners.get(id);
+      if (listeners && listeners.length > 0) {
+        cleanup.listeners += listeners.length;
+        dataUpdateListeners.delete(id);
+      }
+      console.log(
+        "[Plugin] Cleanup complete for",
+        id,
+        ":",
+        cleanup.domElements,
+        "DOM elements,",
+        cleanup.components,
+        "components,",
+        cleanup.listeners,
+        "listeners,",
+        cleanup.events,
+        "events",
+        cleanup.errors > 0 ? "(" + cleanup.errors + " errors)" : ""
+      );
+    },
+    _checkPermissions: async function(id, permissions) {
+      console.log("[Plugin] Permissions requested for", id, ":", permissions);
+      if (!permissions || permissions.length === 0) {
+        return true;
+      }
+      if (PermissionsManager) {
+        const instance = plugins.get(id);
+        const pluginName = instance && instance.definition.manifest && instance.definition.manifest.name || id;
+        return await PermissionsManager.requestPermissions(id, pluginName, permissions);
+      }
+      if (window.showPermissionDialog) {
+        return await window.showPermissionDialog(id, permissions);
+      }
+      console.warn("[Plugin] No permission consent mechanism available; denying permissions for", id);
+      return false;
+    },
+    notifyDataUpdate: function(event) {
+      dataUpdateListeners.forEach(function(listeners, pluginId) {
+        listeners.forEach(function(callback) {
+          try {
+            callback(event);
+          } catch (err) {
+            console.error("[Plugin] Data update callback error:", err);
+          }
+        });
+      });
+    },
+    listAll: function() {
+      return this.list();
+    },
+    install: async function(pkg) {
+      if (!pkg || !pkg.manifest) {
+        throw new Error("Invalid plugin package: manifest is required");
+      }
+      if (!pkg.manifest.name && !pkg.manifest.id && !pkg.id) {
+        throw new Error("Invalid plugin package: manifest.name or an id is required");
+      }
+      if (pkg.id && !pkg.manifest.id) pkg.manifest.id = pkg.id;
+      if (pkg.config && typeof pkg.config === "object" && !pkg.manifest.config) {
+        pkg.manifest.config = pkg.config;
+      }
+      if (pkg.overrides && typeof pkg.overrides === "object" && !pkg.manifest.overrides) {
+        pkg.manifest.overrides = pkg.overrides;
+      }
+      if (pkg.manifest.dependencies && Array.isArray(pkg.manifest.dependencies) && pkg.manifest.dependencies.length > 0) {
+        const missing = pkg.manifest.dependencies.filter(function(dep) {
+          return !plugins.has(dep);
+        });
+        if (missing.length > 0) {
+          throw new Error("Missing dependencies: " + missing.join(", ") + ". Install the required plugins first.");
+        }
+      }
+      const jsSource = typeof pkg.js === "string" && pkg.js.trim() ? pkg.js : typeof pkg.javascript === "string" && pkg.javascript.trim() ? pkg.javascript : null;
+      const teardownSource = typeof pkg.teardownJs === "string" && pkg.teardownJs.trim() ? pkg.teardownJs : typeof pkg.teardown === "string" && pkg.teardown.trim() ? pkg.teardown : null;
+      if (!pkg.setup && jsSource) {
+        pkg.setup = _createSandboxedFunction(jsSource);
+      }
+      const teardownFn = typeof pkg.teardown === "function" ? pkg.teardown : teardownSource ? _createSandboxedFunction(teardownSource) : void 0;
+      let id = pkg.manifest.id || pkg.manifest.name.toLowerCase().replace(/\s+/g, "-");
+      if (plugins.has(id)) {
+        await this.unregister(id);
+      }
+      const definition = {
+        manifest: pkg.manifest,
+        setup: pkg.setup,
+        teardown: teardownFn,
+        css: pkg.css,
+        js: jsSource,
+        teardownJs: teardownSource
+      };
+      this.register(id, definition);
+      if (window.store) {
+        if (!window.store.plugins) {
+          window.store.plugins = {};
+        }
+        window.store.plugins[id] = {
+          definition: _createSerializableDefinition(definition),
+          enabled: false
+        };
+        if (window.save) {
+          window.save();
+        }
+      }
+      const risk = this.assessModRisk(pkg);
+      if (risk === 'SAFE' || risk === 'LOW') {
+        try {
+          await this.enable(id);
+        } catch (err) {
+          console.error("[Plugin] Installed but failed to enable", id, ":", err);
+        }
+      }
+      console.log("[Plugin] Installed:", id);
+      return id;
+    },
+    assessModRisk: function(pkg) {
+      if (!pkg || !pkg.manifest) {
+        return 'HIGH';
+      }
+      const manifest = pkg.manifest;
+      const layer = manifest.layer || "feature";
+      const hasJS = !!pkg.setup || !!pkg.teardown || !!pkg.js || !!pkg.javascript;
+      const hasCSS = !!pkg.css;
+      const hasOverrides = !!pkg.overrides || !!manifest.overrides;
+      if (layer === "theme" && !hasJS && hasCSS) {
+        return 'SAFE';
+      }
+      if (layer === "feature" && !hasOverrides) {
+        return 'LOW';
+      }
+      if (layer === "app" || hasOverrides) {
+        return 'HIGH';
+      }
+      return 'MEDIUM';
+    },
+    syncFromStore: async function(safeMode2) {
+      if (typeof safeMode2 === "undefined" && typeof window !== "undefined" && window.location && typeof window.location.search === "string") {
+        safeMode2 = new URLSearchParams(window.location.search).has("safemode");
+      }
+      if (!window.store || !window.store.plugins) {
+        return;
+      }
+      const storedPlugins = window.store.plugins || {};
+      const pluginIds = Object.keys(storedPlugins);
+      if (pluginIds.length === 0) {
+        return;
+      }
+      console.log("[Plugin] Syncing", pluginIds.length, "plugins from store");
+      for (const id of pluginIds) {
+        const pluginData = storedPlugins[id];
+        if (plugins.has(id)) {
+          continue;
+        }
+        if (!pluginData || !pluginData.definition) {
+          continue;
+        }
+        try {
+          const stored = pluginData.definition;
+          const def = {
+            manifest: stored.manifest,
+            css: stored.css,
+            js: typeof stored.js === "string" && stored.js.trim() ? stored.js : null,
+            teardownJs: typeof stored.teardownJs === "string" && stored.teardownJs.trim() ? stored.teardownJs : null
+          };
+          if (def.js) {
+            def.setup = _createSandboxedFunction(def.js);
+          }
+          if (def.teardownJs) {
+            def.teardown = _createSandboxedFunction(def.teardownJs);
+          }
+          this.register(id, def);
+          if (!safeMode2 && pluginData.enabled) {
+            await this.enable(id);
+          }
+        } catch (err) {
+          console.error("[Plugin] Failed to sync plugin", id, ":", err);
+        }
+      }
+    },
+    /**
+     * Phase 3.1: Auto-Generated Settings UI
+     * Dynamically build a settings panel from the plugin's config object.
+     * Each config key becomes a labelled form input whose type is inferred
+     * from the value type (boolean → checkbox, number → number, else → text).
+     * Changes made in the panel are written back to the plugin's live context.
+     *
+     * @param {string} id - Plugin ID
+     * @returns {HTMLElement|null} A <div class="plugin-settings-panel"> element,
+     *   or null if the plugin has no config.
+     */
+    buildSettingsPanel: function(id) {
+      const instance = plugins.get(id);
+      if (!instance) return null;
+      const config = instance.definition.manifest && instance.definition.manifest.config;
+      if (!config || typeof config !== "object") return null;
+      const keys = Object.keys(config);
+      if (keys.length === 0) return null;
+      const panel = document.createElement("div");
+      panel.className = "plugin-settings-panel";
+      panel.setAttribute("data-plugin-id", id);
+      const title = document.createElement("h3");
+      title.className = "plugin-settings-title";
+      title.textContent = (instance.definition.manifest.name || id) + " Settings";
+      panel.appendChild(title);
+      keys.forEach(function(key) {
+        const defaultValue = config[key];
+        const valueType = typeof defaultValue;
+        const row = document.createElement("div");
+        row.className = "plugin-settings-row";
+        const label = document.createElement("label");
+        label.textContent = key;
+        label.setAttribute("for", "plugin-setting-" + id + "-" + key);
+        let input;
+        if (valueType === "boolean") {
+          input = document.createElement("input");
+          input.type = "checkbox";
+          input.checked = defaultValue;
+        } else if (valueType === "number") {
+          input = document.createElement("input");
+          input.type = "number";
+          input.value = String(defaultValue);
+        } else {
+          input = document.createElement("input");
+          input.type = "text";
+          input.value = defaultValue != null ? String(defaultValue) : "";
+        }
+        input.id = "plugin-setting-" + id + "-" + key;
+        input.setAttribute("data-config-key", key);
+        input.setAttribute("data-plugin-id", id);
+        input.onchange = function() {
+          let newValue;
+          if (valueType === "boolean") {
+            newValue = input.checked;
+          } else if (valueType === "number") {
+            newValue = Number(input.value);
+          } else {
+            newValue = input.value;
+          }
+          config[key] = newValue;
+          if (instance.context && instance.context.config) {
+            instance.context.config[key] = newValue;
+          }
+          if (window.store && window.store.plugins && window.store.plugins[id]) {
+            const storedDef = window.store.plugins[id].definition;
+            if (storedDef && storedDef.manifest && storedDef.manifest.config) {
+              storedDef.manifest.config[key] = newValue;
+            }
+            if (window.save) {
+              window.save();
+            }
+          }
+        };
+        row.appendChild(label);
+        row.appendChild(input);
+        panel.appendChild(row);
+      });
+      return panel;
+    }
+  };
+  console.log("[Plugin] API system initialized");
+  function resetForTesting() {
+    plugins.clear();
+    pluginResources.clear();
+    dataUpdateListeners.clear();
+    globalEventBus.clear();
+    InternalAPI.data = {};
+    InternalAPI.ui = {};
+    InternalAPI.utils = {};
+  }
+  const utils = {};
+  const CardSpokeAPI = Object.freeze({
+    /**
+     * Register AND enable a plugin in one step (session-only: not persisted
+     * across reloads — use `Plugin.install()` / the Plugin Manager UI for
+     * persistent installation).
+     *
+     * @param {string} id - Unique plugin identifier (lowercase, hyphenated)
+     * @param {Object} definition - { manifest, setup, teardown, css, js }
+     * @returns {Promise<string>} The plugin id once enabled
+     */
+    registerPlugin: async function(id, definition) {
+      PluginManager.register(id, definition);
+      await PluginManager.enable(id);
+      return id;
+    },
+    /**
+     * Install a plugin package persistently (validates, registers, persists
+     * to the active dataset, and auto-enables SAFE/LOW-risk layers).
+     *
+     * @param {Object} pkg - Plugin package ({ id?, manifest, css?, js?, teardownJs? })
+     * @returns {Promise<string>} The installed plugin id
+     */
+    installPlugin: function(pkg) {
+      return PluginManager.install(pkg);
+    },
+    /**
+     * Request user consent for a set of permissions on behalf of a plugin.
+     *
+     * @param {string} pluginId - Plugin identifier
+     * @param {string} pluginName - Human-readable plugin name
+     * @param {string[]} permissions - Array of permission names
+     * @returns {Promise<boolean>} Whether permissions were granted
+     */
+    requestPermissions: function(pluginId, pluginName, permissions) {
+      return PermissionsManager.requestPermissions(pluginId, pluginName, permissions);
+    },
+    // ── Full runtime subsystems ────────────────────────────────────────────
+    // Used by the app layer and by app-layer plugins. See
+    // docs/PLUGIN_SYSTEM.md for which parts are supported plugin API.
+    Plugin: PluginManager,
+    PluginSandbox: Object.freeze({ createFunction: _createSandboxedFunction }),
+    Middleware: MiddlewareManager,
+    ComponentRegistry,
+    StorageDriverRegistry,
+    PluginValidator,
+    Permissions: PermissionsManager,
+    // Populated by the host app layer with async card/tag/toast helpers.
+    utils
+  });
+  if (typeof window !== "undefined") {
+    window.CardSpoke = CardSpokeAPI;
+  }
   const GENERIC_KIND = "generic";
   const KIND_DEFINITIONS = {
     note: {
@@ -870,6 +2591,12 @@ ${items.join("\n")}
   let store = createDefaultStore();
   function setStore(s) {
     store = s;
+    if (typeof window !== "undefined") {
+      window.store = s;
+    }
+  }
+  if (typeof window !== "undefined") {
+    window.store = store;
   }
   let navState = {
     mode: "cardspoke",
@@ -3446,7 +5173,7 @@ ${items.join("\n")}
       }
     }
     if (!raw) {
-      setStore({ rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: "normal", activeTheme: "light" });
+      setStore(createDefaultStore());
       save();
       return;
     }
@@ -3495,6 +5222,9 @@ ${items.join("\n")}
           const mirrorRepaired = validateStoreConsistency();
           const mirrorTypedChanged = migrateTypedCards();
           if (mirrorRepaired || mirrorTypedChanged) save();
+          if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
+            window.CardSpoke.Plugin.syncFromStore().catch((err) => console.error("[Plugin] Re-sync after IndexedDB load failed:", err));
+          }
           render();
         }).catch((err) => {
           console.error("[IndexedDB] Load failed, using LocalStorage fallback:", err);
@@ -3521,6 +5251,9 @@ ${items.join("\n")}
           const fileRepaired = validateStoreConsistency();
           const fileTypedChanged = migrateTypedCards();
           if (fileRepaired || fileTypedChanged) save();
+          if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
+            window.CardSpoke.Plugin.syncFromStore().catch((err) => console.error("[Plugin] Re-sync after local-file load failed:", err));
+          }
           render();
         }).catch((err) => {
           console.error("[Local File] Load failed, using LocalStorage fallback:", err);
@@ -3560,8 +5293,7 @@ ${items.join("\n")}
       render();
     }
   }
-  window.CardSpoke = window.CardSpoke || {};
-  window.CardSpoke.utils = {
+  Object.assign(window.CardSpoke && window.CardSpoke.utils || {}, {
     createCard: async function(data) {
       data = data || {};
       var title = data.title || "";
@@ -3685,7 +5417,7 @@ ${items.join("\n")}
         }
       };
     }
-  };
+  });
   if (isDeveloperMode()) {
     console.log("[CardSpoke.utils] API initialized and available at window.CardSpoke.utils");
   }
@@ -3711,6 +5443,9 @@ ${items.join("\n")}
     if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
       window.CardSpoke.Middleware.run("card.create", [result.id, store.cards[result.id]]).catch((err) => console.error("[Middleware] card.create error:", err));
     }
+    if (!skipHooks && window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.notifyDataUpdate) {
+      window.CardSpoke.Plugin.notifyDataUpdate({ type: "card.create", cardId: result.id, card: store.cards[result.id] });
+    }
     return result.id;
   }
   function updateCard(id, updates, skipSave = false, skipHooks = false) {
@@ -3726,6 +5461,9 @@ ${items.join("\n")}
     if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
       window.CardSpoke.Middleware.run("card.update", [id, store.cards[id]]).catch((err) => console.error("[Middleware] card.update error:", err));
     }
+    if (!skipHooks && window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.notifyDataUpdate) {
+      window.CardSpoke.Plugin.notifyDataUpdate({ type: "card.update", cardId: id, card: store.cards[id] });
+    }
   }
   function deleteCard(id, opts = {}) {
     const { skipSave = false, skipHooks = false } = opts;
@@ -3739,6 +5477,9 @@ ${items.join("\n")}
     if (!skipSave) save();
     if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
       window.CardSpoke.Middleware.run("card.delete", [id]).catch((err) => console.error("[Middleware] card.delete error:", err));
+    }
+    if (!skipHooks && window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.notifyDataUpdate) {
+      window.CardSpoke.Plugin.notifyDataUpdate({ type: "card.delete", cardId: id });
     }
   }
   function getStorageTypeLabel(storageType) {
@@ -4696,7 +6437,13 @@ This action cannot be undone!`, {
       }
       plugins2.forEach(function(plugin) {
         var manifest = plugin.definition.manifest || {};
-        var pkg = { manifest, setup: plugin.definition.setup, teardown: plugin.definition.teardown, css: plugin.definition.css };
+        var pkg = {
+          manifest,
+          setup: plugin.definition.setup,
+          teardown: plugin.definition.teardown,
+          css: plugin.definition.css,
+          js: plugin.definition.js
+        };
         var risk = window.CardSpoke.Plugin.assessModRisk(pkg);
         var card = h("div", {
           style: "border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md); margin-bottom: var(--space-md);"
@@ -4711,6 +6458,10 @@ This action cannot be undone!`, {
         var info = h("div", { style: "font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-sm);" });
         info.textContent = "v" + (manifest.version || "1.0.0") + " by " + (manifest.author || "Unknown") + (manifest.description ? " — " + manifest.description : "");
         card.appendChild(info);
+        var stateBadge = h("span", {
+          style: "font-size: var(--text-xs); padding: 2px 8px; border-radius: 4px; font-weight: 600; " + (plugin.enabled ? "background: #d1fae5; color: #065f46;" : "background: #e5e7eb; color: #374151;")
+        }, plugin.enabled ? "Active" : "Suspended");
+        card.appendChild(stateBadge);
         var actions2 = h("div", { style: "display: flex; gap: var(--space-sm); margin-top: var(--space-md);" });
         var toggleBtn = h("button", {
           className: "btn btn-sm",
@@ -4719,7 +6470,7 @@ This action cannot be undone!`, {
             try {
               if (plugin.enabled) {
                 await window.CardSpoke.Plugin.disable(plugin.id);
-                showToast("Plugin disabled: " + manifest.name);
+                showToast("Plugin suspended: " + manifest.name);
               } else {
                 await window.CardSpoke.Plugin.enable(plugin.id);
                 showToast("Plugin enabled: " + manifest.name);
@@ -4727,9 +6478,10 @@ This action cannot be undone!`, {
               renderInstalledTab();
             } catch (err) {
               showToast("Error: " + err.message, "error");
+              renderInstalledTab();
             }
           }
-        }, plugin.enabled ? "Disable" : "Enable");
+        }, plugin.enabled ? "Suspend" : "Enable");
         actions2.appendChild(toggleBtn);
         var removeBtn = h("button", {
           className: "btn btn-sm",
@@ -4741,8 +6493,12 @@ This action cannot be undone!`, {
               cancelLabel: "Cancel",
               confirmClassName: "btn btn-danger"
             })) {
-              window.CardSpoke.Plugin.unregister(plugin.id);
-              showToast("Plugin removed: " + manifest.name);
+              try {
+                await window.CardSpoke.Plugin.unregister(plugin.id);
+                showToast("Plugin removed: " + manifest.name);
+              } catch (err) {
+                showToast("Failed to remove plugin: " + err.message, "error");
+              }
               renderInstalledTab();
             }
           }
@@ -4751,7 +6507,9 @@ This action cannot be undone!`, {
         card.appendChild(actions2);
         container.appendChild(card);
       });
-      var modIds = Object.keys(store.plugins || {});
+      var modIds = Object.keys(store.plugins || {}).filter(function(modId) {
+        return !(store.plugins[modId] && store.plugins[modId].definition);
+      });
       if (modIds.length > 0) {
         var legacySection = h("div", { style: "margin-top: var(--space-xl); padding-top: var(--space-xl); border-top: 1px solid var(--border);" });
         legacySection.appendChild(h("h3", { style: "margin-bottom: var(--space-md); color: var(--warning, #f59e0b);" }, "Legacy Plugins (Non-functional)"));
@@ -4814,13 +6572,6 @@ This action cannot be undone!`, {
           try {
             var text = await file.text();
             var pkg = JSON.parse(text);
-            if (!pkg.setup) {
-              if (pkg.js && typeof pkg.js === "string") {
-                pkg.setup = window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.js) : new Function("ctx", pkg.js);
-              } else if (pkg.javascript && typeof pkg.javascript === "string") {
-                pkg.setup = window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.javascript) : new Function("ctx", pkg.javascript);
-              }
-            }
             var id = await window.CardSpoke.Plugin.install(pkg);
             showToast("Plugin installed: " + (pkg.manifest.name || id), "success");
             renderInstalledTab();
@@ -4857,13 +6608,6 @@ This action cannot be undone!`, {
             var response = await fetch(url);
             if (!response.ok) throw new Error("Failed to fetch plugin: " + response.status + " " + response.statusText);
             var pkg = await response.json();
-            if (!pkg.setup) {
-              if (pkg.js && typeof pkg.js === "string") {
-                pkg.setup = window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.js) : new Function("ctx", pkg.js);
-              } else if (pkg.javascript && typeof pkg.javascript === "string") {
-                pkg.setup = window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.javascript) : new Function("ctx", pkg.javascript);
-              }
-            }
             var id = await window.CardSpoke.Plugin.install(pkg);
             showToast("Plugin installed: " + (pkg.manifest.name || id), "success");
             renderInstalledTab();
@@ -4964,11 +6708,9 @@ This action cannot be undone!`, {
             var css = cssInput.value.trim();
             var pkg = {
               manifest,
-              css: css || void 0
+              css: css || void 0,
+              js: jsCode || void 0
             };
-            if (jsCode) {
-              pkg.setup = window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(jsCode) : new Function("ctx", jsCode);
-            }
             var id = await window.CardSpoke.Plugin.install(pkg);
             showToast("Plugin created and registered: " + manifest.name, "success");
             renderInstalledTab();
@@ -5187,36 +6929,62 @@ This action cannot be undone!`, {
       style: "font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);"
     }, "Theme Plugins"));
     const themeExtensions = Object.entries(store.plugins || {}).filter(function([modId, plugin]) {
-      var manifest = plugin.manifest || plugin.meta || {};
+      var manifest = plugin.definition && plugin.definition.manifest || plugin.manifest || plugin.meta || {};
       return manifest.layer === "theme" || manifest.type && manifest.type === "Theme";
     }).map(function([modId, plugin]) {
-      var manifest = plugin.manifest || plugin.meta || {};
-      return { manifest, meta: manifest, enabled: plugin.enabled, css: plugin.css, id: modId };
+      var manifest = plugin.definition && plugin.definition.manifest || plugin.manifest || plugin.meta || {};
+      return { manifest, meta: manifest, enabled: plugin.enabled, id: modId, isModern: !!plugin.definition };
     });
-    const activeThemeExtension = localStorage.getItem("cardspoke_activeThemeMod") || null;
+    async function activateThemePlugin(themeId) {
+      if (!(window.CardSpoke && window.CardSpoke.Plugin)) return;
+      for (const other of themeExtensions) {
+        if (other.isModern && other.enabled && other.id !== themeId) {
+          try {
+            await window.CardSpoke.Plugin.disable(other.id);
+          } catch (err) {
+            console.error("[Theme] Failed to suspend", other.id, err);
+          }
+        }
+      }
+      if (themeId) {
+        await window.CardSpoke.Plugin.enable(themeId);
+      }
+    }
+    const anyThemeEnabled = themeExtensions.some(function(t) {
+      return t.enabled;
+    });
     if (themeExtensions.length > 0) {
       const defaultThemeOption = h("div", {
-        style: "padding: var(--space-md); border: 2px solid " + (!activeThemeExtension ? "var(--text)" : "var(--border)") + "; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer;",
-        onclick: function() {
-          localStorage.removeItem("cardspoke_activeThemeMod");
-          document.documentElement.className = document.documentElement.className.split(" ").filter((c) => !c.startsWith("theme-ext-")).join(" ");
-          showToast("Default theme applied");
+        style: "padding: var(--space-md); border: 2px solid " + (!anyThemeEnabled ? "var(--text)" : "var(--border)") + "; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer;",
+        onclick: async function() {
+          try {
+            await activateThemePlugin(null);
+            showToast("Default theme applied");
+          } catch (err) {
+            showToast("Failed to apply default theme: " + err.message, "error");
+          }
           overlay.remove();
           showAppearanceSettings();
         }
       });
-      defaultThemeOption.appendChild(h("div", { style: "font-weight: 600;" }, (!activeThemeExtension ? "✓ " : "") + "Default Theme"));
+      defaultThemeOption.appendChild(h("div", { style: "font-weight: 600;" }, (!anyThemeEnabled ? "✓ " : "") + "Default Theme"));
       defaultThemeOption.appendChild(h("div", { style: "font-size: var(--text-sm); color: var(--text-muted);" }, "Standard CardSpoke appearance"));
       themeSection.appendChild(defaultThemeOption);
       themeExtensions.forEach(function(theme) {
-        const isActive = activeThemeExtension === theme.id;
+        const isActive = theme.enabled;
         const themeOption = h("div", {
           style: "padding: var(--space-md); border: 2px solid " + (isActive ? "var(--text)" : "var(--border)") + "; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer; display: flex; justify-content: space-between; align-items: center;",
-          onclick: function() {
-            localStorage.setItem("cardspoke_activeThemeMod", theme.id);
-            document.documentElement.className = document.documentElement.className.split(" ").filter((c) => !c.startsWith("theme-ext-")).join(" ");
-            document.documentElement.classList.add("theme-ext-" + theme.id);
-            showToast("Theme applied: " + (theme.manifest.name || theme.id));
+          onclick: async function() {
+            if (!theme.isModern) {
+              showToast("This theme uses the legacy format and cannot be enabled. Re-install it from the Plugin Manager.", "error");
+              return;
+            }
+            try {
+              await activateThemePlugin(theme.id);
+              showToast("Theme applied: " + (theme.manifest.name || theme.id));
+            } catch (err) {
+              showToast("Failed to apply theme: " + err.message, "error");
+            }
             overlay.remove();
             showAppearanceSettings();
           }
@@ -8471,9 +10239,9 @@ ${prefix}`;
               h(
                 "ul",
                 { style: "margin-left: var(--space-md); margin-bottom: var(--space-sm);" },
-                h("li", {}, "Theme plugins: CSS-only visual changes"),
-                h("li", {}, "Feature plugins: Add new functionality with JS hooks"),
-                h("li", {}, "App plugins: Full app transformations with overrides")
+                h("li", {}, "Theme plugins: CSS-only visual changes (auto-enabled)"),
+                h("li", {}, "Feature plugins: Add new functionality with the plugin API"),
+                h("li", {}, "App plugins: Deep transformations (middleware, components, app rename) — enabled manually")
               ),
               h(
                 "p",
@@ -8806,19 +10574,37 @@ ${prefix}`;
       if (e.target === overlay) overlay.remove();
     };
   }
+  window.save = save;
+  window.createCard = createCard;
+  window.updateCard = updateCard;
+  window.deleteCard = deleteCard;
+  window.cloneCard = cloneCard;
+  window.getTags = getTags;
+  window.addTag = addTag;
+  window.removeTag = removeTag;
+  window.setTags = setTags;
+  window.getAllTags = getAllTags;
+  window.showToast = showToast;
   (async function() {
     initToast();
-    load();
-    populateFooter();
-    updateDatasetSelector();
-    const savedTypography = localStorage.getItem("cardspoke_typography") || "default";
-    document.documentElement.setAttribute("data-typography", savedTypography);
     const urlParams = new URLSearchParams(window.location.search);
     let safeMode2 = urlParams.has("safemode");
     if (safeMode2) {
       console.warn("[Safe Mode] Plugins disabled via ?safemode parameter");
       showToast("Safe Mode Active - Plugins Disabled", "warning");
     }
+    try {
+      await load();
+    } catch (err) {
+      console.error("[Boot] load() failed; continuing with a usable store:", err);
+      if (!store || typeof store !== "object" || !store.cards) {
+        setStore(createDefaultStore());
+      }
+    }
+    populateFooter();
+    updateDatasetSelector();
+    const savedTypography = localStorage.getItem("cardspoke_typography") || "default";
+    document.documentElement.setAttribute("data-typography", savedTypography);
     if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
       await window.CardSpoke.Plugin.syncFromStore(safeMode2);
     }
@@ -8841,1638 +10627,6 @@ ${prefix}`;
       }
     });
   })();
-  const middlewares = [];
-  const middlewaresByOperation = /* @__PURE__ */ new Map();
-  class MiddlewareContextImpl {
-    constructor(operation, args) {
-      this.operation = operation;
-      this.args = args;
-      this.result = void 0;
-      this.error = void 0;
-      this._stopped = false;
-      this._prevented = false;
-    }
-    stopPropagation() {
-      this._stopped = true;
-    }
-    preventDefault() {
-      this._prevented = true;
-    }
-    get stopped() {
-      return this._stopped;
-    }
-    get prevented() {
-      return this._prevented;
-    }
-  }
-  const MiddlewareManager = {
-    /**
-     * Register a new middleware
-     * @param {Object} middleware - { name, priority, operations, handler }
-     */
-    register: function(middleware) {
-      if (!middleware.name || !middleware.handler) {
-        throw new Error("Middleware must have name and handler");
-      }
-      middleware.priority = middleware.priority || 0;
-      middleware.operations = middleware.operations || ["*"];
-      const existing = middlewares.findIndex((m) => m.name === middleware.name);
-      if (existing !== -1) {
-        middlewares[existing] = middleware;
-      } else {
-        middlewares.push(middleware);
-      }
-      middlewares.sort((a, b) => b.priority - a.priority);
-      middlewaresByOperation.clear();
-      const conflicts = middlewares.filter(function(m) {
-        if (m.name === middleware.name) return false;
-        if (m.priority !== middleware.priority) return false;
-        return m.operations.some(function(op) {
-          return op === "*" || middleware.operations.includes("*") || middleware.operations.includes(op);
-        });
-      });
-      if (conflicts.length > 0) {
-        console.warn('[Middleware] Conflict: "' + middleware.name + '" registered at priority ' + middleware.priority + " conflicts with: " + conflicts.map(function(m) {
-          return m.name;
-        }).join(", ") + ". Consider using different priority levels to ensure deterministic execution order.");
-      }
-      console.log("[Middleware] Registered:", middleware.name, "priority:", middleware.priority);
-    },
-    /**
-     * Unregister a middleware by name
-     */
-    unregister: function(name) {
-      const index = middlewares.findIndex((m) => m.name === name);
-      if (index !== -1) {
-        middlewares.splice(index, 1);
-        middlewaresByOperation.clear();
-        console.log("[Middleware] Unregistered:", name);
-      }
-    },
-    /**
-     * Get middlewares for a specific operation
-     */
-    _getMiddlewaresForOperation: function(operation) {
-      if (middlewaresByOperation.has(operation)) {
-        return middlewaresByOperation.get(operation);
-      }
-      const matching = middlewares.filter(
-        (m) => m.operations.includes("*") || m.operations.includes(operation)
-      );
-      middlewaresByOperation.set(operation, matching);
-      return matching;
-    },
-    /**
-     * Run middleware pipeline for an operation
-     * @param {string} operation - Operation name (e.g., 'card.save', 'card.delete')
-     * @param {Array} args - Arguments for the operation
-     * @returns {Promise<any>} Result of the operation
-     */
-    run: async function(operation, args) {
-      const ctx = new MiddlewareContextImpl(operation, args);
-      const matching = this._getMiddlewaresForOperation(operation);
-      if (matching.length === 0) {
-        return { context: ctx, prevented: false };
-      }
-      let index = 0;
-      const next = async () => {
-        if (ctx.stopped || index >= matching.length) {
-          return;
-        }
-        const middleware = matching[index++];
-        try {
-          await middleware.handler(ctx, next);
-        } catch (err) {
-          ctx.error = err;
-          console.error("[Middleware] Error in", middleware.name, ":", err);
-          throw err;
-        }
-      };
-      try {
-        await next();
-      } catch (err) {
-        console.error("[Middleware] Pipeline error for", operation, ":", err);
-      }
-      return { context: ctx, prevented: ctx.prevented };
-    },
-    /**
-     * List all registered middlewares
-     */
-    list: function() {
-      return middlewares.map((m) => ({
-        name: m.name,
-        priority: m.priority,
-        operations: m.operations
-      }));
-    },
-    /**
-     * Clear all middlewares
-     */
-    clear: function() {
-      middlewares.length = 0;
-      middlewaresByOperation.clear();
-    }
-  };
-  console.log("[Middleware] Pipeline system initialized");
-  const components = /* @__PURE__ */ new Map();
-  const componentPriorities = /* @__PURE__ */ new Map();
-  const ComponentRegistry = {
-    /**
-     * Register a component
-     * @param {string} name - Component name (e.g., 'Card', 'Sidebar', 'SearchBar')
-     * @param {Object} component - { render, priority? }
-     * @param {number} priority - Priority (higher wins, default 0)
-     */
-    register: function(name, component, priority) {
-      if (!name || !component) {
-        throw new Error("Component name and definition are required");
-      }
-      priority = priority !== void 0 ? priority : component.priority || 0;
-      const existing = components.get(name);
-      if (existing && componentPriorities.get(name) > priority) {
-        console.warn("[ComponentRegistry] Component", name, "not overridden (lower priority)");
-        return;
-      }
-      if (existing && componentPriorities.get(name) === priority) {
-        console.warn('[ComponentRegistry] Conflict: Component "' + name + '" is already registered at priority ' + priority + ". The previous registration will be overridden. Consider using different priority levels to avoid ambiguous overrides.");
-      }
-      components.set(name, component);
-      componentPriorities.set(name, priority);
-      console.log("[ComponentRegistry] Registered:", name, "priority:", priority);
-    },
-    /**
-     * Unregister a component
-     */
-    unregister: function(name) {
-      if (components.has(name)) {
-        components.delete(name);
-        componentPriorities.delete(name);
-        console.log("[ComponentRegistry] Unregistered:", name);
-      }
-    },
-    /**
-     * Get a component by name
-     */
-    get: function(name) {
-      return components.get(name);
-    },
-    /**
-     * Resolve a component (same as get, but for API compatibility)
-     */
-    resolve: function(name) {
-      return this.get(name);
-    },
-    /**
-     * Check if a component is registered
-     */
-    has: function(name) {
-      return components.has(name);
-    },
-    /**
-     * List all registered components
-     */
-    list: function() {
-      const result = [];
-      components.forEach((component, name) => {
-        result.push({
-          name,
-          priority: componentPriorities.get(name)
-        });
-      });
-      return result;
-    },
-    /**
-     * Clear all components
-     */
-    clear: function() {
-      components.clear();
-      componentPriorities.clear();
-    }
-  };
-  console.log("[ComponentRegistry] System initialized");
-  var VALID_LAYERS = ["theme", "feature", "app"];
-  var VALID_PERMISSIONS = ["ui-override", "storage", "network", "filesystem", "core-override", "data-modify"];
-  var MAX_CSS_LENGTH = 1e5;
-  var MAX_JS_LENGTH = 5e5;
-  var DANGEROUS_CSS_PATTERNS = [
-    { pattern: /@import/gi, name: "@import (external resource loading)" },
-    { pattern: /javascript:/gi, name: "javascript: protocol" },
-    { pattern: /behavior:/gi, name: "behavior: (IE behavior)" },
-    { pattern: /-moz-binding/gi, name: "-moz-binding (Mozilla binding)" },
-    { pattern: /expression\s*\(/gi, name: "expression() (IE expressions)" }
-  ];
-  var DANGEROUS_JS_PATTERNS = [
-    { pattern: /\beval\s*\(/g, name: "eval()" },
-    { pattern: /\bnew\s+Function\s*\(\s*(?!['"]ctx['"])/g, name: "new Function()" }
-  ];
-  var PluginValidator = {
-    /**
-     * Validate a complete plugin package
-     * @param {Object} plugin - Plugin object to validate
-     * @returns {Object} { valid: boolean, errors: string[], warnings: string[], sanitized: Object }
-     */
-    validate: function(plugin) {
-      var errors = [];
-      var warnings = [];
-      if (!plugin) {
-        return { valid: false, errors: ["Plugin object is required"], warnings: [], sanitized: null };
-      }
-      if (!plugin.id || typeof plugin.id !== "string") {
-        errors.push("Plugin must have a string id");
-      } else if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(plugin.id)) {
-        warnings.push("Plugin id should use lowercase letters, numbers, and hyphens only");
-      }
-      var manifestResult = this.validateManifest(plugin.manifest);
-      errors = errors.concat(manifestResult.errors);
-      warnings = warnings.concat(manifestResult.warnings);
-      if (plugin.css) {
-        var cssResult = this.validateCSS(plugin.css);
-        errors = errors.concat(cssResult.errors);
-        warnings = warnings.concat(cssResult.warnings);
-        if (cssResult.sanitized !== plugin.css) {
-          plugin.css = cssResult.sanitized;
-        }
-      }
-      if (plugin.js) {
-        var jsResult = this.validateJS(plugin.js);
-        errors = errors.concat(jsResult.errors);
-        warnings = warnings.concat(jsResult.warnings);
-      }
-      return {
-        valid: errors.length === 0,
-        errors,
-        warnings,
-        sanitized: errors.length === 0 ? plugin : null
-      };
-    },
-    /**
-     * Validate plugin manifest structure
-     * @param {Object} manifest - Plugin manifest
-     * @returns {Object} { errors: string[], warnings: string[] }
-     */
-    validateManifest: function(manifest) {
-      var errors = [];
-      var warnings = [];
-      if (!manifest || typeof manifest !== "object") {
-        errors.push("Plugin manifest is required and must be an object");
-        return { errors, warnings };
-      }
-      if (!manifest.name || typeof manifest.name !== "string") {
-        errors.push("manifest.name is required and must be a string");
-      } else if (manifest.name.length > 100) {
-        errors.push("manifest.name must be 100 characters or less");
-      }
-      if (!manifest.version || typeof manifest.version !== "string") {
-        errors.push("manifest.version is required and must be a string");
-      } else if (!/^\d+\.\d+\.\d+/.test(manifest.version)) {
-        warnings.push("manifest.version should follow semver format (e.g., 1.0.0)");
-      }
-      if (!manifest.layer || typeof manifest.layer !== "string") {
-        errors.push("manifest.layer is required and must be a string");
-      } else if (VALID_LAYERS.indexOf(manifest.layer) === -1) {
-        errors.push("manifest.layer must be one of: " + VALID_LAYERS.join(", "));
-      }
-      if (manifest.author && typeof manifest.author !== "string") {
-        warnings.push("manifest.author should be a string");
-      } else if (manifest.author && manifest.author.length > 200) {
-        warnings.push("manifest.author should be 200 characters or less");
-      }
-      if (manifest.description && typeof manifest.description !== "string") {
-        warnings.push("manifest.description should be a string");
-      } else if (manifest.description && manifest.description.length > 500) {
-        warnings.push("manifest.description should be 500 characters or less");
-      }
-      if (manifest.permissions) {
-        if (!Array.isArray(manifest.permissions)) {
-          errors.push("manifest.permissions must be an array");
-        } else {
-          manifest.permissions.forEach(function(perm) {
-            if (VALID_PERMISSIONS.indexOf(perm) === -1) {
-              warnings.push("Unknown permission: " + perm);
-            }
-          });
-        }
-      }
-      return { errors, warnings };
-    },
-    /**
-     * Validate and sanitize CSS content
-     * @param {string} css - CSS string to validate
-     * @returns {Object} { errors: string[], warnings: string[], sanitized: string }
-     */
-    validateCSS: function(css) {
-      var errors = [];
-      var warnings = [];
-      var sanitized = css;
-      if (typeof css !== "string") {
-        return { errors: ["CSS must be a string"], warnings: [], sanitized: "" };
-      }
-      if (css.length > MAX_CSS_LENGTH) {
-        errors.push("CSS exceeds maximum size of " + MAX_CSS_LENGTH + " characters");
-        return { errors, warnings, sanitized: css };
-      }
-      DANGEROUS_CSS_PATTERNS.forEach(function(entry) {
-        if (entry.pattern.test(sanitized)) {
-          warnings.push("Removed dangerous CSS pattern: " + entry.name);
-          sanitized = sanitized.replace(entry.pattern, "/* removed */");
-        }
-        entry.pattern.lastIndex = 0;
-      });
-      return { errors, warnings, sanitized };
-    },
-    /**
-     * Validate JS content for dangerous patterns
-     * @param {string} js - JS string to validate
-     * @returns {Object} { errors: string[], warnings: string[] }
-     */
-    validateJS: function(js) {
-      var errors = [];
-      var warnings = [];
-      if (typeof js !== "string") {
-        return { errors: ["JS must be a string"], warnings: [] };
-      }
-      if (js.length > MAX_JS_LENGTH) {
-        errors.push("JS exceeds maximum size of " + MAX_JS_LENGTH + " characters");
-        return { errors, warnings };
-      }
-      DANGEROUS_JS_PATTERNS.forEach(function(entry) {
-        if (entry.pattern.test(js)) {
-          errors.push("Plugin contains " + entry.name + " - not allowed");
-        }
-        entry.pattern.lastIndex = 0;
-      });
-      return { errors, warnings };
-    }
-  };
-  console.log("[PluginValidator] Validation system initialized");
-  const STORAGE_KEY = "cardspoke_plugin_permissions";
-  const grantedPermissions = /* @__PURE__ */ new Map();
-  function loadPermissions() {
-    try {
-      if (typeof localStorage === "undefined") return;
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        Object.keys(parsed).forEach((pluginId) => {
-          grantedPermissions.set(pluginId, new Set(parsed[pluginId]));
-        });
-      }
-    } catch (err) {
-      console.error("[Permissions] Failed to load saved permissions:", err);
-    }
-  }
-  function savePermissions() {
-    try {
-      if (typeof localStorage === "undefined") return;
-      const data = {};
-      grantedPermissions.forEach((perms, pluginId) => {
-        data[pluginId] = Array.from(perms);
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (err) {
-      console.error("[Permissions] Failed to save permissions:", err);
-    }
-  }
-  const PERMISSION_DESCRIPTIONS = {
-    "ui-override": "Modify the user interface and inject custom elements",
-    "storage": "Access and modify local storage",
-    "network": "Make network requests to external services",
-    "filesystem": "Access the file system (mobile platforms)",
-    "core-override": "Override core application functions (high risk)",
-    "data-modify": "Create, update, and delete cards"
-  };
-  const PermissionsManager = {
-    /**
-     * Check if a plugin has a specific permission
-     */
-    hasPermission: function(pluginId, permission) {
-      const perms = grantedPermissions.get(pluginId);
-      return perms && perms.has(permission);
-    },
-    /**
-     * Check if a plugin has all required permissions
-     */
-    hasAllPermissions: function(pluginId, permissions) {
-      if (!permissions || permissions.length === 0) {
-        return true;
-      }
-      const perms = grantedPermissions.get(pluginId);
-      if (!perms) {
-        return false;
-      }
-      return permissions.every((p) => perms.has(p));
-    },
-    /**
-     * Grant permissions to a plugin
-     */
-    grantPermissions: function(pluginId, permissions) {
-      if (!permissions || permissions.length === 0) {
-        return;
-      }
-      let perms = grantedPermissions.get(pluginId);
-      if (!perms) {
-        perms = /* @__PURE__ */ new Set();
-        grantedPermissions.set(pluginId, perms);
-      }
-      permissions.forEach((p) => perms.add(p));
-      savePermissions();
-      console.log("[Permissions] Granted to", pluginId, ":", permissions);
-    },
-    /**
-     * Revoke permissions from a plugin
-     */
-    revokePermissions: function(pluginId, permissions) {
-      const perms = grantedPermissions.get(pluginId);
-      if (!perms) {
-        return;
-      }
-      if (!permissions) {
-        grantedPermissions.delete(pluginId);
-      } else {
-        permissions.forEach((p) => perms.delete(p));
-        if (perms.size === 0) {
-          grantedPermissions.delete(pluginId);
-        }
-      }
-      savePermissions();
-      console.log("[Permissions] Revoked from", pluginId, ":", permissions || "all");
-    },
-    /**
-     * Get all permissions for a plugin
-     */
-    getPermissions: function(pluginId) {
-      const perms = grantedPermissions.get(pluginId);
-      return perms ? Array.from(perms) : [];
-    },
-    /**
-     * Request permissions with user consent
-     */
-    requestPermissions: async function(pluginId, pluginName, permissions) {
-      if (!permissions || permissions.length === 0) {
-        return true;
-      }
-      if (this.hasAllPermissions(pluginId, permissions)) {
-        return true;
-      }
-      const granted = await this._showConsentDialog(pluginId, pluginName, permissions);
-      if (granted) {
-        this.grantPermissions(pluginId, permissions);
-      }
-      return granted;
-    },
-    /**
-     * Show permission consent dialog
-     */
-    _showConsentDialog: async function(pluginId, pluginName, permissions) {
-      return new Promise((resolve) => {
-        const modal = document.createElement("div");
-        modal.className = "modal permission-modal";
-        modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;";
-        const content = document.createElement("div");
-        content.style.cssText = "background:var(--bg-primary,#fff);padding:2rem;border-radius:8px;max-width:500px;box-shadow:0 4px 20px rgba(0,0,0,0.2);";
-        const title = document.createElement("h2");
-        title.textContent = "Permission Request";
-        title.style.cssText = "margin:0 0 1rem;font-size:1.5rem;color:var(--text-primary,#000);";
-        const desc = document.createElement("p");
-        desc.textContent = '"' + pluginName + '" requests the following permissions:';
-        desc.style.cssText = "margin:0 0 1rem;color:var(--text-secondary,#666);";
-        const list = document.createElement("ul");
-        list.style.cssText = "margin:0 0 1.5rem;padding-left:1.5rem;";
-        permissions.forEach((perm) => {
-          const item = document.createElement("li");
-          item.style.cssText = "margin:0.5rem 0;color:var(--text-primary,#000);";
-          const permName = document.createElement("strong");
-          permName.textContent = perm;
-          const permDesc = document.createTextNode(": " + (PERMISSION_DESCRIPTIONS[perm] || "Unknown permission"));
-          item.appendChild(permName);
-          item.appendChild(permDesc);
-          list.appendChild(item);
-        });
-        const buttons = document.createElement("div");
-        buttons.style.cssText = "display:flex;gap:1rem;justify-content:flex-end;";
-        const denyBtn = document.createElement("button");
-        denyBtn.textContent = "Deny";
-        denyBtn.className = "btn btn-secondary";
-        denyBtn.style.cssText = "padding:0.5rem 1.5rem;border:1px solid #ccc;background:#fff;border-radius:4px;cursor:pointer;";
-        denyBtn.onclick = function() {
-          document.body.removeChild(modal);
-          resolve(false);
-        };
-        const allowBtn = document.createElement("button");
-        allowBtn.textContent = "Allow";
-        allowBtn.className = "btn btn-primary";
-        allowBtn.style.cssText = "padding:0.5rem 1.5rem;border:none;background:var(--accent,#007bff);color:#fff;border-radius:4px;cursor:pointer;";
-        allowBtn.onclick = function() {
-          document.body.removeChild(modal);
-          resolve(true);
-        };
-        buttons.appendChild(denyBtn);
-        buttons.appendChild(allowBtn);
-        content.appendChild(title);
-        content.appendChild(desc);
-        content.appendChild(list);
-        content.appendChild(buttons);
-        modal.appendChild(content);
-        document.body.appendChild(modal);
-      });
-    },
-    /**
-     * Get permission description
-     */
-    getPermissionDescription: function(permission) {
-      return PERMISSION_DESCRIPTIONS[permission] || "Unknown permission";
-    },
-    /**
-     * List all available permissions
-     */
-    listAvailablePermissions: function() {
-      return Object.keys(PERMISSION_DESCRIPTIONS).map((perm) => ({
-        name: perm,
-        description: PERMISSION_DESCRIPTIONS[perm]
-      }));
-    },
-    /**
-     * Clear all permissions (for testing)
-     */
-    clearAll: function() {
-      grantedPermissions.clear();
-      savePermissions();
-    }
-  };
-  loadPermissions();
-  console.log("[Permissions] System initialized");
-  function showPermissionDialog(pluginId, permissions) {
-    const pluginName = pluginId;
-    return PermissionsManager.requestPermissions(pluginId, pluginName, permissions);
-  }
-  const drivers = /* @__PURE__ */ new Map();
-  let activeDriver = null;
-  const StorageDriverRegistry = {
-    /**
-     * Register a storage driver
-     * @param {string} name - Driver name (e.g., 'indexeddb', 'cloud', 'git')
-     * @param {Object} driver - Driver instance implementing StorageDriver interface
-     */
-    register: function(name, driver) {
-      if (!name || !driver) {
-        throw new Error("Driver name and instance are required");
-      }
-      const required = ["init", "get", "set", "remove", "list", "getSize", "getKind"];
-      for (const method of required) {
-        if (typeof driver[method] !== "function") {
-          throw new Error("Driver missing required method: " + method);
-        }
-      }
-      drivers.set(name, driver);
-      console.log("[StorageDriverRegistry] Registered:", name);
-    },
-    /**
-     * Unregister a storage driver
-     */
-    unregister: function(name) {
-      if (drivers.has(name)) {
-        if (activeDriver && activeDriver.getKind() === name) {
-          console.warn("[StorageDriverRegistry] Cannot unregister active driver:", name);
-          return false;
-        }
-        drivers.delete(name);
-        console.log("[StorageDriverRegistry] Unregistered:", name);
-        return true;
-      }
-      return false;
-    },
-    /**
-     * Get a driver by name
-     */
-    get: function(name) {
-      return drivers.get(name);
-    },
-    /**
-     * Set the active storage driver
-     */
-    setActive: async function(name) {
-      const driver = drivers.get(name);
-      if (!driver) {
-        throw new Error("Storage driver not found: " + name);
-      }
-      if (!driver._initialized) {
-        await driver.init();
-        driver._initialized = true;
-      }
-      activeDriver = driver;
-      console.log("[StorageDriverRegistry] Active driver set to:", name);
-    },
-    /**
-     * Get the active storage driver
-     */
-    getActive: function() {
-      return activeDriver;
-    },
-    /**
-     * List all registered drivers
-     */
-    list: function() {
-      const result = [];
-      drivers.forEach((driver, name) => {
-        result.push({
-          name,
-          kind: driver.getKind(),
-          active: activeDriver === driver
-        });
-      });
-      return result;
-    },
-    /**
-     * Clear all drivers (except active)
-     */
-    clear: function() {
-      const activeKind = activeDriver ? activeDriver.getKind() : null;
-      drivers.forEach((driver, name) => {
-        if (activeKind !== name) {
-          drivers.delete(name);
-        }
-      });
-    }
-  };
-  console.log("[StorageDriverRegistry] System initialized");
-  const plugins = /* @__PURE__ */ new Map();
-  const pluginResources = /* @__PURE__ */ new Map();
-  const dataUpdateListeners = /* @__PURE__ */ new Map();
-  const globalEventBus = /* @__PURE__ */ new Map();
-  const InternalAPI = {
-    data: {},
-    ui: {},
-    utils: {}
-  };
-  function captureInternalReferences() {
-    if (!InternalAPI.data.createCard && window.createCard) InternalAPI.data.createCard = window.createCard;
-    if (!InternalAPI.data.updateCard && window.updateCard) InternalAPI.data.updateCard = window.updateCard;
-    if (!InternalAPI.data.deleteCard && window.deleteCard) InternalAPI.data.deleteCard = window.deleteCard;
-    if (!InternalAPI.utils.cloneCard && window.cloneCard) InternalAPI.utils.cloneCard = window.cloneCard;
-    if (!InternalAPI.data.getTags && window.getTags) InternalAPI.data.getTags = window.getTags;
-    if (!InternalAPI.data.addTag && window.addTag) InternalAPI.data.addTag = window.addTag;
-    if (!InternalAPI.data.removeTag && window.removeTag) InternalAPI.data.removeTag = window.removeTag;
-    if (!InternalAPI.data.setTags && window.setTags) InternalAPI.data.setTags = window.setTags;
-    if (!InternalAPI.data.getAllTags && window.getAllTags) InternalAPI.data.getAllTags = window.getAllTags;
-    if (!InternalAPI.ui.showToast && window.showToast) InternalAPI.ui.showToast = window.showToast;
-  }
-  function hasPermission(pluginId, permission) {
-    if (PermissionsManager) {
-      return PermissionsManager.hasPermission(pluginId, permission);
-    }
-    return true;
-  }
-  function createUIApi(pluginId) {
-    const resources = pluginResources.get(pluginId) || /* @__PURE__ */ new Set();
-    return {
-      inject: function(selector, element, position) {
-        if (!hasPermission(pluginId, "ui-override")) {
-          throw new Error("Plugin does not have ui-override permission");
-        }
-        position = position || "append";
-        const target = document.querySelector(selector);
-        if (!target) {
-          console.warn("[Plugin:" + pluginId + "] Selector not found:", selector);
-          return () => {
-          };
-        }
-        switch (position) {
-          case "before":
-            if (!target.parentNode) {
-              console.warn("[Plugin:" + pluginId + '] Target has no parent node for "before" injection');
-              return () => {
-              };
-            }
-            target.parentNode.insertBefore(element, target);
-            break;
-          case "after":
-            if (!target.parentNode) {
-              console.warn("[Plugin:" + pluginId + '] Target has no parent node for "after" injection');
-              return () => {
-              };
-            }
-            target.parentNode.insertBefore(element, target.nextSibling);
-            break;
-          case "prepend":
-            target.insertBefore(element, target.firstChild);
-            break;
-          case "append":
-          default:
-            target.appendChild(element);
-            break;
-        }
-        const resource = { type: "dom", element };
-        resources.add(resource);
-        return function() {
-          if (element.parentNode) {
-            element.parentNode.removeChild(element);
-          }
-          resources.delete(resource);
-        };
-      },
-      replace: function(selector, element) {
-        if (!hasPermission(pluginId, "ui-override")) {
-          throw new Error("Plugin does not have ui-override permission");
-        }
-        const target = document.querySelector(selector);
-        if (!target) {
-          console.warn("[Plugin:" + pluginId + "] Selector not found:", selector);
-          return () => {
-          };
-        }
-        const original = target;
-        if (!target.parentNode) {
-          console.warn("[Plugin:" + pluginId + "] Target has no parent node for replace");
-          return () => {
-          };
-        }
-        target.parentNode.replaceChild(element, target);
-        const resource = { type: "dom", element, original };
-        resources.add(resource);
-        return function() {
-          if (element.parentNode) {
-            element.parentNode.replaceChild(original, element);
-          }
-          resources.delete(resource);
-        };
-      },
-      registerComponent: function(name, component) {
-        if (!hasPermission(pluginId, "ui-override")) {
-          throw new Error("Plugin does not have ui-override permission");
-        }
-        if (ComponentRegistry) {
-          ComponentRegistry.register(name, component, component.priority || 0);
-          const resource = { type: "component", name };
-          resources.add(resource);
-        }
-      },
-      unregisterComponent: function(name) {
-        if (ComponentRegistry) {
-          ComponentRegistry.unregister(name);
-        }
-      },
-      showToast: function(message, type, duration) {
-        var fn = InternalAPI.ui.showToast || window.showToast;
-        if (fn) {
-          fn(message, type || "info", duration);
-        }
-      }
-    };
-  }
-  function createDataApi(pluginId) {
-    const resources = pluginResources.get(pluginId) || /* @__PURE__ */ new Set();
-    return {
-      onUpdate: function(callback) {
-        const listeners = dataUpdateListeners.get(pluginId) || [];
-        listeners.push(callback);
-        dataUpdateListeners.set(pluginId, listeners);
-        const resource = { type: "listener", callback };
-        resources.add(resource);
-        return function() {
-          const idx = listeners.indexOf(callback);
-          if (idx !== -1) {
-            listeners.splice(idx, 1);
-          }
-          resources.delete(resource);
-        };
-      },
-      getCard: function(id) {
-        if (window.store && window.store.cards && window.store.cards[id]) {
-          var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
-          if (cloneFn) return cloneFn(window.store.cards[id]);
-          if (typeof structuredClone === "function") return structuredClone(window.store.cards[id]);
-          return JSON.parse(JSON.stringify(window.store.cards[id]));
-        }
-        return void 0;
-      },
-      listCards: function() {
-        if (window.store && window.store.cards) {
-          var cloneFn = InternalAPI.utils.cloneCard || window.cloneCard;
-          return Object.values(window.store.cards).map(function(card) {
-            if (cloneFn) return cloneFn(card);
-            if (typeof structuredClone === "function") return structuredClone(card);
-            return JSON.parse(JSON.stringify(card));
-          });
-        }
-        return [];
-      },
-      createCard: function(data) {
-        if (!hasPermission(pluginId, "data-modify")) {
-          throw new Error("Plugin does not have data-modify permission");
-        }
-        var fn = InternalAPI.data.createCard || window.createCard;
-        if (fn) {
-          return fn(data.title || "", data.body || "", data.parentId || null, false, false);
-        }
-        throw new Error("createCard not available");
-      },
-      updateCard: function(id, updates) {
-        if (!hasPermission(pluginId, "data-modify")) {
-          throw new Error("Plugin does not have data-modify permission");
-        }
-        var fn = InternalAPI.data.updateCard || window.updateCard;
-        if (fn) {
-          fn(id, updates, false, false);
-          return this.getCard(id);
-        }
-        throw new Error("updateCard not available");
-      },
-      deleteCard: function(id) {
-        if (!hasPermission(pluginId, "data-modify")) {
-          throw new Error("Plugin does not have data-modify permission");
-        }
-        var fn = InternalAPI.data.deleteCard || window.deleteCard;
-        if (fn) {
-          fn(id);
-          return true;
-        }
-        return false;
-      },
-      getTags: function(cardId) {
-        var fn = InternalAPI.data.getTags || window.getTags;
-        if (fn) {
-          return fn(cardId);
-        }
-        return [];
-      },
-      addTag: function(cardId, tag) {
-        if (!hasPermission(pluginId, "data-modify")) {
-          throw new Error("Plugin does not have data-modify permission");
-        }
-        var fn = InternalAPI.data.addTag || window.addTag;
-        if (fn) {
-          return fn(cardId, tag);
-        }
-        return false;
-      },
-      removeTag: function(cardId, tag) {
-        if (!hasPermission(pluginId, "data-modify")) {
-          throw new Error("Plugin does not have data-modify permission");
-        }
-        var fn = InternalAPI.data.removeTag || window.removeTag;
-        if (fn) {
-          return fn(cardId, tag);
-        }
-        return false;
-      },
-      setTags: function(cardId, tags) {
-        if (!hasPermission(pluginId, "data-modify")) {
-          throw new Error("Plugin does not have data-modify permission");
-        }
-        var fn = InternalAPI.data.setTags || window.setTags;
-        if (fn) {
-          return fn(cardId, tags);
-        }
-        return false;
-      },
-      getAllTags: function() {
-        var fn = InternalAPI.data.getAllTags || window.getAllTags;
-        if (fn) {
-          return fn();
-        }
-        return [];
-      }
-    };
-  }
-  function createStorageApi(pluginId) {
-    const namespace = "plugin_" + pluginId + "_";
-    return {
-      getNamespace: function() {
-        return namespace;
-      },
-      get: async function(key) {
-        if (!hasPermission(pluginId, "storage")) {
-          throw new Error("Plugin does not have storage permission");
-        }
-        const fullKey = namespace + key;
-        if (window.storageDriver && window.storageDriver.get) {
-          return await window.storageDriver.get(fullKey);
-        }
-        const raw = localStorage.getItem(fullKey);
-        if (raw === null) return null;
-        try {
-          return JSON.parse(raw);
-        } catch (e) {
-          return raw;
-        }
-      },
-      set: async function(key, value) {
-        if (!hasPermission(pluginId, "storage")) {
-          throw new Error("Plugin does not have storage permission");
-        }
-        const fullKey = namespace + key;
-        if (window.storageDriver && window.storageDriver.set) {
-          return await window.storageDriver.set(fullKey, value);
-        }
-        localStorage.setItem(fullKey, JSON.stringify(value));
-      },
-      remove: async function(key) {
-        if (!hasPermission(pluginId, "storage")) {
-          throw new Error("Plugin does not have storage permission");
-        }
-        const fullKey = namespace + key;
-        if (window.storageDriver && window.storageDriver.remove) {
-          return await window.storageDriver.remove(fullKey);
-        }
-        localStorage.removeItem(fullKey);
-      },
-      list: async function(prefix) {
-        if (!hasPermission(pluginId, "storage")) {
-          throw new Error("Plugin does not have storage permission");
-        }
-        const fullPrefix = namespace + (prefix || "");
-        if (window.storageDriver && window.storageDriver.list) {
-          return await window.storageDriver.list(fullPrefix);
-        }
-        const keys = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith(fullPrefix)) {
-            keys.push(key.substring(namespace.length));
-          }
-        }
-        return keys;
-      }
-    };
-  }
-  function createEventApi(pluginId) {
-    const resources = pluginResources.get(pluginId) || /* @__PURE__ */ new Set();
-    return {
-      on: function(event, callback) {
-        if (!globalEventBus.has(event)) {
-          globalEventBus.set(event, []);
-        }
-        const handlers = globalEventBus.get(event);
-        handlers.push({ pluginId, callback });
-        const resource = { type: "event", event, callback };
-        resources.add(resource);
-        return function() {
-          const list = globalEventBus.get(event);
-          if (list) {
-            const idx = list.findIndex(function(h2) {
-              return h2.callback === callback && h2.pluginId === pluginId;
-            });
-            if (idx !== -1) {
-              list.splice(idx, 1);
-            }
-          }
-          resources.delete(resource);
-        };
-      },
-      emit: function(event) {
-        const handlers = globalEventBus.get(event);
-        if (handlers) {
-          const args = Array.prototype.slice.call(arguments, 1);
-          handlers.slice().forEach(function(entry) {
-            try {
-              entry.callback.apply(null, args);
-            } catch (err) {
-              console.error("[EventBus] Handler error in plugin " + entry.pluginId + ":", err);
-            }
-          });
-        }
-      },
-      once: function(event, callback) {
-        const self = this;
-        const wrapper = function() {
-          self.off(event, wrapper);
-          callback.apply(null, arguments);
-        };
-        return this.on(event, wrapper);
-      },
-      off: function(event, callback) {
-        const list = globalEventBus.get(event);
-        if (list) {
-          const idx = list.findIndex(function(h2) {
-            return h2.callback === callback && h2.pluginId === pluginId;
-          });
-          if (idx !== -1) {
-            list.splice(idx, 1);
-          }
-        }
-      }
-    };
-  }
-  function createNetworkApi(pluginId) {
-    return {
-      fetch: async function(url, options) {
-        if (!hasPermission(pluginId, "network")) {
-          throw new Error("Plugin does not have network permission");
-        }
-        return window.fetch(url, options);
-      },
-      xhr: function() {
-        if (!hasPermission(pluginId, "network")) {
-          throw new Error("Plugin does not have network permission");
-        }
-        return new XMLHttpRequest();
-      }
-    };
-  }
-  function createFilesystemApi(pluginId) {
-    return {
-      readFile: async function(path, options) {
-        if (!hasPermission(pluginId, "filesystem")) {
-          throw new Error("Plugin does not have filesystem permission");
-        }
-        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
-          return window.Capacitor.Plugins.Filesystem.readFile(Object.assign({}, options, { path }));
-        }
-        throw new Error("Filesystem not available on this platform");
-      },
-      writeFile: async function(path, data, options) {
-        if (!hasPermission(pluginId, "filesystem")) {
-          throw new Error("Plugin does not have filesystem permission");
-        }
-        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
-          return window.Capacitor.Plugins.Filesystem.writeFile(Object.assign({}, options, { path, data }));
-        }
-        throw new Error("Filesystem not available on this platform");
-      }
-    };
-  }
-  function createLogger(pluginId) {
-    const prefix = "[Plugin:" + pluginId + "]";
-    return {
-      log: function() {
-        console.log.apply(console, [prefix].concat(Array.from(arguments)));
-      },
-      info: function() {
-        console.info.apply(console, [prefix].concat(Array.from(arguments)));
-      },
-      warn: function() {
-        console.warn.apply(console, [prefix].concat(Array.from(arguments)));
-      },
-      error: function() {
-        console.error.apply(console, [prefix].concat(Array.from(arguments)));
-      }
-    };
-  }
-  function createPluginContext(pluginId) {
-    return {
-      modId: pluginId,
-      appVersion: window.APP_VERSION || "0.17.0",
-      schemaVersion: window.SCHEMA_VERSION || 4,
-      api: {
-        ui: createUIApi(pluginId),
-        data: createDataApi(pluginId),
-        storage: createStorageApi(pluginId),
-        events: createEventApi(pluginId),
-        network: createNetworkApi(pluginId),
-        filesystem: createFilesystemApi(pluginId)
-      },
-      utils: window.CardSpoke && window.CardSpoke.utils ? window.CardSpoke.utils : {},
-      logger: createLogger(pluginId)
-    };
-  }
-  let pluginSandboxRuntime = null;
-  function ensurePluginSandboxRuntime() {
-    if (pluginSandboxRuntime) return pluginSandboxRuntime;
-    const frame = document.createElement("iframe");
-    frame.setAttribute("sandbox", "allow-scripts");
-    frame.style.display = "none";
-    document.body.appendChild(frame);
-    const pending = /* @__PURE__ */ new Map();
-    const callCtxPath = function(root, path, args) {
-      const parts = (path || "").split(".");
-      let target = root;
-      for (let i = 0; i < parts.length; i++) {
-        if (!target) break;
-        target = target[parts[i]];
-      }
-      if (typeof target !== "function") throw new Error("ctx method not found: " + path);
-      return target.apply(null, args || []);
-    };
-    window.addEventListener("message", function(ev) {
-      if (ev.source !== frame.contentWindow) return;
-      const data = ev.data || {};
-      if (data.type === "sandbox:ctx-result" && pending.has(data.id)) {
-        const entry = pending.get(data.id);
-        pending.delete(data.id);
-        data.error ? entry.reject(new Error(data.error)) : entry.resolve(data.result);
-      }
-    });
-    frame.srcdoc = `<!doctype html><html><body><script>
-      const pendingCalls = new Map();
-      window.addEventListener('message', async (event) => {
-        const data = event.data || {};
-        if (data.type === 'sandbox:execute') {
-          const reqId = data.id;
-          const callCtx = (path, args) => new Promise((resolve, reject) => {
-            const id = 'ctx_' + Math.random().toString(36).slice(2);
-            pendingCalls.set(id, { resolve, reject });
-            parent.postMessage({ type: 'sandbox:ctx-call', id, path, args }, '*');
-          });
-          window.addEventListener('message', function onResult(ev){
-            const msg = ev.data || {};
-            if (msg.type !== 'sandbox:ctx-result') return;
-            const c = pendingCalls.get(msg.id);
-            if (!c) return;
-            pendingCalls.delete(msg.id);
-            msg.error ? c.reject(new Error(msg.error)) : c.resolve(msg.result);
-          });
-          const makeProxy = (prefix='') => new Proxy(function(){}, {
-            get(_t, prop){
-              const p = prefix ? prefix + '.' + String(prop) : String(prop);
-              return makeProxy(p);
-            },
-            apply(_t,_this,args){
-              return callCtx(prefix, args || []);
-            }
-          });
-          try {
-            const fn = new Function('ctx', data.code);
-            const ctx = makeProxy('');
-            const result = await fn(ctx);
-            parent.postMessage({ type: 'sandbox:exec-result', id: reqId, result }, '*');
-          } catch (err) {
-            parent.postMessage({ type: 'sandbox:exec-result', id: reqId, error: String(err && err.message ? err.message : err) }, '*');
-          }
-        }
-      });
-    <\/script></body></html>`;
-    const execute = function(code, ctx) {
-      return new Promise((resolve, reject) => {
-        const execId = "exec_" + Math.random().toString(36).slice(2);
-        const onMessage = async function(ev) {
-          if (ev.source !== frame.contentWindow) return;
-          const data = ev.data || {};
-          if (data.type === "sandbox:ctx-call") {
-            try {
-              const result = await callCtxPath(ctx, data.path, data.args);
-              frame.contentWindow.postMessage({ type: "sandbox:ctx-result", id: data.id, result }, "*");
-            } catch (err) {
-              frame.contentWindow.postMessage({ type: "sandbox:ctx-result", id: data.id, error: err.message }, "*");
-            }
-            return;
-          }
-          if (data.type === "sandbox:exec-result" && data.id === execId) {
-            window.removeEventListener("message", onMessage);
-            data.error ? reject(new Error(data.error)) : resolve(data.result);
-          }
-        };
-        window.addEventListener("message", onMessage);
-        frame.contentWindow.postMessage({ type: "sandbox:execute", id: execId, code }, "*");
-      });
-    };
-    pluginSandboxRuntime = { execute };
-    return pluginSandboxRuntime;
-  }
-  function _createSandboxedFunction(code) {
-    return function(ctx) {
-      if (typeof window === "undefined" || typeof document === "undefined" || typeof window.addEventListener !== "function" || typeof document.createElement !== "function") {
-        return new Function("ctx", code)(ctx);
-      }
-      return ensurePluginSandboxRuntime().execute(code, ctx || {});
-    };
-  }
-  function _functionToCtxCode(fn) {
-    if (typeof fn !== "function") return null;
-    return "return (" + fn.toString() + ")(ctx);";
-  }
-  function _createSerializableDefinition(definition) {
-    if (!definition) return null;
-    return {
-      manifest: definition.manifest,
-      css: definition.css,
-      js: typeof definition.js === "string" && definition.js || _functionToCtxCode(definition.setup),
-      teardownJs: typeof definition.teardownJs === "string" && definition.teardownJs || _functionToCtxCode(definition.teardown)
-    };
-  }
-  const PluginManager = {
-    register: function(id, definition) {
-      if (!id || !definition) {
-        throw new Error("Plugin ID and definition are required");
-      }
-      if (!definition.manifest) {
-        throw new Error("Plugin manifest is required");
-      }
-      if (PluginValidator) {
-        var validationResult = PluginValidator.validate({
-          id,
-          manifest: definition.manifest,
-          css: definition.css,
-          js: definition.js
-        });
-        if (validationResult.warnings.length > 0) {
-          validationResult.warnings.forEach(function(w) {
-            console.warn("[Plugin] Validation warning for " + id + ":", w);
-          });
-        }
-        if (!validationResult.valid) {
-          throw new Error("Plugin validation failed: " + validationResult.errors.join("; "));
-        }
-      }
-      const resources = /* @__PURE__ */ new Set();
-      pluginResources.set(id, resources);
-      const context = createPluginContext(id);
-      const instance = {
-        id,
-        definition,
-        context,
-        enabled: false,
-        resources
-      };
-      plugins.set(id, instance);
-      console.log("[Plugin] Registered:", id);
-    },
-    unregister: async function(id) {
-      const instance = plugins.get(id);
-      if (instance) {
-        if (instance.enabled) {
-          await this.disable(id);
-        }
-        this._cleanupResources(id);
-        plugins.delete(id);
-        pluginResources.delete(id);
-        dataUpdateListeners.delete(id);
-        if (window.store && window.store.plugins) {
-          delete window.store.plugins[id];
-          if (window.save) {
-            window.save();
-          }
-        }
-        console.log("[Plugin] Unregistered:", id);
-      }
-    },
-    get: function(id) {
-      return plugins.get(id);
-    },
-    list: function() {
-      return Array.from(plugins.values());
-    },
-    enable: async function(id) {
-      const instance = plugins.get(id);
-      if (!instance) {
-        throw new Error("Plugin not found: " + id);
-      }
-      if (instance.enabled) {
-        return;
-      }
-      captureInternalReferences();
-      if (instance.definition.manifest.config) {
-        instance.context.config = instance.definition.manifest.config;
-      }
-      if (instance.definition.manifest.overrides) {
-        const overrides = instance.definition.manifest.overrides;
-        if (overrides.appName && typeof overrides.appName === "string") {
-          const brandBtn = document.getElementById && document.getElementById("brandBtn");
-          if (brandBtn) brandBtn.textContent = overrides.appName;
-        }
-      }
-      if (instance.definition.manifest.permissions) {
-        const granted = await this._checkPermissions(id, instance.definition.manifest.permissions);
-        if (!granted) {
-          throw new Error("Permissions not granted for plugin: " + id);
-        }
-      }
-      if (instance.definition.css) {
-        this._applyCSS(id, instance.definition.css);
-      }
-      if (instance.definition.setup) {
-        try {
-          await instance.definition.setup(instance.context);
-        } catch (err) {
-          console.error("[Plugin] Setup error for", id, ":", err);
-          console.error("[Plugin] Stack trace:", err.stack);
-          if (window.showToast) {
-            window.showToast('Plugin "' + id + '" failed to start: ' + err.message, "error");
-          }
-          this._removeCSS(id);
-          this._cleanupResources(id);
-          if (instance.context && instance.context.logger) {
-            instance.context.logger.error("Plugin setup failed and was disabled: " + err.message);
-          }
-          throw err;
-        }
-      }
-      instance.enabled = true;
-      console.log("[Plugin] Enabled:", id);
-    },
-    disable: async function(id) {
-      const instance = plugins.get(id);
-      if (!instance) {
-        throw new Error("Plugin not found: " + id);
-      }
-      if (!instance.enabled) {
-        return;
-      }
-      if (instance.definition.teardown) {
-        try {
-          await instance.definition.teardown(instance.context);
-        } catch (err) {
-          console.error("[Plugin] Teardown error for", id, ":", err);
-          console.error("[Plugin] Stack trace:", err.stack);
-          if (instance.context && instance.context.logger) {
-            instance.context.logger.warn("Plugin cleanup had errors but continuing: " + err.message);
-          }
-        }
-      }
-      this._removeCSS(id);
-      this._cleanupResources(id);
-      instance.enabled = false;
-      console.log("[Plugin] Disabled:", id);
-    },
-    _applyCSS: function(id, css) {
-      const existing = document.querySelector('style[data-plugin-id="' + id + '"]');
-      if (existing) {
-        existing.textContent = css;
-      } else {
-        const style = document.createElement("style");
-        style.setAttribute("data-plugin-id", id);
-        style.textContent = css;
-        document.head.appendChild(style);
-      }
-    },
-    _removeCSS: function(id) {
-      const style = document.querySelector('style[data-plugin-id="' + id + '"]');
-      if (style && style.parentNode) {
-        style.parentNode.removeChild(style);
-      }
-    },
-    _cleanupResources: function(id) {
-      const resources = pluginResources.get(id);
-      if (!resources || resources.size === 0) {
-        return;
-      }
-      const cleanup = {
-        domElements: 0,
-        components: 0,
-        listeners: 0,
-        events: 0,
-        errors: 0
-      };
-      resources.forEach(function(resource) {
-        try {
-          if (resource.type === "dom") {
-            if (resource.original) {
-              if (resource.element && resource.element.parentNode) {
-                resource.element.parentNode.replaceChild(resource.original, resource.element);
-                cleanup.domElements++;
-              }
-            } else if (resource.element && resource.element.parentNode) {
-              resource.element.parentNode.removeChild(resource.element);
-              cleanup.domElements++;
-            }
-          } else if (resource.type === "component") {
-            if (ComponentRegistry) {
-              ComponentRegistry.unregister(resource.name);
-              cleanup.components++;
-            }
-          } else if (resource.type === "listener") {
-            cleanup.listeners++;
-          } else if (resource.type === "event") {
-            const list = globalEventBus.get(resource.event);
-            if (list) {
-              const idx = list.findIndex(function(h2) {
-                return h2.callback === resource.callback && h2.pluginId === id;
-              });
-              if (idx !== -1) {
-                list.splice(idx, 1);
-              }
-            }
-            cleanup.events++;
-          }
-        } catch (err) {
-          cleanup.errors++;
-          console.error("[Plugin] Resource cleanup error for", id, ":", err);
-        }
-      });
-      resources.clear();
-      const listeners = dataUpdateListeners.get(id);
-      if (listeners && listeners.length > 0) {
-        cleanup.listeners += listeners.length;
-        dataUpdateListeners.delete(id);
-      }
-      console.log(
-        "[Plugin] Cleanup complete for",
-        id,
-        ":",
-        cleanup.domElements,
-        "DOM elements,",
-        cleanup.components,
-        "components,",
-        cleanup.listeners,
-        "listeners,",
-        cleanup.events,
-        "events",
-        cleanup.errors > 0 ? "(" + cleanup.errors + " errors)" : ""
-      );
-    },
-    _checkPermissions: async function(id, permissions) {
-      console.log("[Plugin] Permissions requested for", id, ":", permissions);
-      if (!permissions || permissions.length === 0) {
-        return true;
-      }
-      if (PermissionsManager) {
-        const instance = plugins.get(id);
-        const pluginName = instance && instance.definition.manifest && instance.definition.manifest.name || id;
-        return await PermissionsManager.requestPermissions(id, pluginName, permissions);
-      }
-      if (window.showPermissionDialog) {
-        return await window.showPermissionDialog(id, permissions);
-      }
-      console.warn("[Plugin] No permission consent mechanism available; denying permissions for", id);
-      return false;
-    },
-    notifyDataUpdate: function(event) {
-      dataUpdateListeners.forEach(function(listeners, pluginId) {
-        listeners.forEach(function(callback) {
-          try {
-            callback(event);
-          } catch (err) {
-            console.error("[Plugin] Data update callback error:", err);
-          }
-        });
-      });
-    },
-    listAll: function() {
-      return this.list();
-    },
-    install: async function(pkg) {
-      if (!pkg || !pkg.manifest) {
-        throw new Error("Invalid plugin package: manifest is required");
-      }
-      if (pkg.manifest.dependencies && Array.isArray(pkg.manifest.dependencies) && pkg.manifest.dependencies.length > 0) {
-        const missing = pkg.manifest.dependencies.filter(function(dep) {
-          return !plugins.has(dep);
-        });
-        if (missing.length > 0) {
-          throw new Error("Missing dependencies: " + missing.join(", ") + ". Install the required plugins first.");
-        }
-      }
-      if (!pkg.setup) {
-        if (pkg.js && typeof pkg.js === "string") {
-          pkg.setup = _createSandboxedFunction(pkg.js);
-        } else if (pkg.javascript && typeof pkg.javascript === "string") {
-          pkg.setup = _createSandboxedFunction(pkg.javascript);
-        }
-      }
-      let id = pkg.manifest.id || pkg.manifest.name.toLowerCase().replace(/\s+/g, "-");
-      if (plugins.has(id)) {
-        if (plugins.get(id).enabled) {
-          await this.disable(id);
-        }
-        this.unregister(id);
-      }
-      const definition = {
-        manifest: pkg.manifest,
-        setup: pkg.setup,
-        teardown: pkg.teardown,
-        css: pkg.css,
-        js: pkg.js || pkg.javascript,
-        teardownJs: pkg.teardownJs || (typeof pkg.teardown === "string" ? pkg.teardown : null)
-      };
-      this.register(id, definition);
-      const risk = this.assessModRisk(pkg);
-      if (risk === 'SAFE' || risk === 'LOW') {
-        await this.enable(id);
-      }
-      if (window.store) {
-        if (!window.store.plugins) {
-          window.store.plugins = {};
-        }
-        window.store.plugins[id] = {
-          definition: _createSerializableDefinition(definition),
-          enabled: risk === 'SAFE' || risk === 'LOW'
-        };
-        if (window.save) {
-          window.save();
-        }
-      }
-      console.log("[Plugin] Installed:", id);
-      return id;
-    },
-    assessModRisk: function(pkg) {
-      if (!pkg || !pkg.manifest) {
-        return 'HIGH';
-      }
-      const manifest = pkg.manifest;
-      const layer = manifest.layer || "feature";
-      const hasJS = !!pkg.setup || !!pkg.teardown || !!pkg.js || !!pkg.javascript;
-      const hasCSS = !!pkg.css;
-      const hasOverrides = !!pkg.overrides || !!manifest.overrides;
-      if (layer === "theme" && !hasJS && hasCSS) {
-        return 'SAFE';
-      }
-      if (layer === "feature" && !hasOverrides) {
-        return 'LOW';
-      }
-      if (layer === "app" || hasOverrides) {
-        return 'HIGH';
-      }
-      return 'MEDIUM';
-    },
-    syncFromStore: async function(safeMode2) {
-      if (!window.store || !window.store.plugins) {
-        return;
-      }
-      const storedPlugins = window.store.plugins || {};
-      const pluginIds = Object.keys(storedPlugins);
-      if (pluginIds.length === 0) {
-        return;
-      }
-      console.log("[Plugin] Syncing", pluginIds.length, "plugins from store");
-      for (const id of pluginIds) {
-        const pluginData = storedPlugins[id];
-        try {
-          if (pluginData.definition) {
-            const def = pluginData.definition;
-            if (!def.setup && def.js && typeof def.js === "string") {
-              def.setup = _createSandboxedFunction(def.js);
-            }
-            if (!def.teardown && def.teardownJs && typeof def.teardownJs === "string") {
-              def.teardown = _createSandboxedFunction(def.teardownJs);
-            }
-            this.register(id, def);
-            if (!safeMode2 && pluginData.enabled) {
-              await this.enable(id);
-            }
-          }
-        } catch (err) {
-          console.error("[Plugin] Failed to sync plugin", id, ":", err);
-        }
-      }
-    },
-    /**
-     * Phase 3.1: Auto-Generated Settings UI
-     * Dynamically build a settings panel from the plugin's config object.
-     * Each config key becomes a labelled form input whose type is inferred
-     * from the value type (boolean → checkbox, number → number, else → text).
-     * Changes made in the panel are written back to the plugin's live context.
-     *
-     * @param {string} id - Plugin ID
-     * @returns {HTMLElement|null} A <div class="plugin-settings-panel"> element,
-     *   or null if the plugin has no config.
-     */
-    buildSettingsPanel: function(id) {
-      const instance = plugins.get(id);
-      if (!instance) return null;
-      const config = instance.definition.manifest && instance.definition.manifest.config;
-      if (!config || typeof config !== "object") return null;
-      const keys = Object.keys(config);
-      if (keys.length === 0) return null;
-      const panel = document.createElement("div");
-      panel.className = "plugin-settings-panel";
-      panel.setAttribute("data-plugin-id", id);
-      const title = document.createElement("h3");
-      title.className = "plugin-settings-title";
-      title.textContent = (instance.definition.manifest.name || id) + " Settings";
-      panel.appendChild(title);
-      keys.forEach(function(key) {
-        const defaultValue = config[key];
-        const valueType = typeof defaultValue;
-        const row = document.createElement("div");
-        row.className = "plugin-settings-row";
-        const label = document.createElement("label");
-        label.textContent = key;
-        label.setAttribute("for", "plugin-setting-" + id + "-" + key);
-        let input;
-        if (valueType === "boolean") {
-          input = document.createElement("input");
-          input.type = "checkbox";
-          input.checked = defaultValue;
-        } else if (valueType === "number") {
-          input = document.createElement("input");
-          input.type = "number";
-          input.value = String(defaultValue);
-        } else {
-          input = document.createElement("input");
-          input.type = "text";
-          input.value = defaultValue != null ? String(defaultValue) : "";
-        }
-        input.id = "plugin-setting-" + id + "-" + key;
-        input.setAttribute("data-config-key", key);
-        input.setAttribute("data-plugin-id", id);
-        input.onchange = function() {
-          let newValue;
-          if (valueType === "boolean") {
-            newValue = input.checked;
-          } else if (valueType === "number") {
-            newValue = Number(input.value);
-          } else {
-            newValue = input.value;
-          }
-          config[key] = newValue;
-          if (instance.context && instance.context.config) {
-            instance.context.config[key] = newValue;
-          }
-        };
-        row.appendChild(label);
-        row.appendChild(input);
-        panel.appendChild(row);
-      });
-      return panel;
-    }
-  };
-  console.log("[Plugin] API system initialized");
-  function resetForTesting() {
-    plugins.clear();
-    pluginResources.clear();
-    dataUpdateListeners.clear();
-    globalEventBus.clear();
-    pluginSandboxRuntime = null;
-  }
   const DEFAULT_MODE_ID = "cardspoke";
   const modes = /* @__PURE__ */ new Map();
   let activeModeId = DEFAULT_MODE_ID;
@@ -10546,24 +10700,4 @@ ${prefix}`;
     registerAppMode({ id: "plants", title: "Plant Pal", icon: "leaf", accepts: byKinds("plant", "care_log") });
   }
   registerBuiltInModes();
-  window.CardSpoke = Object.freeze({
-    /**
-     * Register and activate a plugin.
-     * @param {string} id - Unique plugin identifier
-     * @param {Object} definition - Plugin definition object (manifest, setup, teardown, css, js)
-     */
-    registerPlugin: function(id, definition) {
-      return PluginManager.register(id, definition);
-    },
-    /**
-     * Request user consent for a set of permissions on behalf of a plugin.
-     * @param {string} pluginId - Plugin identifier
-     * @param {string} pluginName - Human-readable plugin name
-     * @param {string[]} permissions - Array of permission names
-     * @returns {Promise<boolean>} Whether permissions were granted
-     */
-    requestPermissions: function(pluginId, pluginName, permissions) {
-      return PermissionsManager.requestPermissions(pluginId, pluginName, permissions);
-    }
-  });
 })();

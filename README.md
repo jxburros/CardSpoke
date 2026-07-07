@@ -57,8 +57,9 @@ local-first storage model and optional off-device integrations.
   utilities, renderer logic, and the plugin runtime; `styles.css` holds the
   default light/dark styling and typography presets.
 - `www/src/` – Source slices that compile into `www/app.js`. `npm run build`
-  (Vite) is the canonical build path. `npm run build:cat` is a legacy
-  concatenation fallback and is not authoritative.
+  (Vite) is the single canonical build path. Runtime lives in
+  `www/src/core/` (ES modules); the app layer is fused into one scope at
+  build time (see [Core/Shell Split](./docs/architecture/CORE_SHELL_SPLIT.md)).
 - `www/modules/` – Reference ES module versions kept for documentation (not
   used at runtime).
 - `tests/` – Automated tests (uvu).
@@ -128,46 +129,52 @@ layers:
 
 The plugin system includes:
 
+- **Plugin API**: Isolated per-plugin contexts with `api.ui`, `api.data`,
+  `api.storage`, `api.events`, and `api.middleware`; every resource a plugin
+  creates is tracked and cleaned up automatically on suspend/delete
 - **Middleware Pipeline**: Priority-weighted interceptors for core operations
-  (card save, delete, render, etc.). Internal-only; not exposed on
-  `window.CardSpoke`.
-- **Plugin API**: Sandboxed contexts with `api.ui`, `api.data`, `api.storage`,
-  and `api.events`
-- **Component Registry**: Type-safe UI component overrides with priority-based
-  resolution. Internal-only; not exposed on `window.CardSpoke`.
-- **Storage Driver Registry**: Pluggable storage backends (IndexedDB, cloud,
-  git, etc.). Internal-only; not exposed on `window.CardSpoke`.
-- **Permission System**: User consent for sensitive operations with explicit
-  permission requests
+  (`card.create`, `card.update`, `card.delete`, `card.save`, `card.render`)
+- **Component Registry**: UI component overrides (`Card`, `Header`,
+  `Sidebar`, `SearchBar`) with priority-based resolution
+- **Permission System**: Deny-by-default user consent for sensitive
+  operations, persisted per plugin and revoked on delete
+- **Persistence**: Installed plugins live in the active dataset and are
+  restored (with their enabled/suspended state) on every reload;
+  `?safemode` boots with all plugins disabled
 - **TypeScript Support**: Type definitions available in `types/` directory for
   local development
 
-The public plugin-facing surface on `window.CardSpoke` is intentionally
-limited to two entry points, `registerPlugin(id, definition)` and
-`requestPermissions(pluginId, pluginName, permissions)`; the Middleware
-Pipeline, Component Registry, and Storage Driver Registry are internal
-systems used during core init and are not reachable through
-`window.CardSpoke`.
+The public surface is `window.CardSpoke`, assembled and frozen by
+`www/src/core/global-api.js`: convenience entry points
+(`registerPlugin`, `installPlugin`, `requestPermissions`) plus the runtime
+subsystems (`Plugin`, `Middleware`, `ComponentRegistry`, `PluginValidator`,
+`Permissions`, `PluginSandbox`, `StorageDriverRegistry`, `utils`). Its shape
+is a stability contract — see
+[Plugin Invariants](./docs/PLUGIN_INVARIANTS.md).
 
 ### Quick Example
 
-```javascript
-// Modern Plugin API
-window.CardSpoke.registerPlugin('my-plugin', {
-  manifest: {
-    name: "My Plugin",
-    version: "1.0.0",
-    author: "Author",
-    layer: "feature",
-    permissions: ["ui-override"]
+A plugin is a JSON package whose `js` string is the body of its setup
+function (it receives `ctx`):
+
+```json
+{
+  "id": "my-plugin",
+  "manifest": {
+    "id": "my-plugin",
+    "name": "My Plugin",
+    "version": "1.0.0",
+    "author": "Author",
+    "layer": "feature",
+    "permissions": ["ui-override"]
   },
-  setup: async (ctx) => {
-    // Use sandboxed APIs
-    const cards = ctx.api.data.listCards();
-    ctx.api.ui.showToast(`Loaded ${cards.length} cards`, 'info');
-  }
-});
+  "js": "var cards = ctx.api.data.listCards(); ctx.api.ui.showToast('Loaded ' + cards.length + ' cards', 'info');"
+}
 ```
+
+Install it from the Plugin Manager (menu → Plugin Manager → Install), or
+programmatically with `await window.CardSpoke.Plugin.install(pkg)`. Working
+examples of all three layers live in [`sample-plugins/`](./sample-plugins/).
 
 See [Plugin System Documentation](./docs/PLUGIN_SYSTEM.md) for complete details.
 

@@ -1,0 +1,17 @@
+{
+  "id": "my-app",
+  "manifest": {
+    "id": "my-app",
+    "name": "My App",
+    "version": "1.0.0",
+    "author": "Your Name",
+    "description": "An app-layer transformation: renames the app and adds a panel.",
+    "layer": "app",
+    "permissions": ["ui-override", "data-modify"],
+    "compatibility": ">=0.17.0",
+    "overrides": { "appName": "My App" }
+  },
+  "css": ".my-app-btn { margin-left: 8px; }",
+  "js": "// setup body — receives ctx. App-layer plugins install SUSPENDED;\n// the user enables them manually. overrides.appName renames #brandBtn.\nvar btn = document.createElement('button');\nbtn.className = 'btn my-app-btn';\nbtn.textContent = 'Action';\nbtn.onclick = function () {\n  ctx.api.data.createCard({ title: 'From My App', body: '', tags: ['my-app'] });\n  ctx.api.ui.showToast('Created a card', 'success');\n};\nctx.api.ui.inject('.header', btn, 'append');\n\nctx.logger.info('my-app ready');",
+  "teardownJs": "// Optional extra cleanup for timers/observers created outside ctx.api."
+}

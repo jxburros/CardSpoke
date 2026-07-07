@@ -11,7 +11,7 @@ CardSpoke is a local-first, card-based knowledge app with a minimal core and bui
 - **Single-bundle runtime** (`www/app.js`) built from domain-named source slices in `www/src`.
 - **Stateful client store** (`store`) persisted by dataset key.
 - **Hierarchical card graph model** (`cards`, `rootOrder`, `parentId`, `children`).
-- **Hook-driven plugin engine** (`onCardSave`, `onNavigate`, `onRender`, etc.).
+- **Plugin engine** driven by a middleware pipeline (`card.create`, `card.update`, `card.delete`, `card.save`, `card.render`) plus data-update notifications, a permission-gated `ctx` API, and layer-based risk assessment.
 - **Route-based UI composition** (`list`, `read`, `edit`, `search`) orchestrated by `render()`.
 
 This yields flexibility and extensibility, with most responsibilities currently concentrated in one shared runtime surface.

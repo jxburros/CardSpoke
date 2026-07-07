@@ -100,6 +100,10 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
           window.CardSpoke.Middleware.run('card.create', [result.id, store.cards[result.id]])
             .catch(err => console.error('[Middleware] card.create error:', err));
         }
+        // Notify plugin data-update listeners (ctx.api.data.onUpdate)
+        if (!skipHooks && window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.notifyDataUpdate) {
+          window.CardSpoke.Plugin.notifyDataUpdate({ type: 'card.create', cardId: result.id, card: store.cards[result.id] });
+        }
         return result.id;
       }
 
@@ -127,6 +131,10 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
           window.CardSpoke.Middleware.run('card.update', [id, store.cards[id]])
             .catch(err => console.error('[Middleware] card.update error:', err));
         }
+        // Notify plugin data-update listeners (ctx.api.data.onUpdate)
+        if (!skipHooks && window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.notifyDataUpdate) {
+          window.CardSpoke.Plugin.notifyDataUpdate({ type: 'card.update', cardId: id, card: store.cards[id] });
+        }
       }
 
       /**
@@ -152,6 +160,10 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         if (!skipHooks && window.CardSpoke && window.CardSpoke.Middleware) {
           window.CardSpoke.Middleware.run('card.delete', [id])
             .catch(err => console.error('[Middleware] card.delete error:', err));
+        }
+        // Notify plugin data-update listeners (ctx.api.data.onUpdate)
+        if (!skipHooks && window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.notifyDataUpdate) {
+          window.CardSpoke.Plugin.notifyDataUpdate({ type: 'card.delete', cardId: id });
         }
       }
 
@@ -1280,7 +1292,13 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
 
           plugins.forEach(function(plugin) {
             var manifest = plugin.definition.manifest || {};
-            var pkg = { manifest: manifest, setup: plugin.definition.setup, teardown: plugin.definition.teardown, css: plugin.definition.css };
+            var pkg = {
+              manifest: manifest,
+              setup: plugin.definition.setup,
+              teardown: plugin.definition.teardown,
+              css: plugin.definition.css,
+              js: plugin.definition.js
+            };
             var risk = window.CardSpoke.Plugin.assessModRisk(pkg);
             
             var card = h('div', {
@@ -1301,9 +1319,15 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
             card.appendChild(headerRow);
 
             var info = h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-sm);' });
-            info.textContent = 'v' + (manifest.version || '1.0.0') + ' by ' + (manifest.author || 'Unknown') + 
+            info.textContent = 'v' + (manifest.version || '1.0.0') + ' by ' + (manifest.author || 'Unknown') +
               (manifest.description ? ' — ' + manifest.description : '');
             card.appendChild(info);
+
+            var stateBadge = h('span', {
+              style: 'font-size: var(--text-xs); padding: 2px 8px; border-radius: 4px; font-weight: 600; ' +
+                (plugin.enabled ? 'background: #d1fae5; color: #065f46;' : 'background: #e5e7eb; color: #374151;')
+            }, plugin.enabled ? 'Active' : 'Suspended');
+            card.appendChild(stateBadge);
 
             var actions = h('div', { style: 'display: flex; gap: var(--space-sm); margin-top: var(--space-md);' });
             
@@ -1314,7 +1338,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
                 try {
                   if (plugin.enabled) {
                     await window.CardSpoke.Plugin.disable(plugin.id);
-                    showToast('Plugin disabled: ' + manifest.name);
+                    showToast('Plugin suspended: ' + manifest.name);
                   } else {
                     await window.CardSpoke.Plugin.enable(plugin.id);
                     showToast('Plugin enabled: ' + manifest.name);
@@ -1322,9 +1346,10 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
                   renderInstalledTab();
                 } catch (err) {
                   showToast('Error: ' + err.message, 'error');
+                  renderInstalledTab();
                 }
               }
-            }, plugin.enabled ? 'Disable' : 'Enable');
+            }, plugin.enabled ? 'Suspend' : 'Enable');
             actions.appendChild(toggleBtn);
 
             var removeBtn = h('button', {
@@ -1337,8 +1362,12 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
                   cancelLabel: 'Cancel',
                   confirmClassName: 'btn btn-danger'
                 })) {
-                  window.CardSpoke.Plugin.unregister(plugin.id);
-                  showToast('Plugin removed: ' + manifest.name);
+                  try {
+                    await window.CardSpoke.Plugin.unregister(plugin.id);
+                    showToast('Plugin removed: ' + manifest.name);
+                  } catch (err) {
+                    showToast('Failed to remove plugin: ' + err.message, 'error');
+                  }
                   renderInstalledTab();
                 }
               }
@@ -1349,8 +1378,13 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
             container.appendChild(card);
           });
 
-          // Legacy plugins section (if any exist)
-          var modIds = Object.keys(store.plugins || {});
+          // Legacy plugins section: only entries WITHOUT a definition are
+          // legacy (pre-v2) packages the current runtime cannot execute.
+          // Modern installed plugins also live in store.plugins (with a
+          // definition) and are already listed above — never show them here.
+          var modIds = Object.keys(store.plugins || {}).filter(function(modId) {
+            return !(store.plugins[modId] && store.plugins[modId].definition);
+          });
           if (modIds.length > 0) {
             var legacySection = h('div', { style: 'margin-top: var(--space-xl); padding-top: var(--space-xl); border-top: 1px solid var(--border);' });
             legacySection.appendChild(h('h3', { style: 'margin-bottom: var(--space-md); color: var(--warning, #f59e0b);' }, 'Legacy Plugins (Non-functional)'));
@@ -1418,16 +1452,9 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
               try {
                 var text = await file.text();
                 var pkg = JSON.parse(text);
-                
-                // Task 1.2: pkg.js takes priority, then pkg.javascript (only if setup not already set)
-                if (!pkg.setup) {
-                  if (pkg.js && typeof pkg.js === 'string') {
-                    pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.js) : new Function('ctx', pkg.js));
-                  } else if (pkg.javascript && typeof pkg.javascript === 'string') {
-                    pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.javascript) : new Function('ctx', pkg.javascript));
-                  }
-                }
-                
+
+                // install() validates the package and compiles its js/css —
+                // it is the single entry point for plugin packages.
                 var id = await window.CardSpoke.Plugin.install(pkg);
                 showToast('Plugin installed: ' + (pkg.manifest.name || id), 'success');
                 renderInstalledTab();
@@ -1467,16 +1494,9 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
                 var response = await fetch(url);
                 if (!response.ok) throw new Error('Failed to fetch plugin: ' + response.status + ' ' + response.statusText);
                 var pkg = await response.json();
-                
-                // Task 1.2: pkg.js takes priority, then pkg.javascript (only if setup not already set)
-                if (!pkg.setup) {
-                  if (pkg.js && typeof pkg.js === 'string') {
-                    pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.js) : new Function('ctx', pkg.js));
-                  } else if (pkg.javascript && typeof pkg.javascript === 'string') {
-                    pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(pkg.javascript) : new Function('ctx', pkg.javascript));
-                  }
-                }
-                
+
+                // install() validates the package and compiles its js/css —
+                // it is the single entry point for plugin packages.
                 var id = await window.CardSpoke.Plugin.install(pkg);
                 showToast('Plugin installed: ' + (pkg.manifest.name || id), 'success');
                 renderInstalledTab();
@@ -1590,14 +1610,13 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
                 var jsCode = jsInput.value.trim();
                 var css = cssInput.value.trim();
 
+                // Pass the RAW source string: install() compiles it and
+                // persists the string so the plugin survives page reloads.
                 var pkg = {
                   manifest: manifest,
-                  css: css || undefined
+                  css: css || undefined,
+                  js: jsCode || undefined
                 };
-
-                if (jsCode) {
-                  pkg.setup = (window.CardSpoke && window.CardSpoke.PluginSandbox ? window.CardSpoke.PluginSandbox.createFunction(jsCode) : new Function('ctx', jsCode));
-                }
 
                 var id = await window.CardSpoke.Plugin.install(pkg);
                 showToast('Plugin created and registered: ' + manifest.name, 'success');
@@ -1851,51 +1870,69 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
           style: 'font-weight: 700; margin-bottom: var(--space-lg); font-size: var(--text-lg);'
         }, 'Theme Plugins'));
 
-        // Custom themes from plugins
+        // Theme-layer plugins from the modern runtime. Installed plugins
+        // live in store.plugins as { definition: { manifest, css, ... },
+        // enabled }; enabling/suspending them goes through
+        // window.CardSpoke.Plugin so CSS injection and persistence are
+        // handled by the plugin lifecycle (no separate theme mechanism).
         const themeExtensions = Object.entries(store.plugins || {}).filter(function([modId, plugin]) {
-          var manifest = plugin.manifest || plugin.meta || {};
+          var manifest = (plugin.definition && plugin.definition.manifest) || plugin.manifest || plugin.meta || {};
           return manifest.layer === 'theme' || (manifest.type && manifest.type === 'Theme');
         }).map(function([modId, plugin]) {
-          var manifest = plugin.manifest || plugin.meta || {};
-          return { manifest: manifest, meta: manifest, enabled: plugin.enabled, css: plugin.css, id: modId };
+          var manifest = (plugin.definition && plugin.definition.manifest) || plugin.manifest || plugin.meta || {};
+          return { manifest: manifest, meta: manifest, enabled: plugin.enabled, id: modId, isModern: !!plugin.definition };
         });
 
-        // Get active theme plugin ID
-        const activeThemeExtension = localStorage.getItem('cardspoke_activeThemeMod') || null;
-        
+        async function activateThemePlugin(themeId) {
+          if (!(window.CardSpoke && window.CardSpoke.Plugin)) return;
+          // Themes are mutually exclusive: suspend every other enabled
+          // theme-layer plugin, then enable the chosen one (if any).
+          for (const other of themeExtensions) {
+            if (other.isModern && other.enabled && other.id !== themeId) {
+              try { await window.CardSpoke.Plugin.disable(other.id); } catch (err) { console.error('[Theme] Failed to suspend', other.id, err); }
+            }
+          }
+          if (themeId) {
+            await window.CardSpoke.Plugin.enable(themeId);
+          }
+        }
+
+        const anyThemeEnabled = themeExtensions.some(function(t) { return t.enabled; });
+
         if (themeExtensions.length > 0) {
-          // Default Theme option (no extension)
+          // Default Theme option (no theme plugin enabled)
           const defaultThemeOption = h('div', {
-            style: 'padding: var(--space-md); border: 2px solid ' + (!activeThemeExtension ? 'var(--text)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer;',
-            onclick: function() {
-              localStorage.removeItem('cardspoke_activeThemeMod');
-              document.documentElement.className = document.documentElement.className
-                .split(' ')
-                .filter(c => !c.startsWith('theme-ext-'))
-                .join(' ');
-              showToast('Default theme applied');
+            style: 'padding: var(--space-md); border: 2px solid ' + (!anyThemeEnabled ? 'var(--text)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer;',
+            onclick: async function() {
+              try {
+                await activateThemePlugin(null);
+                showToast('Default theme applied');
+              } catch (err) {
+                showToast('Failed to apply default theme: ' + err.message, 'error');
+              }
               overlay.remove();
               showAppearanceSettings();
             }
           });
-          defaultThemeOption.appendChild(h('div', { style: 'font-weight: 600;' }, (!activeThemeExtension ? '✓ ' : '') + 'Default Theme'));
+          defaultThemeOption.appendChild(h('div', { style: 'font-weight: 600;' }, (!anyThemeEnabled ? '✓ ' : '') + 'Default Theme'));
           defaultThemeOption.appendChild(h('div', { style: 'font-size: var(--text-sm); color: var(--text-muted);' }, 'Standard CardSpoke appearance'));
           themeSection.appendChild(defaultThemeOption);
-          
+
           themeExtensions.forEach(function(theme) {
-            const isActive = activeThemeExtension === theme.id;
+            const isActive = theme.enabled;
             const themeOption = h('div', {
               style: 'padding: var(--space-md); border: 2px solid ' + (isActive ? 'var(--text)' : 'var(--border)') + '; border-radius: 4px; margin-bottom: var(--space-sm); cursor: pointer; display: flex; justify-content: space-between; align-items: center;',
-              onclick: function() {
-                // Apply the theme extension (preserves current Light/Dark mode)
-                localStorage.setItem('cardspoke_activeThemeMod', theme.id);
-                // Remove all other theme extension classes and add this one
-                document.documentElement.className = document.documentElement.className
-                  .split(' ')
-                  .filter(c => !c.startsWith('theme-ext-'))
-                  .join(' ');
-                document.documentElement.classList.add('theme-ext-' + theme.id);
-                showToast('Theme applied: ' + (theme.manifest.name || theme.id));
+              onclick: async function() {
+                if (!theme.isModern) {
+                  showToast('This theme uses the legacy format and cannot be enabled. Re-install it from the Plugin Manager.', 'error');
+                  return;
+                }
+                try {
+                  await activateThemePlugin(theme.id);
+                  showToast('Theme applied: ' + (theme.manifest.name || theme.id));
+                } catch (err) {
+                  showToast('Failed to apply theme: ' + err.message, 'error');
+                }
                 overlay.remove();
                 showAppearanceSettings();
               }

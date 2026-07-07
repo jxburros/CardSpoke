@@ -63,8 +63,25 @@ export function createDefaultStore() {
 // trigger a full reassignment (e.g. store = parsedPayload).
 
 export let store = createDefaultStore();
-/** Replace the entire store object (e.g. after a fresh load from storage). */
-export function setStore(s) { store = s; }
+/**
+ * Replace the entire store object (e.g. after a fresh load from storage).
+ *
+ * HOST BRIDGE: `window.store` mirrors the live store reference. The plugin
+ * runtime (www/src/core/plugin-api.js) reads window.store for card access
+ * and plugin persistence, and it must never observe a stale object after a
+ * dataset switch or async storage-mirror load. Keep the mirror in sync here,
+ * in the single place where the reference changes.
+ * See docs/PLUGIN_INVARIANTS.md.
+ */
+export function setStore(s) {
+  store = s;
+  if (typeof window !== 'undefined') {
+    window.store = s;
+  }
+}
+if (typeof window !== 'undefined') {
+  window.store = store;
+}
 
 export let navState = {
   mode: 'cardspoke',

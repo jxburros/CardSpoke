@@ -16,7 +16,7 @@
 
 import {
   APP_VERSION, SCHEMA_VERSION,
-  store, setStore,
+  store, setStore, createDefaultStore,
   navState, setNavState,
   navHistory, setNavHistory,
   instanceKey
@@ -1736,7 +1736,7 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
           }
         }
         if (!raw) {
-          setStore({ rootOrder: [], cards: {}, plugins: {}, bookmarks: [], recentCards: [], viewMode: 'normal', activeTheme: 'light' });
+          setStore(createDefaultStore());
           save();
           return;
         }
@@ -1790,6 +1790,12 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
                 const mirrorRepaired = validateStoreConsistency();
                 const mirrorTypedChanged = migrateTypedCards();
                 if (mirrorRepaired || mirrorTypedChanged) save();
+                // The mirror payload may contain plugins the boot-time sync
+                // never saw; syncFromStore is idempotent, so re-run it.
+                if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
+                  window.CardSpoke.Plugin.syncFromStore()
+                    .catch(err => console.error('[Plugin] Re-sync after IndexedDB load failed:', err));
+                }
                 render();
               })
               .catch(err => {
@@ -1818,6 +1824,12 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
                 const fileRepaired = validateStoreConsistency();
                 const fileTypedChanged = migrateTypedCards();
                 if (fileRepaired || fileTypedChanged) save();
+                // Same as the IndexedDB path: pick up plugins that arrived
+                // with the async payload (idempotent re-sync).
+                if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
+                  window.CardSpoke.Plugin.syncFromStore()
+                    .catch(err => console.error('[Plugin] Re-sync after local-file load failed:', err));
+                }
                 render();
               })
               .catch(err => {
@@ -1870,13 +1882,16 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
       // =============================================================
       // --- PLUGIN SYSTEM v2 ---
       // JSON-driven plugin loading system. Plugins are JSON packages that
-      // can do anything from simple themes to full app transformations.
+      // range from simple CSS themes to deep app transformations.
       //
       // Plugin layers:
-      //   theme   - CSS only. No JS execution. Safest.
-      //   feature - CSS + JS. Hooks, DOM manipulation, card behavior.
-      //   app     - CSS + JS + overrides. Can rename app, add pages,
-      //             hide features, replace menus, etc.
+      //   theme   - CSS only. No JS execution. Safest; auto-enabled.
+      //   feature - CSS + JS. Middleware hooks, DOM injection, card
+      //             behavior via ctx.api. Auto-enabled unless it declares
+      //             overrides.
+      //   app     - CSS + JS + overrides (currently: appName). Component
+      //             replacement, middleware, custom pages via ctx.api.
+      //             HIGH risk; must be enabled manually by the user.
       // =============================================================
       
 
@@ -1884,16 +1899,20 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
       // =============================================================
       // --- Modern Plugin System ---
       // Use the modern Plugin API (window.CardSpoke.Plugin) for all extensions.
-      // See docs/MOD_SYSTEM.md for complete plugin development documentation.
+      // See docs/PLUGIN_SYSTEM.md for complete plugin development documentation.
       // =============================================================
 
       // =============================================================
       // --- CardSpoke.utils API ---
-      // Public utility API for plugin developers
+      // Public utility API for plugin developers.
+      //
+      // The window.CardSpoke root object is created (and frozen) by
+      // core/global-api.js before this module runs; its `utils` property is
+      // a stable mutable object that this block populates in place. Do NOT
+      // reassign window.CardSpoke or window.CardSpoke.utils — merge into it.
       // =============================================================
 
-      window.CardSpoke = window.CardSpoke || {};
-      window.CardSpoke.utils = {
+      Object.assign((window.CardSpoke && window.CardSpoke.utils) || {}, {
         createCard: async function(data) {
           data = data || {};
           var title = data.title || '';
@@ -1995,7 +2014,7 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
             }
           };
         }
-      };
+      });
 
       if (isDeveloperMode()) {
         console.log('[CardSpoke.utils] API initialized and available at window.CardSpoke.utils');

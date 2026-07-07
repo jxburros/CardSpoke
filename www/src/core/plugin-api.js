@@ -22,6 +22,7 @@
 import { PluginValidator } from './plugin-validator.js';
 import { Permissions } from './permissions.js';
 import { ComponentRegistry } from './component-registry.js';
+import { Middleware } from './middleware.js';
 
 const plugins = new Map();
 const pluginResources = new Map();
@@ -228,7 +229,26 @@ const dataUpdateListeners = new Map();
 
         var fn = InternalAPI.data.createCard || window.createCard;
         if (fn) {
-          return fn(data.title || '', data.body || '', data.parentId || null, false, false);
+          // Apply tags in the same call so plugins don't need a second
+          // permission-gated round-trip for a common creation pattern.
+          // When tags are supplied, suppress the host's card.create hooks so
+          // they fire ONCE below with the finished (tagged) card, not with an
+          // intermediate untagged one that tag-aware listeners would misread.
+          var hasTags = Array.isArray(data.tags) && data.tags.length > 0;
+          var newId = fn(data.title || '', data.body || '', data.parentId || null, false, hasTags);
+          if (hasTags && newId) {
+            var setTagsFn = InternalAPI.data.setTags || window.setTags;
+            if (setTagsFn) {
+              setTagsFn(newId, data.tags);
+            }
+            var createdCard = (window.store && window.store.cards) ? window.store.cards[newId] : undefined;
+            if (window.CardSpoke && window.CardSpoke.Middleware) {
+              window.CardSpoke.Middleware.run('card.create', [newId, createdCard])
+                .catch(function(err) { console.error('[Middleware] card.create error:', err); });
+            }
+            PluginManager.notifyDataUpdate({ type: 'card.create', cardId: newId, card: createdCard });
+          }
+          return newId;
         }
         throw new Error('createCard not available');
       },
@@ -455,6 +475,53 @@ const dataUpdateListeners = new Map();
     };
   }
 
+  function createMiddlewareApi(pluginId) {
+    const resources = pluginResources.get(pluginId) || new Set();
+
+    return {
+      /**
+       * Register a middleware interceptor for core operations
+       * ('card.create', 'card.update', 'card.delete', 'card.save',
+       * 'card.render', or '*'). The name is namespaced per plugin, and the
+       * registration is tracked so it is automatically removed when the
+       * plugin is disabled or unregistered.
+       *
+       * @param {Object} middleware - { name, priority?, operations?, handler }
+       * @returns {Function} Unregister function
+       */
+      register: function(middleware) {
+        if (!middleware || !middleware.name || typeof middleware.handler !== 'function') {
+          throw new Error('Middleware must have a name and a handler function');
+        }
+        if (!Middleware) {
+          throw new Error('Middleware pipeline not available');
+        }
+
+        const namespacedName = pluginId + ':' + middleware.name;
+        Middleware.register({
+          name: namespacedName,
+          priority: middleware.priority || 0,
+          operations: middleware.operations || ['*'],
+          handler: middleware.handler
+        });
+
+        const resource = { type: 'middleware', name: namespacedName };
+        resources.add(resource);
+
+        return function() {
+          Middleware.unregister(namespacedName);
+          resources.delete(resource);
+        };
+      },
+
+      unregister: function(name) {
+        if (Middleware) {
+          Middleware.unregister(pluginId + ':' + name);
+        }
+      }
+    };
+  }
+
   function createNetworkApi(pluginId) {
     return {
       fetch: async function(url, options) {
@@ -515,6 +582,7 @@ const dataUpdateListeners = new Map();
         data: createDataApi(pluginId),
         storage: createStorageApi(pluginId),
         events: createEventApi(pluginId),
+        middleware: createMiddlewareApi(pluginId),
         network: createNetworkApi(pluginId),
         filesystem: createFilesystemApi(pluginId)
       },
@@ -523,129 +591,36 @@ const dataUpdateListeners = new Map();
     };
   }
 
-  // Phase 3.4: Sandbox Hardening
   // Centralized factory for all plugin JS execution.
-  // All plugin code is instantiated here, providing a single upgrade point
-  // when full iframe or Web Worker isolation is implemented in the future.
+  // All plugin code strings are compiled here, providing a single upgrade
+  // point if stronger isolation (iframe/Worker message-passing) is ever
+  // implemented. Code runs on the main thread in strict mode inside a
+  // function scope whose only named parameter is `ctx` — the plugin's
+  // supported API surface. The safety boundary is consent-based, not
+  // process-based: the validator screens packages before registration,
+  // every ctx API call is permission-gated, layer-based risk assessment
+  // decides auto-enable, and `?safemode` boots with all plugins disabled.
   //
-  // Current approach: new Function('ctx', code) creates a function scope
-  // where 'ctx' is the only explicitly-named parameter, providing the
-  // plugin's entire allowed API surface. Direct window access is not blocked
-  // at this level; future work should run this function inside a dedicated
-  // iframe or Worker that exposes a controlled message-passing API instead
-  // of the live window object.
-  let pluginSandboxRuntime = null;
-
-  function ensurePluginSandboxRuntime() {
-    if (pluginSandboxRuntime) return pluginSandboxRuntime;
-
-    const frame = document.createElement('iframe');
-    frame.setAttribute('sandbox', 'allow-scripts');
-    frame.style.display = 'none';
-    document.body.appendChild(frame);
-
-    const pending = new Map();
-    const callCtxPath = function(root, path, args) {
-      const parts = (path || '').split('.');
-      let target = root;
-      for (let i = 0; i < parts.length; i++) {
-        if (!target) break;
-        target = target[parts[i]];
-      }
-      if (typeof target !== 'function') throw new Error('ctx method not found: ' + path);
-      return target.apply(null, args || []);
-    };
-
-    window.addEventListener('message', function(ev) {
-      if (ev.source !== frame.contentWindow) return;
-      const data = ev.data || {};
-      if (data.type === 'sandbox:ctx-result' && pending.has(data.id)) {
-        const entry = pending.get(data.id);
-        pending.delete(data.id);
-        data.error ? entry.reject(new Error(data.error)) : entry.resolve(data.result);
-      }
-    });
-
-    frame.srcdoc = `<!doctype html><html><body><script>
-      const pendingCalls = new Map();
-      window.addEventListener('message', async (event) => {
-        const data = event.data || {};
-        if (data.type === 'sandbox:execute') {
-          const reqId = data.id;
-          const callCtx = (path, args) => new Promise((resolve, reject) => {
-            const id = 'ctx_' + Math.random().toString(36).slice(2);
-            pendingCalls.set(id, { resolve, reject });
-            parent.postMessage({ type: 'sandbox:ctx-call', id, path, args }, '*');
-          });
-          window.addEventListener('message', function onResult(ev){
-            const msg = ev.data || {};
-            if (msg.type !== 'sandbox:ctx-result') return;
-            const c = pendingCalls.get(msg.id);
-            if (!c) return;
-            pendingCalls.delete(msg.id);
-            msg.error ? c.reject(new Error(msg.error)) : c.resolve(msg.result);
-          });
-          const makeProxy = (prefix='') => new Proxy(function(){}, {
-            get(_t, prop){
-              const p = prefix ? prefix + '.' + String(prop) : String(prop);
-              return makeProxy(p);
-            },
-            apply(_t,_this,args){
-              return callCtx(prefix, args || []);
-            }
-          });
-          try {
-            const fn = new Function('ctx', data.code);
-            const ctx = makeProxy('');
-            const result = await fn(ctx);
-            parent.postMessage({ type: 'sandbox:exec-result', id: reqId, result }, '*');
-          } catch (err) {
-            parent.postMessage({ type: 'sandbox:exec-result', id: reqId, error: String(err && err.message ? err.message : err) }, '*');
-          }
-        }
-      });
-    </script></body></html>`;
-
-    const execute = function(code, ctx) {
-      return new Promise((resolve, reject) => {
-        const execId = 'exec_' + Math.random().toString(36).slice(2);
-        const onMessage = async function(ev) {
-          if (ev.source !== frame.contentWindow) return;
-          const data = ev.data || {};
-          if (data.type === 'sandbox:ctx-call') {
-            try {
-              const result = await callCtxPath(ctx, data.path, data.args);
-              frame.contentWindow.postMessage({ type: 'sandbox:ctx-result', id: data.id, result }, '*');
-            } catch (err) {
-              frame.contentWindow.postMessage({ type: 'sandbox:ctx-result', id: data.id, error: err.message }, '*');
-            }
-            return;
-          }
-          if (data.type === 'sandbox:exec-result' && data.id === execId) {
-            window.removeEventListener('message', onMessage);
-            data.error ? reject(new Error(data.error)) : resolve(data.result);
-          }
-        };
-        window.addEventListener('message', onMessage);
-        frame.contentWindow.postMessage({ type: 'sandbox:execute', id: execId, code }, '*');
-      });
-    };
-
-    pluginSandboxRuntime = { execute };
-    return pluginSandboxRuntime;
-  }
-
+  // Compilation is eager so that a syntax error in plugin code fails the
+  // install/sync step immediately (where it is caught and reported) instead
+  // of surfacing later at enable time.
   function _createSandboxedFunction(code) {
-    return function(ctx) {
-      if (typeof window === 'undefined' || typeof document === 'undefined' || typeof window.addEventListener !== 'function' || typeof document.createElement !== 'function') {
-        return new Function('ctx', code)(ctx);
-      }
-      return ensurePluginSandboxRuntime().execute(code, ctx || {});
+    const compiled = new Function('ctx', '"use strict";\n' + code);
+    const wrapper = function(ctx) {
+      return compiled(ctx);
     };
+    // Marker so serialization never tries to stringify this wrapper —
+    // the original source string in definition.js is the canonical form.
+    wrapper.__cardspokeCompiled = true;
+    return wrapper;
   }
 
   function _functionToCtxCode(fn) {
     if (typeof fn !== 'function') return null;
+    // Compiled wrappers must never be stringified — their source is a
+    // closure over internal state. The raw code string in definition.js is
+    // the canonical serialized form for those.
+    if (fn.__cardspokeCompiled) return null;
     return 'return (' + fn.toString() + ')(ctx);';
   }
 
@@ -667,6 +642,13 @@ const dataUpdateListeners = new Map();
 
       if (!definition.manifest) {
         throw new Error('Plugin manifest is required');
+      }
+
+      if (plugins.has(id)) {
+        throw new Error(
+          'Plugin "' + id + '" is already registered. ' +
+          'Use install() to update an existing plugin, or unregister() it first.'
+        );
       }
 
       // Validate plugin content if validator is available
@@ -720,6 +702,12 @@ const dataUpdateListeners = new Map();
         pluginResources.delete(id);
         dataUpdateListeners.delete(id);
 
+        // Revoke any permissions the user granted this plugin so a future
+        // reinstall must ask for consent again.
+        if (Permissions && Permissions.revokePermissions) {
+          Permissions.revokePermissions(id);
+        }
+
         // Remove from store
         if (window.store && window.store.plugins) {
           delete window.store.plugins[id];
@@ -758,12 +746,18 @@ const dataUpdateListeners = new Map();
         instance.context.config = instance.definition.manifest.config;
       }
 
-      // Task 2.6: Apply overrides from manifest
+      // Task 2.6: Apply overrides from manifest. appName renames the brand
+      // button; we snapshot its original content first so disable() can
+      // fully restore it (the button normally holds the logo <img>, which
+      // setting textContent would otherwise destroy with no way back).
       if (instance.definition.manifest.overrides) {
         const overrides = instance.definition.manifest.overrides;
         if (overrides.appName && typeof overrides.appName === 'string') {
           const brandBtn = document.getElementById && document.getElementById('brandBtn');
-          if (brandBtn) brandBtn.textContent = overrides.appName;
+          if (brandBtn) {
+            if (instance._savedBrandHTML == null) instance._savedBrandHTML = brandBtn.innerHTML;
+            brandBtn.textContent = overrides.appName;
+          }
         }
       }
 
@@ -805,6 +799,7 @@ const dataUpdateListeners = new Map();
       }
 
       instance.enabled = true;
+      this._persistEnabledState(id, true);
       console.log('[Plugin] Enabled:', id);
     },
 
@@ -833,6 +828,14 @@ const dataUpdateListeners = new Map();
         }
       }
 
+      // Restore the brand button if this plugin overrode appName, so no
+      // ghost UI (or a destroyed logo) is left behind on suspend/remove.
+      if (instance._savedBrandHTML != null) {
+        const brandBtn = document.getElementById && document.getElementById('brandBtn');
+        if (brandBtn) brandBtn.innerHTML = instance._savedBrandHTML;
+        instance._savedBrandHTML = null;
+      }
+
       // Remove CSS
       this._removeCSS(id);
 
@@ -840,7 +843,24 @@ const dataUpdateListeners = new Map();
       this._cleanupResources(id);
 
       instance.enabled = false;
+      this._persistEnabledState(id, false);
       console.log('[Plugin] Disabled:', id);
+    },
+
+    /**
+     * Keep the persisted enabled flag in sync with the runtime state so that
+     * enabling/suspending a plugin survives a page reload. No-op for plugins
+     * that were registered without install() (session-only plugins have no
+     * store entry).
+     */
+    _persistEnabledState: function(id, enabled) {
+      if (window.store && window.store.plugins && window.store.plugins[id] &&
+          window.store.plugins[id].enabled !== enabled) {
+        window.store.plugins[id].enabled = enabled;
+        if (window.save) {
+          window.save();
+        }
+      }
     },
 
     _applyCSS: function(id, css) {
@@ -897,6 +917,12 @@ const dataUpdateListeners = new Map();
             if (ComponentRegistry) {
               ComponentRegistry.unregister(resource.name);
               cleanup.components++;
+            }
+          } else if (resource.type === 'middleware') {
+            // Unregister middleware interceptor
+            if (Middleware) {
+              Middleware.unregister(resource.name);
+              cleanup.listeners++;
             }
           } else if (resource.type === 'listener') {
             // Data update listeners are tracked separately in dataUpdateListeners map
@@ -983,6 +1009,20 @@ const dataUpdateListeners = new Map();
       if (!pkg || !pkg.manifest) {
         throw new Error('Invalid plugin package: manifest is required');
       }
+      if (!pkg.manifest.name && !pkg.manifest.id && !pkg.id) {
+        throw new Error('Invalid plugin package: manifest.name or an id is required');
+      }
+
+      // Normalize package-level fields into the manifest. Published plugin
+      // packages (see sample-plugins/) may declare id/config/overrides at the
+      // package top level; explicit manifest values win on conflict.
+      if (pkg.id && !pkg.manifest.id) pkg.manifest.id = pkg.id;
+      if (pkg.config && typeof pkg.config === 'object' && !pkg.manifest.config) {
+        pkg.manifest.config = pkg.config;
+      }
+      if (pkg.overrides && typeof pkg.overrides === 'object' && !pkg.manifest.overrides) {
+        pkg.manifest.overrides = pkg.overrides;
+      }
 
       // Phase 3.3: Dependency Checking
       // Halt installation if any declared dependency is not already installed
@@ -995,52 +1035,69 @@ const dataUpdateListeners = new Map();
         }
       }
 
-      // Support pkg.js field (Task 1.2) via sandboxed function factory
-      if (!pkg.setup) {
-        if (pkg.js && typeof pkg.js === 'string') {
-          pkg.setup = _createSandboxedFunction(pkg.js);
-        } else if (pkg.javascript && typeof pkg.javascript === 'string') {
-          pkg.setup = _createSandboxedFunction(pkg.javascript);
-        }
+      // The js/teardownJs source strings are the canonical executable form of
+      // a plugin package: they are what gets persisted and reconstructed
+      // after a reload. Empty strings (common in CSS-only theme packages)
+      // count as absent.
+      const jsSource =
+        (typeof pkg.js === 'string' && pkg.js.trim()) ? pkg.js :
+        (typeof pkg.javascript === 'string' && pkg.javascript.trim()) ? pkg.javascript : null;
+      const teardownSource =
+        (typeof pkg.teardownJs === 'string' && pkg.teardownJs.trim()) ? pkg.teardownJs :
+        (typeof pkg.teardown === 'string' && pkg.teardown.trim()) ? pkg.teardown : null;
+
+      // Compile source strings unless the caller supplied real functions.
+      // A syntax error here throws before anything is registered.
+      if (!pkg.setup && jsSource) {
+        pkg.setup = _createSandboxedFunction(jsSource);
       }
+      const teardownFn = (typeof pkg.teardown === 'function') ? pkg.teardown :
+        (teardownSource ? _createSandboxedFunction(teardownSource) : undefined);
 
       // Generate base ID
       let id = pkg.manifest.id || pkg.manifest.name.toLowerCase().replace(/\s+/g, '-');
 
-      // Task 2.4: If plugin with this base ID already exists, update it (disable+unregister+overwrite)
+      // Task 2.4: If a plugin with this ID already exists, this install is an
+      // update: fully unregister (disable + cleanup + store removal) first.
       if (plugins.has(id)) {
-        if (plugins.get(id).enabled) {
-          await this.disable(id);
-        }
-        this.unregister(id);
+        await this.unregister(id);
       }
 
       const definition = {
         manifest: pkg.manifest,
         setup: pkg.setup,
-        teardown: pkg.teardown,
+        teardown: teardownFn,
         css: pkg.css,
-        js: pkg.js || pkg.javascript,
-        teardownJs: pkg.teardownJs || (typeof pkg.teardown === 'string' ? pkg.teardown : null)
+        js: jsSource,
+        teardownJs: teardownSource
       };
 
       this.register(id, definition);
 
-      const risk = this.assessModRisk(pkg);
-      if (risk === 'SAFE' || risk === 'LOW') {
-        await this.enable(id);
-      }
-
+      // Persist before enabling so _persistEnabledState keeps the stored
+      // flag in sync with whatever enable() ends up doing.
       if (window.store) {
         if (!window.store.plugins) {
           window.store.plugins = {};
         }
         window.store.plugins[id] = {
           definition: _createSerializableDefinition(definition),
-          enabled: risk === 'SAFE' || risk === 'LOW'
+          enabled: false
         };
         if (window.save) {
           window.save();
+        }
+      }
+
+      // Auto-enable only low-risk layers; app-layer (HIGH) plugins stay
+      // suspended until the user enables them explicitly. A failing setup()
+      // leaves the plugin installed-but-disabled instead of aborting install.
+      const risk = this.assessModRisk(pkg);
+      if (risk === 'SAFE' || risk === 'LOW') {
+        try {
+          await this.enable(id);
+        } catch (err) {
+          console.error('[Plugin] Installed but failed to enable', id, ':', err);
         }
       }
 
@@ -1074,6 +1131,14 @@ const dataUpdateListeners = new Map();
     },
 
     syncFromStore: async function(safeMode) {
+      // When the caller does not know the safe-mode state (e.g. a re-sync
+      // after an async IndexedDB/local-file payload arrives), derive it from
+      // the URL so ?safemode reliably keeps every sync path disabled.
+      if (typeof safeMode === 'undefined' && typeof window !== 'undefined' &&
+          window.location && typeof window.location.search === 'string') {
+        safeMode = new URLSearchParams(window.location.search).has('safemode');
+      }
+
       if (!window.store || !window.store.plugins) {
         return;
       }
@@ -1090,23 +1155,43 @@ const dataUpdateListeners = new Map();
       for (const id of pluginIds) {
         const pluginData = storedPlugins[id];
 
+        // Idempotent: a plugin already registered this session (e.g. by an
+        // earlier sync, or because an async storage mirror re-triggered the
+        // sync after boot) is left untouched.
+        if (plugins.has(id)) {
+          continue;
+        }
+
+        // Entries without a definition are legacy-format plugins that the
+        // current runtime cannot execute; they are surfaced (read-only) in
+        // the Plugin Manager UI for export/removal.
+        if (!pluginData || !pluginData.definition) {
+          continue;
+        }
+
         try {
-          if (pluginData.definition) {
-            const def = pluginData.definition;
+          const stored = pluginData.definition;
 
-            // Task 2.1: Reconstruct setup/teardown from saved JS string via sandbox factory
-            if (!def.setup && def.js && typeof def.js === 'string') {
-              def.setup = _createSandboxedFunction(def.js);
-            }
-            if (!def.teardown && def.teardownJs && typeof def.teardownJs === 'string') {
-              def.teardown = _createSandboxedFunction(def.teardownJs);
-            }
+          // Reconstruct executable functions from the persisted source
+          // strings on a fresh definition object — never mutate the stored
+          // entry, which must stay JSON-serializable.
+          const def = {
+            manifest: stored.manifest,
+            css: stored.css,
+            js: (typeof stored.js === 'string' && stored.js.trim()) ? stored.js : null,
+            teardownJs: (typeof stored.teardownJs === 'string' && stored.teardownJs.trim()) ? stored.teardownJs : null
+          };
+          if (def.js) {
+            def.setup = _createSandboxedFunction(def.js);
+          }
+          if (def.teardownJs) {
+            def.teardown = _createSandboxedFunction(def.teardownJs);
+          }
 
-            this.register(id, def);
+          this.register(id, def);
 
-            if (!safeMode && pluginData.enabled) {
-              await this.enable(id);
-            }
+          if (!safeMode && pluginData.enabled) {
+            await this.enable(id);
           }
         } catch (err) {
           console.error('[Plugin] Failed to sync plugin', id, ':', err);
@@ -1188,6 +1273,16 @@ const dataUpdateListeners = new Map();
           if (instance.context && instance.context.config) {
             instance.context.config[key] = newValue;
           }
+          // Persist the new value so plugin settings survive a reload.
+          if (window.store && window.store.plugins && window.store.plugins[id]) {
+            const storedDef = window.store.plugins[id].definition;
+            if (storedDef && storedDef.manifest && storedDef.manifest.config) {
+              storedDef.manifest.config[key] = newValue;
+            }
+            if (window.save) {
+              window.save();
+            }
+          }
         };
 
         row.appendChild(label);
@@ -1210,5 +1305,9 @@ export function resetForTesting() {
   pluginResources.clear();
   dataUpdateListeners.clear();
   globalEventBus.clear();
-  pluginSandboxRuntime = null;
+  // Drop captured host references so each test re-captures from its own
+  // window/document mock instead of a stale one from a previous file.
+  InternalAPI.data = {};
+  InternalAPI.ui = {};
+  InternalAPI.utils = {};
 }

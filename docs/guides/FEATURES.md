@@ -94,15 +94,15 @@ This catalog enumerates CardSpoke's capabilities so product, QA, and plugin auth
 
 ## Plugin Ecosystem
 
-- **Plugin Manager:** Central UI for managing installed plugins with tabs for viewing installed plugins, installing new ones, and creating plugins directly in-app.
-- **Three-layer system:** Theme (CSS only, lowest risk), Feature (CSS+JS, medium risk), and App (CSS+JS+overrides, highest risk) layers cover the full spectrum from visual tweaks to full app transformations.
-- **Modern Plugin API:** Sandboxed plugin contexts with `api.ui`, `api.data`, `api.storage`, and `api.events` for resource-managed plugin development.
-- **Middleware Pipeline:** Priority-weighted interceptors that can wrap and modify core operations (card save, delete, render, etc.) with `ctx.preventDefault()` and `ctx.stopPropagation()` control.
-- **Component Registry:** Register and override UI components (`Card`, `CardEditor`, `Sidebar`, `SearchBar`, etc.) with priority-based resolution instead of fragile DOM manipulation.
-- **Storage Driver Registry:** Pluggable storage backends (IndexedDB, LocalStorage, LocalFile, Google Drive, OneDrive, WebDAV) with custom driver registration support.
-- **Permission System:** User consent dialogs for sensitive operations (ui-override, storage, network, filesystem, core-override) with explicit permission declarations.
-- **Resource Management:** Automatic tracking and cleanup of DOM elements, event listeners, and components when plugins are disabled.
-- **Override system:** App-layer plugins can rename the app, hide/add menu items, inject custom pages, and disable built-in features.
+- **Plugin Manager:** Central UI for viewing installed plugins (with risk and Active/Suspended badges), installing from file/URL, browsing the Gallery, and creating plugins directly in-app; plugins can be enabled, suspended, and removed, and their state persists across reloads.
+- **Three-layer system:** Theme (CSS only, SAFE, auto-enabled), Feature (CSS+JS, LOW, auto-enabled), and App (CSS+JS+overrides, HIGH, enabled manually) layers cover the full spectrum from visual tweaks to full app transformations.
+- **Plugin API:** Isolated, permission-gated `ctx` contexts with `api.ui`, `api.data`, `api.storage`, `api.events`, and `api.middleware`; every resource a plugin creates is tracked and cleaned up automatically on suspend/delete.
+- **Middleware Pipeline:** Priority-weighted interceptors that wrap core operations (`card.create`, `card.update`, `card.delete`, `card.save`, `card.render`) with `preventDefault()` and `stopPropagation()` control (registered via `ctx.api.middleware`).
+- **Component Registry:** Register and override UI components (`Card`, `Header`, `Sidebar`, `SearchBar`) with priority-based resolution instead of fragile DOM manipulation.
+- **Storage Driver Registry:** Registry for pluggable storage backends (experimental; the app's built-in drivers cover IndexedDB, LocalStorage, LocalFile, and cloud).
+- **Permission System:** Deny-by-default user consent dialogs for sensitive operations (ui-override, storage, network, filesystem, core-override, data-modify), persisted per plugin and revoked on delete.
+- **Resource Management:** Automatic tracking and cleanup of DOM elements, event/data listeners, middleware, and components when plugins are suspended or removed.
+- **Override system:** App-layer plugins can rename the app (`overrides.appName`); deeper transformations are built with the `ctx` API (component overrides, middleware, injected UI).
 - **Hot reload:** Enable/disable plugins without page refresh with full resource cleanup.
 - **Safe Mode:** Launch with `?safemode` URL parameter to disable all plugins for troubleshooting.
 - **Risk assessment:** Automatic risk scoring based on layer and code analysis (network access, DOM manipulation, storage usage).

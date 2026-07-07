@@ -134,7 +134,12 @@ function flattenAppScope() {
       if (id !== VIRTUAL_ID) return null;
 
       const ROOT = resolve(__dirname);
-      let combined = '"use strict";\n';
+      // The plugin runtime (window.CardSpoke) must be fully initialized
+      // before any app-layer code executes: the boot IIFE in systems.js and
+      // the Plugin Manager UI in data.js call window.CardSpoke.* directly.
+      // Import declarations are hoisted, so this also guarantees the core
+      // modules run before the fused app-layer body below.
+      let combined = "import '@core/global-api.js';\n" + '"use strict";\n';
       // Track top-level function/variable names already emitted so we can
       // skip re-declarations (e.g. uid() and cloneCard() appear in both
       // kernel.js and metadata.js with identical bodies).

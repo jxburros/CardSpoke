@@ -17,7 +17,7 @@
 import {
   APP_VERSION,
   MAX_UNDO_STACK, MAX_TRASH_SIZE,
-  store,
+  store, setStore, createDefaultStore,
   navState, navHistory,
   instanceKey,
   dirty,
@@ -1701,9 +1701,9 @@ import {
                   h('h3', { style: 'margin-bottom: var(--space-sm); color: var(--primary);' }, 'Plugins'),
                   h('p', { style: 'margin-bottom: var(--space-xs);' }, 'CardSpoke supports JSON-based plugins in three layers:'),
                   h('ul', { style: 'margin-left: var(--space-md); margin-bottom: var(--space-sm);' },
-                    h('li', {}, 'Theme plugins: CSS-only visual changes'),
-                    h('li', {}, 'Feature plugins: Add new functionality with JS hooks'),
-                    h('li', {}, 'App plugins: Full app transformations with overrides')
+                    h('li', {}, 'Theme plugins: CSS-only visual changes (auto-enabled)'),
+                    h('li', {}, 'Feature plugins: Add new functionality with the plugin API'),
+                    h('li', {}, 'App plugins: Deep transformations (middleware, components, app rename) — enabled manually')
                   ),
                   h('p', { style: 'font-size: var(--text-sm); color: var(--text-secondary);' },
                     'Access Plugin Manager from the menu to install and manage plugins.'
@@ -2046,21 +2046,37 @@ import {
       }
 
       // =============================================================
+      // --- HOST BRIDGE ---
+      // The plugin runtime (www/src/core/plugin-api.js) is deliberately
+      // decoupled from the app layer: it reaches the host app exclusively
+      // through the window globals assigned here (plus window.store /
+      // window.save, kept in sync by state.js). This block must run before
+      // the boot sequence below so that plugins restored at startup find a
+      // complete host API. The set of names is a STABILITY CONTRACT —
+      // see docs/PLUGIN_INVARIANTS.md before renaming or removing any.
+      // =============================================================
+
+      window.save = save;
+      window.createCard = createCard;
+      window.updateCard = updateCard;
+      window.deleteCard = deleteCard;
+      window.cloneCard = cloneCard;
+      window.getTags = getTags;
+      window.addTag = addTag;
+      window.removeTag = removeTag;
+      window.setTags = setTags;
+      window.getAllTags = getAllTags;
+      window.showToast = showToast;
+
+      // =============================================================
       // --- APPLICATION BOOT ---
       // Initialize and start the application
       // =============================================================
-      
+
       (async function() {
         initToast();                       // Initialize toast container
-        load();                          // Load data from localStorage
-        populateFooter();                // Populate footer with metadata
-        updateDatasetSelector();         // Update dataset selector options
 
-        // Apply saved typography preset
-        const savedTypography = localStorage.getItem('cardspoke_typography') || 'default';
-        document.documentElement.setAttribute('data-typography', savedTypography);
-
-        // Check for safe mode URL parameter (global for import/reset functions)
+        // Check for safe mode URL parameter before any plugin work
         const urlParams = new URLSearchParams(window.location.search);
         let safeMode = urlParams.has('safemode');
 
@@ -2069,7 +2085,30 @@ import {
           showToast('Safe Mode Active - Plugins Disabled', 'warning');
         }
 
-        // Sync plugins from store after load() but before render()
+        // Load data from the active storage driver. A rejection here (e.g.
+        // a PIN-decrypt failure on an encrypted dataset) must NOT abort boot,
+        // or the app would render nothing and offer no recovery UI. Keep the
+        // last-good/default store and continue so the user can still switch
+        // datasets or reset. The relevant error toast is shown by load().
+        try {
+          await load();
+        } catch (err) {
+          console.error('[Boot] load() failed; continuing with a usable store:', err);
+          if (!store || typeof store !== 'object' || !store.cards) {
+            setStore(createDefaultStore());
+          }
+        }
+        populateFooter();                // Populate footer with metadata
+        updateDatasetSelector();         // Update dataset selector options
+
+        // Apply saved typography preset
+        const savedTypography = localStorage.getItem('cardspoke_typography') || 'default';
+        document.documentElement.setAttribute('data-typography', savedTypography);
+
+        // Restore installed plugins after load() but before render().
+        // (IndexedDB / local-file datasets may replace the store again once
+        // their async payload arrives; storage.js re-runs syncFromStore —
+        // which is idempotent — when that happens.)
         if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
           await window.CardSpoke.Plugin.syncFromStore(safeMode);
         }
