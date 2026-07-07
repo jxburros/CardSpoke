@@ -17,22 +17,21 @@
 /**
  * CardSpoke Application Entry Point
  *
- * This module is the Vite IIFE build entry point.  It imports the core
- * sub-systems as proper ES Modules, then exposes a strictly controlled,
- * read-only surface on `window.CardSpoke` for the plugin ecosystem.
+ * This module is the Vite IIFE build entry point. Module ordering here is a
+ * STABILITY CONTRACT (see docs/PLUGIN_INVARIANTS.md):
  *
- * Plugins must call `window.CardSpoke.registerPlugin()` and
- * `window.CardSpoke.requestPermissions()` — they cannot reach internal
- * state or override core APIs directly.
+ *   1. `core/global-api.js` initializes the plugin runtime and attaches the
+ *      public `window.CardSpoke` surface. It MUST run before any app-layer
+ *      module, because the app layer's boot sequence (systems.js) and Plugin
+ *      Manager UI (data.js) call into `window.CardSpoke.*`.
+ *   2. The app-layer modules are fused into a single flat-scope module by
+ *      the flattenAppScope plugin in vite.config.js (which also prepends the
+ *      global-api import to the fused module, guaranteeing order even
+ *      though Rollup hoists imports).
  */
 
-// ── Core sub-systems (fully ESM) ────────────────────────────────────────────
-import { Middleware } from './core/middleware.js';
-import { ComponentRegistry } from './core/component-registry.js';
-import { PluginValidator } from './core/plugin-validator.js';
-import { Permissions, showPermissionDialog } from './core/permissions.js';
-import { StorageDriverRegistry } from './core/storage-driver-registry.js';
-import { Plugin as PluginAPI, PluginSandbox } from './core/plugin-api.js';
+// ── Plugin runtime + public window.CardSpoke surface (must be first) ────────
+import './core/global-api.js';
 import { registerBuiltInModes } from './core/app-modes.js';
 
 // ── Shared application state (ESM live bindings) ─────────────────────────────
@@ -55,27 +54,3 @@ import './systems.js';
 // decks, contacts, plants). The default "cardspoke" mode preserves current
 // behavior; the others filter cards by kind for future lightweight shells.
 registerBuiltInModes();
-
-// ── Public plugin API — frozen, read-only surface on window ─────────────────
-// Plugins access exactly two entry-points; everything else is internal.
-window.CardSpoke = Object.freeze({
-  /**
-   * Register and activate a plugin.
-   * @param {string} id - Unique plugin identifier
-   * @param {Object} definition - Plugin definition object (manifest, setup, teardown, css, js)
-   */
-  registerPlugin: function(id, definition) {
-    return PluginAPI.register(id, definition);
-  },
-
-  /**
-   * Request user consent for a set of permissions on behalf of a plugin.
-   * @param {string} pluginId - Plugin identifier
-   * @param {string} pluginName - Human-readable plugin name
-   * @param {string[]} permissions - Array of permission names
-   * @returns {Promise<boolean>} Whether permissions were granted
-   */
-  requestPermissions: function(pluginId, pluginName, permissions) {
-    return Permissions.requestPermissions(pluginId, pluginName, permissions);
-  }
-});

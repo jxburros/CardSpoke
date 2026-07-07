@@ -1,16 +1,15 @@
 {
   "id": "monochrome-theme",
   "manifest": {
+    "id": "monochrome-theme",
     "name": "Monochrome",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "author": "CardSpoke Community",
-    "description": "A clean grayscale theme with sharp contrasts and no color distractions",
+    "description": "Stark black-and-white brutalist theme with hard shadows and zero border radius.",
     "layer": "theme",
+    "permissions": [],
     "compatibility": ">=0.17.0"
   },
-  "config": {},
-  "css": ":root { --bg-primary: #f5f5f5; --bg-secondary: #e0e0e0; --bg-card: #ffffff; --text-primary: #1a1a1a; --text-secondary: #666666; --accent: #333333; --accent-hover: #000000; --border-color: #cccccc; --shadow-color: rgba(0,0,0,0.08); } body { background-color: var(--bg-primary) !important; color: var(--text-primary) !important; } .card, .card-item { background-color: var(--bg-card) !important; border: 1px solid var(--border-color) !important; color: var(--text-primary) !important; box-shadow: 0 1px 4px var(--shadow-color) !important; } .card-item:hover { border-color: var(--accent) !important; } header, .header { background-color: var(--bg-secondary) !important; border-bottom: 1px solid var(--border-color) !important; } button { border: 1px solid var(--border-color) !important; color: var(--text-primary) !important; background-color: var(--bg-card) !important; } button:hover { background-color: var(--accent) !important; color: #fff !important; } .modal-content, .menu-section { background-color: var(--bg-card) !important; border: 1px solid var(--border-color) !important; color: var(--text-primary) !important; } input, textarea, select { background-color: var(--bg-card) !important; border: 1px solid var(--border-color) !important; color: var(--text-primary) !important; } input:focus, textarea:focus { border-color: var(--accent) !important; } .tag { background-color: var(--accent) !important; color: #fff !important; } .breadcrumb a, a { color: var(--accent) !important; } .toast { background-color: var(--bg-card) !important; color: var(--text-primary) !important; border-left: 3px solid var(--accent) !important; }",
-  "js": "",
-  "overrides": {},
-  "enabled": false
+  "css": ":root {\n  --bg: #ffffff;\n  --surface: #fafafa;\n  --border: #111111;\n  --text: #111111;\n  --text-medium: #333333;\n  --text-muted: #555555;\n  --text-ghost: #999999;\n}\n:root.dark {\n  --bg: #000000;\n  --surface: #101010;\n  --border: #eeeeee;\n  --text: #eeeeee;\n  --text-medium: #cccccc;\n  --text-muted: #aaaaaa;\n  --text-ghost: #666666;\n}\n.card-tile { border: 2px solid var(--border); border-radius: 0; box-shadow: 4px 4px 0 var(--border); }\n.card-tile:hover { box-shadow: 6px 6px 0 var(--border); }\n.card-tag { background: var(--text); color: var(--bg); border-radius: 0; }\n.header { border-bottom: 3px solid var(--border); }\n",
+  "js": ""
 }

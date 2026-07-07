@@ -10,6 +10,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and 
 
 ### Added
 
+- **Plugin system stability overhaul**: the plugin runtime is now reliable
+  end-to-end across install, enable, suspend, delete, and page reload.
+  - New `www/src/core/global-api.js` assembles and freezes the public
+    `window.CardSpoke` surface (`registerPlugin`, `installPlugin`,
+    `requestPermissions`, plus `Plugin`, `Middleware`, `ComponentRegistry`,
+    `StorageDriverRegistry`, `PluginValidator`, `Permissions`,
+    `PluginSandbox`, `utils`) **before** any app-layer code runs.
+  - Plugins persist as source strings and are restored with their
+    enabled/suspended state on reload via an idempotent `syncFromStore`
+    (re-run after async IndexedDB/local-file loads).
+  - New `ctx.api.middleware` lets plugins register tracked, auto-cleaned
+    core-operation interceptors; `ctx.api.data.onUpdate` now fires on every
+    card change; `ctx.api.data.createCard` applies `tags` in one call.
+  - Suspend/enable and delete persist correctly; delete revokes the plugin's
+    granted permissions; reinstalling an id updates it in place (no
+    duplicates); a failing setup leaves the plugin installed-but-suspended.
+  - The `overrides.appName` app rename now snapshots and fully restores the
+    brand button on suspend/remove (no destroyed logo or ghost header).
+  - `?safemode` reliably boots with all plugins disabled, and a dataset load
+    failure (e.g. a PIN-decrypt error) no longer blanks the app — boot
+    continues with a usable store so the user can recover.
+- **Plugin documentation**: rewritten `docs/PLUGIN_SYSTEM.md` (full guide +
+  `ctx` API reference), rewritten `docs/api/API_REFERENCE.md`, and a new
+  `docs/PLUGIN_INVARIANTS.md` specifying the stability contract (what cannot
+  change).
+- **Working sample plugins**: nine packages (three per layer) plus
+  `TEMPLATE.json`, each installing, enabling, suspending, deleting, and
+  surviving reload; covered by `tests/plugin-lifecycle.test.js` and
+  `tests/sample-extensions.test.js`.
+- **Plugin-development Skills**: `.claude/skills/cardspoke-plugin-dev`
+  (author/scaffold, with layer templates and quick references) and
+  `.claude/skills/cardspoke-plugin-review` (validate/debug against the
+  contract).
 - **CardSpoke Core platform layer** (OS preparation): new reusable, DOM-free modules under `www/src/core/` — `typed-cards.js`, `queries.js`, `migrations.js`, `actions.js`, `conversions.js`, `app-modes.js`, `profiles.js`, `import-export.js` — re-exported by the core-only entry `www/src/core/index.js`.
 - **Typed cards**: cards may declare an application kind via `modsData.kind` (`note`, `repository_page`, `project`, `task`, `deck`, `slide`, `contact`, `plant`, `care_log`, `reminder`, `collection`) with validation, safe migration, and query support. Legacy cards remain fully valid; unknown/future kinds are preserved.
 - **Typed query helpers**: `listCardsByKind`, `listRootCardsByKind`, `listChildrenByKind`, `findCardsByKindAndTag`, `findDueReminders`, `findTasksDueToday`, `findPlantsWithTrackingEnabled`, plus collection-card filter evaluation.
@@ -25,6 +58,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and 
 ### Changed
 
 - Store load and JSON import now run the typed-card migration layer (idempotent; fills missing kind defaults, never deletes data).
+- Plugin Manager: the plugin toggle now reads **Suspend/Enable** with live
+  Active/Suspended badges; the "Legacy Plugins" list only shows genuinely
+  legacy (definition-less) entries; the theme picker in Appearance drives
+  theme-layer plugins through the real plugin lifecycle.
+- `types/index.d.ts` updated to the current runtime (full `window.CardSpoke`
+  surface, `ctx.api.middleware`/`network`/`filesystem`, persisted-plugin
+  shape, corrected `Permissions` methods and data-update event names).
+
+### Removed
+
+- Legacy duplicate plugin runtime `www/src/core.js` and the
+  `npm run build:cat` concatenation script — the diverging second runtime was
+  the root cause of plugin instability. `npm run build` (Vite) is now the
+  single canonical build.
+- Stale `www/app-orig.js` and the superseded root `PLUGIN_SYSTEM_ANALYSIS.md`
+  snapshot.
 
 ---
 

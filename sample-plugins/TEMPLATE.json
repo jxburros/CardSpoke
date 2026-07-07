@@ -1,17 +1,28 @@
 {
+  "_readme": [
+    "CardSpoke plugin package template. Copy this file, fill in the fields, then install it via Plugin Manager -> Install (or Plugin.install(pkg)).",
+    "The `js` string is your setup code: it runs as the BODY of a function receiving `ctx` whenever the plugin is enabled. Do NOT call registerPlugin from it.",
+    "Everything you create through ctx.api.* (DOM injections, components, middleware, event listeners) is tracked and cleaned up automatically when the plugin is suspended or removed.",
+    "`teardownJs` is optional extra cleanup for things the tracker cannot see (setInterval, MutationObserver, ...). It receives the same ctx object as setup.",
+    "layer: 'theme' = CSS only (auto-enabled) | 'feature' = CSS+JS (auto-enabled unless it declares overrides) | 'app' = deep transformation (user must enable it manually).",
+    "permissions your js needs: 'ui-override' (ctx.api.ui.inject/replace/registerComponent), 'data-modify' (create/update/delete cards, tags), 'storage' (ctx.api.storage), 'network' (ctx.api.network), 'filesystem' (ctx.api.filesystem). The user is asked for consent on first enable.",
+    "Full documentation: docs/PLUGIN_SYSTEM.md. Hard constraints: docs/PLUGIN_INVARIANTS.md."
+  ],
   "id": "my-plugin",
   "manifest": {
+    "id": "my-plugin",
     "name": "My Plugin",
     "version": "1.0.0",
     "author": "Your Name",
     "description": "What does this plugin do?",
     "layer": "feature",
+    "permissions": [
+      "ui-override"
+    ],
     "compatibility": ">=0.17.0",
-    "permissions": []
+    "config": {}
   },
-  "config": {},
-  "js": "(function() {\n  window.CardSpoke.Plugin.register('my-plugin', {\n    manifest: {\n      name: 'My Plugin',\n      version: '1.0.0',\n      author: 'Your Name',\n      description: 'What does this plugin do?',\n      layer: 'feature',\n      permissions: []\n    },\n    setup: async function(ctx) {\n      ctx.logger.log('Plugin enabled');\n\n      // Example: Listen for data changes\n      // ctx.api.data.onUpdate(function(event) {\n      //   ctx.logger.log('Data changed:', event.type, event.cardId);\n      // });\n\n      // Example: Register middleware\n      // window.CardSpoke.Middleware.register({\n      //   name: 'my-plugin-middleware',\n      //   priority: 10,\n      //   operations: ['card.save'],\n      //   handler: async function(mctx, next) {\n      //     ctx.logger.log('Card saving:', mctx.args);\n      //     await next();\n      //   }\n      // });\n\n      // Example: Register a custom component\n      // ctx.api.ui.registerComponent('Card', {\n      //   render: function(props) {\n      //     var el = document.createElement('div');\n      //     el.className = 'card card-tile';\n      //     el.textContent = props.card.title;\n      //     return el;\n      //   },\n      //   priority: 10\n      // });\n    },\n    teardown: async function(ctx) {\n      ctx.logger.log('Plugin disabled');\n\n      // Clean up any resources created in setup\n      // Middleware, components, and DOM elements registered via ctx.api\n      // are automatically cleaned up by the plugin system\n    }\n  });\n})();",
-  "css": "/* Add your styles here */",
-  "overrides": {},
-  "enabled": false
+  "css": "/* Optional. Injected while the plugin is enabled, removed when suspended. */",
+  "js": "var el = document.createElement('span');\nel.textContent = 'Hello from My Plugin';\nctx.api.ui.inject('.header', el, 'append');\nctx.api.ui.showToast('My Plugin enabled', 'success');\nctx.logger.info('setup complete');\n",
+  "teardownJs": "// Optional. Extra cleanup for timers/observers; tracked resources are removed automatically."
 }

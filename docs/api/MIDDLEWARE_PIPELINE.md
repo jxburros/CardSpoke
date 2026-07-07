@@ -4,7 +4,13 @@
 
 The Middleware Pipeline provides a priority-weighted, interceptor-style architecture that allows plugins to wrap core operations, modify data, or cancel operations before they complete.
 
-**Note:** The Middleware Pipeline is an internal module. It is not exposed on `window.CardSpoke` (which is frozen to only `registerPlugin` and `requestPermissions`). The `window.CardSpoke.Middleware.*` examples in earlier drafts of this document do not work in the current build — there is no plugin-facing way to register middleware directly.
+**How plugins use it:** register middleware from your setup body via
+`ctx.api.middleware.register({ name, priority, operations, handler })` — the
+registration is namespaced (`<pluginId>:<name>`) and removed automatically
+when the plugin is suspended or deleted. The pipeline is also reachable
+directly as `window.CardSpoke.Middleware` for the host app and advanced
+app-layer plugins, but `ctx.api.middleware` is the preferred surface because
+it is tracked and cleaned up for you.
 
 ## Overview
 
@@ -45,15 +51,17 @@ Every middleware receives a context object:
 
 ## API Reference
 
-The methods below describe the internal middleware module. They are used by the core app itself and are not reachable as `window.CardSpoke.Middleware` from plugin code in the current build.
+The methods below are available on `window.CardSpoke.Middleware`. From plugin
+code, prefer `ctx.api.middleware.register(...)`, which wraps `register` with
+per-plugin namespacing and automatic cleanup.
 
 ### `register(middleware)`
 
 Register a new middleware.
 
 ```javascript
-// Internal usage only — not reachable via window.CardSpoke
-Middleware.register({
+// From plugin code, prefer: ctx.api.middleware.register({ ... })
+window.CardSpoke.Middleware.register({
   name: 'my-interceptor',
   priority: 10,
   operations: ['card.save', 'card.delete'],
@@ -105,23 +113,26 @@ The following operations are available for interception:
 
 ## Examples
 
+These examples are written as they would appear inside a plugin's setup body
+(they use `ctx.api.middleware`). `mw` is the middleware context;
+`ctx` is the plugin context.
+
 ### Validation Middleware
 
+Note: `card.create`/`card.update` fire *after* the change, so
+`preventDefault()` on them is a no-op — use them to react, not to block. To
+veto a write, intercept `card.save`.
+
 ```javascript
-// Internal usage only — not reachable via window.CardSpoke
-Middleware.register({
-  name: 'card-validator',
+ctx.api.middleware.register({
+  name: 'card-logger',
   priority: 100, // Run first
   operations: ['card.create', 'card.update'],
-  handler: async (ctx, next) => {
-    const card = ctx.args[1];
-    
-    if (!card.title || card.title.length < 3) {
-      ctx.preventDefault();
-      window.showToast('Card title must be at least 3 characters', 'error');
-      return;
+  handler: async (mw, next) => {
+    const card = mw.args[1];
+    if (card && (!card.title || card.title.length < 3)) {
+      ctx.api.ui.showToast('Heads up: a card has a very short title', 'warning');
     }
-    
     await next();
   }
 });
@@ -130,16 +141,13 @@ Middleware.register({
 ### Logging Middleware
 
 ```javascript
-Middleware.register({
+ctx.api.middleware.register({
   name: 'audit-logger',
   priority: -100, // Run last
   operations: ['*'],
-  handler: async (ctx, next) => {
-    const start = Date.now();
+  handler: async (mw, next) => {
     await next();
-    const duration = Date.now() - start;
-    
-    console.log('Operation:', ctx.operation, 'took', duration, 'ms');
+    ctx.logger.info('Operation:', mw.operation);
   }
 });
 ```
@@ -147,21 +155,19 @@ Middleware.register({
 ### Data Enrichment
 
 ```javascript
-Middleware.register({
+ctx.api.middleware.register({
   name: 'auto-tagger',
   priority: 50,
-  operations: ['card.create', 'card.update'],
-  handler: async (ctx, next) => {
-    const card = ctx.args[1];
-
-    // Add automatic tags based on content
-    if (card.body.includes('TODO')) {
-      if (!card.tags.includes('todo')) {
-        card.tags.push('todo');
-      }
-    }
-    
+  operations: ['card.create'],
+  handler: async (mw, next) => {
     await next();
+    const cardId = mw.args[0];
+    const card = mw.args[1];
+    // Add an automatic tag based on content
+    if (card && card.body && card.body.includes('TODO')) {
+      const tags = ctx.api.data.getTags(cardId) || [];
+      if (!tags.includes('todo')) ctx.api.data.setTags(cardId, tags.concat('todo'));
+    }
   }
 });
 ```

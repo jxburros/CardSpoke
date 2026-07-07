@@ -187,11 +187,6 @@ Run:
 npm run build
 ~~~
 
-If available, also run:
-
-~~~bash
-npm run build:vite
-~~~
 
 Validate:
 
@@ -199,30 +194,12 @@ Validate:
 - No fatal bundling errors occur.
 - Build output is generated as expected.
 
-Run:
-
-~~~bash
-npm run build:cat
-~~~
-
-Validate:
-
-- Manual concatenation fallback succeeds.
-- Source slices are merged into a unified bundle.
-- Confirm the expected source files are included, especially:
-
-~~~text
-www/src/state.js
-www/src/kernel.js
-www/src/*.js
-www/app.js
-~~~
-
 Check:
 
-- `www/app.js` exists after the command.
+- `www/app.js` exists after `npm run build`.
 - `www/app.js` appears non-empty.
-- No obvious source slice is missing.
+- The public surface initializes: the bundle assigns `window.CardSpoke`
+  (from `www/src/core/global-api.js`) before the app-layer boot IIFE.
 - No ordering-related runtime error appears when loaded.
 
 ---
@@ -290,8 +267,7 @@ Important claim to verify:
 
 - `npm install` completes.
 - `npm test` passes or failures are clearly limited and documented.
-- `npm run build` or `npm run build:vite` succeeds.
-- `npm run build:cat` succeeds.
+- `npm run build` (Vite, the single canonical build) succeeds.
 - Dev and preview servers start.
 - `www/index.html` opens through `file://`.
 - No fatal console errors prevent basic app usage.

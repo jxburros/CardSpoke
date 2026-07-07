@@ -18,7 +18,9 @@ CardSpoke’s runtime is a **single browser bundle** (`www/app.js`) produced by 
 6. `www/src/rendering.js` (rendering and initialization)
 7. `www/src/systems.js` (advanced systems and boot)
 
-`main.js` also imports the real plugin architecture as proper ESM modules from `www/src/core/` (`middleware.js`, `component-registry.js`, `plugin-api.js`, `storage-driver-registry.js`, `permissions.js`) — these are left fully intact by the Rollup plugin rather than fused into the app-layer scope.
+`main.js` also imports the plugin runtime as proper ESM modules from `www/src/core/`. The single assembly point is `www/src/core/global-api.js`, which imports the subsystems (`middleware.js`, `component-registry.js`, `plugin-api.js`, `storage-driver-registry.js`, `plugin-validator.js`, `permissions.js`) and assembles + **freezes** `window.CardSpoke` **before any app-layer code runs**. These core modules are left fully intact by the Rollup plugin rather than fused into the app-layer scope.
+
+Boot order is guaranteed two ways: `main.js` imports `./core/global-api.js` first, and `flattenAppScope` in `vite.config.js` **prepends** `import '@core/global-api.js';` to the fused app-layer module — so the runtime initializes before any app-layer statement executes.
 
 Build command:
 
@@ -26,7 +28,7 @@ Build command:
 npm run build
 ```
 
-There is no `build:vite` script — `npm run build` **is** the Vite build. A separate legacy script, `npm run build:cat`, performs a literal `cat` concatenation of the source slices (including the top-level `www/src/core.js`) into `www/app.js` as a fallback/reference build. `www/src/core.js` is legacy, unused dead code: it is not referenced by `main.js` and is not part of the real build pipeline. Do not confuse it with the `www/src/core/` ESM directory, which holds the actual plugin architecture described above.
+There is exactly **one** build of the app: `npm run build` **is** the Vite build (→ `www/app.js`, loaded by `www/app-loader.js`). There is no `build:vite` and no `build:cat` script, and there is no top-level `www/src/core.js` — an earlier diverging duplicate runtime by that name was removed (it is what originally broke the plugin system). Do not confuse anything with the `www/src/core/` ESM **directory**, which holds the actual plugin runtime described above. (A separate `npm run build:core` target bundles the DOM-free reusable Core from `www/src/core/index.js` for future shells; it is documented under `docs/architecture/` and is not the app build.)
 
 The Vite build produces an IIFE, so the fused app layer runs in one shared scope (matching the historical concatenation behavior expected by `file://` deployments and by the test suite's source assertions), while the `www/src/core/` modules keep proper ES module boundaries.
 
@@ -48,9 +50,11 @@ Defines shared application state as named exports:
 
 The real Layer 0 of the app: a headless, pure data and hierarchy engine with no browser dependencies (no DOM, no `window`, no storage side effects). It is the second slice fused into the app-layer scope (after `state.js`) and provides the low-level card/hierarchy primitives (e.g. `uid()`, `cloneCard()`) that later slices build on. It is intentionally minimal and portable — it is what `main.js` loads before wiring up storage, rendering, and the plugin architecture.
 
-## `www/src/core/*.js` (real plugin architecture)
+## `www/src/core/*.js` (plugin runtime)
 
-Unlike the unused top-level `www/src/core.js` (legacy dead code, not part of the build), the plugin architecture actually shipped in production lives in ESM modules under `www/src/core/`, imported directly by `www/src/main.js`:
+The plugin runtime shipped in production lives in ESM modules under `www/src/core/`, imported (via `global-api.js`) by `www/src/main.js`:
+
+- **Public API surface** (`www/src/core/global-api.js`): the ONE place that assigns and **freezes** `window.CardSpoke`. It exposes the convenience entry points `registerPlugin(id, definition)` (registers **and** enables; session-only), `installPlugin(pkg)` (persistent install; alias of `Plugin.install`), and `requestPermissions(pluginId, pluginName, permissions)`, plus the runtime subsystems below: `Plugin`, `PluginSandbox` (`{ createFunction }`), `Middleware`, `ComponentRegistry`, `StorageDriverRegistry`, `PluginValidator`, `Permissions`, and `utils`. The root object is frozen, but `utils` is an intentionally mutable inner object populated in place by the app layer (`storage.js`).
 
 - **Middleware Pipeline** (`www/src/core/middleware.js`, exposed as `window.CardSpoke.Middleware`):
   - `register(middleware)` - Register priority-weighted interceptors
@@ -65,16 +69,18 @@ Unlike the unused top-level `www/src/core.js` (legacy dead code, not part of the
   - `get(name)` - Retrieve registered component
   - `resolve(name)` - Alias for get()
   - `has(name)` - Check if component exists
-  - `list()` - List all components
-  - Standard components: `Card`, `CardEditor`, `Sidebar`, `SearchBar`, `SearchResults`, `TagList`, `Modal`, `Toast`, `Menu`
+  - `list()` - List all registered components
+  - The registry does not predefine components. The host **queries** exactly these names: `Card` (per card-tile render, live) and `Header`, `Sidebar`, `SearchBar` (once at boot via `applyRegistryComponents()`). A plugin registers overrides for those names; a custom `render(props)` must return an `HTMLElement`, and the host falls back to the default renderer on any exception.
 
 - **Plugin API** (`www/src/core/plugin-api.js`, exposed as `window.CardSpoke.Plugin`):
-  - `register(id, plugin)` - Register plugin with manifest and setup/teardown
-  - `enable(id)` - Enable plugin and run setup
-  - `disable(id)` - Disable plugin and run teardown
-  - `get(id)` - Get plugin instance
-  - `list()` - List all plugins
-  - Context APIs: `ctx.api.ui`, `ctx.api.data`, `ctx.api.storage`, `ctx.api.events`
+  - `install(pkg)` - Validate, register, persist to `store.plugins`, auto-enable SAFE/LOW layers
+  - `register(id, definition)` - Register a definition (throws on a duplicate id; does not persist)
+  - `enable(id)` / `disable(id)` - Run `setup(ctx)` / `teardown(ctx)`; persist enabled state
+  - `unregister(id)` - Disable, clean up, revoke permissions, remove the store entry
+  - `get(id)` / `list()` / `listAll()` - Inspect registered plugins
+  - `assessModRisk(pkg)` / `syncFromStore(safeMode)` / `notifyDataUpdate(event)` / `buildSettingsPanel(id)`
+  - Context APIs: `ctx.api.ui`, `ctx.api.data`, `ctx.api.storage`, `ctx.api.events`, `ctx.api.middleware`, `ctx.api.network`, `ctx.api.filesystem`
+  - Plugin `js` is a **setup-function body** compiled by the single factory `_createSandboxedFunction` as `new Function('ctx', '"use strict";\n' + js)` and run on the **main thread** (no iframe/Worker sandbox)
   - Resource tracking and automatic cleanup
 
 - **Storage Driver Registry** (`www/src/core/storage-driver-registry.js`, exposed as `window.CardSpoke.StorageDriverRegistry`):
@@ -85,11 +91,13 @@ Unlike the unused top-level `www/src/core.js` (legacy dead code, not part of the
   - `getActive()` - Get current active driver
   - `list()` - List all registered drivers
 
-- **Permissions** (`www/src/core/permissions.js`, exposed as `window.CardSpoke.Permissions`): user consent gating for sensitive plugin capabilities (ui-override, storage, network, filesystem, core-override).
+- **Plugin Validator** (`www/src/core/plugin-validator.js`, exposed as `window.CardSpoke.PluginValidator`): `validate(pkg)`, `validateCSS(css)`, `validateJS(js)` — screens manifest shape, size limits (100 KB CSS / 500 KB JS), and blocked patterns (CSS `@import`/`javascript:`/`expression()`/`behavior:`/`-moz-binding`; JS `eval(`/non-`ctx` `new Function(`).
 
-Because these are real ESM modules (not fused into the app-layer virtual scope), they retain proper module boundaries even inside the single IIFE bundle. `main.js` imports them directly so the architecture is available before the fused app-layer slices run.
+- **Permissions** (`www/src/core/permissions.js`, exposed as `window.CardSpoke.Permissions`): user consent gating for the six permissions (`ui-override`, `storage`, `network`, `filesystem`, `core-override`, `data-modify`).
 
-Note: `www/src/core/` also hosts a separate, larger "Core Platform Layer" (typed cards, app-mode registry, runtime profiles, action registry, conversions, kind-filterable import/export) with its own build target (`npm run build:core`). That layer is documented separately under `docs/architecture/` and is not part of the plugin-architecture surface described above.
+Because these are real ESM modules (not fused into the app-layer virtual scope), they retain proper module boundaries even inside the single IIFE bundle. `global-api.js` assembles and freezes `window.CardSpoke` from them so the runtime is available before the fused app-layer slices run.
+
+Note: `www/src/core/` also hosts a separate, larger "Core Platform Layer" (typed cards, app-mode registry, runtime profiles, action registry, conversions, kind-filterable import/export) with its own build target (`npm run build:core`, entry `www/src/core/index.js`). That layer is documented separately under `docs/architecture/` and is not part of the plugin-runtime surface described above.
 
 ## `metadata.js`
 
@@ -128,13 +136,10 @@ Defines persistence architecture and extension runtime:
 - Navigation:
   - `goTo(page, opts)`
   - `goBack()`
-- plugin validation/risking:
-  - `validateModPackage(pkg)`
-  - `assessModRisk(pkg)`
-- plugin runtime singleton:
-  - `window.CardSpoke.Plugin`
+- Built-in storage drivers (constructed directly here — the app does not consume `StorageDriverRegistry` for its own persistence)
 - plugin developer API:
-  - `window.CardSpoke.utils`
+  - Populates `window.CardSpoke.utils` **in place** (the frozen root's mutable inner object) with async host helpers.
+  - (Package validation and risk scoring live in the core runtime: `window.CardSpoke.PluginValidator.validate(pkg)` and `window.CardSpoke.Plugin.assessModRisk(pkg)`.)
 
 ## `data.js`
 
@@ -142,9 +147,11 @@ Owns app workflows and plugin manager UI actions:
 
 - Data-centric UI flows: import/export, settings, bookmarks/recent dialogs
 - plugin Manager UI tabs:
-  - Installed
-  - Install
-  - Create
+  - Installed (Enable / Suspend / Remove)
+  - Install (from file or URL)
+  - Gallery (curated list from `sample-plugins/manifest.json`)
+  - Create (write manifest/JS/CSS in-app; saved persistently)
+- Middleware operations fired for data ops: `card.create`, `card.update`, `card.delete` (plus `Plugin.notifyDataUpdate`)
 - Utility flows frequently used by plugin users (install, export, toggle, etc.)
 
 ## `rendering.js`
@@ -157,11 +164,10 @@ Owns render pipeline and primary interaction views:
   - `renderEditCard()`
   - `renderSearchResults()`
   - `render()`
-- Hook dispatch touchpoints:
-  - `runModHook('onCardRender', ...)`
-  - `runModHook('onCardSave', ...)`
-  - `runModHook('onSearch', ...)`
-  - theme/typography/accessibility hook dispatch from user actions
+- Middleware/dispatch touchpoints (there is no `runModHook`; the current model uses the middleware pipeline and data-update notifications):
+  - `renderCardTile` fires the `card.render` middleware operation with args `[card, cardTileElement]`
+  - card create/update/delete in `data.js` fire `card.create` / `card.update` / `card.delete` and call `Plugin.notifyDataUpdate({ type, cardId, card? })`
+  - `saveNow` in `storage.js` fires `card.save` with `[store]` (a middleware `preventDefault()` aborts the save)
 
 ## `systems.js`
 
@@ -169,15 +175,17 @@ Owns advanced behavior and startup:
 
 - Undo/redo engine: `pushUndo()`, `undo()`, `redo()`
 - Advanced UX: shortcuts, trash bin, dataset utilities
+- **HOST BRIDGE** block (runs before the boot IIFE): assigns the window globals the decoupled plugin runtime reads — `window.save`, `window.createCard`, `window.updateCard`, `window.deleteCard`, `window.cloneCard`, `window.getTags`/`addTag`/`removeTag`/`setTags`/`getAllTags`, `window.showToast` (`window.store` is kept in sync separately by `setStore` in `state.js`). This set of names is a stability contract.
 - Boot sequence (actual order):
   1. `initToast()`
-  2. `load()`
-  3. `populateFooter()`
-  4. `updateDatasetSelector()`
-  5. Apply saved typography
-  6. Parse URL safe mode (`?safemode`)
-  7. If not safe mode: `CardSpoke.Plugin.syncFromStore()` - loads and enables plugins
-  8. `render()`
+  2. Parse URL safe mode (`?safemode`)
+  3. `load()`
+  4. `populateFooter()`
+  5. `updateDatasetSelector()`
+  6. Apply saved typography
+  7. `CardSpoke.Plugin.syncFromStore(safeMode)` - re-registers stored plugins from their persisted `js`/`teardownJs` strings; re-enables the enabled ones **unless** `safeMode` (then everything is registered but disabled). Idempotent; re-runs when an async IndexedDB/local-file dataset replaces the store.
+  8. `applyRegistryComponents()` - applies `Header`/`Sidebar`/`SearchBar` overrides
+  9. `render()`
 
 ---
 
@@ -229,58 +237,62 @@ Common keys you will interact with:
 The dominant flow is:
 
 1. A user or plugin action mutates the store (card create/update/delete/tag ops)
-2. `save()` persists the current dataset
-3. `render()` updates the visible UI
-4. Hook dispatch notifies enabled plugins (`runModHook(...)`)
+2. `save()` persists the current dataset (firing the `card.save` middleware operation)
+3. `render()` updates the visible UI (each card tile fires the `card.render` middleware operation)
+4. Enabled plugins are notified through the middleware pipeline and `Plugin.notifyDataUpdate({ type, cardId, card? })`, which feeds `ctx.api.data.onUpdate` listeners
 
-Examples:
+Examples (host-fired middleware operations — there is no `runModHook`/`onCard*` hook system anymore):
 
-- Edit/create card in UI triggers `onCardSave`
-- Rendering cards in list/read/search triggers `onCardRender`
-- Navigation change triggers `onNavigate`
-- Search results trigger `onSearch`
+- Creating/updating/deleting a card fires `card.create` / `card.update` / `card.delete` (and calls `notifyDataUpdate`)
+- Saving fires `card.save` (`[store]`; `preventDefault()` aborts the save)
+- Rendering a card tile fires `card.render` (`[card, cardTileElement]`)
 
-Practical takeaway: if your plugin mutates card data, prefer `window.CardSpoke.utils` methods so persistence and rendering stay coherent.
+Practical takeaway: if your plugin mutates card data, prefer `ctx.api.data.*` (or `ctx.utils` / `window.CardSpoke.utils`) methods so persistence and rendering stay coherent.
 
 ---
 
 ## 5) plugin Package Contract (Exact Fields)
 
-Canonical plugin package structure:
+Canonical plugin package structure (`js`/`teardownJs` are **strings** — the body of the setup/teardown functions, receiving `ctx`):
 
 ```json
 {
   "id": "my-plugin",
   "manifest": {
+    "id": "my-plugin",
     "name": "My plugin",
     "version": "1.2.3",
     "author": "Your Name",
     "description": "Optional summary",
-    "layer": "theme",
+    "layer": "feature",
+    "permissions": ["ui-override"],
+    "config": {},
     "compatibility": ">=0.17.0"
   },
-  "config": {},
-  "css": "",
-  "js": "",
-  "overrides": {},
-  "enabled": false
+  "css": "/* injected while enabled */",
+  "js": "ctx.logger.info('enabled');",
+  "teardownJs": "/* optional extra cleanup */"
 }
 ```
 
-## Required validation requirements
+Top-level `id`/`config`/`overrides` are normalized into the manifest at install (explicit manifest values win). `enabled` is **not** a package field — the runtime tracks it separately in `store.plugins[id].enabled`.
 
-`validateModPackage(pkg)` enforces:
+## Validation
 
-1. `pkg` must be an object
-2. `id` is required
-3. `manifest` is required
-4. `manifest.name`, `manifest.version`, `manifest.author`, `manifest.layer` are required
-5. `manifest.layer` must be one of: `theme`, `feature`, `app`
-6. Theme-layer plugins **cannot** include non-empty `js`
-7. Non-app layers cannot use `overrides`
+`window.CardSpoke.PluginValidator.validate(pkg)` returns `{ valid, errors, warnings, sanitized }` and enforces:
 
-Recommended (not hard-enforced) for quality:
+1. `pkg.id` must be a string (a non-`[a-z0-9-]` id is a warning, not an error)
+2. `manifest` is required and must be an object
+3. `manifest.name`, `manifest.version`, and `manifest.layer` are required
+4. `manifest.layer` must be one of: `theme`, `feature`, `app`
+5. Size limits: CSS ≤ 100 KB, JS ≤ 500 KB
+6. Blocked JS patterns: `eval(` and non-`ctx` `new Function(` (errors); blocked CSS patterns (`@import`, `javascript:`, `expression()`, `behavior:`, `-moz-binding`) are stripped with a warning
 
+The validator does **not** hard-reject theme-with-JS or non-app overrides — those affect the **risk score** instead (see [Risk Assessment](#10-risk-assessment-how-runtime-scores-plugins)): a theme that carries JS scores MEDIUM, and any declared `overrides` (or the `app` layer) scores HIGH. Only SAFE/LOW auto-enable on install, so a MEDIUM or HIGH package installs **suspended** and waits for an explicit user enable.
+
+Recommended (warnings only, not hard errors):
+
+- `manifest.author` and `manifest.description` (strings)
 - ID format: lowercase letters/numbers/hyphens (`my-plugin-1`)
 - Semantic versioning in `manifest.version`
 - Clear `compatibility` range
@@ -291,23 +303,23 @@ Recommended (not hard-enforced) for quality:
 
 ## Theme layer
 
-- Allowed: CSS
-- Not allowed: JS, overrides
+- Intended: CSS only
+- Discouraged: JS (a theme carrying JS scores MEDIUM and will not auto-enable), overrides
 - Best for: colors, spacing, typography, layout tweaks
-- Expected risk: SAFE/LOW
+- Expected risk: SAFE (CSS-only)
 
 ## Feature layer
 
-- Allowed: CSS + JS + hooks
-- Not allowed: overrides
+- Allowed: CSS + JS + middleware/components
+- Not intended: overrides (declaring any override forces HIGH risk)
 - Best for: additive features (badges, utilities, side-panels, keyboard helpers)
-- Expected risk: MEDIUM baseline
+- Expected risk: LOW (auto-enabled when it declares no overrides)
 
 ## App layer
 
 - Allowed: CSS + JS + overrides
 - Best for: application-level transformations
-- Expected risk: HIGH
+- Expected risk: HIGH (installs suspended; requires explicit user enable)
 
 ---
 
@@ -322,16 +334,22 @@ The modern plugin system uses `setup` and `teardown` functions instead of indivi
 
 ### Plugin Context (`ctx`) includes
 
-- `pluginId` - The plugin's unique identifier
+- `modId` - The plugin's unique identifier
 - `appVersion` - Current app version (0.17.0)
 - `schemaVersion` - Current schema version (4)
-- `api` - API object with `ui`, `data`, `storage`, and `events` namespaces
+- `config` - Live `manifest.config` object (present when the manifest declares `config`)
+- `api` - API object with `ui`, `data`, `storage`, `events`, `middleware`, `network`, and `filesystem` namespaces
+- `utils` - Async host helpers (same object as `window.CardSpoke.utils`)
 - `logger` - Plugin-scoped logger (`log`, `info`, `warn`, `error`)
 
 ### Registration Pattern
 
+Register middleware through **`ctx.api.middleware.register`** (namespaced `<pluginId>:<name>` and auto-cleaned on disable) rather than the raw `window.CardSpoke.Middleware`, which is not tracked. The `card.render` handler receives its args as the array `[card, cardTileElement]`.
+
+Shown here in the **session-only** module form (real `setup`/`teardown` functions via `registerPlugin`, which registers **and** enables). To ship it, move the `setup` body into a package `js` **string** and install with `window.CardSpoke.Plugin.install(pkg)` so it persists across reloads:
+
 ```js
-window.CardSpoke.Plugin.register('word-counter', {
+window.CardSpoke.registerPlugin('word-counter', {
   manifest: {
     name: "Word Counter",
     version: "1.0.0",
@@ -339,39 +357,38 @@ window.CardSpoke.Plugin.register('word-counter', {
     layer: "feature",
     permissions: ["ui-override"]
   },
-  
+
   setup: async (ctx) => {
     ctx.logger.info('Plugin enabled');
-    
-    // Register middleware to inject word count on card render
-    if (window.CardSpoke.Middleware) {
-      window.CardSpoke.Middleware.register({
-        name: 'word-counter-render',
-        priority: 5,
-        operations: ['card.render'],
-        handler: async (mctx, next) => {
-          const { card, element } = mctx.args;
-          if (card && element) {
-            const words = (card.body || '').trim().split(/\s+/).filter(Boolean).length;
-            const badge = document.createElement('span');
-            badge.className = 'word-counter-badge';
-            badge.textContent = `${words} words`;
-            element.appendChild(badge);
-          }
-          await next();
+
+    // Register middleware to inject word count on card render.
+    // ctx.api.middleware registrations are namespaced and auto-cleaned.
+    ctx.api.middleware.register({
+      name: 'render-badge',
+      priority: 5,
+      operations: ['card.render'],
+      handler: async (mw, next) => {
+        const [card, element] = mw.args;
+        if (card && element) {
+          const words = (card.body || '').trim().split(/\s+/).filter(Boolean).length;
+          const badge = document.createElement('span');
+          badge.className = 'word-counter-badge';
+          badge.textContent = `${words} words`;
+          element.appendChild(badge);
         }
-      });
-    }
+        await next();
+      }
+    });
   },
-  
+
   teardown: async (ctx) => {
     ctx.logger.info('Plugin disabled');
-    // Middleware is automatically unregistered
+    // Middleware registered via ctx.api.middleware is automatically unregistered
   }
 });
 ```
 
-**Note:** Resource management (DOM cleanup, listener removal) is automatic. The middleware pipeline should be used for intercepting core operations like card render, save, delete, etc.
+**Note:** Resource management (DOM cleanup, listener/middleware/component removal) is automatic for anything created through `ctx.api.*`. The middleware pipeline should be used for intercepting core operations like card render, save, delete, etc.
 
 ---
 
@@ -381,37 +398,29 @@ window.CardSpoke.Plugin.register('word-counter', {
 
 Common operations:
 
-- `register(id, definition)` - Register a plugin with ID and definition
-- `unregister(id)` - Unregister a plugin
-- `install(pkg)` - Install a plugin package, returns generated ID
-- `enable(id)` - Enable a registered plugin
-- `disable(id)` - Disable an enabled plugin
-- `get(id)` - Get plugin instance by ID
-- `list()` - List all registered plugins
+- `install(pkg)` - Install a plugin package (validate, register, persist, auto-enable SAFE/LOW), returns the id
+- `register(id, definition)` - Register a definition (throws on a duplicate id; does not persist)
+- `unregister(id)` - Unregister a plugin (disable + cleanup + revoke permissions + remove store entry)
+- `enable(id)` - Enable a registered plugin (permissions consent, apply CSS, run `setup`)
+- `disable(id)` - Disable an enabled plugin ("suspend")
+- `get(id)` - Get plugin instance by ID (`{ id, definition, context, enabled, resources }`)
+- `list()` / `listAll()` - List all registered plugin instances
 - `assessModRisk(pkg)` - Assess risk level (SAFE, LOW, MEDIUM, HIGH)
-- `syncFromStore(safeMode)` - Load plugins from storage at boot
-- `notifyDataUpdate()` - Notify data listeners of changes
+- `syncFromStore(safeMode)` - Restore plugins from `store.plugins` at boot
+- `notifyDataUpdate(event)` - Fan a `{ type, cardId, card? }` event out to `ctx.api.data.onUpdate` listeners
+- `buildSettingsPanel(id)` - Build an auto-generated settings panel from `manifest.config`
 
-**Deprecated methods** (no longer exist):
+**Methods that do NOT exist** (there is no legacy hook system or `devTools`/`Plugin.events` surface):
 
-- ~~`runHook(hookName, ...args)`~~ - Use middleware pipeline instead
-- ~~`runHookForMod(modId, hookName, ...args)`~~ - Use middleware pipeline instead
+- ~~`runHook(...)`~~ / ~~`runHookForMod(...)`~~ - Use the middleware pipeline (`ctx.api.middleware`) instead
 - ~~`reload(modId)`~~ - Not implemented
+- ~~`Plugin.devTools.*`~~ - No such object; inspect plugins with `Plugin.get(id)` / `Plugin.list()`
+- ~~`Plugin.events.*`~~ - The event bus is per-plugin: `ctx.api.events` (`on`/`off`/`once`/`emit`), backed by a single global bus shared across plugins
 
-Diagnostics:
+Diagnostics (what actually exists):
 
-- `get(id)` - Get plugin instance details
-- `devTools.listAllMods()`
-- `devTools.getHookStats(modId?)`
-- `devTools.getErrorLog()` / `devTools.clearErrorLog()`
-- `devTools.getEventListeners()`
-
-Event bus:
-
-- `CardSpoke.Plugin.events.on(event, cb)`
-- `CardSpoke.Plugin.events.off(event, cb)`
-- `CardSpoke.Plugin.events.emit(event, data)`
-- `CardSpoke.Plugin.events.clear(event?)`
+- `Plugin.get(id)` - inspect a plugin instance (`enabled`, `definition`, `resources`)
+- `Plugin.list()` / `Plugin.listAll()` - enumerate registered plugins
 
 ## `window.CardSpoke.utils` (plugin-facing helper API)
 
@@ -443,25 +452,23 @@ Use these APIs instead of directly mutating `store` unless you are contributing 
 
 ## 9) Override System (App Layer Only)
 
-App-layer plugins can set `overrides` to alter high-level behavior.
+App-layer plugins can set `overrides` to alter high-level behavior. Declaring **any** `overrides` object forces HIGH risk (installs suspended).
 
-Supported practical fields:
+Currently **implemented** override:
 
-- `appName: string`
-- `hideMenuItems: string[]`
-- `customMenuItems: Array<{ id: string, label: string, section?: string }>`
+- `appName: string` — renames the app brand button (`#brandBtn`); applied in `Plugin.enable` (`www/src/core/plugin-api.js`).
 
 Example:
 
 ```json
 {
   "overrides": {
-    "appName": "Research Console",
-    "hideMenuItems": ["menuTrashBin"],
-    "customMenuItems": [{ "id": "openLabs", "label": "Labs", "section": "actions" }]
+    "appName": "Research Console"
   }
 }
 ```
+
+Other override keys (e.g. hiding or adding menu items) are **not wired up yet** — the runtime only reads `overrides.appName` today. Do not rely on unimplemented override fields.
 
 Operational advice:
 
@@ -473,15 +480,16 @@ Operational advice:
 
 ## 10) Risk Assessment (How Runtime Scores Plugins)
 
-The runtime computes a risk score based on layer and detected capability patterns.
+`Plugin.assessModRisk(pkg)` computes a risk level from the **layer** and whether the package carries JS / CSS / overrides. The exact mapping (in `www/src/core/plugin-api.js`):
 
-Inputs include:
+- `SAFE` — `theme` layer, CSS only, no JS
+- `LOW` — `feature` layer with no overrides
+- `HIGH` — `app` layer, or any declared `overrides`
+- `MEDIUM` — anything else (e.g. a theme that carries JS)
 
-- Layer baseline (theme < feature < app)
-- JS content checks (e.g. `fetch(`, `XMLHttpRequest`, `eval(`, `new Function(`, `document.cookie`)
-- Override presence and power (`disableFeatures`, custom pages, app rename)
+Only `SAFE`/`LOW` auto-enable on install; `MEDIUM`/`HIGH` install suspended until the user enables them explicitly.
 
-Risk levels reported: `SAFE`, `LOW`, `MEDIUM`, `HIGH`.
+Separately, the **validator** (`PluginValidator.validateJS`) screens plugin JS for blocked patterns (`eval(`, non-`ctx` `new Function(`) and enforces size limits — that is a hard gate at registration, distinct from the risk score above.
 
 Interpretation guidance:
 
@@ -493,7 +501,7 @@ Interpretation guidance:
 
 ## 11) Safe Mode and Recovery
 
-Launching with `?safemode` disables plugin loading and execution.
+Launching with `?safemode` boots with every stored plugin **registered but disabled** — no plugin `setup` runs, so a broken plugin cannot break startup.
 
 Practical use:
 
@@ -505,7 +513,7 @@ In safe mode:
 
 - Runtime warns in console
 - A warning toast indicates plugins are disabled
-- `CardSpoke.Plugin.syncFromStore()` is skipped (no plugins are loaded)
+- `CardSpoke.Plugin.syncFromStore(true)` still runs — it re-registers stored plugins (so the Plugin Manager can list them) but enables none of them
 
 ---
 
@@ -594,8 +602,8 @@ Ensure app remains functional with your plugin fully bypassed by loading with `?
    ```
 
 4. Verify plugin compatibility assumptions:
-   - hooks still fire
-   - `window.CardSpoke.utils` contract remains intact
+   - middleware operations (`card.create/update/delete/save/render`) still fire
+   - the host-bridge window globals and `window.CardSpoke.utils` contract remain intact
    - override behavior unchanged unless intentionally modified
 5. Update docs when runtime behavior/contracts change
 
@@ -644,12 +652,12 @@ If distributing to a team/community:
 ## 16) Common Failure Patterns and Fixes
 
 - **Duplicate UI injection on rerender**
-  - Cause: `onCardRender` appends every time
-  - Fix: check for existing marker node/class before append
+  - Cause: a `card.render` middleware handler appends every time
+  - Fix: check for an existing marker node/class before append
 
 - **Broken state after direct mutation**
   - Cause: plugin edits internals without save/render flow
-  - Fix: use `window.CardSpoke.utils` methods
+  - Fix: use `ctx.api.data.*` (or `ctx.utils` / `window.CardSpoke.utils`) methods
 
 - **Theme plugin rejected**
   - Cause: non-empty `js` present in theme layer
@@ -661,7 +669,7 @@ If distributing to a team/community:
 
 - **Hard-to-debug lifecycle errors**
   - Cause: missing diagnostics
-  - Fix: rely on `ctx.logger` and `CardSpoke.Plugin.devTools.getErrorLog()`
+  - Fix: rely on `ctx.logger` (prefixed console output) and inspect state with `CardSpoke.Plugin.get(id)` / `CardSpoke.Plugin.list()`; setup/teardown errors are surfaced as toasts and logged to the console
 
 ---
 
@@ -675,19 +683,29 @@ npm run build
 npm test
 ```
 
-## Runtime globals
+## Runtime globals (frozen `window.CardSpoke` surface)
+
+Convenience entry points:
+
+- `window.CardSpoke.registerPlugin(id, definition)` (session-only; registers + enables)
+- `window.CardSpoke.installPlugin(pkg)` (persistent; alias of `Plugin.install`)
+- `window.CardSpoke.requestPermissions(pluginId, pluginName, permissions)`
+
+Runtime subsystems:
 
 - `window.CardSpoke.Plugin`
+- `window.CardSpoke.PluginSandbox` (`{ createFunction }`)
 - `window.CardSpoke.Middleware`
 - `window.CardSpoke.ComponentRegistry`
-- `window.CardSpoke.StorageDriverRegistry`
+- `window.CardSpoke.StorageDriverRegistry` (experimental; not consumed for app persistence)
+- `window.CardSpoke.PluginValidator`
 - `window.CardSpoke.Permissions`
 - `window.CardSpoke.utils`
 
 ## Troubleshooting
 
 - Launch with `?safemode` when a plugin breaks startup
-- Inspect hook stats/errors in `CardSpoke.Plugin.devTools`
+- Inspect plugin state with `CardSpoke.Plugin.get(id)` / `CardSpoke.Plugin.list()`; errors surface as toasts and console logs (there is no `devTools` object)
 
 ---
 
@@ -696,5 +714,8 @@ npm test
 - `README.md` — top-level orientation and doc index
 - `docs/guides/DEVELOPER_GUIDE.md` — core development workflow
 - `docs/PLUGIN_SYSTEM.md` — formal plugin system reference
+- `docs/PLUGIN_INVARIANTS.md` — the stability contract (what must not change)
 - `docs/api/API_REFERENCE.md` — API contract details
+- `docs/api/PLUGIN_API.md` — per-method `ctx` API reference
+- `sample-plugins/` — nine working packages (three per layer) + `TEMPLATE.json`
 - `docs/guides/TEST_GUIDE.md` — testing guidance

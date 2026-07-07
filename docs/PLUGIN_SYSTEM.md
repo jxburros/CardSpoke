@@ -1,580 +1,472 @@
 # CardSpoke Plugin System
 
-This document describes the modern plugin-based plugin system that powers CardSpoke's extensibility. Plugins can range from simple visual themes to full app-layer transformations.
+This is the canonical guide to CardSpoke's plugin system: what plugins are,
+how to build one for each of the three layers, how the lifecycle works
+(install, enable, suspend, delete, reload), and the complete `ctx` API
+reference.
 
-**Current Version:** 0.17.0 | **Schema Version:** 4 | **Release Date:** 2026-02-17
+**App Version:** 0.17.0 | **Schema Version:** 4
+
+Companion documents:
+
+- [`PLUGIN_INVARIANTS.md`](./PLUGIN_INVARIANTS.md) — the stability contract:
+  everything that must **not** change or the plugin system breaks. Read it
+  before touching runtime code.
+- [`../sample-plugins/`](../sample-plugins/) — nine working packages (three
+  per layer) plus `TEMPLATE.json`. Every sample installs, enables, suspends,
+  deletes, and survives reload; `tests/plugin-lifecycle.test.js` proves it on
+  every test run.
 
 ## Overview
 
-The plugin system is built on a modern, powerful architecture featuring:
+CardSpoke stays intentionally small; plugins are the supported way to change
+it — from a coat of paint to a different product. The system has three
+architectural layers, preserved from the original design:
 
-- **Middleware Pipeline**: Priority-weighted interceptors for core operations
-- **Plugin API**: Sandboxed contexts with resource management and hot-unloading
-- **Component Registry**: Type-safe UI component overrides
-- **Storage Driver Registry**: Pluggable storage backends
-- **Permissions System**: User consent for sensitive operations
+| Layer | Contents | Risk | Enable behavior |
+|---|---|---|---|
+| `theme` | CSS only | SAFE | Auto-enabled on install |
+| `feature` | CSS + JS | LOW (unless it declares overrides) | Auto-enabled on install |
+| `app` | CSS + JS + overrides | HIGH | Installed **suspended**; the user must enable it manually |
 
-### Architecture Components
+The runtime lives in `www/src/core/` (ES modules) and is exposed to both the
+app and to plugins as `window.CardSpoke`. There is exactly one plugin runtime
+and one build (`npm run build`, Vite). The safety model is consent-based:
 
-1. **Middleware Pipeline**: Interceptors that can modify or cancel operations
-2. **Plugin API**: Isolated contexts with `api.ui`, `api.data`, `api.storage`, and `api.events`
-3. **Component Registry**: Register UI components with priority-based resolution
-4. **Storage Drivers**: Pluggable storage backends (IndexedDB, cloud, git, etc.)
-5. **Permissions**: Explicit permission requests with user consent dialogs
+1. The **validator** screens every package before registration (manifest
+   shape, CSS/JS size limits, dangerous patterns).
+2. Every sensitive `ctx` API call is gated by a **permission** the user must
+   grant in a consent dialog.
+3. **Risk assessment** by layer decides what auto-enables; `app`-layer
+   plugins never run until the user enables them.
+4. **`?safemode`** in the URL boots the app with every plugin registered but
+   disabled.
+5. Everything a plugin creates through `ctx.api.*` is **tracked and
+   automatically removed** when the plugin is suspended or deleted.
+
+Plugin JS runs on the main thread with full DOM access (there is no process
+isolation). Treat installing an `app`-layer plugin like installing software.
+
+## Quick Start: your first plugin in five minutes
+
+1. Run the app (`npm run dev` or open the built `www/index.html`).
+2. Open the hamburger menu → **Plugin Manager** → **Create** tab.
+3. Manifest:
+
+   ```json
+   {
+     "name": "Hello CardSpoke",
+     "version": "1.0.0",
+     "author": "You",
+     "layer": "feature",
+     "permissions": ["ui-override"]
+   }
+   ```
+
+4. JavaScript — this is the **body of your setup function**; it receives the
+   plugin context as `ctx`:
+
+   ```javascript
+   var el = document.createElement('span');
+   el.textContent = 'Hello!';
+   ctx.api.ui.inject('.header', el, 'append');
+   ctx.api.ui.showToast('Hello plugin enabled', 'success');
+   ```
+
+5. Click **Save & Register**, grant the `ui-override` permission, and the
+   badge appears in the header. Reload the page — it's still there. Suspend
+   or remove it from the **Installed** tab; the badge disappears immediately.
 
 ## Plugin Package Format
 
-### Plugin Definition Format
-
-**All plugins use one of two formats:**
-
-- **ES6 Module Format**: For development with bundlers (Vite/ESBuild) and modern JavaScript workflows
-- **Runtime Registration Format**: For direct browser usage without a build step
-
-#### ES6 Module Format (for development with Vite/ESBuild)
-
-This format is ideal for TypeScript projects and modern JavaScript development. It requires a build step to bundle into the runtime registration format.
-
-```javascript
-export default {
-  manifest: {
-    name: "My Plugin",
-    version: "1.0.0",
-    author: "Author Name",
-    description: "What this plugin does",
-    layer: "theme | feature | app",
-    permissions: ["ui-override", "storage"]
-  },
-  setup: async (ctx) => {
-    // Plugin initialization with ctx.api
-  },
-  teardown: async (ctx) => {
-    // Cleanup (resources auto-managed)
-  },
-  css: "/* Optional CSS */"
-};
-```
-
-**Note:** See `sample-plugins/` for working examples
-
-#### Runtime Registration Format (for direct browser usage)
-
-This format works directly in the browser without any build step. Use this for quick prototyping or when bundlers are not available.
-
-```javascript
-window.CardSpoke.registerPlugin('my-plugin', {
-  manifest: {
-    name: "My Plugin",
-    version: "1.0.0",
-    author: "Author Name",
-    description: "What this plugin does",
-    layer: "theme | feature | app",
-    permissions: ["ui-override", "storage"]
-  },
-  setup: async (ctx) => {
-    // Plugin initialization with ctx.api
-  },
-  teardown: async (ctx) => {
-    // Cleanup (resources auto-managed)
-  },
-  css: "/* Optional CSS */"
-});
-```
-
-Used in: Direct browser `<script>` tags or inline code
-
-**Note:** `window.CardSpoke` is frozen and exposes exactly two entry points: `registerPlugin(id, definition)` and `requestPermissions(pluginId, pluginName, permissions)`. Internal systems referenced elsewhere in this document — the plugin manager's lifecycle methods (`list`, `get`, `enable`, `disable`, `install`, `assessModRisk`), the Middleware Pipeline, the Component Registry, and the Storage Driver Registry — are not reachable from `window.CardSpoke`. They are used internally by the core app and, where relevant, surfaced to plugin code only through `ctx.api`.
-
-### Required Fields
-
-- **id**: Lowercase alphanumeric with hyphens (`/^[a-z0-9-]+$/`). Must be unique within your plugin context.
-- **manifest.name**: Human-readable display name.
-- **manifest.version**: Semver string (`X.Y.Z`).
-- **manifest.author**: Creator name.
-- **manifest.layer**: One of `theme`, `feature`, or `app`.
-
-### Optional Fields
-
-- **manifest.description**: Short description of the plugin.
-- **manifest.permissions**: Array of requested permissions.
-- **config**: Object of user-configurable settings (arbitrary key/value pairs).
-- **css**: CSS string injected into the page when the plugin is enabled.
-- **setup**: Async function called when plugin is enabled.
-- **teardown**: Async function called when plugin is disabled or uninstalled.
-- **overrides**: Object of app-level overrides (only meaningful for `app` layer).
-
-## Three-Layer Architecture
-
-### 1. Theme Layer
-
-- **Capabilities**: CSS only.
-- **Restrictions**: No JavaScript allowed. No overrides.
-- **Risk Level**: Low (safe).
-- **Use Cases**: Color schemes, typography changes, layout tweaks, dark/light variants.
-
-### 2. Feature Layer
-
-- **Capabilities**: CSS and JavaScript.
-- **Restrictions**: No overrides.
-- **Risk Level**: Medium.
-- **Use Cases**: New UI panels, keyboard shortcuts, card enhancements, import/export tools, integrations.
-
-### 3. App Layer
-
-- **Capabilities**: CSS, JavaScript, and overrides.
-- **Restrictions**: None (highest privilege).
-- **Risk Level**: High.
-- **Use Cases**: Rename the app, hide/add menu items, add custom pages, disable built-in features, fundamentally transform the app experience.
-
-## Override System (App Layer Only)
-
-App-layer plugins can declare overrides that modify core app behavior:
+A plugin is a single JSON file:
 
 ```json
 {
-  "overrides": {
-    "appName": "Custom App Name",
-    "hideMenuItems": ["menuTrashBin", "menuBookmarks"],
-    "customMenuItems": [
-      { "id": "myItem", "label": "My Feature", "section": "actions" }
-    ],
-    "customPages": [
-      { "id": "myPage", "title": "My Page", "render": "renderMyPage" }
-    ],
-    "disableFeatures": ["bookmarks", "recentCards"]
-  }
+  "id": "my-plugin",
+  "manifest": {
+    "id": "my-plugin",
+    "name": "My Plugin",
+    "version": "1.0.0",
+    "author": "Your Name",
+    "description": "What it does",
+    "layer": "feature",
+    "permissions": ["ui-override"],
+    "compatibility": ">=0.17.0",
+    "config": { "workMinutes": 25 },
+    "overrides": { "appName": "My App" },
+    "dependencies": ["other-plugin-id"]
+  },
+  "css": "/* injected while enabled, removed when suspended */",
+  "js": "/* SETUP BODY — runs as function(ctx) { ...this string... } on every enable */",
+  "teardownJs": "/* optional extra cleanup — same ctx object as setup */"
 }
 ```
 
-### Available Overrides
+Field reference:
 
-- **appName**: Replace the brand/title displayed in the header.
-- **hideMenuItems**: Array of menu item element IDs to hide.
-- **customMenuItems**: Array of menu items to inject, each with `id`, `label`, and optional `section`.
-- **customPages**: Array of custom pages with render function names.
-- **disableFeatures**: Array of built-in feature names to disable.
+| Field | Required | Notes |
+|---|---|---|
+| `id` (top level) | recommended | Lowercase alphanumeric + hyphens. Normalized into `manifest.id` at install; if both are absent the id is derived by slugging `manifest.name`. |
+| `manifest.name` | **yes** | Human-readable name (string). |
+| `manifest.version` | **yes** | Semver string. |
+| `manifest.layer` | **yes** | `theme`, `feature`, or `app`. |
+| `manifest.author` | recommended | Shown in the Plugin Manager. |
+| `manifest.description` | recommended | Shown in the Plugin Manager and gallery. |
+| `manifest.permissions` | if JS uses gated APIs | See [Permissions](#permissions). |
+| `manifest.config` | no | Key/value defaults; surfaced to code as `ctx.config` and to users as an auto-generated settings panel. Value types (boolean/number/string) drive the input type. Changes persist. |
+| `manifest.overrides` | no | App-layer host overrides. Currently implemented: `appName` (renames the app brand button). Declaring any override forces HIGH risk. |
+| `manifest.dependencies` | no | Array of plugin ids that must already be installed. |
+| `manifest.compatibility` | no | Informational version range. |
+| `css` | themes: yes | Max 100 KB. Sanitized: `@import`, `javascript:`, `expression()`, `behavior:`, `-moz-binding` are stripped. |
+| `js` | features/apps: yes | Max 500 KB. **The body of your setup function** — see below. `eval(` and `new Function(` are rejected by the validator. |
+| `teardownJs` | no | Extra cleanup code (timers, observers). Tracked resources are cleaned automatically without it. |
 
-## Risk Assessment
+`config` and `overrides` may also appear at the package top level (the
+installer normalizes them into the manifest; explicit manifest values win).
 
-The system automatically assesses risk based on layer and content:
+### How `js` executes — the setup-body model
 
-| Layer | Base Risk | JS with Network | JS with DOM | With Overrides |
-|-------|-----------|-----------------|-------------|----------------|
-| theme | LOW | N/A | N/A | N/A |
-| feature | MEDIUM | HIGH | MEDIUM | N/A |
-| app | HIGH | HIGH | HIGH | HIGH |
+The `js` string is compiled once per enable as:
 
-Risk indicators checked in JavaScript:
-
-- Network access: `fetch(`, `XMLHttpRequest`, `WebSocket`
-- DOM manipulation: `document.write`, `innerHTML`, `eval(`
-- Storage access: `localStorage`, `indexedDB`
-
-## Lifecycle and Hooks
-
-The modern plugin system uses setup/teardown functions for initialization and cleanup. For fine-grained control over app operations, use the Middleware Pipeline (see below).
-
-### Setup and Teardown
-
-Every plugin defines these lifecycle functions:
-
-- **`setup(ctx)`**: Called when the plugin is enabled. Use this to initialize resources, register middleware, or inject UI.
-- **`teardown(ctx)`**: Called when the plugin is disabled or uninstalled. Use this to clean up resources (automatic for most cases).
-
-### Resource Management
-
-The Plugin API automatically manages resources:
-
-- Injected DOM elements are tracked
-- Event listeners are scoped to the plugin
-- Middleware handlers are automatically unregistered on disable
-- Component registry overrides are reverted on disable
-
-## Plugin Manager UI
-
-The Plugin Manager is accessible from the main menu and has three tabs:
-
-1. **Installed**: Lists all installed plugins with enable/disable toggles, risk badges, and uninstall buttons.
-2. **Install**: Upload a plugin JSON file or load from URL.
-3. **Create**: Build a plugin directly in the app by providing metadata, JavaScript, and CSS.
-
-## Installation Methods
-
-### File Upload
-
-Upload a plugin definition file through the Upload modal (Plugins tab) or the Plugin Manager's Install tab.
-
-### Manual Creation
-
-Use the Create tab in the Plugin Manager to define a plugin directly in the app by providing metadata, JavaScript code, and CSS.
-
-### Programmatic
-
-```javascript
-window.CardSpoke.registerPlugin('my-plugin', pluginDefinition);
+```text
+new Function('ctx', '"use strict";\n' + js)
 ```
 
-## Safe Mode
+and invoked as `setup(ctx)`. That means:
 
-Launch with `?safemode` in the URL to disable all plugins. This is useful for troubleshooting when a plugin causes issues. In safe mode, the app displays a "Plugins Disabled" banner and no plugin code executes.
+- Write **statements**, not a wrapper: `ctx.api.ui.showToast('hi')`, not
+  `(function() { ... })()` around a registration call.
+- **Never call `window.CardSpoke.registerPlugin(...)` from `js`** — the
+  package IS the plugin; installing it registers it. Self-registration
+  throws a duplicate-id error.
+- The code re-runs on every enable (including at boot after a reload), and
+  everything it created via `ctx.api.*` is removed on every disable. Design
+  setup/teardown to be repeatable.
+- You may `return` a Promise (or use `async` inner functions); enable awaits
+  it.
+- State that `teardownJs` needs (interval ids, observers) should be stashed
+  on `ctx` (e.g. `ctx._myTimer = ...`) — teardown receives the same `ctx`
+  object.
 
-## Validation Rules
+Plugins written as real modules (with `setup`/`teardown` **functions**) can
+be registered programmatically — see
+[Loading plugins](#loading-plugins-all-the-ways) — but only string-form
+packages survive a reload, because functions cannot be persisted.
 
-`validateModPackage()` enforces:
+## Lifecycle
 
-1. `manifest` must exist with `name`, `version`, `author`, and `layer`.
-2. `manifest.layer` must be one of `theme`, `feature`, or `app`.
-3. Theme-layer plugins must have no `setup`/`teardown` functions (CSS only).
-4. `overrides` are only meaningful for `app`-layer plugins.
-5. `permissions` must be from the allowed set.
+```text
+install(pkg) ──► validate ──► register ──► persist to store.plugins
+                                   │
+                     SAFE / LOW risk│ HIGH risk
+                          auto─enable│ stays suspended
+                                   ▼
+        ┌───────────── enable(id) ◄────────── user clicks Enable
+        │   permissions consent → apply CSS → run setup(ctx)
+        │   (failure: CSS + resources rolled back, error surfaced)
+        ▼
+     ENABLED ── disable(id) ──► teardown(ctx) → remove CSS → cleanup
+        ▲                        resources → persist enabled=false
+        └── enable(id) ◄──┘     ("suspend"; survives reload)
 
-## Event Bus
-
-Plugins can communicate via the Plugin API event system:
-
-- `ctx.api.events.on(event, callback)`: Subscribe to an event. Returns a cleanup function.
-- `ctx.api.events.off(event, callback)`: Unsubscribe from an event.
-- `ctx.api.events.emit(event, ...args)`: Broadcast an event with optional arguments.
-- `ctx.api.events.once(event, callback)`: Subscribe to an event that fires only once.
-
-**Note:** Events are plugin-scoped and automatically cleaned up when the plugin is disabled. Event handlers are isolated to each plugin's context.
-
-## Developer Tools
-
-**Note:** The methods below (`list`, `get`, `enable`, `disable`, `install`, `assessModRisk`, and the Middleware/Component Registry inspectors) belong to internal modules and are not reachable from the browser console via `window.CardSpoke` in the current build — `window.CardSpoke` is frozen and exposes only `registerPlugin` and `requestPermissions`. They are shown here to describe what the internal plugin manager, middleware pipeline, and component registry support, not as console-usable snippets:
-
-```javascript
-// Internal APIs — not reachable via window.CardSpoke in the current build
-
-// List all registered plugins
-PluginManager.list();
-
-// Get plugin info
-PluginManager.get('plugin-id');
-
-// Manually trigger enable/disable
-await PluginManager.enable('plugin-id');
-await PluginManager.disable('plugin-id');
-
-// Install a plugin package
-const pluginId = await PluginManager.install(pluginPackage);
-
-// Assess plugin risk
-const risk = PluginManager.assessModRisk(pluginPackage);
-
-// Inspect registered middleware
-Middleware.list();
-
-// Check component registry
-ComponentRegistry.list();
+     unregister(id) = delete: disable + cleanup + revoke permissions
+                      + remove from store.plugins (persisted)
 ```
 
-## LocalStorage Keys
+Key guarantees (enforced by `tests/plugin-lifecycle.test.js`):
 
-Plugin data is persisted in localStorage under plugin-namespaced keys. Each plugin has its own isolated storage accessed via `ctx.api.storage`:
+- **Add**: `install()` persists the package (source strings, not compiled
+  functions) into the active dataset's `store.plugins` and saves.
+  Reinstalling the same id **updates in place** — no `id-1` duplicates; the
+  old instance is fully unregistered first.
+- **Suspend**: `disable()` (the UI's *Suspend* button) tears down, cleans up
+  every tracked resource, and persists `enabled: false`. A suspended plugin
+  stays suspended across reloads.
+- **Delete**: `unregister()` also revokes the plugin's granted permissions
+  and deletes the store entry.
+- **Reload**: at boot (`systems.js`), after `load()` completes,
+  `Plugin.syncFromStore()` re-registers every stored plugin from its
+  persisted `js`/`teardownJs` strings and re-enables the ones marked
+  enabled. The sync is idempotent and re-runs automatically when an
+  IndexedDB or local-file dataset finishes its async load.
+- **Safe mode**: `index.html?safemode` registers everything but enables
+  nothing.
+- **Failure containment**: a package whose `js` fails to compile does not
+  install; a package whose setup throws stays installed but suspended, with
+  the error surfaced as a toast and in the console.
 
-- `ctx.api.storage.get(key)`: Retrieves a value (automatically namespaced)
-- `ctx.api.storage.set(key, value)`: Stores a value (automatically namespaced)
-- `ctx.api.storage.remove(key)`: Removes a value
-- `ctx.api.storage.list(prefix)`: Lists all keys matching the prefix
-- `ctx.api.storage.getNamespace()`: Returns the plugin's storage namespace string
+## The `ctx` API
 
-Plugin metadata and enabled state are stored in `window.store.plugins` and persisted via localStorage.
+Every plugin gets an isolated context:
 
-**Core app keys:**
-
-- `cardspoke_dataset`: Current dataset name
-- `cardspoke_theme`: Theme preference (light/dark)
-- `cardspoke_typography`: Typography preset
-- `cardspoke_highcontrast`: High contrast mode setting
-- `cardspoke_devmode`: Developer mode flag
-- `cardspoke_richtext`: Rich text mode setting
-- `cardspoke_gridView`: Grid view preference
-
-## Modern Plugin API
-
-The new Plugin API provides a sandboxed environment with automatic resource management.
-
-### Basic Usage
-
-```javascript
-window.CardSpoke.registerPlugin('my-plugin', {
-  manifest: {
-    name: "My Plugin",
-    version: "1.0.0",
-    author: "Author",
-    layer: "feature",
-    permissions: ["ui-override"]
-  },
-  
-  setup: async (ctx) => {
-    // Access APIs
-    const cards = ctx.api.data.listCards();
-    
-    // Inject UI
-    const element = document.createElement('div');
-    element.textContent = `Total cards: ${cards.length}`;
-    ctx.api.ui.inject('#sidebar', element, 'append');
-    
-    // Listen for changes
-    ctx.api.data.onUpdate((event) => {
-      console.log('Data updated:', event);
-    });
-  },
-  
-  teardown: async (ctx) => {
-    // Automatic cleanup of resources
-  }
-});
-
-// Enabling happens through the Plugin Manager UI (or the internal plugin
-// manager during boot) — there is no window.CardSpoke.enable() to call
-// directly; window.CardSpoke exposes only registerPlugin and requestPermissions.
+```text
+ctx
+├─ modId            plugin id (string)
+├─ appVersion       e.g. '0.17.0'
+├─ schemaVersion    e.g. 4
+├─ config           manifest.config (live; settings panel writes here)
+├─ logger           log / info / warn / error (prefixed console)
+├─ utils            async host helpers (same as window.CardSpoke.utils)
+└─ api
+   ├─ ui            DOM + components + toasts        [ui-override]
+   ├─ data          cards + tags + change events     [data-modify for writes]
+   ├─ storage       namespaced key-value storage     [storage]
+   ├─ events        global cross-plugin event bus
+   ├─ middleware    core-operation interceptors
+   ├─ network       fetch / XHR                      [network]
+   └─ filesystem    Capacitor file access            [filesystem]
 ```
 
-**Known limitation:** `ctx.api.data.listCards()` above depends on an internal `window.store` global that is not populated in the current build, so it currently returns `[]` rather than the real card list. See [API Reference](./api/API_REFERENCE.md) for details on which `ctx.api.data` methods are affected.
+Everything registered through `ctx.api.*` is tracked per plugin and removed
+automatically on disable/unregister.
 
-### Plugin Context APIs
+### `ctx.api.ui` — permission: `ui-override`
 
-Every plugin receives a context object with:
+| Method | Description |
+|---|---|
+| `inject(selector, element, position?)` | Insert `element` relative to the first match of `selector`. `position`: `'append'` (default), `'prepend'`, `'before'`, `'after'`. Returns an undo function. Tracked. |
+| `replace(selector, element)` | Replace the matched element; the original is restored on cleanup. Returns an undo function. Tracked. |
+| `registerComponent(name, component)` | Register a UI component override (see [Component overrides](#component-overrides)). Tracked. |
+| `unregisterComponent(name)` | Remove a component registration. |
+| `showToast(message, type?, duration?)` | Toast notification (`'info'`, `'success'`, `'error'`, `'warning'`). No permission required. |
 
-- **`ctx.modId`**: The plugin's unique identifier
-- **`ctx.appVersion`**: Current app version (0.17.0)
-- **`ctx.schemaVersion`**: Current schema version (4)
-- **`ctx.api.ui`**: DOM manipulation (`inject`, `replace`, `registerComponent`, `unregisterComponent`, `showToast`)
-- **`ctx.api.data`**: Data access (`getCard`, `listCards`, `createCard`, `updateCard`, `deleteCard`, `getTags`, `addTag`, `removeTag`, `setTags`, `getAllTags`, `onUpdate`)
-- **`ctx.api.storage`**: Namespaced storage (`get`, `set`, `remove`, `list`, `getNamespace`)
-- **`ctx.api.events`**: Event system (`on`, `off`, `emit`, `once`)
-- **`ctx.logger`**: Scoped logger (`log`, `info`, `warn`, `error`)
+### `ctx.api.data` — permission: `data-modify` for writes
 
-See [Plugin API Documentation](./api/PLUGIN_API.md) and [API Reference](./api/API_REFERENCE.md) for complete details.
+| Method | Description |
+|---|---|
+| `getCard(id)` | Deep clone of one card, or `undefined`. No permission. |
+| `listCards()` | Deep clones of all cards. No permission. |
+| `createCard({ title, body, parentId, tags })` | Create a card (tags applied in the same call). Returns the new card id. |
+| `updateCard(id, updates)` | Update fields; returns the updated clone. |
+| `deleteCard(id)` | Delete a card (and its children). |
+| `getTags(cardId)` / `getAllTags()` | Read tags. No permission. |
+| `addTag(cardId, tag)` / `removeTag(cardId, tag)` / `setTags(cardId, tags)` | Mutate tags. |
+| `onUpdate(callback)` | Called with `{ type: 'card.create' \| 'card.update' \| 'card.delete', cardId, card? }` after each data change. Returns an unsubscribe function. Tracked. |
 
-## Middleware Pipeline
+### `ctx.api.storage` — permission: `storage`
 
-The Middleware Pipeline replaces hooks with a more powerful interceptor pattern. It is an internal module used by the core app — it is not exposed on `window.CardSpoke` and there is currently no plugin-facing way to register middleware directly.
+Async key-value storage namespaced to `plugin_<id>_` (localStorage-backed).
 
-### Basic Usage
+| Method | Description |
+|---|---|
+| `get(key)` | Returns the stored JSON value (parsed), or `null`. |
+| `set(key, value)` | Stores `JSON.stringify(value)`. |
+| `remove(key)` | Deletes the key. |
+| `list(prefix?)` | Keys in the plugin's namespace (namespace stripped). |
+| `getNamespace()` | The `plugin_<id>_` prefix. |
+
+### `ctx.api.events` — no permission
+
+A **global** bus shared by all plugins (cross-plugin communication works).
+`on(event, cb)` (tracked, returns unsubscriber), `off(event, cb)`,
+`once(event, cb)`, `emit(event, ...args)`. Handler errors are caught and
+logged, never propagated to the emitter.
+
+### `ctx.api.middleware` — no permission
+
+Intercept core operations. Registrations are namespaced
+(`<pluginId>:<name>`) and tracked.
 
 ```javascript
-// Internal usage only — not reachable via window.CardSpoke
-Middleware.register({
-  name: 'my-interceptor',
-  priority: 10,  // Higher runs first
-  operations: ['card.save', 'card.delete'],
-  handler: async (ctx, next) => {
-    console.log('Before:', ctx.operation);
-    
-    // Modify arguments
-    if (ctx.operation === 'card.save') {
-      const card = ctx.args[0];
-      card.modsData = card.modsData || {};
-      card.modsData.intercepted = true;
-    }
-    
-    // Call next middleware
-    await next();
-    
-    console.log('After:', ctx.operation);
+ctx.api.middleware.register({
+  name: 'my-interceptor',        // required
+  priority: 10,                  // higher runs first (default 0)
+  operations: ['card.save'],     // default ['*']
+  handler: async function(mw, next) {
+    // mw.operation, mw.args, mw.preventDefault(), mw.stopPropagation()
+    await next();                // ALWAYS call next() unless intercepting
   }
 });
 ```
 
-### Standard Operations
+Operations fired by the host app:
 
-- `card.create` - Card creation flow (`[id, card]`)
-- `card.update` - Card update flow (`[id, card]`)
-- `card.delete` - Card deletion flow (`[id]`)
-- `card.save` - Store persistence checkpoints (`[store]`)
-- `card.render` - Card rendering (`[card, element]`)
+| Operation | `mw.args` | `preventDefault()` effect |
+|---|---|---|
+| `card.create` | `[cardId, card]` | none (fired after creation) |
+| `card.update` | `[cardId, card]` | none (fired after update) |
+| `card.delete` | `[cardId]` | none (fired after delete) |
+| `card.save` | `[store]` | **aborts the save** |
+| `card.render` | `[card, cardTileElement]` | none (post-processing hook) |
 
-See [Middleware Pipeline Documentation](./api/MIDDLEWARE_PIPELINE.md) for details.
+### `ctx.api.network` — permission: `network`
 
-## Component Registry
+`fetch(url, options)` and `xhr()` — permission-gated wrappers around the
+browser APIs.
 
-Override UI components with priority-based resolution. The Component Registry itself is an internal module (used during core app initialization); plugin code interacts with it only through `ctx.api.ui.registerComponent()` / `ctx.api.ui.unregisterComponent()` — there is no `window.CardSpoke.ComponentRegistry`.
+### `ctx.api.filesystem` — permission: `filesystem`
 
-### Basic Usage
+`readFile(path, options)` / `writeFile(path, data, options)` via Capacitor
+(mobile builds); throws on platforms without a filesystem.
+
+### `ctx.utils`
+
+Async convenience helpers provided by the host app (also at
+`window.CardSpoke.utils`): `createCard`, `updateCard`, `getCard`,
+`searchCards`, tag helpers, `showToast`, `getDatasetMeta`, theme and
+typography getters/setters, and accessibility queries. See
+`www/src/storage.js` (the `CardSpoke.utils API` block) for the full list.
+
+## Permissions
+
+| Permission | Grants |
+|---|---|
+| `ui-override` | DOM injection/replacement, component registration |
+| `data-modify` | Creating, updating, deleting cards and tags |
+| `storage` | The plugin's namespaced key-value storage |
+| `network` | `ctx.api.network.fetch` / `xhr` |
+| `filesystem` | Capacitor file access (mobile) |
+| `core-override` | Reserved for future core-function overrides |
+
+Declare what you use in `manifest.permissions`. On first enable the user
+sees a consent dialog listing each permission with its description; denial
+fails the enable. Grants persist (localStorage key
+`cardspoke_plugin_permissions`) until the plugin is deleted — deleting a
+plugin revokes its grants, so a reinstall must ask again.
+
+Calling a gated API without the permission throws
+`Plugin does not have <permission> permission`.
+
+## Component overrides
+
+Register with priority; the highest-priority registration wins:
 
 ```javascript
-// In plugin setup(ctx):
 ctx.api.ui.registerComponent('Card', {
-  render: (props) => {
-    // Note: ctx.api.ui has no get()/resolve() lookup for the currently
-    // active component — this assumes access to a previously captured reference.
-    const cardEl = document.createElement('div');
-    
-    // Add enhancements
-    const badge = document.createElement('span');
-    badge.textContent = '✨ Enhanced';
-    cardEl.appendChild(badge);
-    
-    return cardEl;
-  },
-  priority: 50
+  priority: 10,
+  render: function(props) {
+    // props: { card, isSelected, opts, onSelect }
+    var el = document.createElement('button');
+    el.textContent = '🃏 ' + (props.card.title || 'Untitled');
+    el.onclick = props.onSelect;
+    return el; // must return an HTMLElement
+  }
 });
 ```
 
-### Standard Components
+Component names the app queries:
 
-- `Card` - Card display
-- `CardEditor` - Card editing form
-- `Sidebar` - Left sidebar
-- `SearchBar` - Search input
-- `SearchResults` - Search results list
-- `TagList` - Tag display
-- `Modal` - Modal dialog
-- `Toast` - Notification
+| Name | Render props | When applied |
+|---|---|---|
+| `Card` | `{ card, isSelected, opts, onSelect }` | Every card-tile render — takes effect live |
+| `Header` | `{ header }` | Once at boot (`applyRegistryComponents`) — takes effect on next reload |
+| `Sidebar` | `{ panel }` | Once at boot — next reload |
+| `SearchBar` | `{ wrapper }` | Once at boot — next reload |
 
-See [Component Registry Documentation](./api/COMPONENT_REGISTRY.md) for details.
+If a custom component throws, the app falls back to the default renderer.
+For live header/sidebar changes use `ctx.api.ui.inject`/`replace` instead —
+those are tracked and reversible without a reload.
 
-## Storage Driver Registry
+## Loading plugins (all the ways)
 
-Register custom storage backends. The Storage Driver Registry is an internal module and is not exposed on `window.CardSpoke`.
-
-### Basic Usage
-
-```javascript
-// Internal usage only — not reachable via window.CardSpoke
-class CustomStorageDriver {
-  async init(config) { /* ... */ }
-  async get(key) { /* ... */ }
-  async set(key, value) { /* ... */ }
-  async remove(key) { /* ... */ }
-  async list(prefix) { /* ... */ }
-  async getSize() { /* ... */ }
-  getKind() { return 'custom'; }
-}
-
-StorageDriverRegistry.register('custom', new CustomStorageDriver());
-await StorageDriverRegistry.setActive('custom');
-```
-
-## Permission System
-
-Plugins must request permissions for sensitive operations.
-
-### Available Permissions
-
-- **`ui-override`**: Modify UI and inject elements
-- **`storage`**: Access local storage
-- **`network`**: Make network requests
-- **`filesystem`**: Access filesystem (mobile)
-- **`core-override`**: Override core functions (high risk)
-- **`data-modify`**: Perform mutating `ctx.api.data` calls (`createCard`, `updateCard`, `deleteCard`, `addTag`, `removeTag`, `setTags`)
-
-### Requesting Permissions
-
-```javascript
-manifest: {
-  permissions: ["ui-override", "storage"]
-}
-```
-
-Users are prompted to approve permissions on first install.
-
-## Schema and Plugin-Specific Data
-
-Cards support a `modsData` field for plugin-specific data:
-
-```javascript
-card.modsData = {
-  'my-plugin': {
-    customField: 'value',
-    timestamp: Date.now()
-  }
-};
-```
-
-The `modsData` field is preserved during:
-
-- Card save/load
-- Export/import
-- Duplication
-- Search indexing
-
-**Note:** Some documentation may reference a `metadata` field instead of `modsData`. The actual implementation uses `modsData` for plugin-specific data. The store itself has a `metadata` field for dataset-level information (storage type, display name, etc.).
-
-## TypeScript Support
-
-TypeScript definitions are available in the `types/` directory of this repository.
-
-**Note:** The `@cardspoke/core` npm package is not currently published. To use TypeScript with CardSpoke plugins:
-
-1. **For local development:** Reference the types directly from the repository:
-
-   ```typescript
-   /// <reference path="path/to/CardSpoke/types/index.d.ts" />
-   
-   const plugin: CardSpoke.PluginDefinition = {
-     manifest: { /* ... */ },
-     setup: async (ctx: CardSpoke.PluginContext) => {
-       // TypeScript knows the API shape
-     }
-   };
-   
-   export default plugin;
-   ```
-
-2. **For standalone plugins:** Copy the type definitions from `types/index.d.ts` into your project or use JSDoc comments for type hints:
+1. **Plugin Manager UI** (hamburger menu → Plugin Manager):
+   - *Install* tab — upload a `.json` package or install from a URL.
+   - *Gallery* tab — curated list from
+     `sample-plugins/manifest.json` on GitHub, one-click install.
+   - *Create* tab — write manifest/JS/CSS in the app; saved persistently.
+   - *Installed* tab — Enable / Suspend / Remove, with risk and state badges.
+2. **Programmatic install** (persistent):
 
    ```javascript
-   /**
-    * @type {CardSpoke.PluginDefinition}
-    */
-   const plugin = {
-     manifest: { /* ... */ },
-     setup: async (ctx) => {
-       // Use JSDoc for inline type checking
-     }
-   };
+   await window.CardSpoke.Plugin.install(pkg);   // or
+   await window.CardSpoke.installPlugin(pkg);
    ```
 
-## Examples and Resources
+3. **Session-only registration** (for development; not persisted, gone after
+   reload):
 
-Complete examples are available in the `sample-plugins/` directory:
+   ```javascript
+   await window.CardSpoke.registerPlugin('dev-plugin', {
+     manifest: { name: 'Dev Plugin', version: '1.0.0', layer: 'feature' },
+     setup: async (ctx) => { /* real function — session only */ },
+     teardown: async (ctx) => { /* optional */ },
+     css: ''
+   }); // registers AND enables
+   ```
 
-- **`sample-plugins/themes/`**: Theme-layer plugins (CSS only)
-- **`sample-plugins/features/`**: Feature-layer plugins (JavaScript + CSS)
-- **`sample-plugins/apps/`**: App-layer plugins (full customization)
+4. **ES-module dev loader** — `www/src/examples/dynamic-plugin-loader.js`
+   shows `import()`-based loading of module plugins from URLs/files.
 
-Each directory contains working examples demonstrating the Plugin API, middleware, and component registry.
+## The `window.CardSpoke` surface
 
-## API Reference
+Assembled and frozen by `www/src/core/global-api.js` before any app code
+runs. Members (shape is a stability contract — see
+[`PLUGIN_INVARIANTS.md`](./PLUGIN_INVARIANTS.md)):
 
-Detailed documentation:
+| Member | Purpose |
+|---|---|
+| `registerPlugin(id, definition)` | Register + enable (session-only). |
+| `installPlugin(pkg)` | Persistent install (alias of `Plugin.install`). |
+| `requestPermissions(id, name, perms)` | Ask the user for permissions. |
+| `Plugin` | Full manager: `install`, `register`, `enable`, `disable`, `unregister`, `get`, `list`/`listAll`, `assessModRisk`, `syncFromStore`, `notifyDataUpdate`, `buildSettingsPanel`. |
+| `PluginSandbox.createFunction(js)` | Compile a setup-body string (the runtime's single compilation point). |
+| `Middleware` | The pipeline (host-fired operations; prefer `ctx.api.middleware`). |
+| `ComponentRegistry` | Component registry (prefer `ctx.api.ui.registerComponent`). |
+| `StorageDriverRegistry` | Registry for custom storage drivers (experimental; the host app does not yet consume it). |
+| `PluginValidator` | `validate(pkg)`, `validateCSS(css)`, `validateJS(js)`. |
+| `Permissions` | `hasPermission`, `grantPermissions`, `revokePermissions`, … |
+| `utils` | Async host helpers (see `ctx.utils`). |
 
-- [Plugin API](./api/PLUGIN_API.md)
-- [Middleware Pipeline](./api/MIDDLEWARE_PIPELINE.md)
-- [Component Registry](./api/COMPONENT_REGISTRY.md)
-- [API Reference](./api/API_REFERENCE.md)
-- [TypeScript Definitions](../types/index.d.ts)
+Prefer `ctx.api.*` inside plugin code — it is permission-checked and
+resource-tracked. The globals exist for the host app, for development, and
+for advanced app-layer plugins.
 
-## Security Considerations
+## Distributing plugins
 
-1. **Permissions**: Always request minimal permissions needed for functionality
-2. **Validation**: Validate user input in middleware handlers
-3. **Sandboxing**: Use Plugin API instead of direct global access
-4. **Review**: Review third-party plugins before installation
-5. **Testing**: Test hot-reload and cleanup thoroughly
-6. **Risk Assessment**: Understand the risk level of each plugin layer
+- Publish the `.json` package anywhere; users install via URL.
+- To appear in the in-app Gallery, add an entry to
+  `sample-plugins/manifest.json` (`id`, `name`, `description`, `layer`,
+  `url`) in a PR. `tests/sample-extensions.test.js` verifies gallery
+  entries point at real packages.
+- Start from [`sample-plugins/TEMPLATE.json`](../sample-plugins/TEMPLATE.json).
 
-## Best Practices
+## Testing your plugin
 
-1. **Use Plugin API**: Prefer `ctx.api` over direct window/global access
-2. **Register components**: Use Component Registry instead of direct DOM manipulation
-3. **Add plugin data**: Use `card.modsData` for plugin-specific data (not `card.metadata`, which is for store-level configuration)
-4. **Handle errors**: Wrap async operations in try/catch blocks
-5. **Document permissions**: Clearly explain why each permission is needed
-6. **Test cleanup**: Ensure all resources are freed when plugin is disabled
-7. **Version appropriately**: Follow semantic versioning for updates
-8. **Minimize scope**: Only request permissions you actually need
+`tests/plugin-lifecycle.test.js` shows the harness pattern: a fake
+`window`/`document`, the real runtime imported from
+`www/src/core/plugin-api.js`, permissions pre-granted with
+`Permissions.grantPermissions(id, perms)`, then:
 
-## Support
+```javascript
+const id = await Plugin.install(myPkg);
+await Plugin.disable(id);
+// simulate reload:
+const persisted = JSON.parse(JSON.stringify(window.store));
+resetForTesting(); window.store = persisted;
+await Plugin.syncFromStore(false);
+```
 
-- Check [API documentation](./api/)
-- See [examples](../sample-plugins/)
-- Ask in [GitHub Issues](https://github.com/jxburros/CardSpoke/issues)
+Run everything with `npm test`. If you add a sample package, the
+sample-extensions suite validates it automatically.
 
----
+## Troubleshooting
 
-**Current Plugin System:** This is the only supported plugin API. The modern Plugin API, Middleware Pipeline, and Component Registry provide powerful extensibility with better resource management and security.
+| Symptom | Cause / fix |
+|---|---|
+| "Plugin validation failed …" | Manifest missing `name`/`version`/`layer`, or JS contains `eval(`/`new Function(`, or size limits exceeded. |
+| "Plugin … is already registered" | Your `js` calls `registerPlugin` — remove it; packages self-register via `install()`. |
+| "Plugin does not have X permission" | Add the permission to `manifest.permissions` and re-enable (consent dialog appears). |
+| Plugin installed but did nothing after reload | It was registered with `setup` as a function (session-only). Ship `js` as a string so it persists. |
+| App broken by a plugin | Boot with `index.html?safemode`, then suspend or remove the plugin in the Plugin Manager. |
+| Header/Sidebar/SearchBar override not applying | Those apply at boot — reload. Use `ctx.api.ui.replace` for live changes. |
+
+## Architecture (for contributors)
+
+```text
+www/src/main.js                 Vite entry: global-api first, then app layer
+www/src/core/global-api.js      window.CardSpoke assembly (frozen surface)
+www/src/core/plugin-api.js      PluginManager + ctx factories + compilation
+www/src/core/plugin-validator.js  Package validation and CSS/JS sanitizing
+www/src/core/permissions.js     Consent dialogs + persisted grants
+www/src/core/middleware.js      Priority pipeline for core operations
+www/src/core/component-registry.js  Component overrides
+www/src/core/storage-driver-registry.js  Custom storage drivers (experimental)
+www/src/systems.js              HOST BRIDGE globals + boot (syncFromStore)
+www/src/data.js                 Plugin Manager UI + middleware/data hooks
+```
+
+The invariants that keep all of this working — boot order, the host-bridge
+globals, the persistence schema, validator limits, middleware operation
+names — are specified in [`PLUGIN_INVARIANTS.md`](./PLUGIN_INVARIANTS.md).
+Change those only with a migration plan.

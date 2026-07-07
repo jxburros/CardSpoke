@@ -1,0 +1,16 @@
+{
+  "id": "my-feature",
+  "manifest": {
+    "id": "my-feature",
+    "name": "My Feature",
+    "version": "1.0.0",
+    "author": "Your Name",
+    "description": "Adds a small behavior via the ctx API.",
+    "layer": "feature",
+    "permissions": ["ui-override"],
+    "compatibility": ">=0.17.0"
+  },
+  "css": ".my-feature-badge { margin-left: 8px; font-size: 12px; color: var(--text-muted); }",
+  "js": "// setup body — receives ctx; runs on every enable (idempotent).\nvar badge = document.createElement('span');\nbadge.className = 'my-feature-badge';\nbadge.textContent = ctx.api.data.listCards().length + ' cards';\n// tracked: auto-removed on suspend/delete\nctx.api.ui.inject('.header', badge, 'append');\n\n// keep the count fresh\nctx.api.data.onUpdate(function () {\n  badge.textContent = ctx.api.data.listCards().length + ' cards';\n});\n\nctx.logger.info('my-feature ready');",
+  "teardownJs": "// Optional. Tracked resources (badge, onUpdate) are removed automatically;\n// clear only things you created outside ctx.api (timers, observers)."
+}

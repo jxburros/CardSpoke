@@ -38,32 +38,60 @@ export interface Store {
   rootOrder: string[];
   bookmarks: string[];
   recentCards: string[];
-  plugins: Record<string, ModPackage>;
+  /** Persisted installed plugins, keyed by id. See PersistedPlugin. */
+  plugins: Record<string, PersistedPlugin>;
   schemaVersion: number;
   metadata?: Record<string, any>;
+}
+
+/**
+ * A plugin as stored in the dataset payload. Pure JSON — the js/teardownJs
+ * source strings are the canonical executable form, reconstructed by
+ * Plugin.syncFromStore() on load. Entries without `definition` are legacy
+ * (pre-v2) plugins the current runtime does not execute.
+ */
+export interface PersistedPlugin {
+  definition?: {
+    manifest: ModManifest;
+    css?: string;
+    js?: string;
+    teardownJs?: string;
+  };
+  enabled: boolean;
 }
 
 export type ModLayer = 'theme' | 'feature' | 'app';
 export type PermissionType = 'ui-override' | 'storage' | 'network' | 'filesystem' | 'core-override' | 'data-modify';
 
 export interface ModManifest {
+  id?: string;
   name: string;
   version: string;
-  author: string;
+  author?: string;
   description?: string;
   layer: ModLayer;
   compatibility?: string;
   permissions?: PermissionType[];
+  /** User-configurable settings; surfaced as ctx.config and a settings panel. */
+  config?: Record<string, any>;
+  /** App-layer host overrides (currently implemented: appName). */
+  overrides?: ModOverrides;
+  /** Plugin ids that must already be installed. */
+  dependencies?: string[];
 }
 
 export interface ModPackage {
-  id: string;
+  id?: string;
   manifest: ModManifest;
   config?: Record<string, any>;
   css?: string;
+  /** Setup-function BODY (receives `ctx`); the persisted, canonical form. */
   js?: string;
+  /** Teardown-function body (extra cleanup). */
+  teardownJs?: string;
   overrides?: ModOverrides;
-  enabled: boolean;
+  /** Persisted enabled/suspended state (set by the runtime). */
+  enabled?: boolean;
 }
 
 export interface ModOverrides {
@@ -86,6 +114,8 @@ export interface PluginContext {
   modId: string;
   appVersion: string;
   schemaVersion: number;
+  /** Present when the manifest declares `config`; the settings panel writes here. */
+  config?: Record<string, any>;
   api: PluginAPI;
   utils: PluginUtils;
   logger: Logger;
@@ -103,6 +133,25 @@ export interface PluginAPI {
   data: DataApi;
   storage: StorageApi;
   events: EventApi;
+  middleware: MiddlewareApi;
+  network: NetworkApi;
+  filesystem: FilesystemApi;
+}
+
+export interface MiddlewareApi {
+  /** Register a tracked, per-plugin-namespaced middleware. Returns an unregister function. */
+  register(middleware: Middleware): () => void;
+  unregister(name: string): void;
+}
+
+export interface NetworkApi {
+  fetch(url: string, options?: any): Promise<Response>;
+  xhr(): XMLHttpRequest;
+}
+
+export interface FilesystemApi {
+  readFile(path: string, options?: any): Promise<any>;
+  writeFile(path: string, data: any, options?: any): Promise<any>;
 }
 
 export interface UIApi {
@@ -143,7 +192,7 @@ export interface EventApi {
 }
 
 export interface DataUpdateEvent {
-  type: 'create' | 'update' | 'delete';
+  type: 'card.create' | 'card.update' | 'card.delete';
   cardId: string;
   card?: Card;
 }
@@ -244,19 +293,31 @@ export interface PluginValidatorClass {
 
 export interface PermissionsClass {
   hasPermission(pluginId: string, permission: PermissionType): boolean;
-  grantPermission(pluginId: string, permission: PermissionType): void;
-  revokePermission(pluginId: string, permission: PermissionType): void;
-  listPermissions(pluginId: string): PermissionType[];
+  hasAllPermissions(pluginId: string, permissions: PermissionType[]): boolean;
+  grantPermissions(pluginId: string, permissions: PermissionType[]): void;
+  revokePermissions(pluginId: string, permissions?: PermissionType[]): void;
+  getPermissions(pluginId: string): PermissionType[];
+  requestPermissions(pluginId: string, pluginName: string, permissions: PermissionType[]): Promise<boolean>;
+  clearAll(): void;
 }
 
 // --- Global Window Declaration ---
 
 declare global {
   interface Window {
+    /**
+     * Public plugin surface, assembled and frozen by
+     * www/src/core/global-api.js before any app-layer code runs.
+     * Shape is a stability contract — see docs/PLUGIN_INVARIANTS.md.
+     */
     CardSpoke: {
-      version: string;
-      schema: number;
+      /** Register AND enable a plugin (session-only; not persisted). */
+      registerPlugin(id: string, definition: PluginDefinition): Promise<string>;
+      /** Persistent install of a plugin package (alias of Plugin.install). */
+      installPlugin(pkg: ModPackage): Promise<string>;
+      requestPermissions(pluginId: string, pluginName: string, permissions: PermissionType[]): Promise<boolean>;
       Plugin: PluginClass;
+      PluginSandbox: { createFunction(code: string): (ctx: PluginContext) => any };
       Middleware: MiddlewareManager;
       ComponentRegistry: ComponentRegistryClass;
       StorageDriverRegistry: StorageDriverRegistryClass;
@@ -268,21 +329,30 @@ declare global {
 }
 
 export interface PluginClass {
+  /** Validate, register, persist, and auto-enable (SAFE/LOW) a package. Returns the id. */
+  install(pkg: ModPackage): Promise<string>;
   register(id: string, plugin: PluginDefinition): void;
-  unregister(id: string): void;
+  unregister(id: string): Promise<void>;
   get(id: string): PluginInstance | undefined;
   list(): PluginInstance[];
+  listAll(): PluginInstance[];
   enable(id: string): Promise<void>;
   disable(id: string): Promise<void>;
+  assessModRisk(pkg: ModPackage): 'SAFE' | 'LOW' | 'MEDIUM' | 'HIGH';
+  /** Boot-time restore of persisted plugins. Idempotent. */
+  syncFromStore(safeMode?: boolean): Promise<void>;
   notifyDataUpdate(event: DataUpdateEvent): void;
+  buildSettingsPanel(id: string): HTMLElement | null;
 }
 
 export interface PluginDefinition {
   manifest: ModManifest;
+  /** Session-only function form. Only string js/teardownJs persist across reloads. */
   setup?(ctx: PluginContext): void | Promise<void>;
   teardown?(ctx: PluginContext): void | Promise<void>;
   css?: string;
   js?: string;
+  teardownJs?: string;
   overrides?: ModOverrides;
 }
 
