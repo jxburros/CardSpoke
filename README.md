@@ -2,251 +2,224 @@
 
 ![CardSpoke logo](./CardSpoke.svg)
 
-**Version:** 0.17.0 | **Schema:** v4 | **Release Date:** 2026-02-17
+**Version:** 0.18.0 Public Preview | **Schema:** v4
 
-CardSpoke is a lightweight, card-based knowledge system built for extensibility.
-The core intentionally stays minimal while a plugin framework enables themes,
-features, and app-layer transformations. Users keep control of their data with a
-local-first storage model and optional off-device integrations.
+CardSpoke is a lightweight, local-first, card-based knowledge app for organizing notes, ideas, references, writing, research, and personal information in flexible card trees.
 
-## Why CardSpoke
+The public app is focused on the main CardSpoke experience first: the web app, followed by desktop packaging, then mobile packaging. Spin-offs, alternate shells, OS-specific app suites, typed-card platform experiments, runtime profiles, and cloud storage drivers are intentionally out of scope for this repository's current public version.
 
-- **Ultra-lightweight core:** The shipped bundle (`www/app.js`) is
-  self-contained for `file://` usage and keeps helpers inlined to minimize
-  dependencies.
-- **Plugin-first architecture:** A three-layer plugin system (theme, feature,
-  app) lets the community expand the product without bloating the core. The
-  runtime exposes modern Plugin API and Middleware Pipeline for extensions.
-- **User ownership:** Data stays local by default; no hosted data or silent
-  syncs. Preferences and datasets default to LocalStorage; IndexedDB is an
-  optional, per-dataset storage driver users can select instead (it is also
-  used internally for Local File System handle persistence, unrelated to card
-  storage).
-- **Open ecosystem:** Clear metadata, authorship, and changelog expectations
-  for all community-contributed plugins and themes.
+## What CardSpoke Is
+
+- **A card-based knowledge app:** Create cards, nest cards inside other cards, and move through information as a hierarchy instead of a flat document list.
+- **Local-first by default:** User data stays on the user's device unless they explicitly export or import it.
+- **Portable:** Export data as JSON, TXT, Markdown, or CSV from the app.
+- **Extensible:** A three-layer plugin system lets users and developers add themes, features, and deeper app customizations without bloating the default experience.
+- **Lightweight:** The default app is meant to stay fast, understandable, and useful without requiring accounts, servers, or hosted sync.
+
+## What Is Not In This Public Version
+
+The first public CardSpoke scope does not include:
+
+- OS-specific shells or app suites
+- Alternate products built on CardSpoke
+- Typed-card platform/domain systems
+- Runtime profiles such as `lite` or `os`
+- A separate core-only build target
+- Cloud storage drivers such as Google Drive, OneDrive, or WebDAV
+- Production-ready mobile security hardening
+- Real-time collaboration or hosted sync
+
+Cloud/off-device storage may return in a future version, but the public preview keeps storage local and user-controlled.
+
+## Current Feature Set
+
+### Cards and Organization
+
+- Hierarchical parent/child cards
+- Card create, read, update, delete, duplicate, and reparent flows
+- Bookmarks and recent cards
+- Card links using `[[Card Title]]` syntax
+- Backlinks and related-card panels
+- Tags, tag filtering, tag management, and tag suggestions
+
+### Search and Navigation
+
+- Fuzzy search
+- Advanced search filters
+- Keyboard navigation for search results
+- Breadcrumb navigation through card trees
+- Grid/list/compact display options
+
+### Editing and Recovery
+
+- Markdown-style rich text mode
+- Formatting toolbar
+- Undo/redo
+- Trash recovery
+- Import text into card bodies
+
+### Import and Export
+
+- JSON backup/export
+- TXT export
+- Markdown export
+- CSV export
+- JSON/TXT import flows
+
+### Appearance and Accessibility
+
+- Dark/light theme toggle
+- High contrast option
+- Typography presets, including a dyslexia-friendly option
+- Keyboard shortcuts
+- Focus management for modals
+- Reduced-motion support where applicable
+
+### Plugin System
+
+CardSpoke keeps its default app small while allowing optional extensions through plugins.
+
+Plugin layers:
+
+- **Theme:** CSS-only visual changes.
+- **Feature:** Adds UI or behavior through the plugin API.
+- **App:** Deeper customization with higher risk and explicit user control.
+
+The plugin runtime includes permission prompts, risk assessment, safe mode, resource cleanup, middleware hooks, component overrides, and sample plugins.
 
 ## Getting Started
 
-1. Install dependencies (Node 18+ recommended):
+1. Install dependencies. Node 18+ is recommended.
 
    ```bash
    npm install
    ```
 
-2. Build the web bundle (Vite compiles `www/src/` into `www/app.js`):
+2. Build the web bundle.
 
    ```bash
    npm run build
    ```
 
-3. Start a Capacitor workflow (see [Capacitor Guide](./docs/guides/README.CAPACITOR.md)):
-
-   ```bash
-   npm run sync
-   ```
-
-4. Run the tests:
+3. Run tests.
 
    ```bash
    npm test
    ```
 
+4. Start local development.
+
+   ```bash
+   npm run dev
+   ```
+
+5. Preview the built app.
+
+   ```bash
+   npm run preview
+   ```
+
+## Desktop and Mobile Packaging
+
+CardSpoke uses Capacitor for native packaging workflows. The public product focus is:
+
+1. Web app first
+2. Desktop packaging next
+3. Mobile packaging after that
+
+Capacitor commands remain available for development:
+
+```bash
+npm run sync
+npm run sync:android
+npm run sync:ios
+npm run open:android
+npm run open:ios
+```
+
+Mobile builds should be treated as experimental until platform-specific security hardening is completed.
+
 ## Project Layout
 
-- `www/` – Prebuilt web assets for the Capacitor shell. `app.js` embeds
-  utilities, renderer logic, and the plugin runtime; `styles.css` holds the
-  default light/dark styling and typography presets.
-- `www/src/` – Source slices that compile into `www/app.js`. `npm run build`
-  (Vite) is the single canonical build path. Runtime lives in
-  `www/src/core/` (ES modules); the app layer is fused into one scope at
-  build time (see [Core/Shell Split](./docs/architecture/CORE_SHELL_SPLIT.md)).
-- `www/modules/` – Reference ES module versions kept for documentation (not
-  used at runtime).
-- `tests/` – Automated tests (uvu).
-- `docs/` – Project documentation organized by category (see
-  [Documentation](#documentation) below).
-- `sample-plugins/` – Example plugin implementations across all three layers.
+- `www/` - Web assets consumed by the app and Capacitor shells.
+- `www/src/` - Source slices compiled by Vite into `www/app.js`.
+- `www/src/core/` - Plugin runtime modules used by the main CardSpoke app.
+- `tests/` - Automated uvu tests.
+- `docs/` - User, developer, API, policy, and release documentation.
+- `sample-plugins/` - Example plugin packages.
 
 ## Documentation
 
-All documentation is organized in the `docs/` folder:
-
 ### Guides
 
-- [Developer Guide](./docs/guides/DEVELOPER_GUIDE.md) – Core app development
-  workflow and conventions
+- [Developer Guide](./docs/guides/DEVELOPER_GUIDE.md)
 - [Code & Plugin System Handbook](./docs/guides/CODE_AND_PLUGIN_SYSTEM_HANDBOOK.md)
-  – End-to-end architecture and plugin development deep dive
-- [Test Guide](./docs/guides/TEST_GUIDE.md) – Testing practices and commands
-- [Capacitor Guide](./docs/guides/README.CAPACITOR.md) – Mobile platform
-  workflows
-- [Deviation Guide](./docs/guides/DEVIATION_GUIDE.md) – Rules for forks and
-  derivatives
-- [Feature Catalog](./docs/guides/FEATURES.md) – Complete feature reference
+- [Test Guide](./docs/guides/TEST_GUIDE.md)
+- [Capacitor Guide](./docs/guides/README.CAPACITOR.md)
+- [Deviation Guide](./docs/guides/DEVIATION_GUIDE.md)
+- [Feature Catalog](./docs/guides/FEATURES.md)
 
-### API & Schema
+### API and Schema
 
-- [API Reference](./docs/api/API_REFERENCE.md) – Plugin runtime APIs and
-  utilities
-- [Schema & Migration Docs](./docs/api/SCHEMA.md) – Data model and versioning
-- [Schema Reference](./docs/api/SCHEMA_REFERENCE.md) – Persisted data model
-  summary
-- [Storage Driver Interface](./docs/api/STORAGE_DRIVER_INTERFACE.md) – Storage
-  abstraction contracts
+- [API Reference](./docs/api/API_REFERENCE.md)
+- [Schema & Migration Docs](./docs/api/SCHEMA.md)
+- [Schema Reference](./docs/api/SCHEMA_REFERENCE.md)
+- [Storage Driver Interface](./docs/api/STORAGE_DRIVER_INTERFACE.md)
 
 ### Plugin System
 
-- [Plugin System Overview](./docs/PLUGIN_SYSTEM.md) – Complete plugin system
-  documentation
+- [Plugin System Overview](./docs/PLUGIN_SYSTEM.md)
+- [Plugin Invariants](./docs/PLUGIN_INVARIANTS.md)
 
 ### Policies
 
-- [Code of Conduct](./docs/policies/CODE_OF_CONDUCT.md) – Community standards
-- [Security & Safety](./docs/policies/SECURITY_AND_SAFETY.md) – Security
-  expectations
-- [Storage & Privacy](./docs/policies/STORAGE_AND_PRIVACY.md) – Privacy notes
-- [Release & Versioning](./docs/policies/RELEASE_AND_VERSIONING.md) – Release
-  guidelines
+- [Code of Conduct](./docs/policies/CODE_OF_CONDUCT.md)
+- [Security & Safety](./docs/policies/SECURITY_AND_SAFETY.md)
+- [Storage & Privacy](./docs/policies/STORAGE_AND_PRIVACY.md)
+- [Release & Versioning](./docs/policies/RELEASE_AND_VERSIONING.md)
 
 ### Specifications
 
-- [CardSpoke Specification v1](./docs/specifications/cardspoke_spec_v1.md) –
-  Canonical specification
-
-## Plugin Framework Overview
-
-CardSpoke features a modern, extensible plugin system with three architectural
-layers:
-
-- **Theme Layer:** CSS only; cosmetic changes without logic modifications. Low
-  risk.
-- **Feature Layer:** CSS and JavaScript; adds new features using the Plugin
-  API. Medium risk.
-- **App Layer:** Full capabilities including core overrides, custom storage
-  drivers, and app rebranding. High risk.
-
-### Modern Architecture (current v0.17.0 runtime)
-
-The plugin system includes:
-
-- **Plugin API**: Isolated per-plugin contexts with `api.ui`, `api.data`,
-  `api.storage`, `api.events`, and `api.middleware`; every resource a plugin
-  creates is tracked and cleaned up automatically on suspend/delete
-- **Middleware Pipeline**: Priority-weighted interceptors for core operations
-  (`card.create`, `card.update`, `card.delete`, `card.save`, `card.render`)
-- **Component Registry**: UI component overrides (`Card`, `Header`,
-  `Sidebar`, `SearchBar`) with priority-based resolution
-- **Permission System**: Deny-by-default user consent for sensitive
-  operations, persisted per plugin and revoked on delete
-- **Persistence**: Installed plugins live in the active dataset and are
-  restored (with their enabled/suspended state) on every reload;
-  `?safemode` boots with all plugins disabled
-- **TypeScript Support**: Type definitions available in `types/` directory for
-  local development
-
-The public surface is `window.CardSpoke`, assembled and frozen by
-`www/src/core/global-api.js`: convenience entry points
-(`registerPlugin`, `installPlugin`, `requestPermissions`) plus the runtime
-subsystems (`Plugin`, `Middleware`, `ComponentRegistry`, `PluginValidator`,
-`Permissions`, `PluginSandbox`, `StorageDriverRegistry`, `utils`). Its shape
-is a stability contract — see
-[Plugin Invariants](./docs/PLUGIN_INVARIANTS.md).
-
-### Quick Example
-
-A plugin is a JSON package whose `js` string is the body of its setup
-function (it receives `ctx`):
-
-```json
-{
-  "id": "my-plugin",
-  "manifest": {
-    "id": "my-plugin",
-    "name": "My Plugin",
-    "version": "1.0.0",
-    "author": "Author",
-    "layer": "feature",
-    "permissions": ["ui-override"]
-  },
-  "js": "var cards = ctx.api.data.listCards(); ctx.api.ui.showToast('Loaded ' + cards.length + ' cards', 'info');"
-}
-```
-
-Install it from the Plugin Manager (menu → Plugin Manager → Install), or
-programmatically with `await window.CardSpoke.Plugin.install(pkg)`. Working
-examples of all three layers live in [`sample-plugins/`](./sample-plugins/).
-
-See [Plugin System Documentation](./docs/PLUGIN_SYSTEM.md) for complete details.
-
-## Deviation (Fork) Rules
-
-Deviations are forks/derivatives that must not use the "CardSpoke" name or
-branding. They must include mandatory metadata, clear credit to CardSpoke and
-JX Holdings, and avoid implying official endorsement.
+- [CardSpoke Specification v1](./docs/specifications/cardspoke_spec_v1.md)
+- [First Public Scope](./docs/specifications/FIRST_PUBLIC_SCOPE.md)
 
 ## Storage Model
 
-CardSpoke is local-first (LocalStorage/IndexedDB). Preferences (rich text, grid
-view, typography, high-contrast, dev mode) live under `cardspoke_*` keys in
-LocalStorage. Datasets default to the LocalStorage driver but are namespaced
-to allow multiple vaults with their own metadata; IndexedDB is available as an
-optional, per-dataset storage driver a user can select instead. Backups are
-exported as JSON/CSV/Markdown/TXT directly from the UI. Optional off-device
-storage may be wired through integrations chosen by the user; no automatic
-sync or hosted data.
+CardSpoke is local-first. The public preview uses local browser/device storage and user-controlled import/export. Preferences live under `cardspoke_*` LocalStorage keys. Dataset storage defaults to local storage on the user's device.
 
-## Environment & Configuration
+The current public version does not include cloud sync or cloud storage drivers. Users can export backups and move them wherever they choose.
 
-CardSpoke has no required environment variables for basic use. The following
-optional settings are relevant for development:
+## Environment and Configuration
+
+CardSpoke has no required environment variables for normal use.
 
 | Key | Context | Notes |
 |-----|---------|-------|
-| `NODE_ENV` | Vite build | Set to `production` for release builds (default when running `npm run build`). |
-| `VITE_*` prefix | Vite | Any `VITE_`-prefixed variables are exposed to the client bundle at build time. |
-
-Runtime preferences (rich text, grid view, high-contrast, dev mode) are stored
-in LocalStorage under `cardspoke_*` keys and are not environment variables.
+| `NODE_ENV` | Vite build | Set to `production` for release builds. |
+| `VITE_*` prefix | Vite | Exposed to the client bundle at build time. Do not put secrets here. |
 
 ## Troubleshooting
 
 ### `npm run build` fails with a module resolution error
 
-Run `npm install` first, then retry. If the error persists, delete
-`node_modules/` and `package-lock.json` and reinstall.
+Run `npm install` first, then retry. If the error persists, delete `node_modules/` and `package-lock.json`, reinstall, and rebuild.
 
 ### `file://` page is blank
 
-Open the browser console. A missing `www/app.js` means the build has not been
-run yet (`npm run build`). A CORS error means the browser is blocking local
-file access — serve the `www/` folder with `npm run preview` instead.
+Open the browser console. A missing `www/app.js` means the build has not been run yet. A browser CORS error means the browser is blocking local file access; serve the `www/` folder with `npm run preview` instead.
 
 ### Tests fail with "Cannot find module"
 
-Ensure you are on Node 18 or later (`node --version`) and that `npm install`
-completed without errors.
+Ensure you are on Node 18 or later and that `npm install` completed successfully.
 
 ### Capacitor sync fails
 
-Confirm that Android SDK / Xcode is installed and that `npx cap doctor` reports
-no errors. See the [Capacitor Guide](./docs/guides/README.CAPACITOR.md) for
-platform-specific setup steps.
+Confirm that Android SDK or Xcode is installed and that `npx cap doctor` reports no blocking errors. See the Capacitor guide for platform-specific setup.
 
 ## Contributing
 
-- Follow plugin development practices in
-  [Plugin System Overview](./docs/PLUGIN_SYSTEM.md).
-- Adhere to safety expectations in
-  [Security & Safety Considerations](./docs/policies/SECURITY_AND_SAFETY.md).
-- Submit issues/PRs with clear metadata and changelog entries.
-- Respect branding restrictions (CardSpoke name/branding cannot be used in
-  forks).
-
-## Support & Disclosure Channels
-
-- General support, bug reports, and feature requests: GitHub Issues at
-  <https://github.com/jxburros/CardSpoke/issues>.
-- Security disclosures: open a GitHub Issue and label it `Security`; include
-  impact, repro steps, and affected versions.
-- Branding usage for community themes and forks follows the restrictions in the
-  [Deviation Guide](./docs/guides/DEVIATION_GUIDE.md) and [LICENSE](./LICENSE).
+- Keep the default app lightweight and local-first.
+- Do not add hosted sync, telemetry, cloud storage, or network services without explicit future-version planning.
+- Follow plugin development practices in the Plugin System Overview.
+- Adhere to the Security & Safety policy.
+- Keep spin-offs, OS-specific shells, and alternate app suites outside this repository unless the public CardSpoke scope changes later.
