@@ -1,13 +1,12 @@
 {
   "name": "cardspoke",
-  "version": "0.17.0",
-  "description": "A lightweight, extensible, multi-platform knowledge base framework",
+  "version": "0.18.0-public-preview",
+  "description": "A lightweight, local-first card-based knowledge app",
   "main": "index.js",
   "scripts": {
     "test": "uvu tests",
     "test:watch": "uvu tests --watch",
     "build": "vite build",
-    "build:core": "vite build --config vite.core.config.js",
     "dev": "vite",
     "preview": "vite preview",
     "sync": "npx cap sync",
@@ -19,6 +18,8 @@
   "keywords": [
     "knowledge-base",
     "notes",
+    "cards",
+    "local-first",
     "capacitor",
     "cross-platform",
     "responsive",
