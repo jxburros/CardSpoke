@@ -15,78 +15,19 @@
  */
 
 /**
- * Typed-Card Migration Layer (CardSpoke Core)
+ * Card Migration Layer (CardSpoke Core)
  *
- * Migration rules (see docs/architecture/TYPED_CARDS.md):
+ * Migration rules:
  *   - Migrations must be idempotent.
- *   - Unknown card kinds must be preserved.
  *   - Unknown metadata fields must be preserved.
  *   - Failed migrations must not delete data and must leave cards readable.
  *
- * Per-kind versioned upgrades are registered via registerKindMigration();
- * the structural fill-in (defaults, payload shape) lives in typed-cards.js.
+ * This layer repairs baseline card structure (children/tags arrays and the
+ * plugin metadata object) when loading or importing data.
  */
 
-import { migrateTypedCard as structuralMigrate, isKnownKind } from './typed-cards.js';
-
 /**
- * Registered per-kind data migration steps.
- * Map of kind -> { [fromVersion]: (data) => newData } upgrading one version.
- */
-const kindMigrations = {};
-
-/**
- * Register a data migration step for a kind.
- * @param {string} kind
- * @param {number} fromVersion - The step upgrades fromVersion -> fromVersion + 1.
- * @param {Function} migrate - (data) => newData. Must not throw on valid input.
- */
-export function registerKindMigration(kind, fromVersion, migrate) {
-  if (!kind || typeof migrate !== 'function') return;
-  if (!kindMigrations[kind]) kindMigrations[kind] = {};
-  kindMigrations[kind][fromVersion] = migrate;
-}
-
-/** Remove all registered kind migrations (test helper). */
-export function clearKindMigrations() {
-  for (const key of Object.keys(kindMigrations)) delete kindMigrations[key];
-}
-
-/**
- * Upgrade a kind payload from one schema version to another by applying
- * registered per-version steps. Missing steps are skipped (data passes
- * through unchanged) so gaps never destroy data.
- * @param {string} kind
- * @param {Object} data
- * @param {number} fromVersion
- * @param {number} toVersion
- * @returns {Object} The migrated data.
- */
-export function migrateKindData(kind, data, fromVersion, toVersion) {
-  let current = data;
-  for (let v = fromVersion; v < toVersion; v++) {
-    const step = kindMigrations[kind] && kindMigrations[kind][v];
-    if (typeof step === 'function') {
-      const next = step(current);
-      if (next && typeof next === 'object') current = next;
-    }
-  }
-  return current;
-}
-
-/**
- * Migrate a single card's typed metadata (structure + versioned data).
- * Legacy and unknown-kind cards pass through untouched.
- * @param {Object} card
- * @returns {{ card: Object, changed: boolean, warnings: string[] }}
- */
-export function migrateTypedCard(card) {
-  return structuralMigrate(card, { migrateKindData });
-}
-
-/**
- * Migrate one card: ensures baseline card fields exist, then migrates
- * typed metadata. Never removes fields.
+ * Migrate one card: ensures baseline card fields exist. Never removes fields.
  * @param {Object} card
  * @returns {{ card: Object, changed: boolean, warnings: string[] }}
  */
@@ -99,8 +40,7 @@ export function migrateCard(card) {
     card.modsData = {};
     changed = true;
   }
-  const typed = migrateTypedCard(card);
-  return { card, changed: changed || typed.changed, warnings: typed.warnings };
+  return { card, changed, warnings: [] };
 }
 
 /**
@@ -132,5 +72,3 @@ export function migrateStore(store) {
   }
   return { store, changed, migratedCount, warnings };
 }
-
-export { isKnownKind };

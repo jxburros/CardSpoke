@@ -1,4 +1,4 @@
-// Version: 0.17.0
+// Version: 0.18.0
 (function() {
   "use strict";
   const middlewares = [];
@@ -1127,7 +1127,7 @@
   function createPluginContext(pluginId) {
     return {
       modId: pluginId,
-      appVersion: window.APP_VERSION || "0.17.0",
+      appVersion: window.APP_VERSION || "0.18.0",
       schemaVersion: window.SCHEMA_VERSION || 4,
       api: {
         ui: createUIApi(pluginId),
@@ -1722,243 +1722,6 @@
   if (typeof window !== "undefined") {
     window.CardSpoke = CardSpokeAPI;
   }
-  const GENERIC_KIND = "generic";
-  const KIND_DEFINITIONS = {
-    note: {
-      payloadKey: "note",
-      schemaVersion: 1,
-      defaults: () => ({ pinned: false })
-    },
-    repository_page: {
-      payloadKey: "repositoryPage",
-      schemaVersion: 1,
-      defaults: () => ({ section: "", source: "user", status: "draft" })
-    },
-    project: {
-      payloadKey: "project",
-      schemaVersion: 1,
-      defaults: () => ({ status: "active", priority: "medium", dueDate: null })
-    },
-    task: {
-      payloadKey: "task",
-      schemaVersion: 1,
-      defaults: () => ({ status: "todo", priority: "medium", dueDate: null, completed: false })
-    },
-    deck: {
-      payloadKey: "deck",
-      schemaVersion: 1,
-      defaults: () => ({ theme: "default", aspectRatio: "16:9" })
-    },
-    slide: {
-      payloadKey: "slide",
-      schemaVersion: 1,
-      defaults: () => ({ layout: "title-bullets", speakerNotes: "", order: 0 })
-    },
-    contact: {
-      payloadKey: "contact",
-      schemaVersion: 1,
-      defaults: () => ({
-        displayName: "",
-        email: "",
-        phone: "",
-        organization: "",
-        relationship: "",
-        trackingEnabled: false
-      })
-    },
-    plant: {
-      payloadKey: "plant",
-      schemaVersion: 1,
-      defaults: () => ({
-        species: "",
-        location: "",
-        trackingEnabled: false,
-        wateringIntervalDays: null,
-        lastWatered: null,
-        lastFertilized: null
-      })
-    },
-    care_log: {
-      payloadKey: "careLog",
-      schemaVersion: 1,
-      defaults: () => ({ targetCardId: null, careType: "water", performedAt: null, notes: "" })
-    },
-    reminder: {
-      payloadKey: "reminder",
-      schemaVersion: 1,
-      defaults: () => ({
-        targetCardId: null,
-        type: "general",
-        dueAt: null,
-        repeat: null,
-        status: "scheduled"
-      })
-    },
-    collection: {
-      payloadKey: "collection",
-      schemaVersion: 1,
-      defaults: () => ({ filter: {}, sort: null })
-    }
-  };
-  const CARD_KINDS = Object.freeze(Object.keys(KIND_DEFINITIONS));
-  function isKnownKind(kind) {
-    return typeof kind === "string" && Object.prototype.hasOwnProperty.call(KIND_DEFINITIONS, kind);
-  }
-  function getKindPayloadKey(kind) {
-    const def = KIND_DEFINITIONS[kind];
-    return def ? def.payloadKey : String(kind);
-  }
-  function getCardKind(card) {
-    if (!card || !card.modsData || typeof card.modsData !== "object") return GENERIC_KIND;
-    const kind = card.modsData.kind;
-    return typeof kind === "string" && kind ? kind : GENERIC_KIND;
-  }
-  function isCardKind(card, kind) {
-    return getCardKind(card) === kind;
-  }
-  function setCardKind(card, kind, payload = {}) {
-    if (!card || typeof kind !== "string" || !kind) return card;
-    if (!card.modsData || typeof card.modsData !== "object") card.modsData = {};
-    const def = KIND_DEFINITIONS[kind];
-    const key = getKindPayloadKey(kind);
-    const base = def ? def.defaults() : {};
-    const existing = card.modsData[key] && typeof card.modsData[key] === "object" ? card.modsData[key] : {};
-    card.modsData.kind = kind;
-    card.modsData.schemaVersion = def ? def.schemaVersion : card.modsData.schemaVersion || 1;
-    card.modsData[key] = { ...base, ...existing, ...payload };
-    return card;
-  }
-  function getKindData(card, kind) {
-    if (!card || !card.modsData || typeof card.modsData !== "object") return null;
-    const k = kind || getCardKind(card);
-    if (k === GENERIC_KIND) return null;
-    const data = card.modsData[getKindPayloadKey(k)];
-    return data && typeof data === "object" ? data : null;
-  }
-  function updateKindData(card, kind, updates) {
-    if (!card || !isCardKind(card, kind)) return card;
-    const key = getKindPayloadKey(kind);
-    const def = KIND_DEFINITIONS[kind];
-    const existing = card.modsData[key] && typeof card.modsData[key] === "object" ? card.modsData[key] : def ? def.defaults() : {};
-    card.modsData[key] = { ...existing, ...updates || {} };
-    return card;
-  }
-  function validateTypedCard(card) {
-    const warnings = [];
-    if (!card || typeof card !== "object") {
-      return { valid: false, kind: GENERIC_KIND, known: false, warnings: ["Card is not an object"] };
-    }
-    const kind = getCardKind(card);
-    if (kind === GENERIC_KIND) {
-      return { valid: true, kind, known: false, warnings };
-    }
-    const mods = card.modsData;
-    const known = isKnownKind(kind);
-    if (!known) {
-      warnings.push(`Unknown card kind "${kind}" — metadata preserved as-is`);
-    }
-    if (mods.schemaVersion !== void 0 && typeof mods.schemaVersion !== "number") {
-      warnings.push(`modsData.schemaVersion should be a number (got ${typeof mods.schemaVersion})`);
-    }
-    const key = getKindPayloadKey(kind);
-    const payload = mods[key];
-    if (payload !== void 0 && (payload === null || typeof payload !== "object" || Array.isArray(payload))) {
-      warnings.push(`modsData.${key} should be an object (got ${payload === null ? "null" : Array.isArray(payload) ? "array" : typeof payload})`);
-    }
-    return { valid: true, kind, known, warnings };
-  }
-  function migrateTypedCard$1(card, options = {}) {
-    const warnings = [];
-    if (!card || typeof card !== "object") return { card, changed: false, warnings };
-    const kind = getCardKind(card);
-    if (kind === GENERIC_KIND || !isKnownKind(kind)) {
-      return { card, changed: false, warnings };
-    }
-    const def = KIND_DEFINITIONS[kind];
-    const key = def.payloadKey;
-    const mods = card.modsData;
-    let changed = false;
-    const fromVersion = typeof mods.schemaVersion === "number" ? mods.schemaVersion : 1;
-    const defaults = def.defaults();
-    const payload = mods[key] && typeof mods[key] === "object" && !Array.isArray(mods[key]) ? mods[key] : {};
-    if (mods[key] !== payload) {
-      if (mods[key] !== void 0) {
-        warnings.push(`Replaced malformed modsData.${key} with defaults (original preserved under modsData.${key}__invalid)`);
-        mods[`${key}__invalid`] = mods[key];
-      }
-      mods[key] = payload;
-      changed = true;
-    }
-    for (const [field, value] of Object.entries(defaults)) {
-      if (!(field in payload)) {
-        payload[field] = value;
-        changed = true;
-      }
-    }
-    if (fromVersion < def.schemaVersion && typeof options.migrateKindData === "function") {
-      try {
-        const migrated = options.migrateKindData(kind, payload, fromVersion, def.schemaVersion);
-        if (migrated && typeof migrated === "object") {
-          mods[key] = migrated;
-          changed = true;
-        }
-      } catch (err) {
-        warnings.push(`Kind data migration failed for "${kind}": ${err && err.message}`);
-      }
-    }
-    if (mods.schemaVersion !== def.schemaVersion) {
-      mods.schemaVersion = def.schemaVersion;
-      changed = true;
-    }
-    return { card, changed, warnings };
-  }
-  function listCardsByKind(store2, kind) {
-    if (!store2 || !store2.cards || typeof store2.cards !== "object") return [];
-    return Object.values(store2.cards).filter((card) => isCardKind(card, kind));
-  }
-  function listChildrenByKind(store2, parentId, kind) {
-    if (!store2 || !store2.cards || typeof store2.cards !== "object") return [];
-    let childIds;
-    if (!parentId) {
-      childIds = Array.isArray(store2.rootOrder) ? store2.rootOrder : [];
-    } else {
-      const parent = store2.cards[parentId];
-      childIds = parent && Array.isArray(parent.children) ? parent.children : [];
-    }
-    return childIds.map((id) => store2.cards[id]).filter((card) => card && isCardKind(card, kind));
-  }
-  function createTypedModsData(kind, payload = {}) {
-    const def = KIND_DEFINITIONS[kind];
-    const key = getKindPayloadKey(kind);
-    return {
-      kind,
-      schemaVersion: def ? def.schemaVersion : 1,
-      [key]: { ...def ? def.defaults() : {}, ...payload }
-    };
-  }
-  const kindMigrations = {};
-  function registerKindMigration(kind, fromVersion, migrate) {
-    if (!kind || typeof migrate !== "function") return;
-    if (!kindMigrations[kind]) kindMigrations[kind] = {};
-    kindMigrations[kind][fromVersion] = migrate;
-  }
-  function clearKindMigrations() {
-    for (const key of Object.keys(kindMigrations)) delete kindMigrations[key];
-  }
-  function migrateKindData(kind, data, fromVersion, toVersion) {
-    let current = data;
-    for (let v = fromVersion; v < toVersion; v++) {
-      const step = kindMigrations[kind] && kindMigrations[kind][v];
-      if (typeof step === "function") {
-        const next = step(current);
-        if (next && typeof next === "object") current = next;
-      }
-    }
-    return current;
-  }
-  function migrateTypedCard(card) {
-    return migrateTypedCard$1(card, { migrateKindData });
-  }
   function migrateCard(card) {
     if (!card || typeof card !== "object") return { card, changed: false, warnings: [] };
     let changed = false;
@@ -1974,8 +1737,7 @@
       card.modsData = {};
       changed = true;
     }
-    const typed = migrateTypedCard(card);
-    return { card, changed: changed || typed.changed, warnings: typed.warnings };
+    return { card, changed, warnings: [] };
   }
   function migrateStore(store2) {
     const warnings = [];
@@ -1998,580 +1760,10 @@
     }
     return { store: store2, changed, migratedCount, warnings };
   }
-  const actions = /* @__PURE__ */ new Map();
-  function registerAction(action) {
-    if (!action || typeof action.id !== "string" || !action.id) return false;
-    if (typeof action.run !== "function") return false;
-    actions.set(action.id, {
-      icon: null,
-      appliesTo: () => true,
-      ...action
-    });
-    return true;
-  }
-  function unregisterAction(actionId) {
-    return actions.delete(actionId);
-  }
-  function getAction(actionId) {
-    return actions.get(actionId) || null;
-  }
-  function listActions() {
-    return Array.from(actions.values());
-  }
-  function getActionsForCard(card, ctx = {}) {
-    return listActions().filter((action) => {
-      try {
-        return !!action.appliesTo(card, ctx);
-      } catch (_err) {
-        return false;
-      }
-    });
-  }
-  function runAction(actionId, card, ctx = {}) {
-    const action = actions.get(actionId);
-    if (!action) return { ok: false, error: `Unknown action "${actionId}"` };
-    try {
-      if (!action.appliesTo(card, ctx)) {
-        return { ok: false, error: `Action "${actionId}" does not apply to this card` };
-      }
-      const result = action.run(card, ctx);
-      return { ok: true, result };
-    } catch (err) {
-      return { ok: false, error: err && err.message || String(err) };
-    }
-  }
-  function clearActions() {
-    actions.clear();
-  }
-  function applyCardChange(card, ctx, mutate) {
-    if (ctx && typeof ctx.updateCard === "function") {
-      const draft = JSON.parse(JSON.stringify(card));
-      mutate(draft);
-      ctx.updateCard(card.id, { modsData: draft.modsData });
-      return draft;
-    }
-    const target = ctx && ctx.store && ctx.store.cards && ctx.store.cards[card.id] || card;
-    mutate(target);
-    return target;
-  }
-  function registerCoreCardActions(handlers = {}) {
-    const defs = [
-      { id: "card.edit", label: "Edit", icon: "edit", handler: handlers.edit },
-      { id: "card.bookmark", label: "Bookmark", icon: "bookmark", handler: handlers.bookmark },
-      { id: "card.duplicate", label: "Duplicate", icon: "copy", handler: handlers.duplicate },
-      { id: "card.share", label: "Share", icon: "share", handler: handlers.share },
-      { id: "card.addChild", label: "Add Child", icon: "plus", handler: handlers.addChild },
-      { id: "card.delete", label: "Delete", icon: "trash", handler: handlers.remove },
-      { id: "card.importText", label: "Import TXT", icon: "upload", handler: handlers.importText }
-    ];
-    for (const def of defs) {
-      registerAction({
-        id: def.id,
-        label: def.label,
-        icon: def.icon,
-        appliesTo: () => true,
-        run: (card, ctx) => typeof def.handler === "function" ? def.handler(card, ctx) : void 0
-      });
-    }
-  }
-  function registerTypedCardActions() {
-    registerAction({
-      id: "task.markDone",
-      label: "Mark Done",
-      icon: "check",
-      appliesTo: (card) => {
-        if (getCardKind(card) !== "task") return false;
-        const task = getKindData(card, "task");
-        return !(task && task.completed);
-      },
-      run: (card, ctx) => applyCardChange(card, ctx, (c) => {
-        updateKindData(c, "task", { completed: true, status: "done" });
-      })
-    });
-    registerAction({
-      id: "task.markTodo",
-      label: "Mark To-Do",
-      icon: "circle",
-      appliesTo: (card) => {
-        if (getCardKind(card) !== "task") return false;
-        const task = getKindData(card, "task");
-        return !!(task && task.completed);
-      },
-      run: (card, ctx) => applyCardChange(card, ctx, (c) => {
-        updateKindData(c, "task", { completed: false, status: "todo" });
-      })
-    });
-    registerAction({
-      id: "plant.logWatering",
-      label: "Log Watering",
-      icon: "droplet",
-      appliesTo: (card) => getCardKind(card) === "plant",
-      run: (card, ctx) => applyCardChange(card, ctx, (c) => {
-        updateKindData(c, "plant", { lastWatered: ctx && ctx.now || Date.now() });
-      })
-    });
-    registerAction({
-      id: "plant.toggleTracking",
-      label: "Toggle Tracking",
-      icon: "activity",
-      appliesTo: (card) => getCardKind(card) === "plant",
-      run: (card, ctx) => applyCardChange(card, ctx, (c) => {
-        const plant = getKindData(c, "plant") || {};
-        updateKindData(c, "plant", { trackingEnabled: !plant.trackingEnabled });
-      })
-    });
-    const stubs = [
-      { id: "note.convertToTask", label: "Convert to Task", icon: "check-square", kind: "note", capability: "convertNoteToTask" },
-      { id: "note.convertToSlide", label: "Convert to Slide", icon: "monitor", kind: "note", capability: "convertNoteToSlide" },
-      { id: "project.addTask", label: "Add Task", icon: "plus", kind: "project", capability: "addTask" },
-      { id: "deck.addSlide", label: "Add Slide", icon: "plus", kind: "deck", capability: "addSlide" },
-      { id: "deck.present", label: "Present", icon: "play", kind: "deck", capability: "present" },
-      { id: "contact.addNote", label: "Add Note", icon: "file-text", kind: "contact", capability: "addNote" }
-    ];
-    for (const stub of stubs) {
-      registerAction({
-        id: stub.id,
-        label: stub.label,
-        icon: stub.icon,
-        appliesTo: (card) => getCardKind(card) === stub.kind,
-        run: (card, ctx) => {
-          if (ctx && typeof ctx[stub.capability] === "function") {
-            return ctx[stub.capability](card, ctx);
-          }
-          return { stub: true, action: stub.id };
-        }
-      });
-    }
-  }
-  function uid$1() {
-    return Date.now().toString(36) + Math.random().toString(36).substring(2);
-  }
-  function resolveOps(store2, options = {}) {
-    const ops = options.ops || {};
-    return {
-      updateCard: ops.updateCard || ((id, updates) => {
-        const card = store2.cards[id];
-        if (!card) return;
-        Object.assign(card, updates, { updatedAt: Date.now() });
-      }),
-      createCard: ops.createCard || ((title, body, parentId = null) => {
-        const id = uid$1();
-        const now = Date.now();
-        store2.cards[id] = {
-          id,
-          title: title || "",
-          body: body || "",
-          parentId: parentId || null,
-          children: [],
-          tags: [],
-          createdAt: now,
-          updatedAt: now,
-          isRichText: false,
-          modsData: {}
-        };
-        if (parentId && store2.cards[parentId]) {
-          if (!Array.isArray(store2.cards[parentId].children)) store2.cards[parentId].children = [];
-          if (!store2.cards[parentId].children.includes(id)) store2.cards[parentId].children.push(id);
-        } else if (Array.isArray(store2.rootOrder)) {
-          store2.rootOrder.push(id);
-        }
-        return id;
-      }),
-      reparent: ops.reparent || ((id, newParentId) => {
-        const card = store2.cards[id];
-        if (!card) return;
-        if (card.parentId && store2.cards[card.parentId]) {
-          store2.cards[card.parentId].children = (store2.cards[card.parentId].children || []).filter((c) => c !== id);
-        } else if (Array.isArray(store2.rootOrder)) {
-          store2.rootOrder = store2.rootOrder.filter((c) => c !== id);
-        }
-        card.parentId = newParentId || null;
-        if (newParentId && store2.cards[newParentId]) {
-          if (!Array.isArray(store2.cards[newParentId].children)) store2.cards[newParentId].children = [];
-          if (!store2.cards[newParentId].children.includes(id)) store2.cards[newParentId].children.push(id);
-        } else if (Array.isArray(store2.rootOrder) && !store2.rootOrder.includes(id)) {
-          store2.rootOrder.push(id);
-        }
-      })
-    };
-  }
-  function convertCardKind(store2, cardId, targetKind, options = {}) {
-    const card = store2 && store2.cards && store2.cards[cardId];
-    if (!card) return { ok: false, error: `Card "${cardId}" not found` };
-    const ops = resolveOps(store2, options);
-    const previousKind = getCardKind(card);
-    const modsData = JSON.parse(JSON.stringify(card.modsData || {}));
-    const draft = { ...card, modsData };
-    setCardKind(draft, targetKind, options.payload || {});
-    if (previousKind !== GENERIC_KIND && previousKind !== targetKind) {
-      draft.modsData.previousKind = previousKind;
-    }
-    ops.updateCard(cardId, { modsData: draft.modsData });
-    return { ok: true, cardId };
-  }
-  function convertNoteToTask(store2, cardId, options = {}) {
-    const result = convertCardKind(store2, cardId, "task", {
-      ops: options.ops,
-      payload: {
-        status: "todo",
-        priority: options.priority || "medium",
-        dueDate: options.dueDate ?? null,
-        completed: false
-      }
-    });
-    if (result.ok && options.projectId && store2.cards[options.projectId]) {
-      resolveOps(store2, options).reparent(cardId, options.projectId);
-    }
-    return result;
-  }
-  function convertNoteToSlide(store2, cardId, deckId, options = {}) {
-    const deck = deckId && store2 && store2.cards ? store2.cards[deckId] : null;
-    const order = deck && Array.isArray(deck.children) ? deck.children.length + 1 : 1;
-    const result = convertCardKind(store2, cardId, "slide", {
-      ops: options.ops,
-      payload: {
-        layout: options.layout || "title-bullets",
-        speakerNotes: "",
-        order
-      }
-    });
-    if (result.ok && deck) {
-      resolveOps(store2, options).reparent(cardId, deckId);
-    }
-    return result;
-  }
-  function createDeckFromOutline(store2, cardId, options = {}) {
-    const card = store2 && store2.cards && store2.cards[cardId];
-    if (!card) return { ok: false, error: `Card "${cardId}" not found` };
-    const deckResult = convertCardKind(store2, cardId, "deck", {
-      ops: options.ops,
-      payload: {
-        theme: options.theme || "default",
-        aspectRatio: options.aspectRatio || "16:9"
-      }
-    });
-    if (!deckResult.ok) return deckResult;
-    const slides = createSlidesFromChildren(store2, cardId, options);
-    return { ok: true, deckId: cardId, slideIds: slides.slideIds };
-  }
-  function createSlidesFromChildren(store2, parentId, options = {}) {
-    const parent = store2 && store2.cards && store2.cards[parentId];
-    if (!parent) return { ok: false, slideIds: [] };
-    const slideIds = [];
-    (parent.children || []).forEach((childId, index) => {
-      const result = convertCardKind(store2, childId, "slide", {
-        ops: options.ops,
-        payload: {
-          layout: options.layout || "title-bullets",
-          speakerNotes: "",
-          order: index + 1
-        }
-      });
-      if (result.ok) slideIds.push(childId);
-    });
-    return { ok: true, slideIds };
-  }
-  function createProjectFromOutline(store2, cardId, options = {}) {
-    const card = store2 && store2.cards && store2.cards[cardId];
-    if (!card) return { ok: false, error: `Card "${cardId}" not found` };
-    const projectResult = convertCardKind(store2, cardId, "project", {
-      ops: options.ops,
-      payload: { status: "active", priority: options.priority || "medium", dueDate: null }
-    });
-    if (!projectResult.ok) return projectResult;
-    const taskIds = [];
-    (card.children || []).forEach((childId) => {
-      const result = convertCardKind(store2, childId, "task", {
-        ops: options.ops,
-        payload: { status: "todo", priority: options.priority || "medium", dueDate: null, completed: false }
-      });
-      if (result.ok) taskIds.push(childId);
-    });
-    return { ok: true, projectId: cardId, taskIds };
-  }
-  function createReminderForCard(store2, cardId, reminderData = {}) {
-    const target = store2 && store2.cards && store2.cards[cardId];
-    if (!target) return { ok: false, error: `Card "${cardId}" not found` };
-    const ops = resolveOps(store2, reminderData);
-    const title = reminderData.title || `Reminder: ${target.title || "Untitled"}`;
-    const reminderId = ops.createCard(title, reminderData.body || "", cardId);
-    if (!reminderId || !store2.cards[reminderId]) {
-      return { ok: false, error: "Failed to create reminder card" };
-    }
-    const result = convertCardKind(store2, reminderId, "reminder", {
-      ops: reminderData.ops,
-      payload: {
-        targetCardId: cardId,
-        type: reminderData.type || "general",
-        dueAt: reminderData.dueAt ?? null,
-        repeat: reminderData.repeat ?? null,
-        status: "scheduled"
-      }
-    });
-    if (!result.ok) return result;
-    return { ok: true, reminderId };
-  }
-  function revertCardKind(store2, cardId, options = {}) {
-    const card = store2 && store2.cards && store2.cards[cardId];
-    if (!card) return { ok: false, error: `Card "${cardId}" not found` };
-    const previousKind = card.modsData && card.modsData.previousKind;
-    if (!previousKind) return { ok: false, error: "No previous kind recorded" };
-    return convertCardKind(store2, cardId, previousKind, options);
-  }
-  const EXPORT_FORMATS = Object.freeze(["json", "markdown", "txt", "csv", "html"]);
-  function collectSubtree(store2, rootId) {
-    const out = [];
-    const walk = (id) => {
-      const card = store2.cards[id];
-      if (!card) return;
-      out.push(card);
-      (card.children || []).forEach(walk);
-    };
-    walk(rootId);
-    return out;
-  }
-  function selectCardsForExport(store2, options = {}) {
-    if (!store2 || !store2.cards) return [];
-    let cards;
-    if (options.rootId) {
-      const includeChildren = options.includeChildren !== false;
-      cards = includeChildren ? collectSubtree(store2, options.rootId) : [store2.cards[options.rootId]].filter(Boolean);
-    } else {
-      cards = Object.values(store2.cards);
-    }
-    const kinds = options.kinds || (options.kind ? [options.kind] : null);
-    if (kinds) {
-      cards = cards.filter((card) => kinds.includes(getCardKind(card)));
-    }
-    if (options.tag) {
-      const normalized = String(options.tag).replace(/^#/, "").toLowerCase().trim();
-      cards = cards.filter((card) => Array.isArray(card.tags) && card.tags.some((t) => String(t).toLowerCase() === normalized));
-    }
-    return cards;
-  }
-  function csvCell(value) {
-    const str = value == null ? "" : String(value);
-    if (/[",\n\r]/.test(str)) return '"' + str.replace(/"/g, '""') + '"';
-    return str;
-  }
-  function escapeHtml$1(str) {
-    return String(str == null ? "" : str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  }
-  function depthWithin(card, byId) {
-    let depth = 0;
-    let current = card;
-    while (current && current.parentId && byId[current.parentId]) {
-      depth++;
-      current = byId[current.parentId];
-    }
-    return depth;
-  }
-  function orderAsOutline(cards) {
-    const byId = {};
-    cards.forEach((c) => {
-      byId[c.id] = c;
-    });
-    const roots = cards.filter((c) => !c.parentId || !byId[c.parentId]);
-    const out = [];
-    const walk = (card) => {
-      out.push(card);
-      (card.children || []).forEach((id) => {
-        if (byId[id]) walk(byId[id]);
-      });
-    };
-    roots.forEach(walk);
-    cards.forEach((c) => {
-      if (!out.includes(c)) out.push(c);
-    });
-    return { ordered: out, byId };
-  }
-  function exportCards(store2, options = {}) {
-    const format = options.format || "json";
-    if (!EXPORT_FORMATS.includes(format)) {
-      return { ok: false, format, count: 0, error: `Unsupported format "${format}"` };
-    }
-    const cards = selectCardsForExport(store2, options);
-    const count = cards.length;
-    if (format === "json") {
-      const cardsById = {};
-      cards.forEach((card) => {
-        cardsById[card.id] = card;
-      });
-      const includedIds = new Set(Object.keys(cardsById));
-      const rootIds = cards.filter((card) => !card.parentId || !includedIds.has(card.parentId)).map((card) => card.id);
-      const payload = {
-        exportType: "cards",
-        timestamp: Date.now(),
-        filter: {
-          kind: options.kind || null,
-          kinds: options.kinds || null,
-          tag: options.tag || null,
-          rootId: options.rootId || null
-        },
-        cards: cardsById,
-        rootIds
-      };
-      return { ok: true, format, content: JSON.stringify(payload, null, 2), count };
-    }
-    const { ordered, byId } = orderAsOutline(cards);
-    if (format === "markdown") {
-      const lines = ordered.map((card) => {
-        const depth = Math.min(depthWithin(card, byId), 5);
-        const heading = "#".repeat(depth + 1);
-        const body = card.body ? `
-
-${card.body}` : "";
-        return `${heading} ${card.title || "Untitled"}${body}`;
-      });
-      return { ok: true, format, content: lines.join("\n\n"), count };
-    }
-    if (format === "txt") {
-      const lines = ordered.map((card) => {
-        const indent = "	".repeat(depthWithin(card, byId));
-        const body = card.body ? "\n" + card.body.split("\n").map((l) => `${indent}	${l}`).join("\n") : "";
-        return `${indent}${card.title || "Untitled"}${body}`;
-      });
-      return { ok: true, format, content: lines.join("\n"), count };
-    }
-    if (format === "csv") {
-      const header2 = ["id", "title", "body", "parentId", "tags", "kind", "createdAt", "updatedAt"];
-      const rows = ordered.map((card) => [
-        card.id,
-        card.title || "",
-        card.body || "",
-        card.parentId || "",
-        (card.tags || []).join("; "),
-        getCardKind(card),
-        card.createdAt || "",
-        card.updatedAt || ""
-      ].map(csvCell).join(","));
-      return { ok: true, format, content: [header2.join(","), ...rows].join("\n"), count };
-    }
-    const items = ordered.map((card) => {
-      const depth = depthWithin(card, byId);
-      const level = Math.min(depth + 1, 6);
-      const body = card.body ? `<p>${escapeHtml$1(card.body).replace(/\n/g, "<br>")}</p>` : "";
-      const tags = (card.tags || []).length ? `<p class="tags">${(card.tags || []).map((t) => `#${escapeHtml$1(t)}`).join(" ")}</p>` : "";
-      return `<section class="card kind-${escapeHtml$1(getCardKind(card))}"><h${level}>${escapeHtml$1(card.title || "Untitled")}</h${level}>${body}${tags}</section>`;
-    });
-    const html = `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>CardSpoke Export</title></head>
-<body>
-${items.join("\n")}
-</body>
-</html>`;
-    return { ok: true, format, content: html, count };
-  }
-  function prepareImportCards(payload) {
-    const warnings = [];
-    let pkg = payload;
-    if (typeof pkg === "string") {
-      try {
-        pkg = JSON.parse(pkg);
-      } catch (err) {
-        return { ok: false, cards: {}, rootIds: [], warnings, error: "Invalid JSON: " + err.message };
-      }
-    }
-    if (!pkg || typeof pkg !== "object" || pkg.cards && typeof pkg.cards !== "object") {
-      return { ok: false, cards: {}, rootIds: [], warnings, error: "Invalid import payload" };
-    }
-    const cards = {};
-    for (const [id, original] of Object.entries(pkg.cards || {})) {
-      if (!original || typeof original !== "object") {
-        warnings.push(`[${id}] Skipped: card is not an object`);
-        continue;
-      }
-      const card = JSON.parse(JSON.stringify(original));
-      const validation = validateTypedCard(card);
-      for (const w of validation.warnings) warnings.push(`[${id}] ${w}`);
-      const kind = getCardKind(card);
-      if (kind !== "generic" && !isKnownKind(kind)) {
-      } else {
-        const migrated = migrateCard(card);
-        for (const w of migrated.warnings) warnings.push(`[${id}] ${w}`);
-      }
-      cards[id] = card;
-    }
-    const rootIds = Array.isArray(pkg.rootIds) ? pkg.rootIds.filter((id) => cards[id]) : Object.values(cards).filter((c) => !c.parentId || !cards[c.parentId]).map((c) => c.id);
-    return { ok: true, cards, rootIds, warnings };
-  }
-  const PROFILES = Object.freeze(["full", "lite", "os"]);
-  const DEFAULT_PROFILE = "full";
-  const FEATURE_FLAGS = Object.freeze({
-    pluginManager: true,
-    developerConsole: true,
-    advancedSearch: true,
-    dataHub: true,
-    typedCards: true,
-    appModes: false,
-    actionRegistry: true,
-    conversionHelpers: true
-  });
-  const PROFILE_FEATURES = Object.freeze({
-    full: Object.freeze({
-      pluginManager: true,
-      developerConsole: true,
-      advancedSearch: true,
-      dataHub: true,
-      appModes: false
-    }),
-    lite: Object.freeze({
-      pluginManager: false,
-      developerConsole: false,
-      advancedSearch: true,
-      dataHub: false,
-      appModes: false
-    }),
-    os: Object.freeze({
-      pluginManager: false,
-      developerConsole: false,
-      advancedSearch: true,
-      dataHub: false,
-      appModes: true
-    })
-  });
-  function resolveProfile(name) {
-    return PROFILES.includes(name) ? name : DEFAULT_PROFILE;
-  }
-  function getFeatureFlags(profile) {
-    const resolved = resolveProfile(profile);
-    return { ...FEATURE_FLAGS, ...PROFILE_FEATURES[resolved] || {} };
-  }
-  let activeProfile$1 = DEFAULT_PROFILE;
-  function setActiveProfile(profile) {
-    activeProfile$1 = resolveProfile(profile);
-    return activeProfile$1;
-  }
-  function getActiveProfile() {
-    return activeProfile$1;
-  }
-  function isFeatureEnabled(feature) {
-    const flags = getFeatureFlags(activeProfile$1);
-    return !!flags[feature];
-  }
-  function detectProfile(env = {}) {
-    let search = env.search;
-    if (search === void 0 && typeof globalThis !== "undefined" && globalThis.location) {
-      search = globalThis.location.search;
-    }
-    if (typeof search === "string" && search) {
-      const match = /[?&]profile=([^&]+)/.exec(search);
-      if (match && PROFILES.includes(decodeURIComponent(match[1]))) {
-        return decodeURIComponent(match[1]);
-      }
-    }
-    const globalProfile = env.globalProfile !== void 0 ? env.globalProfile : typeof globalThis !== "undefined" ? globalThis.CardSpokeProfile : void 0;
-    if (PROFILES.includes(globalProfile)) return globalProfile;
-    return resolveProfile(env.fallback);
-  }
-  function initProfile(env = {}) {
-    return setActiveProfile(detectProfile(env));
-  }
   "use strict";
   const APP_CREATOR = "Jeffrey from GX Generations Software";
-  const APP_VERSION = '0.17.0';
-  const APP_RELEASE_DATE = "2026-02-17";
+  const APP_VERSION = '0.18.0';
+  const APP_RELEASE_DATE = "2026-07-09";
   const APP_UPDATER = "Claude Code (Sonnet 4.5)";
   const SCHEMA_VERSION = 4;
   const MAX_UNDO_STACK = 50;
@@ -3311,7 +2503,7 @@ ${items.join("\n")}
           title = "Dialog",
           message: message2 = "",
           content = null,
-          actions: actions2 = [],
+          actions = [],
           dismissValue = null,
           width = "520px",
           ariaLabelledBy = "",
@@ -3375,7 +2567,7 @@ ${items.join("\n")}
           overlay.onclick = (e) => {
             if (e.target === overlay) finish(dismissValue);
           };
-          actions2.forEach((action) => {
+          actions.forEach((action) => {
             const btn = h("button", {
               type: "button",
               className: action.className || "btn",
@@ -3756,8 +2948,6 @@ ${items.join("\n")}
     const MAX_RESULTS = 100;
     return allResults.slice(0, MAX_RESULTS);
   }
-  const GOOGLE_CLIENT_ID = "905559232060-5utnmrdvr3n7k2rvamkt7rcflhj2afs8.apps.googleusercontent.com";
-  const MS_CLIENT_ID = "222a2760-c041-43ee-b83b-57957fd632bf";
   class StorageDriver {
     constructor() {
       if (new.target === StorageDriver) {
@@ -3915,481 +3105,6 @@ ${items.join("\n")}
     }
     getKind() {
       return "localstorage";
-    }
-  }
-  class GoogleDriveDriver extends StorageDriver {
-    constructor() {
-      super();
-      this.accessToken = null;
-      this.tokenClient = null;
-      this.fileName = "cardspoke.json";
-      this.fileId = null;
-    }
-    async init(config = {}) {
-      this.fileName = config.fileName || "cardspoke.json";
-      if (typeof google === "undefined" || !google.accounts) {
-        throw new Error("Google Identity Services not loaded. Please refresh the page.");
-      }
-      if (GOOGLE_CLIENT_ID === "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com") {
-        throw new Error("Google Drive not configured. Developer needs to set up OAuth client ID.");
-      }
-      this.tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: "https://www.googleapis.com/auth/drive.file",
-        callback: (response) => {
-          if (response.error) {
-            showToast("Google Drive authentication failed: " + response.error, "error");
-            return;
-          }
-          this.accessToken = response.access_token;
-        }
-      });
-      return Promise.resolve();
-    }
-    async ensureAuthenticated() {
-      if (!this.accessToken) {
-        return new Promise((resolve, reject) => {
-          this.tokenClient.callback = (response) => {
-            if (response.error) {
-              reject(new Error("Authentication failed: " + response.error));
-              return;
-            }
-            this.accessToken = response.access_token;
-            resolve();
-          };
-          this.tokenClient.requestAccessToken();
-        });
-      }
-    }
-    async findFile() {
-      await this.ensureAuthenticated();
-      const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=name='${this.fileName}' and trashed=false`,
-        { headers: { Authorization: `Bearer ${this.accessToken}` } }
-      );
-      if (!response.ok) throw new Error("Failed to search for file: " + response.statusText);
-      const data = await response.json();
-      return data.files && data.files.length > 0 ? data.files[0].id : null;
-    }
-    async get(key) {
-      try {
-        const fileId = await this.findFile();
-        if (!fileId) return null;
-        const response = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-          { headers: { Authorization: `Bearer ${this.accessToken}` } }
-        );
-        if (!response.ok) throw new Error("Failed to download file: " + response.statusText);
-        const data = await response.json();
-        return data[key] || null;
-      } catch (error) {
-        console.error("Google Drive get error:", error);
-        showToast("Failed to read from Google Drive: " + error.message, "error");
-        return null;
-      }
-    }
-    async set(key, value) {
-      try {
-        await this.ensureAuthenticated();
-        let fileId = await this.findFile();
-        let allData = {};
-        if (fileId) {
-          const response = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-            { headers: { Authorization: `Bearer ${this.accessToken}` } }
-          );
-          if (response.ok) allData = await response.json();
-        }
-        allData[key] = value;
-        const content = JSON.stringify(allData, null, 2);
-        if (fileId) {
-          const response = await fetch(
-            `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
-            {
-              method: "PATCH",
-              headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json" },
-              body: content
-            }
-          );
-          if (!response.ok) throw new Error("Failed to update file: " + response.statusText);
-        } else {
-          const metadata = { name: this.fileName, mimeType: "application/json" };
-          const form = new FormData();
-          form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-          form.append("file", new Blob([content], { type: "application/json" }));
-          const response = await fetch(
-            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-            { method: "POST", headers: { Authorization: `Bearer ${this.accessToken}` }, body: form }
-          );
-          if (!response.ok) throw new Error("Failed to create file: " + response.statusText);
-        }
-      } catch (error) {
-        console.error("Google Drive set error:", error);
-        showToast("Failed to save to Google Drive: " + error.message, "error");
-        throw error;
-      }
-    }
-    async remove(key) {
-      try {
-        const fileId = await this.findFile();
-        if (!fileId) return;
-        const response = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-          { headers: { Authorization: `Bearer ${this.accessToken}` } }
-        );
-        if (response.ok) {
-          const allData = await response.json();
-          delete allData[key];
-          const content = JSON.stringify(allData, null, 2);
-          await fetch(
-            `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
-            {
-              method: "PATCH",
-              headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json" },
-              body: content
-            }
-          );
-        }
-      } catch (error) {
-        console.error("Google Drive remove error:", error);
-        showToast("Failed to remove from Google Drive: " + error.message, "error");
-        throw error;
-      }
-    }
-    async list(prefix = "") {
-      try {
-        const fileId = await this.findFile();
-        if (!fileId) return [];
-        const response = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-          { headers: { Authorization: `Bearer ${this.accessToken}` } }
-        );
-        if (!response.ok) return [];
-        const allData = await response.json();
-        const keys = Object.keys(allData);
-        return prefix ? keys.filter((k) => k.startsWith(prefix)) : keys;
-      } catch (error) {
-        console.error("Google Drive list error:", error);
-        return [];
-      }
-    }
-    async getSize() {
-      try {
-        const fileId = await this.findFile();
-        if (!fileId) return 0;
-        const response = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-          { headers: { Authorization: `Bearer ${this.accessToken}` } }
-        );
-        if (!response.ok) return 0;
-        const content = await response.text();
-        return content.length;
-      } catch (error) {
-        console.error("Google Drive getSize error:", error);
-        return 0;
-      }
-    }
-    getKind() {
-      return "googledrive";
-    }
-  }
-  class OneDriveDriver extends StorageDriver {
-    constructor() {
-      super();
-      this.msalInstance = null;
-      this.accessToken = null;
-      this.fileName = "cardspoke.json";
-    }
-    async init(config = {}) {
-      this.fileName = config.fileName || "cardspoke.json";
-      if (typeof msal === "undefined") {
-        throw new Error("MSAL library not loaded. Please refresh the page.");
-      }
-      if (MS_CLIENT_ID === "YOUR_MICROSOFT_CLIENT_ID") {
-        throw new Error("OneDrive not configured. Developer needs to set up OAuth client ID.");
-      }
-      const msalConfig = {
-        auth: {
-          clientId: MS_CLIENT_ID,
-          authority: "https://login.microsoftonline.com/common",
-          redirectUri: window.location.origin
-        },
-        cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
-      };
-      this.msalInstance = new msal.PublicClientApplication(msalConfig);
-      await this.msalInstance.initialize();
-      return Promise.resolve();
-    }
-    async ensureAuthenticated() {
-      if (this.accessToken) return;
-      const accounts = this.msalInstance.getAllAccounts();
-      const request = { scopes: ["Files.ReadWrite", "User.Read"], account: accounts[0] };
-      try {
-        const response = await this.msalInstance.acquireTokenSilent(request);
-        this.accessToken = response.accessToken;
-      } catch (error) {
-        const response = await this.msalInstance.loginPopup(request);
-        this.accessToken = response.accessToken;
-      }
-    }
-    async findFile() {
-      await this.ensureAuthenticated();
-      const response = await fetch(
-        `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${this.fileName}')`,
-        { headers: { Authorization: `Bearer ${this.accessToken}` } }
-      );
-      if (!response.ok) throw new Error("Failed to search for file: " + response.statusText);
-      const data = await response.json();
-      return data.value && data.value.length > 0 ? data.value[0].id : null;
-    }
-    async get(key) {
-      try {
-        const fileId = await this.findFile();
-        if (!fileId) return null;
-        const response = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
-          { headers: { Authorization: `Bearer ${this.accessToken}` } }
-        );
-        if (!response.ok) throw new Error("Failed to download file: " + response.statusText);
-        const data = await response.json();
-        return data[key] || null;
-      } catch (error) {
-        console.error("OneDrive get error:", error);
-        showToast("Failed to read from OneDrive: " + error.message, "error");
-        return null;
-      }
-    }
-    async set(key, value) {
-      try {
-        await this.ensureAuthenticated();
-        let fileId = await this.findFile();
-        let allData = {};
-        if (fileId) {
-          const response2 = await fetch(
-            `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
-            { headers: { Authorization: `Bearer ${this.accessToken}` } }
-          );
-          if (response2.ok) allData = await response2.json();
-        }
-        allData[key] = value;
-        const content = JSON.stringify(allData, null, 2);
-        const uploadUrl = fileId ? `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content` : `https://graph.microsoft.com/v1.0/me/drive/root:/${this.fileName}:/content`;
-        const response = await fetch(uploadUrl, {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json" },
-          body: content
-        });
-        if (!response.ok) throw new Error("Failed to save file: " + response.statusText);
-      } catch (error) {
-        console.error("OneDrive set error:", error);
-        showToast("Failed to save to OneDrive: " + error.message, "error");
-        throw error;
-      }
-    }
-    async remove(key) {
-      try {
-        const fileId = await this.findFile();
-        if (!fileId) return;
-        const response = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
-          { headers: { Authorization: `Bearer ${this.accessToken}` } }
-        );
-        if (response.ok) {
-          const allData = await response.json();
-          delete allData[key];
-          const content = JSON.stringify(allData, null, 2);
-          await fetch(
-            `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
-            {
-              method: "PUT",
-              headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json" },
-              body: content
-            }
-          );
-        }
-      } catch (error) {
-        console.error("OneDrive remove error:", error);
-        showToast("Failed to remove from OneDrive: " + error.message, "error");
-        throw error;
-      }
-    }
-    async list(prefix = "") {
-      try {
-        const fileId = await this.findFile();
-        if (!fileId) return [];
-        const response = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
-          { headers: { Authorization: `Bearer ${this.accessToken}` } }
-        );
-        if (!response.ok) return [];
-        const allData = await response.json();
-        const keys = Object.keys(allData);
-        return prefix ? keys.filter((k) => k.startsWith(prefix)) : keys;
-      } catch (error) {
-        console.error("OneDrive list error:", error);
-        return [];
-      }
-    }
-    async getSize() {
-      try {
-        const fileId = await this.findFile();
-        if (!fileId) return 0;
-        const response = await fetch(
-          `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`,
-          { headers: { Authorization: `Bearer ${this.accessToken}` } }
-        );
-        if (!response.ok) return 0;
-        const content = await response.text();
-        return content.length;
-      } catch (error) {
-        console.error("OneDrive getSize error:", error);
-        return 0;
-      }
-    }
-    getKind() {
-      return "onedrive";
-    }
-  }
-  class WebDAVDriver extends StorageDriver {
-    constructor() {
-      super();
-      this.url = null;
-      this.username = null;
-      this.password = null;
-      this.fileName = "cardspoke.json";
-    }
-    async init(config = {}) {
-      if (!config.url || !config.username || !config.password) {
-        throw new Error("WebDAV requires url, username, and password in config");
-      }
-      const url = config.url.toLowerCase();
-      if (url.startsWith("http://") && !url.includes("localhost") && !url.includes("127.0.0.1")) {
-        const useInsecure = await showConfirmDialog(
-          "⚠️ SECURITY WARNING: You are connecting to WebDAV over HTTP (not HTTPS).\n\nYour credentials and data will be transmitted unencrypted and could be intercepted.\n\nWe strongly recommend using HTTPS for WebDAV connections.\n\nDo you want to continue with insecure HTTP anyway?",
-          {
-            title: "Insecure WebDAV Connection",
-            confirmLabel: "Continue Anyway",
-            cancelLabel: "Cancel",
-            confirmClassName: "btn btn-danger"
-          }
-        );
-        if (!useInsecure) {
-          throw new Error("WebDAV connection rejected: HTTPS required for security");
-        }
-        showToast("⚠️ Warning: Using insecure HTTP connection to WebDAV", "error");
-      }
-      this.url = config.url.endsWith("/") ? config.url : config.url + "/";
-      this.username = config.username;
-      this.password = config.password;
-      this.fileName = config.fileName || "cardspoke.json";
-      return Promise.resolve();
-    }
-    getAuthHeader() {
-      const credentials = btoa(`${this.username}:${this.password}`);
-      return `Basic ${credentials}`;
-    }
-    async get(key) {
-      try {
-        const response = await fetch(this.url + this.fileName, {
-          method: "GET",
-          headers: { Authorization: this.getAuthHeader() }
-        });
-        if (response.status === 404) return null;
-        if (!response.ok) throw new Error("Failed to read file: " + response.statusText);
-        const allData = await response.json();
-        return allData[key] || null;
-      } catch (error) {
-        if (error.message.includes("CORS")) {
-          showToast("CORS error: Configure your WebDAV server to allow requests from this origin", "error");
-        } else {
-          showToast("Failed to read from WebDAV: " + error.message, "error");
-        }
-        console.error("WebDAV get error:", error);
-        return null;
-      }
-    }
-    async set(key, value) {
-      try {
-        let allData = {};
-        try {
-          const response2 = await fetch(this.url + this.fileName, {
-            method: "GET",
-            headers: { Authorization: this.getAuthHeader() }
-          });
-          if (response2.ok) allData = await response2.json();
-        } catch (error) {
-        }
-        allData[key] = value;
-        const content = JSON.stringify(allData, null, 2);
-        const response = await fetch(this.url + this.fileName, {
-          method: "PUT",
-          headers: { Authorization: this.getAuthHeader(), "Content-Type": "application/json" },
-          body: content
-        });
-        if (!response.ok) throw new Error("Failed to write file: " + response.statusText);
-      } catch (error) {
-        if (error.message.includes("CORS")) {
-          showToast("CORS error: Configure your WebDAV server to allow requests from this origin", "error");
-        } else {
-          showToast("Failed to save to WebDAV: " + error.message, "error");
-        }
-        console.error("WebDAV set error:", error);
-        throw error;
-      }
-    }
-    async remove(key) {
-      try {
-        const response = await fetch(this.url + this.fileName, {
-          method: "GET",
-          headers: { Authorization: this.getAuthHeader() }
-        });
-        if (response.ok) {
-          const allData = await response.json();
-          delete allData[key];
-          const content = JSON.stringify(allData, null, 2);
-          await fetch(this.url + this.fileName, {
-            method: "PUT",
-            headers: { Authorization: this.getAuthHeader(), "Content-Type": "application/json" },
-            body: content
-          });
-        }
-      } catch (error) {
-        console.error("WebDAV remove error:", error);
-        showToast("Failed to remove from WebDAV: " + error.message, "error");
-        throw error;
-      }
-    }
-    async list(prefix = "") {
-      try {
-        const response = await fetch(this.url + this.fileName, {
-          method: "GET",
-          headers: { Authorization: this.getAuthHeader() }
-        });
-        if (!response.ok) return [];
-        const allData = await response.json();
-        const keys = Object.keys(allData);
-        return prefix ? keys.filter((k) => k.startsWith(prefix)) : keys;
-      } catch (error) {
-        console.error("WebDAV list error:", error);
-        return [];
-      }
-    }
-    async getSize() {
-      try {
-        const response = await fetch(this.url + this.fileName, {
-          method: "GET",
-          headers: { Authorization: this.getAuthHeader() }
-        });
-        if (!response.ok) return 0;
-        const content = await response.text();
-        return content.length;
-      } catch (error) {
-        console.error("WebDAV getSize error:", error);
-        return 0;
-      }
-    }
-    getKind() {
-      return "webdav";
     }
   }
   class LocalFileDriver extends StorageDriver {
@@ -4640,12 +3355,6 @@ ${items.join("\n")}
       switch (kind) {
         case "indexeddb":
           driver = new IndexedDBDriver();
-          break;
-        case "googledrive":
-          driver = new GoogleDriveDriver();
-          break;
-        case "onedrive":
-          driver = new OneDriveDriver();
           break;
         case "localfile":
           driver = new LocalFileDriver();
@@ -4976,47 +3685,6 @@ ${items.join("\n")}
       console.error("[TypedCards] Migration failed (data left untouched):", err);
       return false;
     }
-  }
-  let cloudSyncTimeout = null;
-  let lastCloudSyncTime = 0;
-  const CLOUD_SYNC_DEBOUNCE_MS = 6e4;
-  async function syncToCloud() {
-    if (!store.metadata || !store.metadata.storageType) return;
-    const storageType = store.metadata.storageType;
-    if (storageType !== "googledrive" && storageType !== "onedrive") return;
-    try {
-      let driver;
-      const config = store.metadata.storageConfig || {};
-      if (storageType === "googledrive") {
-        driver = new GoogleDriveDriver();
-      } else if (storageType === "onedrive") {
-        driver = new OneDriveDriver();
-      }
-      if (!driver) return;
-      await driver.init(config);
-      await driver.ensureAuthenticated();
-      await driver.set("cardspoke.json", JSON.stringify(store));
-      lastCloudSyncTime = Date.now();
-      console.log(`[Cloud Sync] Synced to ${storageType} at ${(/* @__PURE__ */ new Date()).toISOString()}`);
-      showToast("Cloud sync complete", "success");
-    } catch (error) {
-      console.error("[Cloud Sync] Error:", error);
-      showToast("Cloud sync failed: " + error.message, "error");
-    }
-  }
-  function scheduleCloudSync() {
-    if (!store.metadata || !store.metadata.storageType) return;
-    const storageType = store.metadata.storageType;
-    if (storageType !== "googledrive" && storageType !== "onedrive") return;
-    if (cloudSyncTimeout) {
-      clearTimeout(cloudSyncTimeout);
-      cloudSyncTimeout = null;
-    }
-    const timeSinceLastSync = Date.now() - lastCloudSyncTime;
-    const delay = timeSinceLastSync >= CLOUD_SYNC_DEBOUNCE_MS ? 0 : CLOUD_SYNC_DEBOUNCE_MS - timeSinceLastSync;
-    cloudSyncTimeout = setTimeout(() => {
-      syncToCloud();
-    }, delay);
   }
   async function saveNow() {
     try {
@@ -5488,10 +4156,6 @@ ${items.join("\n")}
         return "IndexedDB";
       case "localfile":
         return "Local File (chosen location)";
-      case "googledrive":
-        return "Google Drive";
-      case "onedrive":
-        return "OneDrive";
       default:
         return "LocalStorage";
     }
@@ -5517,13 +4181,6 @@ ${items.join("\n")}
       store.metadata.storageType = "localfile";
       if (!store.metadata.storageConfig) store.metadata.storageConfig = {};
       await writeDatasetToLocalFile(JSON.stringify(store));
-    } else if (targetStorage === "googledrive" || targetStorage === "onedrive") {
-      const driver = targetStorage === "googledrive" ? new GoogleDriveDriver() : new OneDriveDriver();
-      await driver.init({});
-      await driver.ensureAuthenticated();
-      await driver.set("cardspoke.json", JSON.stringify(store));
-      store.metadata.storageType = targetStorage;
-      store.metadata.storageConfig = {};
     } else {
       store.metadata.storageType = "localstorage";
       store.metadata.storageConfig = {};
@@ -5537,7 +4194,7 @@ ${items.join("\n")}
     const modal = h("div", { className: "modal", style: "max-width: 560px;" });
     const header2 = h("div", { className: "modal-header" });
     header2.appendChild(h("div", { className: "modal-title" }, "Dataset Storage Settings"));
-    header2.appendChild(h("button", { className: "modal-close", onclick: () => overlay.remove() }, "✕"));
+    header2.appendChild(h("button", { className: "modal-close", "aria-label": "Close dialog", onclick: () => overlay.remove() }, "✕"));
     modal.appendChild(header2);
     const body = h("div", { className: "modal-body" });
     const currentStorage = store.metadata && store.metadata.storageType || "localstorage";
@@ -5557,18 +4214,12 @@ ${items.join("\n")}
     const localOpt = h("option", { value: "localstorage" }, "LocalStorage (default)");
     const idbOpt = h("option", { value: "indexeddb" }, "IndexedDB (on-device database)");
     const fileOpt = h("option", { value: "localfile" }, "Local File (choose location on device)");
-    const gdriveOpt = h("option", { value: "googledrive" }, "Google Drive (your account)");
-    const onedriveOpt = h("option", { value: "onedrive" }, "OneDrive (your account)");
     if (currentStorage === "localstorage") localOpt.selected = true;
     if (currentStorage === "indexeddb") idbOpt.selected = true;
     if (currentStorage === "localfile") fileOpt.selected = true;
-    if (currentStorage === "googledrive") gdriveOpt.selected = true;
-    if (currentStorage === "onedrive") onedriveOpt.selected = true;
     select.appendChild(localOpt);
     select.appendChild(idbOpt);
     select.appendChild(fileOpt);
-    select.appendChild(gdriveOpt);
-    select.appendChild(onedriveOpt);
     body.appendChild(select);
     body.appendChild(h(
       "div",
@@ -5689,7 +4340,7 @@ ${items.join("\n")}
       const modal = h("div", { className: "modal" });
       const modalHeader = h("div", { className: "modal-header" });
       modalHeader.appendChild(h("div", { className: "modal-title" }, "Export Ready"));
-      const closeBtn = h("button", { className: "modal-close", onclick: () => overlay.remove() }, "✕");
+      const closeBtn = h("button", { className: "modal-close", "aria-label": "Close dialog", onclick: () => overlay.remove() }, "✕");
       modalHeader.appendChild(closeBtn);
       modal.appendChild(modalHeader);
       const modalBody = h("div", { className: "modal-body" });
@@ -5905,9 +4556,9 @@ Do you want to import the plugins?
         if (storedCard) {
           try {
             const migrated = migrateCard(storedCard);
-            migrated.warnings.forEach((w) => console.warn(`[TypedCards] Import ${cardId}:`, w));
+            migrated.warnings.forEach((w) => console.warn(`[Import] ${cardId}:`, w));
           } catch (err) {
-            console.warn("[TypedCards] Import validation skipped for", cardId, err);
+            console.warn("[Import] Validation skipped for", cardId, err);
           }
         }
       });
@@ -5953,7 +4604,7 @@ Do you want to import the plugins?
     const modal = h("div", { className: "modal", style: "max-width: 700px;" });
     const modalHeader = h("div", { className: "modal-header" });
     modalHeader.appendChild(h("div", { className: "modal-title" }, "Dataset Manager"));
-    const closeBtn = h("button", { className: "modal-close", onclick: () => overlay.remove() }, "✕");
+    const closeBtn = h("button", { className: "modal-close", "aria-label": "Close dialog", onclick: () => overlay.remove() }, "✕");
     modalHeader.appendChild(closeBtn);
     modal.appendChild(modalHeader);
     const modalBody = h("div", { className: "modal-body" });
@@ -6019,7 +4670,7 @@ Do you want to import the plugins?
         datasetInfo.appendChild(datasetName);
         datasetInfo.appendChild(datasetMeta);
         datasetItem.appendChild(datasetInfo);
-        const actions2 = h("div", { style: "display: flex; gap: var(--space-sm);" });
+        const actions = h("div", { style: "display: flex; gap: var(--space-sm);" });
         if (!isCurrent) {
           const openBtn = h("button", {
             className: "btn btn-primary",
@@ -6034,7 +4685,7 @@ Do you want to import the plugins?
               showToast("Switched to: " + key);
             }
           }, "Open");
-          actions2.appendChild(openBtn);
+          actions.appendChild(openBtn);
         }
         if (isCurrent) {
           const storageBtn = h("button", {
@@ -6044,7 +4695,7 @@ Do you want to import the plugins?
               showDatasetStorageSettings();
             }
           }, "Storage Settings");
-          actions2.appendChild(storageBtn);
+          actions.appendChild(storageBtn);
         }
         const deleteBtn = h("button", {
           className: "btn btn-danger",
@@ -6077,8 +4728,8 @@ This action cannot be undone!`, {
             }
           }
         }, "Delete");
-        actions2.appendChild(deleteBtn);
-        datasetItem.appendChild(actions2);
+        actions.appendChild(deleteBtn);
+        datasetItem.appendChild(actions);
         datasetList.appendChild(datasetItem);
       });
       modalBody.appendChild(datasetList);
@@ -6130,16 +4781,12 @@ This action cannot be undone!`, {
     const optionLocal = h("option", { value: "localstorage" }, "LocalStorage (Browser storage, fast access)");
     const optionIndexed = h("option", { value: "indexeddb" }, "IndexedDB (Browser database, larger capacity)");
     const optionLocalFile = h("option", { value: "localfile" }, "Local File (choose location on device)");
-    const optionGoogleDrive = h("option", { value: "googledrive" }, "Google Drive (Cross-Device, cloud sync)");
-    const optionOneDrive = h("option", { value: "onedrive" }, "OneDrive (Cross-Device, cloud sync)");
     storageSelect.appendChild(optionLocal);
     storageSelect.appendChild(optionIndexed);
     storageSelect.appendChild(optionLocalFile);
-    storageSelect.appendChild(optionGoogleDrive);
-    storageSelect.appendChild(optionOneDrive);
     const storageHelp = h("div", {
       style: "font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);"
-    }, "Default: LocalStorage. You can migrate later. Local File lets you choose a save location. Cloud options use your own Google Drive or OneDrive account.");
+    }, "Default: LocalStorage. You can migrate later. Local File lets you choose a save location. All options keep your data on this device.");
     const pinLabel = h("label", {
       style: "display: block; margin-bottom: var(--space-xs); font-weight: 600;"
     }, "PIN Protection (Optional)");
@@ -6178,29 +4825,6 @@ This action cannot be undone!`, {
         if (storageType === "localfile") {
           if (typeof window.showSaveFilePicker !== "function") {
             showToast("Local file location selection is not supported in this environment", "error");
-            return;
-          }
-        }
-        if (storageType === "googledrive") {
-          try {
-            const driver = new GoogleDriveDriver();
-            await driver.init({});
-            showToast("Connecting to Google Drive...", "info");
-            await driver.ensureAuthenticated();
-            showToast("Connected to Google Drive!", "success");
-          } catch (error) {
-            showToast("Failed to connect to Google Drive: " + error.message, "error");
-            return;
-          }
-        } else if (storageType === "onedrive") {
-          try {
-            const driver = new OneDriveDriver();
-            await driver.init({});
-            showToast("Connecting to OneDrive...", "info");
-            await driver.ensureAuthenticated();
-            showToast("Connected to OneDrive!", "success");
-          } catch (error) {
-            showToast("Failed to connect to OneDrive: " + error.message, "error");
             return;
           }
         }
@@ -6255,7 +4879,7 @@ This action cannot be undone!`, {
     const modal = h("div", { className: "modal" });
     const modalHeader = h("div", { className: "modal-header" });
     modalHeader.appendChild(h("div", { className: "modal-title" }, "Dataset Information"));
-    const closeBtn = h("button", { className: "modal-close", onclick: () => overlay.remove() }, "✕");
+    const closeBtn = h("button", { className: "modal-close", "aria-label": "Close dialog", onclick: () => overlay.remove() }, "✕");
     modalHeader.appendChild(closeBtn);
     modal.appendChild(modalHeader);
     const modalBody = h("div", { className: "modal-body" });
@@ -6381,24 +5005,32 @@ This action cannot be undone!`, {
   function showPluginManager(initialTab) {
     initialTab = initialTab || "installed";
     var overlay = h("div", { className: "modal-overlay show" });
-    var modal = h("div", { className: "modal", style: "max-width: 800px; max-height: 90vh;" });
+    var modal = h("div", {
+      className: "modal",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "pluginManagerTitle",
+      style: "max-width: 800px; max-height: 90vh;"
+    });
     var modalHeader = h("div", { className: "modal-header" });
-    modalHeader.appendChild(h("div", { className: "modal-title" }, "Plugin Manager"));
+    modalHeader.appendChild(h("div", { className: "modal-title", id: "pluginManagerTitle" }, "Plugin Manager"));
     modalHeader.appendChild(h("button", {
       className: "modal-close",
+      "aria-label": "Close Plugin Manager",
       onclick: function() {
         overlay.remove();
       }
     }, "✕"));
     modal.appendChild(modalHeader);
-    var tabBar = h("div", { style: "display: flex; border-bottom: 2px solid var(--border); padding: 0 var(--space-lg);" });
+    var tabBar = h("div", { role: "tablist", "aria-label": "Plugin Manager sections", style: "display: flex; border-bottom: 2px solid var(--border); padding: 0 var(--space-lg);" });
     var tabs = ["installed", "install", "gallery", "create"];
     var tabButtons = {};
     var tabContents = {};
     tabs.forEach(function(tabName) {
       var btn = h("button", {
         className: "tab-btn",
-        style: "padding: var(--space-md) var(--space-lg); border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 500;",
+        role: "tab",
+        style: "padding: var(--space-md) var(--space-lg); border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 500; color: var(--text);",
         onclick: function() {
           switchTab(tabName);
         }
@@ -6418,8 +5050,9 @@ This action cannot be undone!`, {
     });
     function switchTab(tabName) {
       tabs.forEach(function(t) {
-        tabButtons[t].style.borderBottom = t === tabName ? "3px solid var(--primary, #3b82f6)" : "3px solid transparent";
-        tabButtons[t].style.color = t === tabName ? "var(--primary, #3b82f6)" : "inherit";
+        tabButtons[t].style.borderBottom = t === tabName ? "3px solid var(--accent-strong, #1d4ed8)" : "3px solid transparent";
+        tabButtons[t].style.color = t === tabName ? "var(--accent-strong, #1d4ed8)" : "var(--text)";
+        tabButtons[t].setAttribute("aria-selected", t === tabName ? "true" : "false");
         tabContents[t].style.display = t === tabName ? "block" : "none";
       });
     }
@@ -6462,7 +5095,7 @@ This action cannot be undone!`, {
           style: "font-size: var(--text-xs); padding: 2px 8px; border-radius: 4px; font-weight: 600; " + (plugin.enabled ? "background: #d1fae5; color: #065f46;" : "background: #e5e7eb; color: #374151;")
         }, plugin.enabled ? "Active" : "Suspended");
         card.appendChild(stateBadge);
-        var actions2 = h("div", { style: "display: flex; gap: var(--space-sm); margin-top: var(--space-md);" });
+        var actions = h("div", { style: "display: flex; gap: var(--space-sm); margin-top: var(--space-md);" });
         var toggleBtn = h("button", {
           className: "btn btn-sm",
           style: "font-size: var(--text-sm);",
@@ -6482,7 +5115,7 @@ This action cannot be undone!`, {
             }
           }
         }, plugin.enabled ? "Suspend" : "Enable");
-        actions2.appendChild(toggleBtn);
+        actions.appendChild(toggleBtn);
         var removeBtn = h("button", {
           className: "btn btn-sm",
           style: "font-size: var(--text-sm); background: var(--danger, #ef4444); color: white;",
@@ -6503,8 +5136,8 @@ This action cannot be undone!`, {
             }
           }
         }, "Remove");
-        actions2.appendChild(removeBtn);
-        card.appendChild(actions2);
+        actions.appendChild(removeBtn);
+        card.appendChild(actions);
         container.appendChild(card);
       });
       var modIds = Object.keys(store.plugins || {}).filter(function(modId) {
@@ -7026,7 +5659,7 @@ This action cannot be undone!`, {
     const modal = h("div", { className: "modal" });
     const modalHeader = h("div", { className: "modal-header" });
     modalHeader.appendChild(h("div", { className: "modal-title" }, "★ Bookmarked Cards"));
-    const closeBtn = h("button", { className: "modal-close", onclick: () => overlay.remove() }, "✕");
+    const closeBtn = h("button", { className: "modal-close", "aria-label": "Close dialog", onclick: () => overlay.remove() }, "✕");
     modalHeader.appendChild(closeBtn);
     modal.appendChild(modalHeader);
     const modalBody = h("div", { className: "modal-body" });
@@ -7072,7 +5705,7 @@ This action cannot be undone!`, {
     const modal = h("div", { className: "modal" });
     const modalHeader = h("div", { className: "modal-header" });
     modalHeader.appendChild(h("div", { className: "modal-title" }, "Recent Cards"));
-    const closeBtn = h("button", { className: "modal-close", onclick: () => overlay.remove() }, "✕");
+    const closeBtn = h("button", { className: "modal-close", "aria-label": "Close dialog", onclick: () => overlay.remove() }, "✕");
     modalHeader.appendChild(closeBtn);
     modal.appendChild(modalHeader);
     const modalBody = h("div", { className: "modal-body" });
@@ -7292,66 +5925,6 @@ This action cannot be undone!`, {
         related.sort((a, b) => b.matchScore - a.matchScore);
         return related.slice(0, limit);
       }
-  function shellConversionOps() {
-    return {
-      updateCard: (id, updates) => updateCard(id, updates),
-      createCard: (title, body, parentId) => createCard(title, body, parentId)
-    };
-  }
-  function buildActionContext(extra = {}) {
-    return {
-      store,
-      updateCard: (id, updates) => updateCard(id, updates),
-      createCard: (title, body, parentId) => createCard(title, body, parentId),
-      convertNoteToTask: (card, ctx) => convertNoteToTask(store, card.id, { ...ctx && ctx.options, ops: shellConversionOps() }),
-      convertNoteToSlide: (card, ctx) => convertNoteToSlide(store, card.id, ctx && ctx.deckId, { ops: shellConversionOps() }),
-      addTask: (card) => createCard("New Task", "", card.id),
-      addSlide: (card) => createCard("New Slide", "", card.id),
-      addNote: (card) => createCard("New Note", "", card.id),
-      createReminder: (card, ctx) => createReminderForCard(store, card.id, { ...ctx && ctx.reminderData, ops: shellConversionOps() }),
-      ...extra
-    };
-  }
-  function runCardAction(actionId, cardId, extraCtx = {}) {
-    const card = store.cards[cardId];
-    if (!card) return { ok: false, error: "Card not found" };
-    return runAction(actionId, card, buildActionContext(extraCtx));
-  }
-  function listCardActions(cardId) {
-    const card = store.cards[cardId];
-    if (!card) return [];
-    return getActionsForCard(card, buildActionContext());
-  }
-  registerCoreCardActions({
-    edit: (card) => goTo("edit", { cardId: card.id }),
-    bookmark: (card) => toggleBookmark(card.id),
-    duplicate: (card) => duplicateCard(card.id),
-    share: (card) => showShareCard(card.id),
-    addChild: (card) => goTo("edit", { cardId: null, parentId: card.id }),
-    remove: (card) => deleteCard(card.id),
-    importText: (card) => openUploadModalForCard(card.id, "txt")
-  });
-  registerTypedCardActions();
-  function exportCardsFiltered(options = {}) {
-    const result = exportCards(store, options);
-    if (!result.ok) {
-      showToast("Export failed: " + result.error, "error");
-      return result;
-    }
-    const mimeTypes = {
-      json: "application/json",
-      markdown: "text/markdown",
-      txt: "text/plain",
-      csv: "text/csv",
-      html: "text/html"
-    };
-    const extensions = { json: "json", markdown: "md", txt: "txt", csv: "csv", html: "html" };
-    const blob = new Blob([result.content], { type: mimeTypes[result.format] || "text/plain" });
-    const suffix = options.kind || options.kinds && options.kinds.join("-") || "cards";
-    const filename = `cardspoke-${suffix}-${Date.now()}.${extensions[result.format] || "txt"}`;
-    downloadWithFeedback(blob, filename, result.format.toUpperCase());
-    return result;
-  }
   function getEditPageLabel() {
     if (navState.cardId) return "Edit Card";
     return navState.parentId ? "Add Child Card" : "New Card";
@@ -7655,17 +6228,17 @@ This action cannot be undone!`, {
       _tags.forEach((t) => tagsWrap.appendChild(h("span", { className: "card-tag" }, t)));
       detail.appendChild(tagsWrap);
     }
-    const actions2 = h("div", { className: "card-detail-actions" });
-    actions2.appendChild(h("button", { className: "btn btn-primary", onclick: () => goTo('edit', { cardId: card.id }) }, "Edit"));
+    const actions = h("div", { className: "card-detail-actions" });
+    actions.appendChild(h("button", { className: "btn btn-primary", onclick: () => goTo('edit', { cardId: card.id }) }, "Edit"));
     const bookmarkBtnText = isBookmarked(card.id) ? "★ Unbookmark" : "☆ Bookmark";
-    actions2.appendChild(h("button", {
+    actions.appendChild(h("button", {
       className: "btn",
       onclick: (e) => {
         e.stopPropagation();
         toggleBookmark(card.id);
       }
     }, bookmarkBtnText));
-    actions2.appendChild(h("button", {
+    actions.appendChild(h("button", {
       className: "btn",
       onclick: async () => {
         const choice = await showConfirmDialog("Duplicate this card with all of its children?", {
@@ -7681,15 +6254,15 @@ This action cannot be undone!`, {
         }
       }
     }, "Duplicate"));
-    actions2.appendChild(h("button", {
+    actions.appendChild(h("button", {
       className: "btn",
       onclick: () => showShareCard(card.id)
     }, "Share"));
-    actions2.appendChild(h("button", { className: "btn", onclick: () => {
+    actions.appendChild(h("button", { className: "btn", onclick: () => {
       goTo("edit", { parentId: card.id });
     } }, "Add Child"));
-    actions2.appendChild(h("button", { className: "btn", onclick: () => openUploadModalForCard(card.id, "txt") }, "Import TXT"));
-    actions2.appendChild(h("button", { className: "btn btn-danger", onclick: async () => {
+    actions.appendChild(h("button", { className: "btn", onclick: () => openUploadModalForCard(card.id, "txt") }, "Import TXT"));
+    actions.appendChild(h("button", { className: "btn btn-danger", onclick: async () => {
       if (await showConfirmDialog("Delete this card and all of its children?", {
         title: "Delete Card",
         confirmLabel: "Delete",
@@ -7700,7 +6273,7 @@ This action cannot be undone!`, {
         goTo("list", { cardId: card.parentId });
       }
     } }, "Delete"));
-    detail.appendChild(actions2);
+    detail.appendChild(actions);
     if (card.children && card.children.length > 0) {
       const childrenSection = h("div", { className: "children-section" });
       childrenSection.appendChild(h("div", { className: "children-title" }, `Children (${card.children.length})`));
@@ -7807,7 +6380,7 @@ This action cannot be undone!`, {
           goTo("read", { cardId: card.id });
         } else {
           const newId = createCard(titleVal, bodyVal, parentVal, true, true);
-          store.cards[newId].isRichText = richToggle.checked;
+          updateCard(newId, { tags: tagsVal, isRichText: richToggle.checked }, true, true);
           const newKidRows = form.querySelectorAll("#addChildList .form-child-row input");
           newKidRows.forEach((inp) => {
             const t = inp.value.trim();
@@ -7819,7 +6392,7 @@ This action cannot be undone!`, {
       }
     });
     const formGroup1 = h("div", { className: "form-group" });
-    formGroup1.appendChild(h("label", { className: "form-label" }, "Title"));
+    formGroup1.appendChild(h("label", { className: "form-label", for: "cardTitle" }, "Title"));
     formGroup1.appendChild(h("input", { type: "text", id: "cardTitle", className: "form-input", value: card.title, oninput: () => {
       setDirty(true);
     } }));
@@ -7958,7 +6531,7 @@ ${prefix}`;
       formGroupTags.appendChild(suggestBtn);
     }
     const formGroup3 = h("div", { className: "form-group" });
-    formGroup3.appendChild(h("label", { className: "form-label" }, "Parent Card"));
+    formGroup3.appendChild(h("label", { className: "form-label", for: "cardParent" }, "Parent Card"));
     const parentFilter = h("input", {
       type: "text",
       className: "form-input parent-filter-input",
@@ -7993,7 +6566,7 @@ ${prefix}`;
       card.children.forEach((cid) => {
         const c = store.cards[cid];
         const row = h("div", { className: "form-child-row" });
-        const chInp = h("input", { type: "text", value: c.title, className: "form-input form-child-input" });
+        const chInp = h("input", { type: "text", value: c.title, className: "form-input form-child-input", "aria-label": "Child card title" });
         chInp.addEventListener("input", () => {
           setDirty(true);
         });
@@ -8027,7 +6600,7 @@ ${prefix}`;
       const newKidsWrap = h("div", { className: "form-children", id: "addChildList" });
       const addChildRow = (title = "") => {
         const r = h("div", { className: "form-child-row" });
-        const t = h("input", { type: "text", value: title, placeholder: "Child title...", className: "form-input form-child-input" });
+        const t = h("input", { type: "text", value: title, placeholder: "Child title...", className: "form-input form-child-input", "aria-label": "New child card title" });
         t.addEventListener("input", () => {
           setDirty(true);
         });
@@ -8048,7 +6621,7 @@ ${prefix}`;
       const kidsWrap = h("div", { className: "form-children", id: "addChildList" });
       const addChildRow = (title = "") => {
         const r = h("div", { className: "form-child-row" });
-        const t = h("input", { type: "text", value: title, placeholder: "Child title...", className: "form-input form-child-input" });
+        const t = h("input", { type: "text", value: title, placeholder: "Child title...", className: "form-input form-child-input", "aria-label": "New child card title" });
         t.addEventListener("input", () => {
           setDirty(true);
         });
@@ -8092,7 +6665,10 @@ ${prefix}`;
     main.appendChild(editWrapper);
   }
   function renderSearchResults() {
-    searchContainer.style.display = "none";
+    searchContainer.style.display = "block";
+    if (searchInput && searchInput.value.trim() !== navState.searchQuery.trim()) {
+      searchInput.value = navState.searchQuery;
+    }
     const query = navState.searchQuery.trim();
     if (!query) {
       main.appendChild(h("div", { className: "empty" }, "Please enter a search term."));
@@ -8417,22 +6993,6 @@ ${prefix}`;
   }
   const savedTheme = store.activeTheme || localStorage.getItem("cardspoke_theme") || "light";
   applyTheme(savedTheme);
-  const activeProfile = initProfile();
-  if (activeProfile !== "full") {
-    console.log(`[Profile] Running with "${activeProfile}" profile`);
-  }
-  function applyProfileToMenu() {
-    const gated = [
-      [menu.pluginManager, "pluginManager"],
-      [menu.developerConsole, "developerConsole"],
-      [menu.advancedSearch, "advancedSearch"],
-      [menu.dataHub, "dataHub"]
-    ];
-    for (const [el, feature] of gated) {
-      if (el) el.style.display = isFeatureEnabled(feature) ? "" : "none";
-    }
-  }
-  applyProfileToMenu();
   if (header.themeToggle) header.themeToggle.onclick = () => {
     const isDark = document.documentElement.classList.contains("dark");
     applyTheme(isDark ? "light" : "dark");
@@ -8446,41 +7006,41 @@ ${prefix}`;
   function unlockBodyScroll() {
     document.body.classList.remove("scroll-locked");
   }
-  if (header.menuBtn && menu.overlay) header.menuBtn.onclick = () => {
-    menu.overlay.classList.add("show");
-    lockBodyScroll();
-    if (menu.developerSection) {
-      menu.developerSection.style.display = isDeveloperMode() && isFeatureEnabled("developerConsole") ? "block" : "none";
-    }
-    applyProfileToMenu();
-    const panel = menu.overlay.querySelector(".menu-panel");
-    if (panel) menuFocusTrapCleanup = trapFocus(panel);
-  };
-  if (menu.closeBtn) menu.closeBtn.onclick = () => {
+  function closeMenuOverlay() {
     if (menu.overlay) menu.overlay.classList.remove("show");
     unlockBodyScroll();
     if (menuFocusTrapCleanup) {
       menuFocusTrapCleanup();
       menuFocusTrapCleanup = null;
     }
+  }
+  if (header.menuBtn && menu.overlay) header.menuBtn.onclick = () => {
+    menu.overlay.classList.add("show");
+    lockBodyScroll();
+    if (menu.developerSection) {
+      menu.developerSection.style.display = isDeveloperMode() ? "block" : "none";
+    }
+    if (menuFocusTrapCleanup) {
+      menuFocusTrapCleanup();
+      menuFocusTrapCleanup = null;
+    }
+    const panel = menu.overlay.querySelector(".menu-panel");
+    if (panel) menuFocusTrapCleanup = trapFocus(panel);
+  };
+  if (menu.closeBtn) menu.closeBtn.onclick = () => {
+    closeMenuOverlay();
   };
   if (menu.overlay) menu.overlay.onclick = (e) => {
     if (e.target === menu.overlay) {
-      menu.overlay.classList.remove("show");
-      unlockBodyScroll();
-      if (menuFocusTrapCleanup) {
-        menuFocusTrapCleanup();
-        menuFocusTrapCleanup = null;
-      }
+      closeMenuOverlay();
     }
   };
   if (menu.newCard) menu.newCard.onclick = () => {
-    if (menu.overlay) menu.overlay.classList.remove("show");
-    unlockBodyScroll();
+    closeMenuOverlay();
     goTo("edit", { cardId: null, parentId: null });
   };
   if (menu.upload) menu.upload.onclick = () => {
-    menu.overlay.classList.remove("show");
+    closeMenuOverlay();
     updateImportLocationOptions();
     if (uploadModal.importLocationSelectJSON) {
       uploadModal.importLocationSelectJSON.value = "root";
@@ -8501,68 +7061,68 @@ ${prefix}`;
     lockBodyScroll();
   };
   if (menu.pluginManager) menu.pluginManager.onclick = () => {
-    if (menu.overlay) menu.overlay.classList.remove("show");
+    closeMenuOverlay();
     showPluginManager("installed");
   };
   if (menu.tagManager) {
     menu.tagManager.onclick = () => {
-      if (menu.overlay) menu.overlay.classList.remove("show");
+      closeMenuOverlay();
       showTagManager();
     };
   }
   if (menu.advancedSearch) {
     menu.advancedSearch.onclick = () => {
-      if (menu.overlay) menu.overlay.classList.remove("show");
+      closeMenuOverlay();
       showAdvancedSearch();
     };
   }
   if (menu.trashBin) {
     menu.trashBin.onclick = () => {
-      if (menu.overlay) menu.overlay.classList.remove("show");
+      closeMenuOverlay();
       showTrashBin();
     };
   }
   if (menu.appearance) menu.appearance.onclick = () => {
-    if (menu.overlay) menu.overlay.classList.remove("show");
+    closeMenuOverlay();
     showAppearanceSettings();
   };
   if (menu.bookmarks) menu.bookmarks.onclick = () => {
-    if (menu.overlay) menu.overlay.classList.remove("show");
+    closeMenuOverlay();
     showBookmarks();
   };
   if (menu.recentCards) menu.recentCards.onclick = () => {
-    if (menu.overlay) menu.overlay.classList.remove("show");
+    closeMenuOverlay();
     showRecentCards();
   };
   if (menu.typography) {
     menu.typography.onclick = () => {
-      if (menu.overlay) menu.overlay.classList.remove("show");
+      closeMenuOverlay();
       showTypographySelector();
     };
   }
   if (menu.dataHub) menu.dataHub.onclick = () => {
-    if (menu.overlay) menu.overlay.classList.remove("show");
+    closeMenuOverlay();
     showDatasetInfo();
   };
   if (menu.clearAll) menu.clearAll.onclick = () => {
-    if (menu.overlay) menu.overlay.classList.remove("show");
+    closeMenuOverlay();
     clearAllData();
   };
   if (menu.gettingStarted) menu.gettingStarted.onclick = () => {
-    if (menu.overlay) menu.overlay.classList.remove("show");
+    closeMenuOverlay();
     showGettingStarted();
   };
   if (menu.help) menu.help.onclick = () => {
-    if (menu.overlay) menu.overlay.classList.remove("show");
+    closeMenuOverlay();
     showHelp();
   };
   if (menu.keyboardShortcuts) menu.keyboardShortcuts.onclick = () => {
-    if (menu.overlay) menu.overlay.classList.remove("show");
+    closeMenuOverlay();
     showKeyboardHelp();
   };
   if (menu.developerConsole) {
     menu.developerConsole.onclick = () => {
-      if (menu.overlay) menu.overlay.classList.remove("show");
+      closeMenuOverlay();
       showDeveloperConsole();
     };
   }
@@ -8615,6 +7175,7 @@ ${prefix}`;
           openSelectedSearchResult();
           return;
         }
+        e.preventDefault();
         goTo("search", { searchQuery: searchInput.value.trim() });
       }
       if (navState.page === "search" && searchResultsState.items.length) {
@@ -8629,6 +7190,26 @@ ${prefix}`;
       }
     });
   }
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented) return;
+    if (navState.page !== "search" || !searchResultsState.items.length) return;
+    const t = e.target;
+    const tag = t && t.tagName ? t.tagName.toLowerCase() : "";
+    if (t !== searchInput && (tag === "input" || tag === "textarea" || tag === "select" || t && t.isContentEditable)) {
+      return;
+    }
+    if (document.querySelector(".modal-overlay.show, .menu-overlay.show")) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      updateSearchSelection(1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      updateSearchSelection(-1);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      openSelectedSearchResult();
+    }
+  });
   if (searchClear) searchClear.onclick = () => {
     if (searchInput) searchInput.value = "";
     searchClear.style.display = "none";
@@ -8961,7 +7542,7 @@ ${prefix}`;
           "Deleted: " + new Date(item.deletedAt).toLocaleString()
         ));
         itemDiv.appendChild(info);
-        const actions2 = h("div", { style: "display: flex; gap: var(--space-sm);" });
+        const actions = h("div", { style: "display: flex; gap: var(--space-sm);" });
         const restoreBtn = h("button", {
           className: "btn btn-primary",
           onclick: () => {
@@ -8984,7 +7565,7 @@ ${prefix}`;
             render();
           }
         }, "Restore");
-        actions2.appendChild(restoreBtn);
+        actions.appendChild(restoreBtn);
         const deleteBtn = h("button", {
           className: "btn btn-danger",
           onclick: async () => {
@@ -9001,8 +7582,8 @@ ${prefix}`;
             }
           }
         }, "Delete");
-        actions2.appendChild(deleteBtn);
-        itemDiv.appendChild(actions2);
+        actions.appendChild(deleteBtn);
+        itemDiv.appendChild(actions);
         modalBody.appendChild(itemDiv);
       });
       const emptyBtn = h("button", {
@@ -9117,7 +7698,7 @@ ${prefix}`;
         tagInfo.appendChild(tagChip);
         tagInfo.appendChild(h("span", { style: "color: var(--text-secondary);" }, "(" + count + " card" + (count !== 1 ? "s" : "") + ")"));
         tagItem.appendChild(tagInfo);
-        const actions2 = h("div", { style: "display: flex; gap: var(--space-sm);" });
+        const actions = h("div", { style: "display: flex; gap: var(--space-sm);" });
         const renameBtn = h("button", {
           className: "btn",
           style: "font-size: var(--text-sm);",
@@ -9140,7 +7721,7 @@ ${prefix}`;
             }
           }
         }, "Rename");
-        actions2.appendChild(renameBtn);
+        actions.appendChild(renameBtn);
         const mergeBtn = h("button", {
           className: "btn",
           style: "font-size: var(--text-sm);",
@@ -9173,7 +7754,7 @@ ${prefix}`;
             }
           }
         }, "Merge");
-        actions2.appendChild(mergeBtn);
+        actions.appendChild(mergeBtn);
         const deleteBtn = h("button", {
           className: "btn btn-danger",
           style: "font-size: var(--text-sm);",
@@ -9191,8 +7772,8 @@ ${prefix}`;
             }
           }
         }, "Delete");
-        actions2.appendChild(deleteBtn);
-        tagItem.appendChild(actions2);
+        actions.appendChild(deleteBtn);
+        tagItem.appendChild(actions);
         modalBody.appendChild(tagItem);
       });
     }
@@ -9327,11 +7908,11 @@ ${prefix}`;
       showToast("No cards selected for export", "error");
       return;
     }
-    const exportCards2 = {};
+    const exportCards = {};
     function includeChildren(id) {
       const card = store.cards[id];
       if (!card) return;
-      exportCards2[id] = cloneCard(card);
+      exportCards[id] = cloneCard(card);
       card.children.forEach(function(childId) {
         includeChildren(childId);
       });
@@ -9341,7 +7922,7 @@ ${prefix}`;
     });
     var content, filename, mimeType;
     if (format === "markdown") {
-      content = Object.values(exportCards2).map(function(card) {
+      content = Object.values(exportCards).map(function(card) {
         var md = "# " + (card.title || "(Untitled)") + "\n\n";
         if (card.tags && card.tags.length) {
           md += "Tags: " + card.tags.map(function(t) {
@@ -9354,7 +7935,7 @@ ${prefix}`;
       filename = "cardspoke-export-" + Date.now() + ".md";
       mimeType = "text/markdown";
     } else if (format === "txt") {
-      content = Object.values(exportCards2).map(function(card) {
+      content = Object.values(exportCards).map(function(card) {
         var txt = "=== " + (card.title || "(Untitled)") + " ===\n\n";
         if (card.tags && card.tags.length) {
           txt += "Tags: " + card.tags.join(", ") + "\n\n";
@@ -9367,14 +7948,14 @@ ${prefix}`;
     } else {
       content = JSON.stringify({
         exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        cardCount: Object.keys(exportCards2).length,
-        cards: exportCards2
+        cardCount: Object.keys(exportCards).length,
+        cards: exportCards
       }, null, 2);
       filename = "cardspoke-export-" + Date.now() + ".json";
       mimeType = "application/json";
     }
     downloadWithFeedback(content, filename, mimeType);
-    showToast("Exported " + Object.keys(exportCards2).length + " card(s)");
+    showToast("Exported " + Object.keys(exportCards).length + " card(s)");
   }
   function bulkImportCards(importData, targetParentId) {
     try {
@@ -9643,6 +8224,10 @@ ${prefix}`;
     }
   }
   function closeMenu() {
+    if (typeof closeMenuOverlay === "function") {
+      closeMenuOverlay();
+      return;
+    }
     menu.overlay.classList.remove("show");
     if (typeof unlockBodyScroll === "function") unlockBodyScroll();
   }
@@ -10627,77 +9212,4 @@ ${prefix}`;
       }
     });
   })();
-  const DEFAULT_MODE_ID = "cardspoke";
-  const modes = /* @__PURE__ */ new Map();
-  let activeModeId = DEFAULT_MODE_ID;
-  function registerAppMode(mode) {
-    if (!mode || typeof mode.id !== "string" || !mode.id) return false;
-    modes.set(mode.id, {
-      icon: null,
-      accepts: () => true,
-      renderList: null,
-      renderDetail: null,
-      renderEditor: null,
-      getActions: () => [],
-      ...mode
-    });
-    return true;
-  }
-  function unregisterAppMode(modeId) {
-    if (modeId === DEFAULT_MODE_ID) return false;
-    const removed = modes.delete(modeId);
-    if (removed && activeModeId === modeId) activeModeId = DEFAULT_MODE_ID;
-    return removed;
-  }
-  function getAppMode(modeId) {
-    return modes.get(modeId) || null;
-  }
-  function listAppModes() {
-    return Array.from(modes.values());
-  }
-  function getModesForCard(card) {
-    return listAppModes().filter((mode) => {
-      try {
-        return !!mode.accepts(card);
-      } catch (_err) {
-        return false;
-      }
-    });
-  }
-  function setActiveMode(modeId) {
-    activeModeId = modes.has(modeId) ? modeId : DEFAULT_MODE_ID;
-    return activeModeId;
-  }
-  function getActiveMode() {
-    return modes.get(activeModeId) || modes.get(DEFAULT_MODE_ID) || null;
-  }
-  function getActiveModeId() {
-    return activeModeId;
-  }
-  function filterCardsForMode(store2, modeId) {
-    const mode = modes.get(modeId);
-    if (!mode || !store2 || !store2.cards) return [];
-    return Object.values(store2.cards).filter((card) => {
-      try {
-        return !!mode.accepts(card);
-      } catch (_err) {
-        return false;
-      }
-    });
-  }
-  function clearAppModes() {
-    modes.clear();
-    activeModeId = DEFAULT_MODE_ID;
-  }
-  function registerBuiltInModes() {
-    const byKinds = (...kinds) => (card) => kinds.includes(getCardKind(card));
-    registerAppMode({ id: "cardspoke", title: "CardSpoke", icon: "grid", accepts: () => true });
-    registerAppMode({ id: "repository", title: "Repository", icon: "book", accepts: byKinds("repository_page") });
-    registerAppMode({ id: "notes", title: "Notes", icon: "note", accepts: byKinds("note") });
-    registerAppMode({ id: "projects", title: "Projects", icon: "briefcase", accepts: byKinds("project", "task") });
-    registerAppMode({ id: "decks", title: "Decks", icon: "monitor", accepts: byKinds("deck", "slide") });
-    registerAppMode({ id: "contacts", title: "Contacts", icon: "users", accepts: byKinds("contact") });
-    registerAppMode({ id: "plants", title: "Plant Pal", icon: "leaf", accepts: byKinds("plant", "care_log") });
-  }
-  registerBuiltInModes();
 })();

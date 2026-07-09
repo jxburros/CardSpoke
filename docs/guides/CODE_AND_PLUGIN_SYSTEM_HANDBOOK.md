@@ -28,7 +28,7 @@ Build command:
 npm run build
 ```
 
-There is exactly **one** build of the app: `npm run build` **is** the Vite build (→ `www/app.js`, loaded by `www/app-loader.js`). There is no `build:vite` and no `build:cat` script, and there is no top-level `www/src/core.js` — an earlier diverging duplicate runtime by that name was removed (it is what originally broke the plugin system). Do not confuse anything with the `www/src/core/` ESM **directory**, which holds the actual plugin runtime described above. (A separate `npm run build:core` target bundles the DOM-free reusable Core from `www/src/core/index.js` for future shells; it is documented under `docs/architecture/` and is not the app build.)
+There is exactly **one** build of the app: `npm run build` **is** the Vite build (→ `www/app.js`, loaded by `www/app-loader.js`). There is no `build:vite`, no `build:cat`, and no `build:core` script, and there is no top-level `www/src/core.js` — an earlier diverging duplicate runtime by that name was removed (it is what originally broke the plugin system). Do not confuse anything with the `www/src/core/` ESM **directory**, which holds the actual plugin runtime described above.
 
 The Vite build produces an IIFE, so the fused app layer runs in one shared scope (matching the historical concatenation behavior expected by `file://` deployments and by the test suite's source assertions), while the `www/src/core/` modules keep proper ES module boundaries.
 
@@ -97,7 +97,7 @@ The plugin runtime shipped in production lives in ESM modules under `www/src/cor
 
 Because these are real ESM modules (not fused into the app-layer virtual scope), they retain proper module boundaries even inside the single IIFE bundle. `global-api.js` assembles and freezes `window.CardSpoke` from them so the runtime is available before the fused app-layer slices run.
 
-Note: `www/src/core/` also hosts a separate, larger "Core Platform Layer" (typed cards, app-mode registry, runtime profiles, action registry, conversions, kind-filterable import/export) with its own build target (`npm run build:core`, entry `www/src/core/index.js`). That layer is documented separately under `docs/architecture/` and is not part of the plugin-runtime surface described above.
+Note: earlier internal builds also hosted a larger "Core Platform Layer" (typed cards, runtime profiles, action registry, conversions) under `www/src/core/` with its own `build:core` target. That layer is outside the public app scope and has been removed from this repository; `www/src/core/` now contains only the plugin runtime, storage-driver registry, and migrations modules described above.
 
 ## `metadata.js`
 

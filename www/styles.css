@@ -35,8 +35,12 @@
       --space-3xl: 32px;
       --space-4xl: 24px; 
       
-      --radius: 0px; 
+      --radius: 0px;
       --line-height: 1.6;
+
+      /* Accent color that meets WCAG AA (>= 4.5:1) against --surface in
+         each theme. Used for active tabs and similar emphasized text. */
+      --accent-strong: #1d4ed8;
       
       /* =============================================================
          THEME-CUSTOMIZABLE ACCESSIBILITY VARIABLES (v0.13.1)
@@ -79,11 +83,12 @@
     :root.dark {
       --bg: #000000;
       --surface: #0a0a0a;
-      --border: #1a1a1a; 
+      --border: #1a1a1a;
       --text: #ffffff;
       --text-medium: #cccccc;
       --text-muted: #999999;
       --text-ghost: #333333;
+      --accent-strong: #60a5fa;
       
       /* Dark mode accessibility customization (v0.13.1) */
       --focus-outline-color: var(--text);
@@ -2630,9 +2635,30 @@ button.breadcrumb:focus {
     padding: var(--space-lg) !important;
   }
 
-  /* Make search input easier to use on mobile */
+  /* Make search input easier to use on mobile (44px+ touch target) */
   .search-input {
     font-size: 16px !important; /* Prevent zoom on iOS */
+    min-height: 48px;
+  }
+
+  /* 44x44px minimum touch targets for header/search controls (QA A11Y-1) */
+  .header-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .search-clear {
+    width: 44px;
+    height: 44px;
+  }
+
+  .dataset-selector {
+    min-height: 40px;
+  }
+
+  .density-btn {
+    min-height: 44px;
+    padding: 3px 12px;
   }
 
   /* Improve form layouts on mobile */

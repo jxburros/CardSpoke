@@ -17,7 +17,7 @@
 
 // =============================================================
 // CardSpoke JavaScript Application (Source)
-// Version: 0.17.0
+// Version: 0.18.0
 // Creator: jxburros
 // Schema: v4
 // Note: Sources are split across www/src/* and concatenated with
@@ -46,7 +46,6 @@ import {
 // --- SELF-CONTAINED UTILITIES ---
 // All utilities are defined locally to support opening directly
 // from the filesystem (file:// protocol) without CORS issues.
-// The ES module versions in ./modules/ are kept for reference.
 // =============================================================
 
 // --- APP METADATA & SIGNATURES ---
@@ -584,7 +583,6 @@ function showToast(message, type = 'success', duration = 3000) {
 //
 // 3. FILE PROTOCOL COMPATIBILITY:
 //    This file is self-contained to work with file:// URLs.
-//    ES module versions in ./modules/ are kept for reference.
 //
 // =============================================================
 

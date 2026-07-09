@@ -26,7 +26,7 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 
 - Avoid storing secrets in LocalStorage; prefer secure platform stores.
   - **Mobile (Capacitor)**: Use `@capacitor/preferences` with encryption enabled for sensitive data
-  - **Web**: OAuth tokens are session-only (not persisted). WebDAV credentials are in-memory only
+  - **Web**: The public app holds no credentials — there are no cloud storage drivers, no OAuth flows, and no hosted sync
   - **Desktop**: Consider using OS-level credential managers when available
 - Encrypt sensitive exports when feasible; document algorithms and key handling.
   - Current exports are unencrypted JSON. For sensitive data, users should encrypt exports manually
@@ -55,10 +55,18 @@ This guide outlines expectations for secure, transparent, and user-respecting be
   - App-layer plugins with overrides are marked HIGH RISK
   - Security warnings shown during installation based on risk level
   - Visual risk badges displayed in the Plugin Manager
-- **HTTPS Enforcement**: WebDAV connections require HTTPS (warnings for HTTP)
 - **JSON Import Validation**: Schema validation for imported data to prevent corruption
 - **Content Security Policy**: CSP headers added to limit attack surface
 - **Dependency Updates**: Regular `npm audit` to fix known vulnerabilities
+
+## Content Security Policy (v0.18.0)
+
+The app ships a hardened CSP in `www/index.html`:
+
+- `default-src 'self'` — the app is self-contained; no third-party scripts, styles, or fonts load at startup.
+- `connect-src 'self' https://raw.githubusercontent.com` — the only permitted network destination beyond the app's own origin is the curated plugin gallery. There is no wildcard: even plugins granted the `network` permission cannot reach arbitrary hosts, and "Install from URL" only resolves gallery-hosted packages.
+- `script-src 'self' 'unsafe-eval'` — `'unsafe-eval'` is required by the plugin runtime, which compiles the `setup`/`teardown` functions of JSON plugin packages at install/enable time (see `www/src/core/plugin-api.js`). This is a deliberate, documented trade-off: plugin risk assessment, permission prompts, and Safe Mode exist to contain it. Moving plugin execution into sandboxed workers/iframes is tracked as future hardening work.
+- `frame-src 'none'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'` — frames, plugin objects, and external form posts are not used and are blocked outright.
 
 ## Security Hardening Checklist for Capacitor Builds
 

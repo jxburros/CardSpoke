@@ -24,7 +24,7 @@ Users must be able to create, edit, read, search, import, export, and navigate l
 Use separate mental models and UI language:
 
 - **Local save:** The user's working copy on this device.
-- **Remote sync:** Optional propagation to Google Drive, OneDrive, WebDAV, or another off-device target.
+- **Remote sync:** A future-version concept. The public app has no cloud storage drivers or hosted sync; if off-device targets return, they are sync/export destinations, never live dependencies.
 
 The local save is authoritative while the user is editing. Remote targets should be treated as sync/export destinations rather than live dependencies for normal card operations.
 
@@ -46,7 +46,7 @@ Future storage metadata should prefer local storage plus optional sync targets:
 }
 ```
 
-Avoid modeling a normal editable dataset as if it lives only in a cloud driver. If a user chooses Google Drive, OneDrive, or WebDAV, CardSpoke should still maintain a local working copy.
+Avoid modeling a normal editable dataset as if it lives only in a cloud driver. If a future version reintroduces off-device targets, CardSpoke must still maintain a local working copy.
 
 ## App Shell Caching
 

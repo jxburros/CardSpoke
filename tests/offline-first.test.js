@@ -25,17 +25,23 @@ test('service worker caches app shell assets', () => {
   assert.ok(worker.includes("response.type === 'basic'"));
 });
 
-test('offline status separates local save from remote sync', () => {
+test('offline status reports explicit local save state', () => {
   const status = read('www/offline-status.js');
   assert.ok(status.includes('Saved locally'));
-  assert.ok(status.includes('Sync pending'));
+  assert.ok(status.includes('Saving locally'));
   assert.ok(status.includes('Local save failed'));
-  assert.ok(status.includes('cardspoke_dataset_metadata'));
-  assert.ok(status.includes("localStorage.getItem('activeInstance')"));
   assert.ok(status.includes("indicator.textContent !== text"));
-  assert.ok(status.includes('googledrive'));
-  assert.ok(status.includes('onedrive'));
-  assert.ok(status.includes('webdav'));
+});
+
+test('public app carries no cloud storage drivers or hosted sync', () => {
+  const storage = read('www/src/storage.js');
+  assert.not.ok(storage.includes('GoogleDriveDriver'));
+  assert.not.ok(storage.includes('OneDriveDriver'));
+  assert.not.ok(storage.includes('WebDAVDriver'));
+  assert.not.ok(storage.includes('syncToCloud'));
+  const index = read('www/index.html');
+  assert.not.ok(index.includes('accounts.google.com'));
+  assert.not.ok(index.includes('msauth.net'));
 });
 
 test('storage policy requires offline-first behavior', () => {

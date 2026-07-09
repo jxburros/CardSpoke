@@ -2,7 +2,11 @@
  * Offline status coordinator for CardSpoke.
  *
  * CardSpoke's core save path is local-first. This script keeps that visible to
- * users by separating local save status from remote/off-device sync status.
+ * users by normalizing the save indicator to explicit local-save language and
+ * registering the offline app-shell service worker.
+ *
+ * The public app has no hosted sync and no cloud storage drivers, so there is
+ * no remote sync state to report — only local save state.
  */
 (function () {
   var LOCAL_SAVE_TEXT = {
@@ -10,45 +14,9 @@
     pending: 'Saving locally...',
     error: 'Local save failed'
   };
-  var REMOTE_STORAGE_KINDS = {
-    googledrive: true,
-    onedrive: true,
-    webdav: true
-  };
 
   function isOnline() {
     return typeof navigator.onLine === 'boolean' ? navigator.onLine : true;
-  }
-
-  function getRemoteStorageKind() {
-    try {
-      var metaRaw = localStorage.getItem('cardspoke_dataset_metadata');
-      if (metaRaw) {
-        var metadata = JSON.parse(metaRaw);
-        var activeId = metadata && metadata.activeDatasetId;
-        var activeDataset = activeId && metadata.datasets && metadata.datasets[activeId];
-        var driver = activeDataset && activeDataset.storage && activeDataset.storage.driver;
-        if (REMOTE_STORAGE_KINDS[driver]) {
-          return driver;
-        }
-      }
-    } catch (_metadataError) {
-      // Fallback to direct store parsing if dataset metadata is unavailable.
-    }
-
-    try {
-      var activeKey = localStorage.getItem('activeInstance') || 'nested_cards_store';
-      var raw = localStorage.getItem(activeKey);
-      if (!raw) return null;
-      var parsed = JSON.parse(raw);
-      var storageType = parsed && parsed.metadata && parsed.metadata.storageType;
-      if (REMOTE_STORAGE_KINDS[storageType]) {
-        return storageType;
-      }
-    } catch (_err) {
-      // Encrypted/corrupt/unavailable stores should not break offline status.
-    }
-    return null;
   }
 
   function setStatus(text, title) {
@@ -62,38 +30,17 @@
     }
   }
 
-  function describeRemote(kind) {
-    if (kind === 'googledrive') return 'Google Drive';
-    if (kind === 'onedrive') return 'OneDrive';
-    if (kind === 'webdav') return 'WebDAV';
-    return 'remote storage';
-  }
-
   function refreshOfflineStatus() {
     var indicator = document.getElementById('saveStatus');
     if (!indicator) return;
 
     var current = (indicator.textContent || '').trim();
     var lower = current.toLowerCase();
-    var remoteKind = getRemoteStorageKind();
-    var online = isOnline();
 
-    if (!online && remoteKind) {
-      if (lower === 'saved' || lower === LOCAL_SAVE_TEXT.saved.toLowerCase() || lower === '') {
-        setStatus('Saved locally · Sync pending', describeRemote(remoteKind) + ' will sync when this device is online.');
-      }
-      return;
-    }
-
-    if (!online) {
+    if (!isOnline()) {
       if (lower === 'saved' || lower === LOCAL_SAVE_TEXT.saved.toLowerCase()) {
         setStatus(LOCAL_SAVE_TEXT.saved, 'Saved on this device. CardSpoke does not need internet for local editing.');
       }
-      return;
-    }
-
-    if (online && remoteKind && lower === 'saved locally · sync pending') {
-      setStatus('Saved locally · Sync ready', describeRemote(remoteKind) + ' sync can resume now that this device is online.');
     }
   }
 
@@ -103,12 +50,7 @@
 
     var current = (indicator.textContent || '').trim();
     if (current === 'Saved' || current === '✓') {
-      var remoteKind = getRemoteStorageKind();
-      if (!isOnline() && remoteKind) {
-        setStatus('Saved locally · Sync pending', describeRemote(remoteKind) + ' will sync when this device is online.');
-      } else {
-        setStatus(LOCAL_SAVE_TEXT.saved, 'Saved on this device.');
-      }
+      setStatus(LOCAL_SAVE_TEXT.saved, 'Saved on this device.');
     } else if (current === 'Saving…' || current === 'Saving...' || current === '●') {
       setStatus(LOCAL_SAVE_TEXT.pending, 'Saving to this device.');
     } else if (current === 'Save failed' || current === '✕') {

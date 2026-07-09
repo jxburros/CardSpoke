@@ -30,18 +30,6 @@ import {
   hasCardLink as kernelHasCardLink,
   extractTags as kernelExtractTags
 } from './kernel.js';
-import {
-  registerCoreCardActions as coreRegisterCardActions,
-  registerTypedCardActions as coreRegisterTypedActions,
-  runAction as coreRunAction,
-  getActionsForCard as coreGetActionsForCard
-} from '@core/actions.js';
-import {
-  convertNoteToTask as coreConvertNoteToTask,
-  convertNoteToSlide as coreConvertNoteToSlide,
-  createReminderForCard as coreCreateReminderForCard
-} from '@core/conversions.js';
-import { exportCards as coreExportCards } from '@core/import-export.js';
 import { migrateCard as coreMigrateCard } from '@core/migrations.js';
 
       // Source Part 3/5: Data CRUD, imports/exports, dataset modals
@@ -171,8 +159,6 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         switch (storageType) {
           case 'indexeddb': return 'IndexedDB';
           case 'localfile': return 'Local File (chosen location)';
-          case 'googledrive': return 'Google Drive';
-          case 'onedrive': return 'OneDrive';
           default: return 'LocalStorage';
         }
       }
@@ -200,13 +186,6 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
           store.metadata.storageType = 'localfile';
           if (!store.metadata.storageConfig) store.metadata.storageConfig = {};
           await writeDatasetToLocalFile(JSON.stringify(store));
-        } else if (targetStorage === 'googledrive' || targetStorage === 'onedrive') {
-          const driver = targetStorage === 'googledrive' ? new GoogleDriveDriver() : new OneDriveDriver();
-          await driver.init({});
-          await driver.ensureAuthenticated();
-          await driver.set('cardspoke.json', JSON.stringify(store));
-          store.metadata.storageType = targetStorage;
-          store.metadata.storageConfig = {};
         } else {
           store.metadata.storageType = 'localstorage';
           store.metadata.storageConfig = {};
@@ -222,7 +201,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         const modal = h('div', { className: 'modal', style: 'max-width: 560px;' });
         const header = h('div', { className: 'modal-header' });
         header.appendChild(h('div', { className: 'modal-title' }, 'Dataset Storage Settings'));
-        header.appendChild(h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕'));
+        header.appendChild(h('button', { className: 'modal-close', 'aria-label': 'Close dialog', onclick: () => overlay.remove() }, '✕'));
         modal.appendChild(header);
 
         const body = h('div', { className: 'modal-body' });
@@ -239,18 +218,12 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         const localOpt = h('option', { value: 'localstorage' }, 'LocalStorage (default)');
         const idbOpt = h('option', { value: 'indexeddb' }, 'IndexedDB (on-device database)');
         const fileOpt = h('option', { value: 'localfile' }, 'Local File (choose location on device)');
-        const gdriveOpt = h('option', { value: 'googledrive' }, 'Google Drive (your account)');
-        const onedriveOpt = h('option', { value: 'onedrive' }, 'OneDrive (your account)');
         if (currentStorage === 'localstorage') localOpt.selected = true;
         if (currentStorage === 'indexeddb') idbOpt.selected = true;
         if (currentStorage === 'localfile') fileOpt.selected = true;
-        if (currentStorage === 'googledrive') gdriveOpt.selected = true;
-        if (currentStorage === 'onedrive') onedriveOpt.selected = true;
         select.appendChild(localOpt);
         select.appendChild(idbOpt);
         select.appendChild(fileOpt);
-        select.appendChild(gdriveOpt);
-        select.appendChild(onedriveOpt);
         body.appendChild(select);
 
         body.appendChild(h('div', { style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' },
@@ -438,7 +411,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
           const modal = h('div', { className: 'modal' });
           const modalHeader = h('div', { className: 'modal-header' });
           modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Export Ready'));
-          const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+          const closeBtn = h('button', { className: 'modal-close', 'aria-label': 'Close dialog', onclick: () => overlay.remove() }, '✕');
           modalHeader.appendChild(closeBtn);
           modal.appendChild(modalHeader);
           
@@ -680,17 +653,17 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
           });
         }
         
-        // Typed-card import safeguards: validate/migrate imported typed
-        // metadata in place. Preserves modsData (including unknown/future
-        // kinds) and warns on invalid typed metadata instead of stripping it.
+        // Import safeguards: repair baseline card structure in place
+        // (children/tags arrays, modsData object). Preserves plugin
+        // metadata and warns instead of stripping anything.
         importedIds.forEach(cardId => {
           const storedCard = store.cards[cardId];
           if (storedCard) {
             try {
               const migrated = coreMigrateCard(storedCard);
-              migrated.warnings.forEach(w => console.warn(`[TypedCards] Import ${cardId}:`, w));
+              migrated.warnings.forEach(w => console.warn(`[Import] ${cardId}:`, w));
             } catch (err) {
-              console.warn('[TypedCards] Import validation skipped for', cardId, err);
+              console.warn('[Import] Validation skipped for', cardId, err);
             }
           }
         });
@@ -744,7 +717,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         const modal = h('div', { className: 'modal', style: 'max-width: 700px;' });
         const modalHeader = h('div', { className: 'modal-header' });
         modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Dataset Manager'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        const closeBtn = h('button', { className: 'modal-close', 'aria-label': 'Close dialog', onclick: () => overlay.remove() }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
         const modalBody = h('div', { className: 'modal-body' });
@@ -941,17 +914,13 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         const optionLocal = h('option', { value: 'localstorage' }, 'LocalStorage (Browser storage, fast access)');
         const optionIndexed = h('option', { value: 'indexeddb' }, 'IndexedDB (Browser database, larger capacity)');
         const optionLocalFile = h('option', { value: 'localfile' }, 'Local File (choose location on device)');
-        const optionGoogleDrive = h('option', { value: 'googledrive' }, 'Google Drive (Cross-Device, cloud sync)');
-        const optionOneDrive = h('option', { value: 'onedrive' }, 'OneDrive (Cross-Device, cloud sync)');
-                storageSelect.appendChild(optionLocal);
+        storageSelect.appendChild(optionLocal);
         storageSelect.appendChild(optionIndexed);
         storageSelect.appendChild(optionLocalFile);
-        storageSelect.appendChild(optionGoogleDrive);
-        storageSelect.appendChild(optionOneDrive);
 
         const storageHelp = h('div', {
           style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);'
-        }, 'Default: LocalStorage. You can migrate later. Local File lets you choose a save location. Cloud options use your own Google Drive or OneDrive account.');
+        }, 'Default: LocalStorage. You can migrate later. Local File lets you choose a save location. All options keep your data on this device.');
 
         // PIN protection
         const pinLabel = h('label', { 
@@ -998,33 +967,6 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
             if (storageType === 'localfile') {
               if (typeof window.showSaveFilePicker !== 'function') {
                 showToast('Local file location selection is not supported in this environment', 'error');
-                return;
-              }
-            }
-
-            // For cloud storage (Google Drive, OneDrive), initialize and trigger auth
-            if (storageType === 'googledrive') {
-              try {
-                const driver = new GoogleDriveDriver();
-                await driver.init({});
-                showToast('Connecting to Google Drive...', 'info');
-                // The OAuth popup will appear automatically via ensureAuthenticated
-                await driver.ensureAuthenticated();
-                showToast('Connected to Google Drive!', 'success');
-              } catch (error) {
-                showToast('Failed to connect to Google Drive: ' + error.message, 'error');
-                return;
-              }
-            } else if (storageType === 'onedrive') {
-              try {
-                const driver = new OneDriveDriver();
-                await driver.init({});
-                showToast('Connecting to OneDrive...', 'info');
-                // The OAuth popup will appear automatically via ensureAuthenticated
-                await driver.ensureAuthenticated();
-                showToast('Connected to OneDrive!', 'success');
-              } catch (error) {
-                showToast('Failed to connect to OneDrive: ' + error.message, 'error');
                 return;
               }
             }
@@ -1094,7 +1036,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         const modal = h('div', { className: 'modal' });
         const modalHeader = h('div', { className: 'modal-header' });
         modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Dataset Information'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        const closeBtn = h('button', { className: 'modal-close', 'aria-label': 'Close dialog', onclick: () => overlay.remove() }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
         const modalBody = h('div', { className: 'modal-body' });
@@ -1230,18 +1172,25 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
       function showPluginManager(initialTab) {
         initialTab = initialTab || 'installed';
         var overlay = h('div', { className: 'modal-overlay show' });
-        var modal = h('div', { className: 'modal', style: 'max-width: 800px; max-height: 90vh;' });
-        
+        var modal = h('div', {
+          className: 'modal',
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-labelledby': 'pluginManagerTitle',
+          style: 'max-width: 800px; max-height: 90vh;'
+        });
+
         var modalHeader = h('div', { className: 'modal-header' });
-        modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Plugin Manager'));
+        modalHeader.appendChild(h('div', { className: 'modal-title', id: 'pluginManagerTitle' }, 'Plugin Manager'));
         modalHeader.appendChild(h('button', {
           className: 'modal-close',
+          'aria-label': 'Close Plugin Manager',
           onclick: function() { overlay.remove(); }
         }, '\u2715'));
         modal.appendChild(modalHeader);
 
         // Tab buttons
-        var tabBar = h('div', { style: 'display: flex; border-bottom: 2px solid var(--border); padding: 0 var(--space-lg);' });
+        var tabBar = h('div', { role: 'tablist', 'aria-label': 'Plugin Manager sections', style: 'display: flex; border-bottom: 2px solid var(--border); padding: 0 var(--space-lg);' });
         var tabs = ['installed', 'install', 'gallery', 'create'];
         var tabButtons = {};
         var tabContents = {};
@@ -1249,7 +1198,8 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         tabs.forEach(function(tabName) {
           var btn = h('button', {
             className: 'tab-btn',
-            style: 'padding: var(--space-md) var(--space-lg); border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 500;',
+            role: 'tab',
+            style: 'padding: var(--space-md) var(--space-lg); border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 500; color: var(--text);',
             onclick: function() { switchTab(tabName); }
           }, tabName.charAt(0).toUpperCase() + tabName.slice(1));
           tabButtons[tabName] = btn;
@@ -1271,8 +1221,11 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
 
         function switchTab(tabName) {
           tabs.forEach(function(t) {
-            tabButtons[t].style.borderBottom = t === tabName ? '3px solid var(--primary, #3b82f6)' : '3px solid transparent';
-            tabButtons[t].style.color = t === tabName ? 'var(--primary, #3b82f6)' : 'inherit';
+            // --accent-strong keeps active-tab text at >= 4.5:1 contrast in
+            // light and dark themes (QA A11Y-5).
+            tabButtons[t].style.borderBottom = t === tabName ? '3px solid var(--accent-strong, #1d4ed8)' : '3px solid transparent';
+            tabButtons[t].style.color = t === tabName ? 'var(--accent-strong, #1d4ed8)' : 'var(--text)';
+            tabButtons[t].setAttribute('aria-selected', t === tabName ? 'true' : 'false');
             tabContents[t].style.display = t === tabName ? 'block' : 'none';
           });
         }
@@ -1982,7 +1935,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         const modal = h('div', { className: 'modal' });
         const modalHeader = h('div', { className: 'modal-header' });
         modalHeader.appendChild(h('div', { className: 'modal-title' }, '★ Bookmarked Cards'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        const closeBtn = h('button', { className: 'modal-close', 'aria-label': 'Close dialog', onclick: () => overlay.remove() }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
         const modalBody = h('div', { className: 'modal-body' });
@@ -2039,7 +1992,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         const modal = h('div', { className: 'modal' });
         const modalHeader = h('div', { className: 'modal-header' });
         modalHeader.appendChild(h('div', { className: 'modal-title' }, 'Recent Cards'));
-        const closeBtn = h('button', { className: 'modal-close', onclick: () => overlay.remove() }, '✕');
+        const closeBtn = h('button', { className: 'modal-close', 'aria-label': 'Close dialog', onclick: () => overlay.remove() }, '✕');
         modalHeader.appendChild(closeBtn);
         modal.appendChild(modalHeader);
         const modalBody = h('div', { className: 'modal-body' });
@@ -2302,112 +2255,4 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         }
         related.sort((a, b) => b.matchScore - a.matchScore);
         return related.slice(0, limit);
-      }
-
-
-
-      // =============================================================
-      // --- SHARED ACTION REGISTRY WIRING (OS preparation) ---
-      // Maps the existing hardcoded card behaviors onto the reusable
-      // action registry (www/src/core/actions.js) and wires typed-card
-      // workflows to the core conversion helpers. Changes made through
-      // these actions flow through updateCard()/createCard(), so undo,
-      // save, and middleware hooks keep working.
-      // =============================================================
-
-      /** Shell ops handed to core conversion helpers (undo/save included). */
-      function shellConversionOps() {
-        return {
-          updateCard: (id, updates) => updateCard(id, updates),
-          createCard: (title, body, parentId) => createCard(title, body, parentId)
-        };
-      }
-
-      /**
-       * Build the action context passed to registry actions run by this
-       * shell. Supplies data capabilities plus conversion workflows.
-       */
-      function buildActionContext(extra = {}) {
-        return {
-          store,
-          updateCard: (id, updates) => updateCard(id, updates),
-          createCard: (title, body, parentId) => createCard(title, body, parentId),
-          convertNoteToTask: (card, ctx) =>
-            coreConvertNoteToTask(store, card.id, { ...(ctx && ctx.options), ops: shellConversionOps() }),
-          convertNoteToSlide: (card, ctx) =>
-            coreConvertNoteToSlide(store, card.id, ctx && ctx.deckId, { ops: shellConversionOps() }),
-          addTask: (card) => createCard('New Task', '', card.id),
-          addSlide: (card) => createCard('New Slide', '', card.id),
-          addNote: (card) => createCard('New Note', '', card.id),
-          createReminder: (card, ctx) =>
-            coreCreateReminderForCard(store, card.id, { ...(ctx && ctx.reminderData), ops: shellConversionOps() }),
-          ...extra
-        };
-      }
-
-      /**
-       * Run a registered action against a card by ID with the shell context.
-       * @param {string} actionId - e.g. "card.bookmark" or "task.markDone"
-       * @param {string} cardId
-       * @param {Object} [extraCtx]
-       * @returns {{ ok: boolean, result?: any, error?: string }}
-       */
-      function runCardAction(actionId, cardId, extraCtx = {}) {
-        const card = store.cards[cardId];
-        if (!card) return { ok: false, error: 'Card not found' };
-        return coreRunAction(actionId, card, buildActionContext(extraCtx));
-      }
-
-      /**
-       * List the registry actions applicable to a card (for menus/modes).
-       * @param {string} cardId
-       * @returns {Object[]}
-       */
-      function listCardActions(cardId) {
-        const card = store.cards[cardId];
-        if (!card) return [];
-        return coreGetActionsForCard(card, buildActionContext());
-      }
-
-      // Register the existing card behaviors as shared actions.
-      coreRegisterCardActions({
-        edit: (card) => goTo('edit', { cardId: card.id }),
-        bookmark: (card) => toggleBookmark(card.id),
-        duplicate: (card) => duplicateCard(card.id),
-        share: (card) => showShareCard(card.id),
-        addChild: (card) => goTo('edit', { cardId: null, parentId: card.id }),
-        remove: (card) => deleteCard(card.id),
-        importText: (card) => openUploadModalForCard(card.id, 'txt')
-      });
-      // Register typed-card actions (task/plant data actions + workflow stubs).
-      coreRegisterTypedActions();
-
-      // =============================================================
-      // --- KIND-FILTERABLE EXPORT (OS preparation) ---
-      // =============================================================
-
-      /**
-       * Export cards filtered by kind(s), tag, or subtree and download the
-       * result. Pure transform lives in www/src/core/import-export.js.
-       * @param {Object} options - { format, kind, kinds, tag, rootId, includeChildren }
-       */
-      function exportCardsFiltered(options = {}) {
-        const result = coreExportCards(store, options);
-        if (!result.ok) {
-          showToast('Export failed: ' + result.error, 'error');
-          return result;
-        }
-        const mimeTypes = {
-          json: 'application/json',
-          markdown: 'text/markdown',
-          txt: 'text/plain',
-          csv: 'text/csv',
-          html: 'text/html'
-        };
-        const extensions = { json: 'json', markdown: 'md', txt: 'txt', csv: 'csv', html: 'html' };
-        const blob = new Blob([result.content], { type: mimeTypes[result.format] || 'text/plain' });
-        const suffix = options.kind || (options.kinds && options.kinds.join('-')) || 'cards';
-        const filename = `cardspoke-${suffix}-${Date.now()}.${extensions[result.format] || 'txt'}`;
-        downloadWithFeedback(blob, filename, result.format.toUpperCase());
-        return result;
       }
