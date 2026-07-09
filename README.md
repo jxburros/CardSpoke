@@ -164,7 +164,7 @@ Mobile builds should be treated as experimental until platform-specific security
 - [API Reference](./docs/api/API_REFERENCE.md)
 - [Schema & Migration Docs](./docs/api/SCHEMA.md)
 - [Schema Reference](./docs/api/SCHEMA_REFERENCE.md)
-- [Storage Driver Interface](./docs/api/STORAGE_DRIVER_INTERFACE.md)
+- [Storage Model](./docs/api/STORAGE_DRIVER_INTERFACE.md)
 
 ### Plugin System
 
