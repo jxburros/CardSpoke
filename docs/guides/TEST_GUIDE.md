@@ -1,53 +1,72 @@
 # Test Guide
 
-CardSpoke uses `uvu` for automated tests. This guide covers how to run and write tests for core features and plugins.
+CardSpoke uses `uvu` for automated tests. This guide covers the public app test scope.
 
 ## Commands
 
-- Run all tests:
+Run all tests:
 
-  ```bash
-  npm test
-  ```
+```bash
+npm test
+```
 
-- Watch mode:
+Watch mode:
 
-  ```bash
-  npm run test:watch
-  ```
+```bash
+npm run test:watch
+```
 
-## Test Locations
+## Test Scope
 
-- `tests/` – Primary uvu suites (37 files; 434 passing tests via `npm test`).
-- `sample-extensions.test.js` – Plugin package format and layer system checks.
-- `core-entry.test.js` – Validates the `www/src/core/` ESM entry points used by `main.js` (Middleware, ComponentRegistry, PluginAPI, StorageDriverRegistry, Permissions).
-- `typed-*.test.js` – Core Platform Layer typed-card behavior (creation, validation, kind-specific fields).
-- `profiles.test.js` – Runtime profile registry (full/lite/os) behavior and profile-gated feature availability.
-- `app-modes.test.js` – App-mode registry (mode registration, activation, and switching).
-- `action-registry.test.js` – Shared action registry (registration, dispatch, and override semantics).
-- `conversions.test.js` – Conversion utilities between typed cards (e.g. note→task, outline→deck).
+Tests should cover the main CardSpoke app and the plugin runtime.
+
+Keep tests for:
+
+- Card CRUD
+- Hierarchy integrity
+- Search and navigation
+- Tags and tag management
+- Card links, backlinks, and related cards
+- Bookmarks and recent cards
+- Undo/redo
+- Trash recovery
+- Import/export
+- Local storage behavior
+- UI state and regressions
+- Plugin validation
+- Plugin lifecycle
+- Plugin permissions
+- Sample plugins
+
+Do not keep tests whose only purpose is to validate extracted or deferred systems, including:
+
+- OS-specific shells
+- App modes
+- Runtime profiles
+- Typed-card domain systems
+- Core-only build entry points
+- Kind-filterable platform import/export
+- Cloud storage drivers
 
 ## Writing Tests
 
 - Prefer small, deterministic tests with clear assertions.
-- Include fixture data for schema migrations and plugin compatibility.
-- When testing plugins, validate manifest correctness, permission handling, and resource cleanup. Exercise Plugin API registration, event emissions, and middleware pipeline to ensure API stability.
-- For UI-affecting plugins, capture DOM/state expectations and accessibility behaviors where possible.
-- Cover dataset import/export formats (JSON/CSV/Markdown/TXT) and backup restoration to ensure regression-safe portability.
+- Add regression tests for every bug fix that changes card state, schema behavior, storage behavior, or plugin/runtime APIs.
+- For plugin-specific tests, include metadata samples and compatibility toggles.
+- When testing plugins, validate manifest correctness, permission handling, and resource cleanup.
+- Cover dataset import/export formats and backup restoration to ensure regression-safe portability.
 
 ## Coverage Expectations
 
-- Core logic: happy path + error handling.
+- Core app logic: happy path + error handling.
 - Schema changes: migration success and failure handling.
-- Plugins: enable/disable flows, layer validation, and schema guardrails.
+- Plugins: enable/disable flows, layer validation, permission behavior, and schema guardrails.
+- Storage: local-first behavior and import/export reliability.
 
 ## Reporting
 
-- Document failing tests with repro steps and environment info (Node version, active plugins, schemaVersion).
-- Include logs from Capacitor platforms when failures are platform-specific.
+Document failing tests with repro steps and environment info, including Node version, active plugins, schemaVersion, and platform when relevant.
 
-## Coverage & Scope
+## Deferred Areas
 
-- Current baseline is the `npm test` uvu suite in `tests/` (37 files, 434 passing tests), which covers core data model behavior, navigation/search flows, storage drivers, tags, links/backlinks, plugin samples, and the Core Platform Layer (typed cards, app modes, runtime profiles, action registry, conversions).
-- Add regression tests for every bug fix that changes card state, schema behavior, storage behavior, or plugin/runtime APIs.
-- Snapshot/DOM test tooling is not currently configured; prefer deterministic unit/behavior tests unless a future test runner is introduced.
+Desktop and mobile packaging tests may be added as those targets mature, but the first public version should not imply production-ready mobile hardening until that work is complete.

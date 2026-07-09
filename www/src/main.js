@@ -26,31 +26,22 @@
  *      Manager UI (data.js) call into `window.CardSpoke.*`.
  *   2. The app-layer modules are fused into a single flat-scope module by
  *      the flattenAppScope plugin in vite.config.js (which also prepends the
- *      global-api import to the fused module, guaranteeing order even
- *      though Rollup hoists imports).
+ *      global-api import to the fused module, guaranteeing order even though
+ *      Rollup hoists imports).
  */
 
-// ── Plugin runtime + public window.CardSpoke surface (must be first) ────────
+// Plugin runtime + public window.CardSpoke surface (must be first)
 import './core/global-api.js';
-import { registerBuiltInModes } from './core/app-modes.js';
 
-// ── Shared application state (ESM live bindings) ─────────────────────────────
+// Shared application state (ESM live bindings)
 import './state.js';
 
-// ── Layer 0: Kernel (pure data engine — no browser deps) ─────────────────────
-// Imported by data.js; listed here for build-order documentation.
+// Kernel: pure card CRUD/hierarchy/tags/links engine used by the main app
 import './kernel.js';
 
-// ── App layers (loaded in dependency order) ──────────────────────────────────
-// Each module imports the specific state bindings it needs from state.js.
+// App layers (loaded in dependency order)
 import './metadata.js';
 import './storage.js';
 import './data.js';
 import './rendering.js';
 import './systems.js';
-
-// ── App mode registry (OS preparation) ──────────────────────────────────────
-// Registers the built-in stub modes (cardspoke, repository, notes, projects,
-// decks, contacts, plants). The default "cardspoke" mode preserves current
-// behavior; the others filter cards by kind for future lightweight shells.
-registerBuiltInModes();
