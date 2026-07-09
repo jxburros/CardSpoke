@@ -1,41 +1,48 @@
 # Developer Guide (Core App)
 
-This guide explains how to work on the CardSpoke core app, run tests, and align with the project's lightweight, plugins-first philosophy.
+This guide explains how to work on the main CardSpoke web app, run tests, and align with the project's lightweight, local-first, plugins-first philosophy.
 
-**Current Version:** 0.17.0 | **Schema Version:** 4 | **Release Date:** 2026-02-17
+**Current Public Preview:** 0.18.0 | **Schema Version:** 4
+
+## Product Scope
+
+CardSpoke's current public repository is for the main CardSpoke app.
+
+Priorities:
+
+1. Web app
+2. Desktop packaging
+3. Mobile packaging
+
+Do not add OS-specific shells, alternate app suites, typed-card domain systems, runtime profiles, core-only build targets, or cloud storage drivers to this public app scope. Put that work in a separate future repository or future-version plan.
 
 ## Architecture Overview
 
-- **Ultra-light core:** Keep the main bundle lean. `www/app.js` is a self-contained IIFE bundle produced by `npm run build` (Vite, entry point `www/src/main.js`), which fuses the domain-named source slices in `www/src/` into a single shared scope, with inline helpers for DOM creation (`h()`), markdown rendering (`simpleMarkdown()`), accessibility utilities (focus trap, debounce, ID generation), and fuzzy search (Levenshtein distance).
-- **Card model:** UI presents hierarchical, tiered cards for navigating knowledge. The default store shape (`createDefaultStore`) tracks `rootOrder`, per-card records (`cards`), `bookmarks`, `recentCards`, `plugins`, `viewMode`, `activeTheme`, and `richTextEnabled`.
-- **Plugin system:** Core exposes `window.CardSpoke.Plugin`, `window.CardSpoke.Middleware`, and `window.CardSpoke.ComponentRegistry` for extensibility. Plugins should use these modern APIs instead of directly mutating global state where possible.
-- **Local-first:** Default storage is LocalStorage/IndexedDB; avoid adding network dependencies without opt-in controls. Preferences persist under `cardspoke_*` keys:
-  - `cardspoke_richtext` - Rich text/markdown mode
-  - `cardspoke_gridView` - Grid vs list layout
-  - `cardspoke_highcontrast` - High contrast mode
-  - `cardspoke_typography` - Typography preset (default/comfortable/compact/dyslexia)
-  - `cardspoke_devmode` - Developer mode
-  - `cardspoke_theme` - Light/dark theme
-  - `cardspoke_activeThemeMod` - Active theme plugin ID
-- **Self-contained for file:// protocol:** The app can be opened directly from the filesystem without CORS issues. All utilities are inlined in `app.js`.
+- **Ultra-light app:** Keep the main bundle lean. `www/app.js` is produced by `npm run build` through Vite.
+- **Card model:** UI presents hierarchical cards for navigating knowledge. The default store shape tracks `rootOrder`, card records, bookmarks, recent cards, plugins, view mode, active theme, and rich text state.
+- **Plugin system:** Core exposes the plugin runtime through `window.CardSpoke`. Plugins should use the documented API instead of mutating app internals.
+- **Local-first:** Default storage is local. Avoid network dependencies, hosted sync, telemetry, or cloud storage without explicit future-version planning.
+- **Self-contained bundle:** The app can be opened directly from the filesystem when `www/app.js` has been built.
 
 ## Repository Layout
 
-- `www/` - Prebuilt client bundle consumed by Capacitor:
-  - `src/` - Domain-named source slices that concatenate into the browser bundle
-  - `app.js` - Main application (self-contained output of `npm run build`)
-  - `styles.css` - Default styling with light/dark themes and typography presets
-  - `index.html` - Entry point with modal structures and script loading
-  - `capacitor.js` - Capacitor runtime bridge
-  - `modules/` - Reference ES module versions (not used at runtime)
-- `tests/` - uvu test suites (37 files; currently 434 passing tests via `npm test`)
-- `docs/` - Project documentation organized by category
-- `capacitor.config.json` - Platform configuration for Capacitor
+- `www/` - Web assets consumed by the app and Capacitor shells.
+- `www/src/` - Source slices that build into the browser bundle.
+- `www/src/core/` - Plugin runtime modules used by the main app.
+- `tests/` - uvu test suites for the public app and plugin system.
+- `docs/` - Project documentation.
+- `sample-plugins/` - Example plugin packages.
+- `capacitor.config.json` - Platform configuration for Capacitor.
 
 ## Development Workflow
 
-1. Install dependencies: `npm install` (Node 18+ recommended).
-2. Make changes in the source that feeds `www/` (if editing the web bundle) and rebuild:
+1. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Build the app:
 
    ```bash
    npm run build
@@ -47,49 +54,60 @@ This guide explains how to work on the CardSpoke core app, run tests, and align 
    npm test
    ```
 
-4. For mobile validation, sync and open the native shells (see [Capacitor Guide](./README.CAPACITOR.md)).
+4. Start the dev server:
+
+   ```bash
+   npm run dev
+   ```
+
+5. Preview the built app:
+
+   ```bash
+   npm run preview
+   ```
 
 ## Coding Conventions
 
-- Keep the code ultra-light; avoid unnecessary dependencies and heavy abstractions.
-- Do not silently collect or transmit user data; any remote integration must be explicit and opt-in.
-- Prefer pure, deterministic functions; make side effects explicit.
-- Use middleware pipeline and event bus for extensibility; plugins should be able to compose behavior. Use the existing event bus and middleware system exposed via `CardSpoke.Plugin` and `CardSpoke.Middleware` instead of ad-hoc globals.
-- Avoid try/catch around imports; let module resolution fail loudly.
-- Maintain clear separation between core logic and plugin content.
+- Keep the app lightweight.
+- Keep data local-first and user-controlled.
+- Do not silently collect or transmit user data.
+- Prefer pure, deterministic functions where possible.
+- Make side effects explicit.
+- Use the plugin API, event bus, and middleware system for extensibility.
+- Maintain clear separation between the main app and optional plugin content.
+- Do not reintroduce extracted OS/app-suite systems into this repo.
+- Do not reintroduce cloud drivers without a future-version plan, security review, and tests.
 
 ## Testing
 
-- Use `uvu` (`npm test`) for fast unit/behavioral coverage.
+- Use `uvu` with `npm test`.
 - Co-locate tests under `tests/` with descriptive filenames.
-- For plugin-specific tests, include metadata samples and compatibility toggles.
+- Keep tests focused on the public CardSpoke app and plugin runtime.
+- Remove tests for extracted or deferred systems instead of keeping them as implied scope.
 
 ## Accessibility & UX
 
-- Keep UI fast and uncluttered; avoid over-nesting of controls.
-- Ensure keyboard navigation and readable contrast in default themes; document any deviations in theme plugins.
+- Keep UI fast and uncluttered.
+- Ensure keyboard navigation and readable contrast.
+- Document any theme deviations from accessibility expectations.
 
 ## Performance
 
-- Keep bundles small; prune dead code and unused dependencies.
+- Keep bundles small.
+- Avoid unnecessary dependencies.
 - Prefer lazy loading for heavy assets injected by plugins.
+- Add local-only diagnostics only when they help debug performance without collecting user data.
 
 ## Release Hygiene
 
-- Update changelogs and metadata for any core update.
-- Clearly mark whether a change is **official** (core) or **angled** (plugin).
+- Update changelog and metadata for every public release.
+- Keep README, feature docs, and first-public-scope docs aligned.
+- Run `npm run build` and `npm test` before release.
+- Confirm `www/index.html` + `www/app.js` + `www/styles.css` can load locally.
+- Clearly mark mobile builds as experimental until platform hardening is complete.
 
 ## Source Mapping & Tooling Status
 
-- `npm run build` runs the real build: Vite bundles `www/src/main.js` (the entry point) as an IIFE and writes it to `www/app.js`. A Rollup plugin (`flattenAppScope` in `vite.config.js`) fuses the following "app-layer" source slices into one shared scope, in this order:
-  1. `www/src/state.js` - Shared application state (store, navState, instanceKey, undo/trash stacks, constants)
-  2. `www/src/kernel.js` - Layer 0: the headless, pure data/hierarchy engine (no browser deps)
-  3. `www/src/metadata.js` - App metadata, DOM helper (`h()`), utilities (debounce, uid, escapeHtml, fuzzy search), accessibility helpers, store factory, preference accessors, toast system
-  4. `www/src/storage.js` - Storage drivers (IndexedDB, LocalStorage, LocalFile, Cloud), dataset manager, plugin system wiring
-  5. `www/src/data.js` - CRUD operations (createCard, updateCard, deleteCard), data/modals UI
-  6. `www/src/rendering.js` - Rendering functions (breadcrumbs, lists, cards, search)
-  7. `www/src/systems.js` - Undo/redo, tags, search, advanced UX, boot sequence
-- Alongside the fused app layer, `main.js` imports the plugin architecture as proper ESM modules from `www/src/core/`. `www/src/core/global-api.js` assembles and freezes `window.CardSpoke` (exposing `registerPlugin`, `installPlugin`, `requestPermissions`, and the subsystems `Plugin`, `Middleware`, `ComponentRegistry`, `StorageDriverRegistry`, `PluginValidator`, `Permissions`, `PluginSandbox`, `utils`) **before** any app-layer code runs — the build guarantees this ordering (see [Plugin Invariants](../PLUGIN_INVARIANTS.md) §2).
-- `npm run build` (Vite) is the single canonical build; there is no `build:vite` or `build:cat` script. A legacy second runtime copy (`www/src/core.js`) and its concatenation build were removed — do not reintroduce them.
-- The `www/src/core/` directory also contains a separate, larger "Core Platform Layer" (typed cards, app-mode registry, runtime profiles, shared action registry, conversion utilities, kind-filterable import/export) with its own build target, `npm run build:core` (outputs `dist/cardspoke-core.js` / `.umd.cjs`). See `docs/architecture/TYPED_CARDS.md`, `APP_MODES.md`, `PROFILES.md`, `ACTION_REGISTRY.md`, and `CONVERSIONS.md` for details.
+- `npm run build` runs the canonical Vite build.
+- There is no public-scope `build:core` script.
 - There is currently no repository-enforced linter/formatter configuration. Keep style consistent with surrounding code and validate changes with `npm test`.
