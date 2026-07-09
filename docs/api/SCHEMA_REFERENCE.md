@@ -73,7 +73,7 @@ Preferences are stored under `cardspoke_*` keys in LocalStorage:
 
 - **LocalStorage**: lightweight config (preferences, dev mode, active dataset id, typography/high-contrast flags).
 - **IndexedDB**: structured datasets via the `datasets` object store in `CardSpokeDB`.
-- **Optional cloud/file drivers**: Google Drive, OneDrive, WebDAV (see [Storage Driver Interface](./STORAGE_DRIVER_INTERFACE.md)) used only when explicitly configured by the user.
+- **Optional local file driver**: saves the dataset to a user-chosen file via the File System Access API. Cloud drivers (Google Drive, OneDrive, WebDAV) are not part of the public app and are deferred to a future version (see [Storage Driver Interface](./STORAGE_DRIVER_INTERFACE.md)).
 
 ## Migration expectations
 

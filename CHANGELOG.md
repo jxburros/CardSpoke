@@ -6,32 +6,9 @@ The format follows Keep a Changelog and the project uses semantic versioning whe
 
 ---
 
-## [Unreleased]
+## [0.18.0] – 2026-07-09
 
-### Added
-
-- Public app scope document: `docs/specifications/FIRST_PUBLIC_SCOPE.md`.
-- Clear first-public-version positioning for the main CardSpoke web app.
-
-### Changed
-
-- Refocused README, feature catalog, developer guide, test guide, and storage docs around the main CardSpoke app.
-- Package description now describes CardSpoke as a local-first card-based knowledge app.
-- Removed `build:core` from public package scripts.
-- Public product priority is now web app first, desktop packaging second, mobile packaging third.
-- Cloud/off-device storage is deferred to a future version instead of presented as a current public feature.
-
-### Removed
-
-- OS-light roadmap and OS preparation directive from the public app repo.
-- Runtime profile, app-mode, typed-card, conversion, action-registry, and core/shell split architecture docs from current public scope.
-- App-mode boot wiring from the main app entry point.
-- Core-only build config.
-- Tests for extracted/deferred platform systems: app modes, runtime profiles, typed cards, typed queries, typed migrations, conversions, action registry, and core-only entry behavior.
-
----
-
-## [0.18.0-public-preview] – planned
+First public release of the main CardSpoke web app.
 
 ### Public Scope
 
@@ -40,12 +17,50 @@ The format follows Keep a Changelog and the project uses semantic versioning whe
 - Desktop packaging as the next packaging target.
 - Mobile packaging after desktop, with mobile security hardening tracked separately.
 
-### Included
+### Added
 
-- Hierarchical cards.
-- Card CRUD, duplication, bookmarks, recent cards, links, backlinks, related cards, tags, search, undo/redo, trash recovery, and local import/export.
-- Plugin Manager and plugin runtime with Theme, Feature, and App plugin layers.
-- Sample plugins and plugin development documentation.
+- Public app scope document: `docs/specifications/FIRST_PUBLIC_SCOPE.md`.
+- Clear first-public-version positioning for the main CardSpoke web app.
+- Regression tests for new-card tag persistence, search keyboard navigation, form labels, dialog semantics, focus-trap cleanup, tab contrast tokens, CSP hardening, and balanced HTML.
+
+### Fixed
+
+- Tags entered while creating a new card are now persisted on the first save (previously they were silently dropped; QA FUNC-1).
+- Search-results keyboard navigation now works as the on-screen hint promises: the search bar stays visible on the results page and Arrow/Enter are handled even after focus leaves the input (QA UX-1).
+- Card edit form controls (`Title`, `Parent Card`, child title inputs) now have programmatic labels for screen readers (QA A11Y-2).
+- The menu overlay and Plugin Manager are exposed as modal dialogs (`role="dialog"`, `aria-modal`, labelled titles) and all glyph-only close buttons have accessible names (QA A11Y-3).
+- Closing the menu with Escape (or any other path) now always releases the focus-trap listener, so repeated open/close cycles no longer accumulate keydown handlers (QA A11Y-4).
+- Header, search, and density controls meet the 44px touch-target goal on mobile widths (QA A11Y-1).
+- Active Plugin Manager tab text uses a theme-aware accent token with WCAG AA (≥ 4.5:1) contrast in light and dark themes (QA A11Y-5).
+- Removed a stray closing `</div>` from `index.html` (QA HTML-1).
+
+### Security
+
+- Content Security Policy hardened (QA SEC-1/SEC-2): `connect-src` no longer contains a wildcard and is limited to same-origin plus the curated plugin gallery (`raw.githubusercontent.com`); Google/Microsoft script, connect, and frame sources are gone; `frame-src` is now `'none'`. `'unsafe-eval'` remains only for the plugin runtime and is documented in `docs/policies/SECURITY_AND_SAFETY.md`.
+- Third-party auth libraries (Google Identity Services, MSAL) no longer load at startup — the app makes no third-party contact by default (QA PRIV/PERF-1).
+- Resolved all `npm audit` advisories in the build toolchain (Vite, esbuild, tar, brace-expansion) — 0 known vulnerabilities (QA DEP-1).
+
+### Changed
+
+- Refocused README, feature catalog, developer guide, test guide, and storage docs around the main CardSpoke app.
+- Package description now describes CardSpoke as a local-first card-based knowledge app.
+- Removed `build:core` from public package scripts.
+- Public product priority is now web app first, desktop packaging second, mobile packaging third.
+- Cloud/off-device storage is deferred to a future version instead of presented as a current public feature.
+- The save-status indicator reports plain local-save state; there is no remote sync state in the public app.
+- Schema/docs updated: `www/src/core/migrations.js` now provides baseline structural repair (`migrateCard`/`migrateStore`) only.
+
+### Removed
+
+- Cloud storage drivers (Google Drive, OneDrive, WebDAV) and the cloud sync scheduler — out of scope for the public app. Legacy dataset metadata referencing cloud drivers falls back safely to LocalStorage. No schema change: `schemaVersion` remains 4.
+- Committed OAuth client IDs for Google/Microsoft integrations.
+- Typed-card platform layer, conversions, action registry, runtime profiles, kind-filterable export, and the core-only entry point (`www/src/core/index.js`) — all "OS preparation" code outside the public scope.
+- Stale core-only build artifacts (`dist/cardspoke-core.*`) and the unused legacy ES module mirror (`www/modules/`).
+- OS-light roadmap and OS preparation directive from the public app repo.
+- Runtime profile, app-mode, typed-card, conversion, action-registry, and core/shell split architecture docs from current public scope.
+- App-mode boot wiring from the main app entry point.
+- Core-only build config.
+- Tests for extracted/deferred platform systems: app modes, runtime profiles, typed cards, typed queries, typed migrations, conversions, action registry, and core-only entry behavior.
 
 ### Explicitly Deferred
 

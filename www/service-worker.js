@@ -5,7 +5,7 @@
  * User data remains in CardSpoke's local storage drivers and is never copied
  * into Cache Storage by this worker.
  */
-const CACHE_VERSION = 'cardspoke-app-shell-v0.17.0-offline-first-1';
+const CACHE_VERSION = 'cardspoke-app-shell-v0.18.0-public-1';
 const APP_SHELL = [
   './',
   './index.html',

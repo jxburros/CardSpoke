@@ -4,20 +4,23 @@
   <meta charset="utf-8" />
   <title>CardSpoke</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="app:version" content="0.17.0">
+  <meta name="app:version" content="0.18.0">
   <meta name="app:author" content="jxburros">
   <meta name="theme-color" content="#111111">
   <link rel="manifest" href="manifest.webmanifest">
 
-  <!-- Content Security Policy -->
+  <!-- Content Security Policy.
+       'unsafe-eval' is required by the plugin runtime, which compiles JSON
+       plugin setup/teardown functions (see docs/policies/SECURITY_AND_SAFETY.md).
+       connect-src is limited to same-origin plus the curated plugin gallery. -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' 'unsafe-eval' https://accounts.google.com https://alcdn.msauth.net;
+    script-src 'self' 'unsafe-eval';
     style-src 'self' 'unsafe-inline';
     font-src 'self';
-    connect-src 'self' https://www.googleapis.com https://graph.microsoft.com https://login.microsoftonline.com *;
+    connect-src 'self' https://raw.githubusercontent.com;
     img-src 'self' data: blob: https:;
-    frame-src https://accounts.google.com https://login.microsoftonline.com;
+    frame-src 'none';
     worker-src 'self';
     object-src 'none';
     base-uri 'self';
@@ -46,9 +49,9 @@
   </header>
 
   <div class="menu-overlay" id="menuOverlay" data-plugin-anchor="menu-overlay">
-    <div class="menu-panel" data-plugin-anchor="menu-panel">
+    <div class="menu-panel" role="dialog" aria-modal="true" aria-labelledby="menuTitle" data-plugin-anchor="menu-panel">
       <div class="menu-header">
-        <div class="menu-title">Menu</div>
+        <div class="menu-title" id="menuTitle">Menu</div>
         <button class="menu-close" id="menuClose" aria-label="Close menu">&#10005;</button>
       </div>
       
@@ -118,7 +121,6 @@
       </div>
     </div>
   </div>
-  </div>
 
   <div class="container">
     <div class="breadcrumbs" id="breadcrumbs" data-plugin-anchor="breadcrumbs"></div>
@@ -149,9 +151,9 @@
   <div class="toast-container" id="toastContainer" data-plugin-anchor="toast-container"></div>
 
   <div class="modal-overlay" id="uploadModal">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="uploadModalTitle">
       <div class="modal-header">
-        <div class="modal-title">Upload Content</div>
+        <div class="modal-title" id="uploadModalTitle">Upload Content</div>
         <button class="modal-close" id="closeUploadModal" aria-label="Close upload modal">&#10005;</button>
       </div>
       
@@ -213,10 +215,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Cloud Storage Libraries: optional online features only. Core editing must work without them. -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://alcdn.msauth.net/browser/2.30.0/js/msal-browser.min.js"></script>
 
   <!-- Capacitor script - must be loaded before app scripts -->
   <script src="capacitor.js"></script>

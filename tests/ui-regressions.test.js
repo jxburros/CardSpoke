@@ -44,6 +44,102 @@ test('long titles and breadcrumbs wrap instead of overflowing', () => {
   assert.ok(styles.includes('word-break: break-word;'), 'Styles should break long words when needed');
 });
 
+test('new-card creation persists tags entered before first save (QA FUNC-1)', () => {
+  const createBranch = rendering.slice(
+    rendering.indexOf('const newId = createCard(titleVal, bodyVal, parentVal, true, true);')
+  );
+  assert.ok(
+    createBranch.includes('updateCard(newId, { tags: tagsVal, isRichText: richToggle.checked }, true, true);'),
+    'The non-editing save branch must apply the tag editor value to the new card'
+  );
+});
+
+test('search results keep keyboard navigation honest (QA UX-1)', () => {
+  const renderSearch = rendering.slice(rendering.indexOf('function renderSearchResults()'));
+  assert.ok(
+    renderSearch.slice(0, 600).includes("searchContainer.style.display = 'block';"),
+    'Search results page must keep the search input visible'
+  );
+  assert.ok(
+    rendering.includes("document.addEventListener('keydown'"),
+    'Arrow/Enter must be handled at the document level on the results page'
+  );
+  assert.ok(
+    rendering.includes('openSelectedSearchResult();'),
+    'Enter must open the selected result'
+  );
+});
+
+test('edit form controls have programmatic labels (QA A11Y-2)', () => {
+  assert.ok(
+    rendering.includes("h('label', { className: 'form-label', for: 'cardTitle' }, 'Title')"),
+    'Title label must reference the title input'
+  );
+  assert.ok(
+    rendering.includes("h('label', { className: 'form-label', for: 'cardParent' }, 'Parent Card')"),
+    'Parent label must reference the parent select'
+  );
+  assert.ok(
+    rendering.includes("'aria-label': 'Child card title'"),
+    'Existing child inputs must carry an accessible name'
+  );
+  assert.ok(
+    rendering.includes("'aria-label': 'New child card title'"),
+    'New child inputs must carry an accessible name'
+  );
+});
+
+test('menu and Plugin Manager overlays expose dialog semantics (QA A11Y-3)', () => {
+  const index = readFileSync('./www/index.html', 'utf8');
+  assert.ok(
+    /class="menu-panel" role="dialog" aria-modal="true" aria-labelledby="menuTitle"/.test(index),
+    'Menu panel must be exposed as a modal dialog'
+  );
+  assert.ok(
+    data.includes("'aria-labelledby': 'pluginManagerTitle'"),
+    'Plugin Manager modal must be labelled by its title'
+  );
+  assert.ok(
+    data.includes("'aria-label': 'Close Plugin Manager'"),
+    'Plugin Manager close button must have an accessible name'
+  );
+});
+
+test('every menu close path releases the focus trap (QA A11Y-4)', () => {
+  assert.ok(
+    rendering.includes('function closeMenuOverlay()'),
+    'A single close helper must exist'
+  );
+  const rawCloses = (rendering.match(/menu\.overlay\.classList\.remove\('show'\)/g) || []).length;
+  assert.is(rawCloses, 1, 'Only closeMenuOverlay() itself may remove the show class');
+  assert.ok(
+    systems.includes('closeMenuOverlay();'),
+    'The Escape close path in systems.js must delegate to closeMenuOverlay()'
+  );
+});
+
+test('active tab styling uses the WCAG-AA accent token (QA A11Y-5)', () => {
+  assert.ok(data.includes('var(--accent-strong, #1d4ed8)'), 'Tabs must use the accessible accent');
+  assert.ok(styles.includes('--accent-strong: #1d4ed8;'), 'Light theme accent token must exist');
+  assert.ok(styles.includes('--accent-strong: #60a5fa;'), 'Dark theme accent token must exist');
+});
+
+test('index.html ships a hardened CSP without cloud endpoints (QA SEC-1)', () => {
+  const index = readFileSync('./www/index.html', 'utf8');
+  assert.ok(index.includes("connect-src 'self' https://raw.githubusercontent.com;"),
+    'connect-src must be limited to self plus the curated plugin gallery');
+  assert.not.ok(index.includes('connect-src') && /connect-src[^;]*\*/.test(index),
+    'connect-src must not include a wildcard');
+  assert.ok(index.includes("frame-src 'none';"), 'frames are not used and must be blocked');
+});
+
+test('index.html div tags are balanced (QA HTML-1)', () => {
+  const index = readFileSync('./www/index.html', 'utf8');
+  const opens = (index.match(/<div\b/g) || []).length;
+  const closes = (index.match(/<\/div>/g) || []).length;
+  assert.is(opens, closes, 'Opening and closing div counts must match');
+});
+
 test('fuzzy search requires stronger approximate matches', () => {
   assert.ok(
     metadata.includes('const MULTI_TERM_APPROX_THRESHOLD = 62;'),

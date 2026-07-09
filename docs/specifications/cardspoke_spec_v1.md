@@ -24,7 +24,7 @@
 ### 2.2 User Ownership
 
 - Data is local by default (LocalStorage / IndexedDB).
-- Optional cloud/file integrations are supported through user-configured storage drivers (e.g., WebDAV/Google Drive/OneDrive/Local File).
+- Optional local-file storage is supported through a user-configured storage driver (Local File via the File System Access API). Cloud integrations are deferred to a future version and are not part of the public app.
 - CardSpoke will not host or collect user data.
 
 ### 2.3 Plugin-Friendly Architecture

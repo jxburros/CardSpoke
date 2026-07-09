@@ -433,7 +433,7 @@ export default defineConfig({
 
   // Define global constants
   define: {
-    __APP_VERSION__: JSON.stringify('0.17.0'),
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
     __SCHEMA_VERSION__: 4
   }
 });

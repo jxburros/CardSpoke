@@ -1152,6 +1152,12 @@ import {
       }
       
       function closeMenu() {
+        // Delegate to the shared close path so the menu focus trap is
+        // released on Escape too (QA A11Y-4).
+        if (typeof closeMenuOverlay === 'function') {
+          closeMenuOverlay();
+          return;
+        }
         menu.overlay.classList.remove('show');
         if (typeof unlockBodyScroll === 'function') unlockBodyScroll();
       }

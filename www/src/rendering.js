@@ -22,10 +22,6 @@ import {
   searchResultsState, setSearchResultsState,
   trashBin
 } from './state.js';
-import {
-  initProfile as coreInitProfile,
-  isFeatureEnabled as coreIsFeatureEnabled
-} from '@core/profiles.js';
 
 
       // Source Part 4/5: Rendering, themes, footer, and initialization
@@ -573,7 +569,9 @@ import {
               goTo('read', { cardId: card.id });
             } else {
               const newId = createCard(titleVal, bodyVal, parentVal, true, true);
-              store.cards[newId].isRichText = richToggle.checked;
+              // Persist tags and formatting through the same update path as
+              // edit mode so first-save tags are never dropped (QA FUNC-1).
+              updateCard(newId, { tags: tagsVal, isRichText: richToggle.checked }, true, true);
               const newKidRows = form.querySelectorAll('#addChildList .form-child-row input');
               newKidRows.forEach(inp => {
                 const t = inp.value.trim();
@@ -585,7 +583,7 @@ import {
           }
         });
         const formGroup1 = h('div', { className: 'form-group' });
-        formGroup1.appendChild(h('label', { className: 'form-label' }, 'Title'));
+        formGroup1.appendChild(h('label', { className: 'form-label', for: 'cardTitle' }, 'Title'));
         formGroup1.appendChild(h('input', { type: 'text', id: 'cardTitle', className: 'form-input', value: card.title, oninput: () => { setDirty(true); } }));
         form.appendChild(formGroup1);
         const formGroup2 = h('div', { className: 'form-group' });
@@ -729,7 +727,7 @@ import {
         }
     
         const formGroup3 = h('div', { className: 'form-group' });
-        formGroup3.appendChild(h('label', { className: 'form-label' }, 'Parent Card'));
+        formGroup3.appendChild(h('label', { className: 'form-label', for: 'cardParent' }, 'Parent Card'));
         const parentFilter = h('input', {
           type: 'text',
           className: 'form-input parent-filter-input',
@@ -764,7 +762,7 @@ import {
           card.children.forEach(cid => {
             const c = store.cards[cid];
             const row = h('div', { className: 'form-child-row' });
-            const chInp = h('input', { type: 'text', value: c.title, className: 'form-input form-child-input' });
+            const chInp = h('input', { type: 'text', value: c.title, className: 'form-input form-child-input', 'aria-label': 'Child card title' });
             chInp.addEventListener('input', () => { setDirty(true); });
             row.appendChild(chInp);
             const delBtn = h('button', {
@@ -796,7 +794,7 @@ import {
           const newKidsWrap = h('div', { className: 'form-children', id: 'addChildList' });
           const addChildRow = (title = '') => {
             const r = h('div', { className: 'form-child-row' });
-            const t = h('input', { type: 'text', value: title, placeholder: 'Child title...', className: 'form-input form-child-input' });
+            const t = h('input', { type: 'text', value: title, placeholder: 'Child title...', className: 'form-input form-child-input', 'aria-label': 'New child card title' });
             t.addEventListener('input', () => { setDirty(true); });
             const d = h('button', { type: 'button', className: 'form-child-delete', 'aria-label': 'Remove child row', title: 'Remove child row', onclick: () => { r.remove(); } }, '✕');
             r.appendChild(t);
@@ -813,7 +811,7 @@ import {
           const kidsWrap = h('div', { className: 'form-children', id: 'addChildList' });
           const addChildRow = (title = '') => {
             const r = h('div', { className: 'form-child-row' });
-            const t = h('input', { type: 'text', value: title, placeholder: 'Child title...', className: 'form-input form-child-input' });
+            const t = h('input', { type: 'text', value: title, placeholder: 'Child title...', className: 'form-input form-child-input', 'aria-label': 'New child card title' });
             t.addEventListener('input', () => { setDirty(true); });
             const d = h('button', { type: 'button', className: 'form-child-delete', 'aria-label': 'Remove child row', title: 'Remove child row', onclick: () => { r.remove(); } }, '✕');
             r.appendChild(t);
@@ -857,7 +855,12 @@ import {
        * Render search results page
        */
       function renderSearchResults() {
-        searchContainer.style.display = 'none';
+        // Keep the search bar visible on the results page so keyboard users
+        // can refine the query and the Arrow/Enter hint stays honest (QA UX-1).
+        searchContainer.style.display = 'block';
+        if (searchInput && searchInput.value.trim() !== navState.searchQuery.trim()) {
+          searchInput.value = navState.searchQuery;
+        }
         const query = navState.searchQuery.trim();
         if (!query) {
           main.appendChild(h('div', { className: 'empty' }, 'Please enter a search term.'));
@@ -1280,31 +1283,6 @@ import {
       const savedTheme = store.activeTheme || localStorage.getItem('cardspoke_theme') || 'light';
       applyTheme(savedTheme);
 
-      // Initialize the runtime profile (full / lite / os). Resolution order:
-      // ?profile= URL override, then window.CardSpokeProfile, then 'full'.
-      // Invalid values fall back safely to the full profile.
-      const activeProfile = coreInitProfile();
-      if (activeProfile !== 'full') {
-        console.log(`[Profile] Running with "${activeProfile}" profile`);
-      }
-
-      /**
-       * Show or hide menu entries according to the active profile's
-       * feature flags (see www/src/core/profiles.js).
-       */
-      function applyProfileToMenu() {
-        const gated = [
-          [menu.pluginManager, 'pluginManager'],
-          [menu.developerConsole, 'developerConsole'],
-          [menu.advancedSearch, 'advancedSearch'],
-          [menu.dataHub, 'dataHub']
-        ];
-        for (const [el, feature] of gated) {
-          if (el) el.style.display = coreIsFeatureEnabled(feature) ? '' : 'none';
-        }
-      }
-      applyProfileToMenu();
-
       // --- Header Button Handlers ---
       
       if (header.themeToggle) header.themeToggle.onclick = () => {
@@ -1329,48 +1307,53 @@ import {
         document.body.classList.remove('scroll-locked');
       }
 
-      if (header.menuBtn && menu.overlay) header.menuBtn.onclick = () => {
-        menu.overlay.classList.add('show');
-        lockBodyScroll();
-        // Show/hide developer section based on developer mode and profile
-        if (menu.developerSection) {
-          menu.developerSection.style.display =
-            (isDeveloperMode() && coreIsFeatureEnabled('developerConsole')) ? 'block' : 'none';
-        }
-        applyProfileToMenu();
-        // Set up focus trap for accessibility
-        const panel = menu.overlay.querySelector('.menu-panel');
-        if (panel) menuFocusTrapCleanup = trapFocus(panel);
-      };
-
-      if (menu.closeBtn) menu.closeBtn.onclick = () => {
+      /**
+       * Close the menu overlay. Every close path (close button, overlay
+       * click, Escape in systems.js) must go through here so the focus-trap
+       * listener is always removed and never accumulates (QA A11Y-4).
+       */
+      function closeMenuOverlay() {
         if (menu.overlay) menu.overlay.classList.remove('show');
         unlockBodyScroll();
         if (menuFocusTrapCleanup) {
           menuFocusTrapCleanup();
           menuFocusTrapCleanup = null;
         }
+      }
+
+      if (header.menuBtn && menu.overlay) header.menuBtn.onclick = () => {
+        menu.overlay.classList.add('show');
+        lockBodyScroll();
+        // Show/hide developer section based on developer mode
+        if (menu.developerSection) {
+          menu.developerSection.style.display = isDeveloperMode() ? 'block' : 'none';
+        }
+        // Set up focus trap for accessibility (release any previous trap first)
+        if (menuFocusTrapCleanup) {
+          menuFocusTrapCleanup();
+          menuFocusTrapCleanup = null;
+        }
+        const panel = menu.overlay.querySelector('.menu-panel');
+        if (panel) menuFocusTrapCleanup = trapFocus(panel);
+      };
+
+      if (menu.closeBtn) menu.closeBtn.onclick = () => {
+        closeMenuOverlay();
       };
 
       if (menu.overlay) menu.overlay.onclick = (e) => {
         if (e.target === menu.overlay) {
-          menu.overlay.classList.remove('show');
-          unlockBodyScroll();
-          if (menuFocusTrapCleanup) {
-            menuFocusTrapCleanup();
-            menuFocusTrapCleanup = null;
-          }
+          closeMenuOverlay();
         }
       };
 
       if (menu.newCard) menu.newCard.onclick = () => {
-        if (menu.overlay) menu.overlay.classList.remove('show');
-        unlockBodyScroll();
+        closeMenuOverlay();
         goTo('edit', { cardId: null, parentId: null });
       };
 
       if (menu.upload) menu.upload.onclick = () => {
-        menu.overlay.classList.remove('show');
+        closeMenuOverlay();
         updateImportLocationOptions();
         
         // Reset JSON import to root
@@ -1400,81 +1383,81 @@ import {
       };
 
       if (menu.pluginManager) menu.pluginManager.onclick = () => {
-        if (menu.overlay) menu.overlay.classList.remove('show');
+        closeMenuOverlay();
         showPluginManager('installed');
       };
 
       if (menu.tagManager) {
         menu.tagManager.onclick = () => {
-          if (menu.overlay) menu.overlay.classList.remove('show');
+          closeMenuOverlay();
           showTagManager();
         };
       }
 
       if (menu.advancedSearch) {
         menu.advancedSearch.onclick = () => {
-          if (menu.overlay) menu.overlay.classList.remove('show');
+          closeMenuOverlay();
           showAdvancedSearch();
         };
       }
 
       if (menu.trashBin) {
         menu.trashBin.onclick = () => {
-          if (menu.overlay) menu.overlay.classList.remove('show');
+          closeMenuOverlay();
           showTrashBin();
         };
       }
 
       if (menu.appearance) menu.appearance.onclick = () => {
-        if (menu.overlay) menu.overlay.classList.remove('show');
+        closeMenuOverlay();
         showAppearanceSettings();
       };
 
       if (menu.bookmarks) menu.bookmarks.onclick = () => {
-        if (menu.overlay) menu.overlay.classList.remove('show');
+        closeMenuOverlay();
         showBookmarks();
       };
 
       if (menu.recentCards) menu.recentCards.onclick = () => {
-        if (menu.overlay) menu.overlay.classList.remove('show');
+        closeMenuOverlay();
         showRecentCards();
       };
 
       if (menu.typography) {
         menu.typography.onclick = () => {
-          if (menu.overlay) menu.overlay.classList.remove('show');
+          closeMenuOverlay();
           showTypographySelector();
         };
       }
 
       if (menu.dataHub) menu.dataHub.onclick = () => {
-        if (menu.overlay) menu.overlay.classList.remove('show');
+        closeMenuOverlay();
         showDatasetInfo();
       };
 
       if (menu.clearAll) menu.clearAll.onclick = () => {
-        if (menu.overlay) menu.overlay.classList.remove('show');
+        closeMenuOverlay();
         clearAllData();
       };
 
       if (menu.gettingStarted) menu.gettingStarted.onclick = () => {
-        if (menu.overlay) menu.overlay.classList.remove('show');
+        closeMenuOverlay();
         showGettingStarted();
       };
 
       if (menu.help) menu.help.onclick = () => {
-        if (menu.overlay) menu.overlay.classList.remove('show');
+        closeMenuOverlay();
         showHelp();
       };
 
       if (menu.keyboardShortcuts) menu.keyboardShortcuts.onclick = () => {
-        if (menu.overlay) menu.overlay.classList.remove('show');
+        closeMenuOverlay();
         showKeyboardHelp();
       };
 
       if (menu.developerConsole) {
         menu.developerConsole.onclick = () => {
-          if (menu.overlay) menu.overlay.classList.remove('show');
+          closeMenuOverlay();
           showDeveloperConsole();
         };
       }
@@ -1535,6 +1518,10 @@ import {
               openSelectedSearchResult();
               return;
             }
+            // preventDefault marks this Enter as handled so the document-level
+            // results handler never treats the submitting keypress as "open
+            // the first result".
+            e.preventDefault();
             goTo('search', { searchQuery: searchInput.value.trim() });
           }
           if (navState.page === 'search' && searchResultsState.items.length) {
@@ -1543,6 +1530,24 @@ import {
           }
         });
       }
+
+      // Search-results keyboard navigation must work even after focus has
+      // left the search input (QA UX-1). Handled at the document level; the
+      // search input's own handler runs first and marks the event handled.
+      document.addEventListener('keydown', (e) => {
+        if (e.defaultPrevented) return;
+        if (navState.page !== 'search' || !searchResultsState.items.length) return;
+        const t = e.target;
+        const tag = t && t.tagName ? t.tagName.toLowerCase() : '';
+        if (t !== searchInput &&
+            (tag === 'input' || tag === 'textarea' || tag === 'select' || (t && t.isContentEditable))) {
+          return;
+        }
+        if (document.querySelector('.modal-overlay.show, .menu-overlay.show')) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); updateSearchSelection(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); updateSearchSelection(-1); }
+        else if (e.key === 'Enter') { e.preventDefault(); openSelectedSearchResult(); }
+      });
 
       if (searchClear) searchClear.onclick = () => {
         if (searchInput) searchInput.value = '';

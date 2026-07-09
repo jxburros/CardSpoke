@@ -54,10 +54,9 @@ The order is: **core runtime → app layer → boot IIFE**. Concretely:
      `applyRegistryComponents()`.
 3. `www/src/core/*` modules must **never import from the app layer**
    (`state.js`, `kernel.js`, `metadata.js`, `storage.js`, `data.js`,
-   `rendering.js`, `systems.js`). The core is also built standalone
-   (`npm run build:core`); an app-layer import breaks that build and
-   creates circular init. Core reaches the app **only** via the host-bridge
-   window globals below, read lazily at call time.
+   `rendering.js`, `systems.js`). An app-layer import creates circular
+   init. Core reaches the app **only** via the host-bridge window globals
+   below, read lazily at call time.
 4. The app-layer files execute in one flat scope, fused in this order:
    `state, kernel, metadata, storage, data, rendering, systems`
    (`LAYER_RELATIVE` in `vite.config.js`). They may not use ESM imports of

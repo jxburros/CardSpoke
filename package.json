@@ -1,6 +1,6 @@
 {
   "name": "cardspoke",
-  "version": "0.18.0-public-preview",
+  "version": "0.18.0",
   "description": "A lightweight, local-first card-based knowledge app",
   "main": "index.js",
   "scripts": {
