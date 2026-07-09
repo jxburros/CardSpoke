@@ -1,45 +1,65 @@
 # Release & Versioning Notes
 
-CardSpoke differentiates between core updates and plugin-driven changes. Use these guidelines to communicate updates and maintain compatibility.
+CardSpoke's current release policy is for the main public app: the web app first, then desktop packaging, then mobile packaging.
 
 ## Versioning Model
 
-- Core uses semantic versioning (`MAJOR.MINOR.PATCH`).
-- Schema changes increment `schemaVersion` (see [Schema & Migration Docs](../api/SCHEMA.md)).
-- Plugins should also use semantic versioning and declare `manifest.compatibility`. The current bundle reports `APP_VERSION = 0.17.0` and `SCHEMA_VERSION = 4` in `www/app.js`—mirror those values in docs and plugin metadata for alignment.
+- Core app releases use semantic-version-style labels where practical.
+- Schema changes increment `schemaVersion` and require migration notes.
+- Plugins should use semantic versioning and declare `manifest.compatibility`.
+- Public release notes must distinguish current app features from deferred future work.
 
-## Update Types
+## Current Public Release Scope
 
-- **Update (Core):** Changes to the canonical app; may bundle plugins when operating in Bake Mode.
-- **Plugin Update:** Modular update that can be toggled; may adjust behaviors without full forks.
+A public CardSpoke release may include:
 
-## Release Checklist (Core)
+- Main web app changes
+- Desktop/mobile packaging work for the same app
+- Plugin runtime and plugin API changes
+- Local-first import/export and storage improvements
+- Accessibility, recovery, search, navigation, and card-management improvements
+
+A public CardSpoke release should not include or advertise:
+
+- OS-specific shells
+- Spin-off apps built on CardSpoke
+- Runtime profile systems
+- Typed-card domain platforms
+- Core-only build targets
+- Cloud storage drivers
+- Hosted sync
+
+Those items require a separate future-version scope or another repository.
+
+## Release Checklist (Core App)
 
 - Update changelog with user-facing summary and breaking changes.
 - Record schema changes and migration notes.
-- Verify plugin compatibility; note any known incompatibilities.
-- Regenerate/validate `www/` assets if source changed. Run `npm run build` (`vite build`, which bundles `www/src/main.js` and its imports into `www/app.js`) and confirm the self-contained entry (`www/index.html` + `app.js` + `styles.css`) still opens from `file://` before wrapping it in native shells. `npm run build` is the single canonical build path.
+- Verify plugin compatibility and note known incompatibilities.
+- Run `npm run build`.
+- Run `npm test`.
+- Confirm `www/index.html`, `www/app.js`, and `www/styles.css` still open locally after build.
+- Confirm import/export smoke tests with a real dataset.
+- Confirm Plugin Manager install, enable, suspend, delete, and Safe Mode flows.
+- Confirm README, Feature Catalog, and First Public Scope agree with the release.
 - Tag release with version and schemaVersion.
 
 ## Release Checklist (Plugin)
 
-- Update metadata (version, dependencies, manifest.compatibility, changelog).
-- Document toggles and uninstall steps.
+- Update metadata: version, manifest compatibility, dependencies, and changelog.
+- Document toggles, side effects, uninstall steps, and rollback steps.
 - Provide compatibility notes with popular plugins and Deviations.
 
 ## Communication
 
-- Announce whether a release is **official** or **angled**.
-- Surface risk notes (e.g., app-layer plugins that may break compatibility).
-- Include instructions for rollback or disabling problematic plugins.
-
-## Bake Mode Guidance
-
-- When merging plugins into a baked build, document exactly which versions are included.
-- Provide a reproducible manifest so users can rebuild or unbake if needed.
+- Announce whether a release is official or angled.
+- Surface risk notes for plugins or app-layer customizations.
+- Include rollback, backup, and Safe Mode guidance.
+- Clearly mark deferred future work as deferred.
 
 ## Changelog & Distribution
 
-- Changelog format: keep entries grouped by Added / Changed / Fixed / Removed, and explicitly call out schema-impacting changes.
-- Official release/distribution channel for source and issues: the main GitHub repository.
-- Release candidates should be shared as tagged pre-releases (or clearly marked branch builds) with test notes and rollback guidance.
+- Keep changelog entries grouped by Added / Changed / Fixed / Removed.
+- Explicitly call out schema-impacting changes.
+- Official source and issue channel: the main GitHub repository.
+- Release candidates should be shared as tagged pre-releases or clearly marked branch builds with test notes and rollback guidance.
