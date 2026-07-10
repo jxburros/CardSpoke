@@ -6,6 +6,52 @@ The format follows Keep a Changelog and the project uses semantic versioning whe
 
 ---
 
+## [0.18.2] – 2026-07-10
+
+Release-hardening fixes from the 2026-07-10 audit / QA / stress-test report.
+
+### Fixed
+
+- **Stale offline updates (CS-101):** the service-worker cache namespace was
+  still `v0.18.0`, so returning users controlled by the old worker kept
+  receiving the previous release's cache-first `app.js` indefinitely — 0.18.1
+  shipped critical data-safety fixes those users never got. The cache version
+  is now rewritten from `package.json` on every build (it cannot drift), shell
+  assets are served stale-while-revalidate so a stale cache self-heals on the
+  next online load, and both the static smoke gate and a new behavioral test
+  suite (`tests/service-worker.test.js`) verify install pre-caching, the
+  N → N+1 activate cleanup, revalidation, and the offline navigation fallback.
+- **Dataset PIN field accessibility (CS-105):** the dataset-creation labels
+  (name, storage type, PIN) are now programmatically associated with their
+  controls via `for=`, and the PIN inputs reference the help text through
+  `aria-describedby`.
+- **PIN normalization and typo protection (CS-106):** the PIN is no longer
+  silently trimmed at creation (unlock always used the exact typed value, so a
+  PIN created with surrounding spaces could never unlock). PINs that start or
+  end with a space, or consist only of spaces, are rejected with a clear
+  message, a confirmation field with mismatch validation prevents a one-typo
+  unrecoverable dataset, and the help text states the exactly-as-typed rule
+  and the limits of short PINs.
+
+### Changed
+
+- **Browser QA is now a required deployment gate (CS-102):** `playwright` is a
+  pinned devDependency, so `npm ci && npx playwright install chromium && npm
+  run qa:browser` works from a clean checkout, and the GitHub Pages workflow
+  runs the full browser suite (encrypted unlock, locked-write protection,
+  corrupt-store quarantine, backup round trip, plugin consent, dataset
+  switching, XSS, dialogs, mobile overflow) after the build — a red browser QA
+  job now blocks deployment. Results and screenshots are uploaded as workflow
+  artifacts on both pass and failure.
+- **Dependency-audit visibility (CS-107):** the deploy workflow keeps blocking
+  on high/critical advisories, but now also stores the full `npm audit --json`
+  report as a workflow artifact and summarizes all severity counts in the run
+  summary so accepted moderate advisories stay visible.
+- Browser QA gained coverage for the new dataset-form label wiring and PIN
+  confirmation flow.
+
+---
+
 ## [0.18.1] – 2026-07-10
 
 Release-blocking fixes from the 2026-07-09 comprehensive audit, plus additional

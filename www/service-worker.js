@@ -5,7 +5,12 @@
  * User data remains in CardSpoke's local storage drivers and is never copied
  * into Cache Storage by this worker.
  */
-const CACHE_VERSION = 'cardspoke-app-shell-v0.18.0-public-1';
+// The embedded version below is rewritten from package.json on every
+// `npm run build` (see vite.config.js "sync-service-worker-version"), so the
+// cache namespace — and the worker's own bytes — change on every release.
+// A byte-identical worker is never re-installed by the browser, which is how
+// 0.18.1 shipped while returning users stayed pinned to the 0.18.0 cache.
+const CACHE_VERSION = 'cardspoke-app-shell-v0.18.2-public-1';
 const APP_SHELL = [
   './',
   './index.html',
@@ -61,14 +66,27 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Stale-while-revalidate for shell assets: cached bytes are served
+  // immediately for offline speed, but every online hit also refreshes the
+  // cache in the background so a client can never stay pinned to an old
+  // app.js for more than one load, even if a cache-version bump is missed.
   event.respondWith(
-    caches.match(request)
-      .then(cached => cached || fetch(request).then(response => {
-        if (response && response.status === 200 && response.type === 'basic') {
-          const copy = response.clone();
-          caches.open(CACHE_VERSION).then(cache => cache.put(request, copy));
-        }
-        return response;
-      }))
+    caches.match(request).then(cached => {
+      const network = fetch(request)
+        .then(response => {
+          if (response && response.status === 200 && response.type === 'basic') {
+            const copy = response.clone();
+            caches.open(CACHE_VERSION).then(cache => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => cached);
+      if (cached) {
+        // Kick off the refresh without blocking the cached response.
+        event.waitUntil(network.then(() => undefined).catch(() => undefined));
+        return cached;
+      }
+      return network;
+    })
   );
 });

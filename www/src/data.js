@@ -1043,8 +1043,9 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         });
 
         // Dataset name input
-        const nameLabel = h('label', { 
-          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' 
+        const nameLabel = h('label', {
+          for: 'newDatasetName',
+          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;'
         }, 'Dataset Name');
         const nameInput = h('input', {
           type: 'text',
@@ -1063,8 +1064,9 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         });
 
         // Storage type selection
-        const storageLabel = h('label', { 
-          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' 
+        const storageLabel = h('label', {
+          for: 'newDatasetStorage',
+          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;'
         }, 'Storage Type');
         const storageSelect = h('select', {
           id: 'newDatasetStorage',
@@ -1092,15 +1094,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         }, 'Default: LocalStorage. You can migrate later. Local File lets you choose a save location. All options keep your data on this device.');
 
         // PIN protection
-        const pinLabel = h('label', { 
-          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;' 
-        }, 'PIN Protection (Optional)');
-        const pinInput = h('input', {
-          type: 'password',
-          id: 'newDatasetPin',
-          placeholder: 'Leave empty for no PIN',
-          title: 'Optional PIN used for dataset encryption',
-          style: `
+        const pinFieldStyle = `
             width: 100%;
             padding: var(--space-md);
             border: 1px solid var(--border);
@@ -1109,12 +1103,39 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
             color: var(--text-primary);
             margin-bottom: var(--space-xs);
             font-size: 1rem;
-          `
+          `;
+        const pinLabel = h('label', {
+          for: 'newDatasetPin',
+          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;'
+        }, 'PIN Protection (Optional)');
+        const pinInput = h('input', {
+          type: 'password',
+          id: 'newDatasetPin',
+          placeholder: 'Leave empty for no PIN',
+          autocomplete: 'new-password',
+          'aria-describedby': 'newDatasetPinHelp',
+          style: pinFieldStyle
         });
 
-        const pinHelp = h('div', { 
-          style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);' 
-        }, 'If set, this PIN encrypts dataset payloads via Web Crypto (PBKDF2 + AES-GCM).');
+        const pinConfirmLabel = h('label', {
+          for: 'newDatasetPinConfirm',
+          style: 'display: block; margin-bottom: var(--space-xs); font-weight: 600;'
+        }, 'Confirm PIN');
+        const pinConfirmInput = h('input', {
+          type: 'password',
+          id: 'newDatasetPinConfirm',
+          placeholder: 'Re-enter the same PIN',
+          autocomplete: 'new-password',
+          'aria-describedby': 'newDatasetPinHelp',
+          style: pinFieldStyle
+        });
+
+        const pinHelp = h('div', {
+          id: 'newDatasetPinHelp',
+          style: 'font-size: 0.875rem; color: var(--text-secondary); margin-bottom: var(--space-lg);'
+        }, 'If set, this PIN encrypts dataset payloads via Web Crypto (PBKDF2 + AES-GCM). ' +
+           'The PIN is used exactly as typed and cannot be recovered if forgotten. ' +
+           'A short PIN is convenience protection, not strong security.');
 
         // Create button
         const createBtn = h('button', {
@@ -1123,7 +1144,26 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
           onclick: async () => {
             let name = document.getElementById('newDatasetName').value.trim();
             const storageType = document.getElementById('newDatasetStorage').value;
-            const pin = document.getElementById('newDatasetPin').value.trim();
+            // The PIN is a secret: never silently normalize it (CS-106). The
+            // unlock prompt uses the PIN exactly as typed, so creation must
+            // too — but reject shapes the unlock flow can never accept.
+            const pin = document.getElementById('newDatasetPin').value;
+            const pinConfirm = document.getElementById('newDatasetPinConfirm').value;
+
+            if (pin) {
+              if (!pin.trim()) {
+                showToast('The PIN cannot consist only of spaces', 'error');
+                return;
+              }
+              if (pin !== pin.trim()) {
+                showToast('The PIN cannot start or end with a space', 'error');
+                return;
+              }
+              if (pin !== pinConfirm) {
+                showToast('The PINs do not match. Please re-enter them.', 'error');
+                return;
+              }
+            }
 
             // Generate a readable default name if none provided
             if (!name) {
@@ -1192,6 +1232,8 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         createForm.appendChild(storageHelp);
         createForm.appendChild(pinLabel);
         createForm.appendChild(pinInput);
+        createForm.appendChild(pinConfirmLabel);
+        createForm.appendChild(pinConfirmInput);
         createForm.appendChild(pinHelp);
         createForm.appendChild(createBtn);
 

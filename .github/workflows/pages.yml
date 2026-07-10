@@ -34,14 +34,52 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # CS-107: high/critical advisories block the release, but the full JSON
+      # report (including accepted moderate advisories) is kept as an artifact
+      # and summarized so moderate issues cannot accumulate invisibly.
       - name: Dependency audit
-        run: npm audit --audit-level=high
+        run: |
+          npm audit --json > npm-audit-report.json || true
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync("npm-audit-report.json", "utf8"));
+            const v = (r.metadata && r.metadata.vulnerabilities) || {};
+            const line = Object.entries(v).map(([k, n]) => `${k}: ${n}`).join(", ") || "none";
+            console.log("Vulnerabilities —", line);
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY || "/dev/null",
+              `### npm audit\n\nVulnerabilities — ${line}\n`);
+          '
+          npm audit --audit-level=high
+
+      - name: Upload dependency audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report
+          path: npm-audit-report.json
 
       - name: Production build
         run: npm run build
 
       - name: Static release smoke checks
         run: npm run smoke
+
+      # CS-102: the browser-level release QA (encrypted unlock, locked-write
+      # protection, corrupt-store quarantine, backup round trip, plugin
+      # consent, dataset switching, XSS, dialogs, mobile overflow) is a
+      # required deployment gate, not an advisory local script.
+      - name: Install QA browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser release QA
+        run: npm run qa:browser
+
+      - name: Upload browser QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-qa-artifacts
+          path: qa-artifacts/
+          if-no-files-found: ignore
 
       - uses: actions/configure-pages@v6
 
