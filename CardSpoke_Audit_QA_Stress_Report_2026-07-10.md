@@ -1,0 +1,289 @@
+# CardSpoke Comprehensive Audit, QA, and Stress-Test Report
+
+**Date:** 2026-07-10  
+**Repository:** `jxburros/CardSpoke`  
+**Reviewed commit:** `034d323a36a64dcb0d8996b5ea9eb180b8bd2cd3` (`main`)  
+**Deployed application:** https://jxburros.github.io/CardSpoke/  
+**Observed version:** 0.18.1
+
+## Executive assessment
+
+CardSpoke 0.18.1 is substantially safer and more release-ready than 0.18.0. The critical data-loss, corrupt-store overwrite, misleading save-state, backup-shape, plugin-consent, and modal-accessibility findings from the 2026-07-09 audit have concrete fixes and targeted regression coverage. The deployed HTML and JavaScript exactly match the reviewed repository files, and live create/save/reload plus hostile-text rendering passed.
+
+The principal remaining release risk is the offline update mechanism. The application version advanced to 0.18.1 but the service-worker cache namespace remains `v0.18.0`. Because application assets are served cache-first and the worker file itself did not change in the 0.18.1 release, a returning user controlled by the 0.18.0 worker can continue receiving the old cached `app.js` indefinitely. This matters especially because 0.18.1 contains fixes for severe data-loss and security issues.
+
+**Overall judgment:** good beta quality; not yet production-hardened for broad distribution until the service-worker update defect is fixed and an executable browser QA gate is added to deployment.
+
+| Area | Rating | Summary |
+|---|---:|---|
+| Core card workflow | Good | Live creation, large body, Unicode, persistence, and reload passed. |
+| Data integrity | Improved / moderate residual risk | Critical prior regressions have fixes; end-to-end browser scenarios exist but are not part of normal install or CI. |
+| Security | Improved | CSP is tighter and JS plugins require explicit full-trust consent; plugin execution is still intentionally unsandboxed. |
+| Offline/PWA | Needs work | Offline shell exists, but the 0.18.1 cache version was not advanced. |
+| Accessibility | Good baseline | Core controls and onboarding were named; one new dataset form label defect remains, and full automated accessibility testing is absent. |
+| Test/release engineering | Strong unit baseline, weak E2E gate | Broad uvu suite and static smoke gate exist; browser QA is non-reproducible from `npm ci` and is not executed by Pages CI. |
+| Maintainability | Moderate risk | The custom regex/brace-counting bundle fusion and textual bundle assertions remain fragile. |
+
+## Test scope and evidence
+
+### Repository and deployment
+
+- GitHub connector access confirmed administrator-level access to `jxburros/CardSpoke`, default branch `main`, and commit `034d323`.
+- A complete local checkout and history comparison were inspected.
+- The deployed `index.html` and `app.js` were downloaded and SHA-256 compared with the reviewed repository. Both pairs were byte-for-byte identical.
+- Live responses returned HTTP 200 over HTTPS with HSTS. GitHub Pages supplied a ten-minute browser cache (`cache-control: max-age=600`).
+- Deployed sizes: `index.html` 10,732 bytes; `app.js` 391,759 bytes before transfer compression.
+
+### Live functional QA
+
+The public deployment was exercised in Chrome:
+
+1. Fresh boot and onboarding.
+2. First-card creation.
+3. Unicode title (`QA Root Card α 🚀`).
+4. A roughly 6 KB repeated body containing literal `<script>alert(1)</script>` and Markdown tokens.
+5. Save-state transition.
+6. Full reload and persistence verification.
+7. DOM injection check after reload.
+8. Horizontal-overflow check at the available browser viewport.
+9. Console warning/error review, excluding errors emitted by the browser-control extension rather than CardSpoke.
+
+Results:
+
+- The app booted successfully and exposed the expected onboarding, search, dataset selector, footer metadata, and local-first messaging.
+- Card creation and save succeeded.
+- The card remained present after a full reload.
+- The hostile `<script>` text remained inert. No inline script node was created from the card body.
+- No page-level horizontal overflow was present in the tested viewport.
+- No CardSpoke-origin console errors were observed during these flows.
+
+### Source and architecture audit
+
+Reviewed areas included:
+
+- persistence, debouncing, write locks, corrupt-data quarantine, and storage mirrors;
+- encrypted dataset envelope format and PIN lifecycle;
+- import/export and plugin persistence shape;
+- plugin validation, permissions, full-trust consent, and CSP;
+- service-worker cache behavior and offline shell;
+- dialog construction and focus management;
+- GitHub Pages workflow and release gating;
+- Vite custom build fusion;
+- current tests and the new browser QA harness;
+- version and documentation alignment.
+
+### Execution limitation
+
+`npm ci` could not be completed in this workspace because the package download/cache environment repeatedly produced corrupted tarball and unwritable `/root/.npm` errors. This is an execution-environment failure, not evidence of an application defect. I did not claim a fresh local pass for `npm test`, `npm run build`, or `npm audit` in this review. The repository contains a CI gate for those commands, but the GitHub connector returned no pull-request-triggered workflow run for the merge commit, so this review does not independently certify the latest CI result.
+
+## Open findings
+
+### CS-101 — High — 0.18.1 can remain stuck behind the 0.18.0 service-worker cache
+
+**Evidence**
+
+- `package.json` and the deployed footer report 0.18.1.
+- `www/service-worker.js:8` still declares `cardspoke-app-shell-v0.18.0-public-1`.
+- `www/service-worker.js:64-72` serves non-navigation assets cache-first.
+- The 0.18.1 changes did not modify `service-worker.js`; its last functional change was the 0.18.0 cache bump.
+
+**Impact**
+
+A user who previously installed the 0.18.0 worker can receive the new network-first `index.html` but the old cached `app.js`. Because the worker script bytes are unchanged, the browser has no reason to install a new worker and pre-cache a new namespace. That user can therefore remain on the release containing the PIN-dataset destruction, corrupt-store overwrite, plugin-boundary, and false-save-state defects that 0.18.1 was intended to fix.
+
+**Recommended fix**
+
+1. Change the cache namespace for every release, immediately to something such as `cardspoke-app-shell-v0.18.1-public-1`.
+2. Generate the namespace from `package.json` during build so it cannot drift.
+3. Add a test that requires the service-worker cache version to contain the package version.
+4. Consider stale-while-revalidate or network-first behavior for `app.js`, with atomic activation, so patch releases are not dependent solely on a manual string bump.
+5. Add an update test: install release N, populate the cache, serve release N+1, reload, and assert that N+1 code runs while user data remains intact.
+
+### CS-102 — Medium — The release browser QA suite is not installable or executed by CI
+
+**Evidence**
+
+- `package.json:13` exposes `npm run qa:browser`.
+- `scripts/browser-qa.mjs:34-45` says `playwright-core` is not part of normal installation and imports it anyway.
+- `package.json:43-48` does not declare Playwright.
+- `.github/workflows/pages.yml:32-44` runs install, unit tests, audit, build, and static smoke only; it never runs `qa:browser`.
+
+**Impact**
+
+The strongest tests for the highest-risk behaviors—encrypted unlock, locked-write protection, corrupt-store quarantine, backup round trip, plugin consent, dataset switching, XSS, dialogs, and mobile overflow—are advisory rather than a reproducible release gate. A clean checkout cannot run the named QA script after `npm ci`, and Pages can deploy even if every browser scenario is broken.
+
+**Recommended fix**
+
+- Add a pinned Playwright dependency and a deterministic browser installation step.
+- Run `npm run qa:browser` in the QA job after build.
+- Upload `browser-qa-results.json` and screenshots on both pass and failure.
+- Split a short release-blocking smoke subset from slower stress benchmarks if runtime is a concern.
+
+### CS-103 — Medium — Current regression tests inspect code text instead of proving several behaviors
+
+**Evidence**
+
+`tests/audit-regressions.test.js:94-149` validates major persistence and backup fixes by slicing `www/app.js` and looking for strings or regular-expression patterns. For example, it confirms that `storageWriteLock = true` and `showDatasetLockScreen` occur somewhere after `load()`, but it does not execute the locked-dataset flow.
+
+**Impact**
+
+These tests can pass when the expected text exists in dead, unreachable, misordered, or semantically incorrect code. Conversely, harmless refactoring or minification changes can fail tests without changing behavior. The browser QA script contains the more meaningful tests, but CS-102 prevents it from protecting deployments.
+
+**Recommended fix**
+
+- Move persistence and import/export logic into testable modules with explicit dependencies.
+- Replace bundle-text assertions with behavioral unit/integration tests.
+- Retain only a small artifact-integrity test for the shipped bundle itself.
+
+### CS-104 — Medium — The custom Vite fusion transform remains a high-fragility build component
+
+**Evidence**
+
+`vite.config.js:52-180` constructs one virtual module by stripping imports/exports with regular expressions, tracking declaration names, and removing duplicate functions using a character-level brace counter. The counter does not parse JavaScript syntax and therefore cannot distinguish braces in code from braces in strings, template literals, regular expressions, or comments.
+
+**Impact**
+
+A valid source edit can be silently removed, mis-fused, or renamed during build. This risk is amplified because some tests enforce bundle text rather than runtime semantics. The system currently works, but it creates a narrow and surprising maintenance path.
+
+**Recommended fix**
+
+Gradually establish real ESM boundaries and explicit imports. In the interim, replace regex transforms with an AST-based transform and add source-to-bundle behavioral parity tests for every fused subsystem.
+
+### CS-105 — Low — The optional PIN input is not programmatically associated with its visible label
+
+**Evidence**
+
+`www/src/data.js:1095-1113` creates a `<label>` and a separate `<input id="newDatasetPin">`, but the label has no `for="newDatasetPin"` and does not wrap the input. The `title` attribute is not a robust substitute for a form label.
+
+**Impact**
+
+Screen-reader users may hear an inconsistently named password field, and clicking the visible label will not focus the control.
+
+**Recommended fix**
+
+Add `for: 'newDatasetPin'` to the label and an `aria-describedby` relationship to the help text. Audit the dynamically constructed dataset name and storage controls in the same pass.
+
+### CS-106 — Low — PIN creation silently trims user-entered spaces and lacks confirmation
+
+**Evidence**
+
+`www/src/data.js:1124-1126` applies `.trim()` to the PIN and creates the encrypted dataset with one entry field.
+
+**Impact**
+
+A user who intentionally includes leading or trailing spaces will later need to enter the trimmed value, not the value they believe they chose. A single typo is unrecoverable because the UI correctly warns that CardSpoke cannot recover a forgotten PIN.
+
+**Recommended fix**
+
+Do not normalize secrets unless the UI clearly declares the rule. Add confirmation, a reveal toggle, mismatch validation, and an explicit minimum-strength policy or clear statement that short PINs are convenience protection rather than strong security.
+
+### CS-107 — Low — The dependency audit gate permits moderate advisories without visibility
+
+**Evidence**
+
+`.github/workflows/pages.yml:37-38` runs `npm audit --audit-level=high`.
+
+**Impact**
+
+High and critical issues block release, which is sensible, but moderate issues can accumulate silently. For a project with a native toolchain and a security-sensitive local-data story, visibility still matters even when moderate advisories are accepted temporarily.
+
+**Recommended fix**
+
+Keep the high blocking threshold if desired, but generate and retain the full JSON audit report, summarize moderate findings in the workflow, and define a review/waiver process.
+
+## Prior critical findings: retest status
+
+| Prior finding | Status in 0.18.1 | Evidence / residual qualification |
+|---|---|---|
+| PIN-protected dataset overwritten on reload | Fixed in code; browser suite exists | Envelope detection now precedes store parsing; declined unlock sets a write lock; PIN is session-only. Must be placed in CI. |
+| Plugin permissions presented as a security boundary | Fixed by honest trust model | JavaScript plugins require explicit full-trust consent and the UI warns that plugins are unsandboxed. Isolation is still absent by design. |
+| Every save falsely reported as failed | Fixed; live normal save passed | Removed cloud scheduler call; live save/reload succeeded. |
+| Corrupt storage overwritten automatically | Fixed in code; browser suite exists | Corrupt payload is quarantined and writes are locked pending recovery. Must be placed in CI. |
+| Instance backup incomplete / plugins broken after restore | Fixed in code; browser suite exists | Versioned export includes user-owned state and preserves modern plugin definitions. Must be continuously round-trip tested. |
+| `npm run preview` served 404 | Addressed structurally | Vite now builds a complete preview directory while copying the generated bundle to `www`; fresh execution could not be independently completed in this environment. |
+| Fresh native sync undocumented | Improved | Platform-add scripts and guide instructions are present. Native Android/iOS builds were outside this web review. |
+| Modal accessibility incomplete | Substantially fixed | Core and permission dialogs gained semantics/focus management. PIN form label remains open. |
+| Deployment not gated by QA | Partially fixed | Unit/audit/build/static gate exists; browser release QA is still absent. |
+| Documentation/version drift | Mostly fixed | App and package report 0.18.1; service-worker version drift remains and has functional consequences. |
+
+## Stress and resilience assessment
+
+The prior 2026-07-08 benchmark demonstrated acceptable behavior at 1,000 and 3,000 cards, including batched rendering and sub-second search after load. This review did not reuse those numbers as fresh 0.18.1 measurements. The live run did confirm that a multi-kilobyte body, repeated 100 times, saved and reloaded without data loss or injection.
+
+Current gaps in stress protection:
+
+- no release-gated benchmark for 10,000+ cards;
+- no quota-boundary test approaching browser LocalStorage limits;
+- no kill/reload test during the 500 ms debounced save interval;
+- no release-update test with a previously installed service worker;
+- no repeated encrypted save/unlock loop in CI;
+- no fuzz/property testing for cyclic parents, missing children, duplicate IDs, malformed imports, very deep hierarchies, and large plugin definitions;
+- no long-session leak benchmark for repeated modal, menu, dataset, and search operations.
+
+Recommended stress matrix:
+
+| Scenario | Minimum acceptance criterion |
+|---|---|
+| 10,000 cards, mixed hierarchy | Boot and basic search remain responsive; no unbounded main-thread block over the agreed performance budget. |
+| 1,000-character titles / 1 MB bodies | Explicitly accept, warn, or reject; never silently truncate or corrupt. |
+| 100-level hierarchy | Render/navigation complete without recursion overflow. |
+| Quota exhaustion | Save failure is visible; last known-good persisted store remains readable. |
+| Crash during debounced save | Previous saved version survives; UI does not claim success prematurely. |
+| N → N+1 service-worker upgrade | New code activates and cached old code is removed without touching user data. |
+| Wrong PIN repeated / cancelled unlock | Ciphertext remains byte-identical and writes remain blocked. |
+| Export → clear → import | Every card, relationship, plugin, bookmark, theme, recents, metadata, and schema field matches. |
+| Malicious plugin package | Does not run before explicit full-trust consent; denial persists for the current attempt. |
+| Malformed/cyclic imports | Rejected or repaired with a clear report; no existing data loss. |
+
+## Security and privacy assessment
+
+Positive findings:
+
+- The default app made no observed CardSpoke-origin third-party requests during the tested local-only path.
+- CSP now limits `connect-src` to self and the curated raw GitHub source.
+- Frames and objects are disabled.
+- Hostile card text remained inert in the live deployment.
+- PIN encryption uses PBKDF2-SHA-256 at 250,000 iterations and AES-256-GCM with random 16-byte salt and 12-byte IV.
+- PINs are not intended to be persisted, and legacy plaintext PIN metadata is stripped.
+- JavaScript plugin consent accurately states that code receives full page-realm access.
+
+Residual risks to document clearly:
+
+- `unsafe-eval` remains required for the plugin runtime.
+- Trusted plugin JavaScript can access all unlocked app data, browser storage, and permitted network destinations; this is consent, not sandboxing.
+- A short numeric PIN is vulnerable to offline guessing if an attacker obtains the encrypted payload. PBKDF2 slows guessing but cannot make a weak PIN strong.
+- Local browser storage is only as private as the device/browser profile. It does not protect against malware, a compromised extension, or another person with access to the same unlocked profile.
+
+## Accessibility and UX notes
+
+Positive findings:
+
+- Header buttons, search, dataset selector, onboarding dialog, and primary card form exposed meaningful names in the live DOM.
+- Onboarding used a real dialog role and a named close control.
+- Menu and permission dialogs now have dialog semantics and focus-management code.
+- The tested card view produced no page-level horizontal overflow.
+
+Recommended next step: add axe-core (or an equivalent engine) to browser QA, combine it with keyboard-only scripted paths, and manually validate with NVDA or VoiceOver before a production claim. Automated semantics alone will not catch reading order, announcement quality, or all focus restoration problems.
+
+## Release priorities
+
+### Before the next public release
+
+1. Fix and automatically derive the service-worker cache version (CS-101).
+2. Make the browser QA suite reproducible and required in Pages CI (CS-102).
+3. Add the N → N+1 offline update test.
+4. Add a behavioral encrypted-dataset and corrupt-store test to CI, not only bundle-text assertions.
+
+### Next hardening cycle
+
+5. Replace textual regression assertions with executable behaviors (CS-103).
+6. Begin retiring the regex-based fusion build (CS-104).
+7. Fix the dataset PIN label and PIN confirmation/normalization UX (CS-105/106).
+8. Add quota, crash-during-save, backup-round-trip, and 10,000-card benchmarks.
+9. Retain full audit output and review accepted moderate advisories (CS-107).
+
+## Final conclusion
+
+CardSpoke has strong fundamentals: a clear local-first purpose, a surprisingly broad feature set, disciplined documentation, extensive unit coverage, an explicit plugin trust model, safer recovery paths, and a live application that handled the tested save/reload and hostile-content scenarios correctly. The 0.18.1 remediation work meaningfully addressed the prior audit rather than papering over it.
+
+The offline updater is now the most urgent issue because it can prevent existing users from receiving those very remediations. Once that is corrected and the already-written browser QA suite becomes a real deployment gate, CardSpoke will have a much more credible claim to production-grade data safety.
