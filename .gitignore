@@ -7,6 +7,13 @@ ios/
 
 # Build outputs
 www/capacitor.js.map
+# dist/ is a regenerated build intermediate: `npm run build` emits the full
+# previewable site here (vite preview serves it). The canonical committed
+# bundle is www/app.js; dist/ should not be tracked.
+dist/
+
+# QA artifacts (screenshots, JSON results) from scripts/browser-qa.mjs
+qa-artifacts/
 
 # Logs
 *.log

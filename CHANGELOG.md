@@ -6,6 +6,85 @@ The format follows Keep a Changelog and the project uses semantic versioning whe
 
 ---
 
+## [0.18.1] – 2026-07-10
+
+Release-blocking fixes from the 2026-07-09 comprehensive audit, plus additional
+defects found during a full review and browser-level QA pass.
+
+### Fixed
+
+- **Data loss on encrypted datasets (CS-001):** a PIN-protected dataset was
+  parsed as an empty store on reload and then overwritten, destroying the
+  encrypted data with no way to recover. Encrypted datasets are now detected
+  before any parse, prompt for their PIN, and are never written over while
+  locked. The PIN is no longer persisted anywhere — it lives only in the
+  session and is re-entered after a reload. A lock screen offers unlock,
+  encrypted-backup download, or dataset switch.
+- **Every save reported as failed (CS-003):** `saveNow()` called a removed
+  `scheduleCloudSync()` function, so each successful local write surfaced a
+  "Local save failed" error. The obsolete call is gone; saves report success.
+- **Corrupt storage overwritten (CS-004):** unreadable stored data was
+  immediately replaced with an empty store. It is now quarantined under a
+  timestamped recovery key, the active key is left untouched, and a recovery
+  screen offers download / retry / start-fresh — nothing is overwritten
+  without explicit confirmation.
+- **Broken backup/restore (CS-005):** instance export now includes every
+  user-owned field (bookmarks, recent cards, view mode, theme, dataset
+  metadata, schema version) and restores plugins in the executable
+  `{definition, enabled}` shape, so an export → import round-trip actually
+  restores plugins and settings.
+- **All confirm/prompt dialogs threw at runtime (NEW-1):** the shared dialog
+  primitives had been nested inside a `showToast` closure, so every
+  delete/clear/import confirmation raised a `ReferenceError`. They are now
+  module-level.
+- **Created datasets were invisible / unusable (NEW-2, NEW-4):** the Dataset
+  Manager only listed one key shape, and the "Open" button referenced an
+  out-of-scope variable and threw. Dataset enumeration is unified, switching
+  awaits the load and reconciles plugins, and the selector refreshes.
+- **"All datasets" search only searched the current one (NEW-3):**
+  multi-dataset search now enumerates on-device datasets, skips locked
+  encrypted ones, labels results by dataset, and switches datasets when you
+  open a result from another dataset.
+- **Escape under a dialog also navigated the app (NEW-5):** pressing Escape in
+  a confirm/prompt dialog both closed it and triggered the global "go back"
+  handler. The global handler now yields to open dialogs.
+- **`npm run preview` served a 404 (CS-006):** the build now emits a complete
+  site into `dist/`, so preview (and any static host of `dist/`) serves the app.
+
+### Changed
+
+- **Plugin trust model (CS-002):** JavaScript plugins run unsandboxed in the
+  page realm, so declared permissions are not a security boundary. Any plugin
+  that ships JavaScript now requires explicit full-trust consent before it is
+  enabled (at install, re-import, and first enable); only CSS-only themes
+  auto-enable. Documentation and Plugin Manager language were corrected to
+  describe this honestly.
+- **Modal accessibility (CS-008):** a shared observer applies the dialog
+  contract (`role="dialog"`, `aria-modal`, labelled title, focus trap,
+  Escape, focus restoration) to all dynamically created overlays, and the
+  plugin permission dialog was rebuilt to the same contract.
+- **CI now gates deployment on QA (CS-009):** the Pages workflow runs the unit
+  suite, `npm audit`, the production build, and static smoke checks before the
+  deploy artifact is produced.
+- **Native platform setup documented (CS-007):** `npm run platform:android` /
+  `platform:ios` scripts and docs explain that `android/`/`ios/` are generated,
+  not committed.
+- Dataset encryption was extracted to `www/src/core/dataset-crypto.js` with
+  real behavior tests, and the fragile post-build function-body restoration now
+  fails loudly instead of silently shipping a stale body (CS-011, first step).
+- Documentation/version drift corrected (CS-010): removed stale test counts and
+  the IndexedDB-as-primary wording; storage default is LocalStorage.
+
+### Testing
+
+- Added `tests/audit-regressions.test.js` (envelope encryption, load-path
+  invariants, backup shape, full-trust consent).
+- Added `scripts/static-smoke.mjs` (`npm run smoke`) and
+  `scripts/browser-qa.mjs` (`npm run qa:browser`, 11 headless-Chromium
+  scenarios covering the flows above).
+
+---
+
 ## [0.18.0] – 2026-07-09
 
 First public release of the main CardSpoke web app.

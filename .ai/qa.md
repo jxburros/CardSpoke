@@ -8,7 +8,7 @@ app_type: "Local-first Node/Vite web app"
 primary_focus:
   - local-first behavior
   - zero-dependency standalone browser use
-  - IndexedDB persistence
+  - LocalStorage persistence (default) with optional per-dataset IndexedDB/local-file drivers
   - LocalStorage preferences
   - graph/card CRUD
   - plugin architecture

@@ -1,12 +1,15 @@
 # Plugin API Documentation
 
-**Version:** 0.17.0
+**Version:** 0.18.0
 
-The Plugin API provides a permission-gated, resource-managed environment for
+The Plugin API provides a permission-scoped, resource-managed surface for
 plugin development. Plugin JS runs on the **main thread** (there is no iframe
-or Worker sandbox); the safety model is consent-based — the validator screens
-packages, every sensitive `ctx` call is permission-gated, and everything a
-plugin creates is tracked and automatically removed when it is suspended.
+or Worker sandbox), so enabling a JavaScript plugin requires the user to
+accept an explicit full-trust consent dialog. The `ctx` permissions below
+scope the *supported* API for well-behaved plugins — they are a
+compatibility contract, not a security boundary. The validator screens
+packages, and everything a plugin creates through `ctx.api.*` is tracked and
+automatically removed when it is suspended.
 
 This page is the per-method reference for the `ctx` API. For the narrative
 guide, package format, and lifecycle walkthrough see

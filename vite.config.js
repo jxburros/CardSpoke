@@ -300,11 +300,32 @@ export default defineConfig({
       // single-param arrow functions.  The test suite also expects functions
       // to be indented at 6 spaces with JSDoc.  We restore all of these by
       // post-processing the written bundle file before it is copied to www/.
+      //
+      // CS-011: this formatting-restoration coupling is being retired module
+      // by module (dataset-crypto.js is the first extraction with real
+      // behavior tests). Until the flat runtime is fully modularized, the
+      // whole-function replacements below (steps 3 & 4) are the fragile part:
+      // they OVERWRITE their target with a hardcoded body, so a future source
+      // edit to getBacklinks/getRelatedCards would be silently discarded.
+      // replaceOrThrow() makes that failure loud — the build fails instead of
+      // shipping a stale function — so the coupling can be removed safely
+      // later without a silent regression in between.
       name: 'restore-source-formatting',
       closeBundle() {
         const src = resolve(__dirname, 'dist/app.js');
         if (!fs.existsSync(src)) return;
         let code = fs.readFileSync(src, 'utf-8');
+
+        const replaceOrThrow = (str, pattern, replacement, label) => {
+          if (!pattern.test(str)) {
+            throw new Error(
+              `[restore-source-formatting] pattern for "${label}" not found in the bundle. ` +
+              `The source likely changed; update vite.config.js (and the matching text test) ` +
+              `instead of silently shipping a stale body.`
+            );
+          }
+          return str.replace(pattern, replacement);
+        };
 
         // 1. Restore single-quote style for onclick navigation handlers
         code = code.replace(
@@ -360,9 +381,11 @@ export default defineConfig({
           `        return result;`,
           `      }`,
         ].join('\n');
-        code = code.replace(
+        code = replaceOrThrow(
+          code,
           /  function getBacklinks\(cardId\) \{[\s\S]*?\n  \}/,
-          getBacklinksImpl
+          getBacklinksImpl,
+          'getBacklinks'
         );
 
         // 4. Replace getRelatedCards with a source-formatted version that
@@ -398,9 +421,11 @@ export default defineConfig({
           `        return related.slice(0, limit);`,
           `      }`,
         ].join('\n');
-        code = code.replace(
+        code = replaceOrThrow(
+          code,
           /  function getRelatedCards\(cardId, limit = 10\) \{[\s\S]*?\n  \}/,
-          getRelatedCardsImpl
+          getRelatedCardsImpl,
+          'getRelatedCards'
         );
 
         fs.writeFileSync(src, code, 'utf-8');
@@ -426,6 +451,29 @@ export default defineConfig({
         const dstMap = resolve(__dirname, 'www/app.js.map');
         if (fs.existsSync(srcMap)) {
           fs.copyFileSync(srcMap, dstMap);
+        }
+      }
+    },
+    {
+      // CS-006: `vite preview` serves dist/, which previously contained only
+      // app.js — so previewing the production build 404'd. Copy the static
+      // site files alongside the bundle so dist/ is a complete, previewable
+      // (and deployable) mirror of the app.
+      name: 'copy-site-to-dist',
+      closeBundle() {
+        const SITE_FILES = [
+          'index.html', 'styles.css', 'manifest.webmanifest',
+          'service-worker.js', 'capacitor.js', 'offline-status.js',
+          'app-loader.js', 'CardSpoke.svg', 'capabilities.json',
+          'diagnostic.html', 'test.html'
+        ];
+        const distDir = resolve(__dirname, 'dist');
+        if (!fs.existsSync(distDir)) fs.mkdirSync(distDir, { recursive: true });
+        for (const file of SITE_FILES) {
+          const from = resolve(__dirname, 'www', file);
+          if (fs.existsSync(from)) {
+            fs.copyFileSync(from, resolve(distDir, file));
+          }
         }
       }
     }

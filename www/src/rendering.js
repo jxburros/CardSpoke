@@ -1029,6 +1029,26 @@ import {
                   }, result.datasetName);
                   cardEl.style.position = 'relative';
                   cardEl.appendChild(datasetBadge);
+
+                  // Results from another dataset must switch to it before
+                  // opening — the card does not exist in the current store.
+                  const activeKey = instanceKey || 'nested_cards_store';
+                  if (result.datasetId && result.datasetId !== activeKey) {
+                    cardEl.onclick = async () => {
+                      localStorage.setItem('activeInstance', result.datasetId);
+                      setInstanceKey(result.datasetId);
+                      await load();
+                      if (typeof reconcilePluginsAfterDatasetSwitch === 'function') {
+                        await reconcilePluginsAfterDatasetSwitch();
+                      }
+                      if (store.cards && store.cards[card.id]) {
+                        goTo('read', { cardId: card.id });
+                      } else {
+                        render();
+                      }
+                      showToast('Switched to dataset: ' + result.datasetName);
+                    };
+                  }
                 }
 
                 // Add match quality indicator
@@ -1239,25 +1259,40 @@ import {
        * Update dataset selector options
        */
       function updateDatasetSelector() {
-        if (!datasetSelector || !datasetManager) return;
-        
+        if (!datasetSelector) return;
+
         // Clear existing options
         datasetSelector.innerHTML = '';
-        
+
         // Add "Current Dataset" option
         const currentOption = document.createElement('option');
         currentOption.value = 'current';
         currentOption.textContent = 'Current Dataset';
         datasetSelector.appendChild(currentOption);
-        
+
+        // Datasets are LocalStorage-backed; enumerate them directly.
+        const datasetKeys = typeof getAllDatasetKeys === 'function' ? getAllDatasetKeys() : [];
+        const currentKey = instanceKey || 'nested_cards_store';
+        const datasets = datasetKeys.map(key => {
+          let name = key;
+          try {
+            const parsed = JSON.parse(localStorage.getItem(key));
+            if (parsed && parsed.encrypted === true) {
+              name = key + ' (encrypted)';
+            } else if (parsed && parsed.metadata && parsed.metadata.name) {
+              name = parsed.metadata.name;
+            }
+          } catch (_e) { /* keep raw key as label */ }
+          return { id: key, name, isActive: key === currentKey };
+        });
+
         // Add "All Datasets" option if there are multiple datasets
-        const datasets = datasetManager.listDatasets();
         if (datasets.length > 1) {
           const allOption = document.createElement('option');
           allOption.value = 'all';
           allOption.textContent = 'All Datasets';
           datasetSelector.appendChild(allOption);
-          
+
           // Add separator
           const separator = document.createElement('option');
           separator.disabled = true;

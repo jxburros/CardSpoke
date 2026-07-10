@@ -17,7 +17,7 @@
 
 // =============================================================
 // CardSpoke JavaScript Application (Source)
-// Version: 0.18.0
+// Version: 0.18.1
 // Creator: jxburros
 // Schema: v4
 // Note: Sources are split across www/src/* and concatenated with
@@ -166,12 +166,15 @@ function trapFocus(modal) {
   const focusableElements = modal.querySelectorAll(
     'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
   );
+  if (!focusableElements.length) {
+    return () => {};
+  }
   const firstFocusable = focusableElements[0];
   const lastFocusable = focusableElements[focusableElements.length - 1];
-  
+
   const handleKeyDown = (e) => {
     if (e.key !== 'Tab') return;
-    
+
     if (e.shiftKey) {
       if (document.activeElement === firstFocusable) {
         e.preventDefault();
@@ -184,16 +187,93 @@ function trapFocus(modal) {
       }
     }
   };
-  
+
   modal.addEventListener('keydown', handleKeyDown);
-  
+
   if (firstFocusable) {
     firstFocusable.focus();
   }
-  
+
   return () => {
     modal.removeEventListener('keydown', handleKeyDown);
   };
+}
+
+/**
+ * Upgrade an ad-hoc modal overlay to the dialog accessibility contract
+ * (CS-008): role="dialog", aria-modal, aria-labelledby (from the modal
+ * title), focus trap, Escape-to-close for the topmost overlay only, and
+ * focus restoration to the previously focused element on close.
+ *
+ * Works with both `.modal-overlay > .modal(.modal-title)` and
+ * `.menu-overlay > .menu-panel(.menu-title)` structures. Every close path
+ * funnels through overlay.remove(), which is wrapped here so cleanup and
+ * focus restoration always run.
+ */
+function enhanceModalA11y(overlay) {
+  if (!overlay || !overlay.dataset || overlay.dataset.a11yEnhanced === 'true') return;
+  const modal = overlay.querySelector('.modal, .menu-panel');
+  if (!modal) return;
+  overlay.dataset.a11yEnhanced = 'true';
+
+  const titleEl = modal.querySelector('.modal-title, .menu-title');
+  if (titleEl) {
+    if (!titleEl.id) titleEl.id = 'dialog-title-' + uid();
+    modal.setAttribute('aria-labelledby', titleEl.id);
+  }
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+
+  const previousActive = document.activeElement;
+  const releaseFocus = trapFocus(modal);
+
+  const isTopmostOverlay = () => {
+    const overlays = document.querySelectorAll('.modal-overlay.show, .menu-overlay.show');
+    return overlays.length > 0 && overlays[overlays.length - 1] === overlay;
+  };
+  const onKeyDown = (e) => {
+    if (e.key === 'Escape' && isTopmostOverlay()) {
+      e.preventDefault();
+      e.stopPropagation();
+      overlay.remove();
+    }
+  };
+  document.addEventListener('keydown', onKeyDown, true);
+
+  const originalRemove = overlay.remove.bind(overlay);
+  overlay.remove = function() {
+    document.removeEventListener('keydown', onKeyDown, true);
+    if (typeof releaseFocus === 'function') releaseFocus();
+    originalRemove();
+    if (previousActive && typeof previousActive.focus === 'function' &&
+        document.contains(previousActive)) {
+      previousActive.focus();
+    }
+  };
+}
+
+/**
+ * Watch for dynamically created modal/menu overlays and apply the dialog
+ * accessibility contract to each one as it is added to the document.
+ * Overlays that manage their own lifecycle opt out with
+ * data-a11y-managed="true" (shared dialog primitives, lock screens) and
+ * the permission dialogs (core module) are skipped via .permission-modal.
+ */
+function initModalA11yObserver() {
+  if (typeof MutationObserver === 'undefined' || !document.body) return;
+  const observer = new MutationObserver(mutations => {
+    mutations.forEach(mutation => {
+      mutation.addedNodes.forEach(node => {
+        if (!node || node.nodeType !== 1 || !node.classList) return;
+        const isOverlay = node.classList.contains('show') &&
+          (node.classList.contains('modal-overlay') || node.classList.contains('menu-overlay'));
+        if (!isOverlay) return;
+        if (node.dataset.a11yManaged === 'true' || node.classList.contains('permission-modal')) return;
+        enhanceModalA11y(node);
+      });
+    });
+  });
+  observer.observe(document.body, { childList: true });
 }
 
 /**
@@ -313,6 +393,43 @@ function showToast(message, type = 'success', duration = 3000) {
       isPaused = false;
       scheduleRemoval();
     }
+  };
+
+  toast.addEventListener('mouseenter', pauseTimer);
+  toast.addEventListener('mouseleave', resumeTimer);
+
+  // Add click to dismiss
+  toast.style.cursor = 'pointer';
+  const dismissToast = () => {
+    clearTimeout(timeoutId);
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  };
+
+  toast.addEventListener('click', dismissToast);
+
+  // Add keyboard support
+  toast.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || e.key === 'Enter') {
+      e.preventDefault();
+      dismissToast();
+    }
+  });
+
+  scheduleRemoval();
+}
+
+// =============================================================
+// --- SHARED MODAL DIALOG PRIMITIVES ---
+// The single accessible dialog implementation used by every confirm /
+// choice / prompt flow in the app (CS-008): role="dialog", aria-modal,
+// aria-labelledby wiring, focus trap, Escape handling, backdrop
+// dismissal, and focus restoration to the previously focused element.
+//
+// NOTE: These MUST stay at module top level. They were once nested
+// inside showToast()'s resumeTimer closure by accident, which made
+// every confirm/prompt call site throw ReferenceError at runtime.
+// =============================================================
 
     /**
      * Show an in-app modal dialog and resolve with the chosen value.
@@ -333,7 +450,8 @@ function showToast(message, type = 'success', duration = 3000) {
 
       return new Promise(resolve => {
         const previousActive = document.activeElement;
-        const overlay = h('div', { className: 'modal-overlay show' });
+        // Manages its own focus/Escape lifecycle — opt out of the observer.
+        const overlay = h('div', { className: 'modal-overlay show', 'data-a11y-managed': 'true' });
         const modal = h('div', {
           className: 'modal',
           role: 'dialog',
@@ -386,6 +504,10 @@ function showToast(message, type = 'success', duration = 3000) {
 
         const onKeyDown = e => {
           if (e.key === 'Escape') {
+            // Only the topmost overlay may react — a confirm stacked over
+            // another dialog must not close both.
+            const overlays = document.querySelectorAll('.modal-overlay.show, .menu-overlay.show');
+            if (overlays.length && overlays[overlays.length - 1] !== overlay) return;
             e.preventDefault();
             finish(dismissValue);
           }
@@ -545,31 +667,6 @@ function showToast(message, type = 'success', duration = 3000) {
         return value;
       });
     }
-  };
-  
-  toast.addEventListener('mouseenter', pauseTimer);
-  toast.addEventListener('mouseleave', resumeTimer);
-  
-  // Add click to dismiss
-  toast.style.cursor = 'pointer';
-  const dismissToast = () => {
-    clearTimeout(timeoutId);
-    toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 300);
-  };
-  
-  toast.addEventListener('click', dismissToast);
-  
-  // Add keyboard support
-  toast.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' || e.key === 'Enter') {
-      e.preventDefault();
-      dismissToast();
-    }
-  });
-  
-  scheduleRemoval();
-}
 
 // =============================================================
 // --- AI DEVELOPER INSTRUCTIONS ---
@@ -849,87 +946,54 @@ const header = {
         if (!query || query.trim() === '') {
           return [];
         }
-        
-        if (!datasetManager) {
-          // Fallback to single dataset search if manager not initialized
-          return fuzzySearchCards(store, query);
-        }
-        
+
+        const currentKey = (typeof instanceKey !== 'undefined' && instanceKey) || 'nested_cards_store';
+        const currentName = (store && store.metadata && store.metadata.name) || currentKey;
+        const MAX_RESULTS = 100;
+
+        // Datasets live in LocalStorage under two key shapes; enumerate them
+        // directly (there is no separate dataset-manager runtime).
+        const searchableKeys = scope === 'all' && typeof getAllDatasetKeys === 'function'
+          ? getAllDatasetKeys()
+          : (scope !== 'current' && scope !== 'all' ? [scope] : [currentKey]);
+
         const allResults = [];
-        
-        if (scope === 'current') {
-          // Search only current dataset
-          const results = fuzzySearchCards(store, query);
-          const currentDataset = datasetManager.getActiveDataset();
-          results.forEach(result => {
-            allResults.push({
-              ...result,
-              datasetId: currentDataset.id,
-              datasetName: currentDataset.name
+        for (const key of searchableKeys) {
+          try {
+            let datasetStore;
+            let datasetName;
+            if (key === currentKey) {
+              datasetStore = store;
+              datasetName = currentName;
+            } else {
+              const raw = localStorage.getItem(key);
+              if (!raw) continue;
+              const parsed = JSON.parse(raw);
+              if (!parsed || typeof parsed !== 'object') continue;
+              if (parsed.encrypted === true && typeof parsed.payload === 'string') {
+                // Locked encrypted datasets cannot be searched without their PIN.
+                continue;
+              }
+              if (!parsed.cards || typeof parsed.cards !== 'object') continue;
+              datasetStore = { cards: parsed.cards };
+              datasetName = (parsed.metadata && parsed.metadata.name) || key;
+            }
+
+            const results = fuzzySearchCards(datasetStore, query);
+            results.forEach(result => {
+              allResults.push({
+                ...result,
+                datasetId: key,
+                datasetName
+              });
             });
-          });
-        } else if (scope === 'all') {
-          // Search all datasets
-          const datasets = datasetManager.listDatasets();
-          const currentDatasetId = datasetManager.activeDatasetId;
-          
-          for (const dataset of datasets) {
-            try {
-              // Load dataset if not current
-              let datasetStore;
-              if (dataset.id === currentDatasetId) {
-                datasetStore = store;
-              } else {
-                // Load dataset store from storage
-                const driver = datasetManager.datasets.get(dataset.id).driver;
-                const storeData = await driver.get('store');
-                datasetStore = storeData || { cards: {} };
-              }
-              
-              // Search this dataset
-              const results = fuzzySearchCards(datasetStore, query);
-              results.forEach(result => {
-                allResults.push({
-                  ...result,
-                  datasetId: dataset.id,
-                  datasetName: dataset.name
-                });
-              });
-            } catch (err) {
-              console.warn(`Failed to search dataset ${dataset.name}:`, err);
-            }
-          }
-        } else {
-          // Search specific dataset
-          const dataset = datasetManager.datasets.get(scope);
-          if (dataset) {
-            try {
-              let datasetStore;
-              if (scope === datasetManager.activeDatasetId) {
-                datasetStore = store;
-              } else {
-                const storeData = await dataset.driver.get('store');
-                datasetStore = storeData || { cards: {} };
-              }
-              
-              const results = fuzzySearchCards(datasetStore, query);
-              results.forEach(result => {
-                allResults.push({
-                  ...result,
-                  datasetId: dataset.id,
-                  datasetName: dataset.name
-                });
-              });
-            } catch (err) {
-              console.warn(`Failed to search dataset ${dataset.name}:`, err);
-            }
+          } catch (err) {
+            console.warn(`Failed to search dataset ${key}:`, err);
           }
         }
-        
+
         // Sort combined results by score
         allResults.sort((a, b) => b.score - a.score);
-        
-        // Limit results to prevent performance issues
-        const MAX_RESULTS = 100;
+
         return allResults.slice(0, MAX_RESULTS);
       }

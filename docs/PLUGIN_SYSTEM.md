@@ -25,27 +25,35 @@ architectural layers, preserved from the original design:
 
 | Layer | Contents | Risk | Enable behavior |
 |---|---|---|---|
-| `theme` | CSS only | SAFE | Auto-enabled on install |
-| `feature` | CSS + JS | LOW (unless it declares overrides) | Auto-enabled on install |
-| `app` | CSS + JS + overrides | HIGH | Installed **suspended**; the user must enable it manually |
+| `theme` | CSS only | SAFE | Auto-enabled on install (no JavaScript runs) |
+| `feature` | CSS + JS | LOW (unless it declares overrides) | Enabled at install **after** the user accepts the full-trust consent dialog |
+| `app` | CSS + JS + overrides | HIGH | Installed **suspended**; the user must enable it manually (which also requires full-trust consent) |
 
 The runtime lives in `www/src/core/` (ES modules) and is exposed to both the
 app and to plugins as `window.CardSpoke`. There is exactly one plugin runtime
 and one build (`npm run build`, Vite). The safety model is consent-based:
 
-1. The **validator** screens every package before registration (manifest
+1. **Full-trust consent (the real boundary)**: plugin JavaScript runs on the
+   main thread in the page realm — there is **no sandbox**, and a plugin can
+   reach `window`, `document`, storage, and the network directly regardless
+   of what it declares. Because of that, any plugin that ships JavaScript
+   requires an explicit "Trust & Run" consent from the user before it is
+   ever enabled. Deleting the plugin revokes the consent.
+2. The **validator** screens every package before registration (manifest
    shape, CSS/JS size limits, dangerous patterns).
-2. Every sensitive `ctx` API call is gated by a **permission** the user must
-   grant in a consent dialog.
-3. **Risk assessment** by layer decides what auto-enables; `app`-layer
-   plugins never run until the user enables them.
-4. **`?safemode`** in the URL boots the app with every plugin registered but
+3. Every sensitive `ctx` API call is additionally gated by a **permission**
+   the user grants in a consent dialog. Permissions scope the supported API
+   surface for well-behaved plugins — they are a compatibility/UX contract,
+   **not** a security boundary.
+4. **Risk labels** by layer set expectations; `app`-layer plugins never run
+   until the user enables them.
+5. **`?safemode`** in the URL boots the app with every plugin registered but
    disabled.
-5. Everything a plugin creates through `ctx.api.*` is **tracked and
+6. Everything a plugin creates through `ctx.api.*` is **tracked and
    automatically removed** when the plugin is suspended or deleted.
 
-Plugin JS runs on the main thread with full DOM access (there is no process
-isolation). Treat installing an `app`-layer plugin like installing software.
+Treat installing **any** plugin that contains JavaScript like installing
+software: only accept the consent dialog for authors you trust.
 
 ## Quick Start: your first plugin in five minutes
 
@@ -73,9 +81,10 @@ isolation). Treat installing an `app`-layer plugin like installing software.
    ctx.api.ui.showToast('Hello plugin enabled', 'success');
    ```
 
-5. Click **Save & Register**, grant the `ui-override` permission, and the
-   badge appears in the header. Reload the page — it's still there. Suspend
-   or remove it from the **Installed** tab; the badge disappears immediately.
+5. Click **Save & Register**, accept the full-trust dialog (your plugin
+   contains JavaScript), grant the `ui-override` permission, and the badge
+   appears in the header. Reload the page — it's still there. Suspend or
+   remove it from the **Installed** tab; the badge disappears immediately.
 
 ## Plugin Package Format
 

@@ -20,12 +20,21 @@
 // Provides security layer for plugin capabilities
 
 const STORAGE_KEY = 'cardspoke_plugin_permissions';
+const TRUST_KEY = 'cardspoke_plugin_trust';
 const grantedPermissions = new Map();
+// Plugins whose JavaScript the user has explicitly accepted as fully
+// trusted. JS plugins run in the page realm with the same power as the
+// app itself — permissions scope the supported ctx API but are NOT a
+// security boundary, so consent must be to FULL access (CS-002).
+const trustedPlugins = new Set();
 
-  // Load saved permissions from localStorage
+  // Load saved permissions from localStorage. The permission grants and the
+  // trust grants are parsed in SEPARATE try blocks so a corrupt value in one
+  // key cannot wipe the other for the session (both fail safe: an unreadable
+  // trust list just means the user re-consents, never over-trust).
   function loadPermissions() {
+    if (typeof localStorage === 'undefined') return;
     try {
-      if (typeof localStorage === 'undefined') return;
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -35,6 +44,24 @@ const grantedPermissions = new Map();
       }
     } catch (err) {
       console.error('[Permissions] Failed to load saved permissions:', err);
+    }
+    try {
+      const savedTrust = localStorage.getItem(TRUST_KEY);
+      if (savedTrust) {
+        JSON.parse(savedTrust).forEach(pluginId => trustedPlugins.add(pluginId));
+      }
+    } catch (err) {
+      console.error('[Permissions] Failed to load saved trust grants:', err);
+    }
+  }
+
+  // Persist the full-trust grants to localStorage
+  function saveTrust() {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.setItem(TRUST_KEY, JSON.stringify(Array.from(trustedPlugins)));
+    } catch (err) {
+      console.error('[Permissions] Failed to save trust grants:', err);
     }
   }
 
@@ -157,58 +184,155 @@ const grantedPermissions = new Map();
     },
 
     /**
+     * Whether the user has accepted a plugin's JavaScript as fully trusted.
+     */
+    hasFullTrust: function(pluginId) {
+      return trustedPlugins.has(pluginId);
+    },
+
+    /** Record full-trust consent for a plugin (persisted). */
+    grantFullTrust: function(pluginId) {
+      trustedPlugins.add(pluginId);
+      saveTrust();
+      console.log('[Permissions] Full trust granted to', pluginId);
+    },
+
+    /** Remove full-trust consent (e.g. when the plugin is deleted). */
+    revokeFullTrust: function(pluginId) {
+      if (trustedPlugins.delete(pluginId)) {
+        saveTrust();
+        console.log('[Permissions] Full trust revoked from', pluginId);
+      }
+    },
+
+    /**
+     * Ask the user for full-trust consent before a JavaScript plugin runs.
+     * There is no script isolation in this runtime: plugin JS executes in
+     * the page realm and can reach everything the app can, regardless of
+     * declared permissions. The dialog says exactly that. Environments
+     * without a consent UI deny by default.
+     */
+    requestFullTrust: async function(pluginId, pluginName) {
+      if (this.hasFullTrust(pluginId)) {
+        return true;
+      }
+      if (typeof document === 'undefined' || !document.body ||
+          typeof document.createElement !== 'function' ||
+          typeof document.addEventListener !== 'function') {
+        console.warn('[Permissions] No consent UI available; full trust denied for', pluginId);
+        return false;
+      }
+      const granted = await this._showDecisionDialog({
+        titleText: 'Run Plugin Code?',
+        introText: '"' + pluginName + '" contains JavaScript. CardSpoke plugins are NOT sandboxed: ' +
+          'this code will run with FULL access to this app — including every card in every ' +
+          'unlocked dataset, browser storage, and the network. Declared permissions scope the ' +
+          'plugin API but cannot contain malicious code.',
+        bulletItems: ['Only continue if you trust the author of this plugin.'],
+        denyLabel: 'Keep Suspended',
+        allowLabel: 'Trust & Run'
+      });
+      if (granted) {
+        this.grantFullTrust(pluginId);
+      }
+      return granted;
+    },
+
+    /**
      * Show permission consent dialog
      */
     _showConsentDialog: async function(pluginId, pluginName, permissions) {
+      return this._showDecisionDialog({
+        titleText: 'Permission Request',
+        introText: '"' + pluginName + '" requests the following permissions. Note: permissions ' +
+          'describe what the plugin API offers this plugin; they are not a security sandbox.',
+        bulletItems: permissions.map(function(perm) {
+          return perm + ': ' + (PERMISSION_DESCRIPTIONS[perm] || 'Unknown permission');
+        }),
+        denyLabel: 'Deny',
+        allowLabel: 'Allow'
+      });
+    },
+
+    /**
+     * Shared accessible consent dialog (CS-008): role="dialog", aria-modal,
+     * labelled title, focus trap, Escape-to-deny, and focus restoration.
+     */
+    _showDecisionDialog: function(opts) {
       return new Promise((resolve) => {
+        const previousActive = document.activeElement;
+
         const modal = document.createElement('div');
-        modal.className = 'modal permission-modal';
+        modal.className = 'modal-overlay show permission-modal';
         modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
 
         const content = document.createElement('div');
+        content.setAttribute('role', 'dialog');
+        content.setAttribute('aria-modal', 'true');
+        const titleId = 'permission-dialog-title-' + Date.now().toString(36);
+        content.setAttribute('aria-labelledby', titleId);
         content.style.cssText = 'background:var(--bg-primary,#fff);padding:2rem;border-radius:8px;max-width:500px;box-shadow:0 4px 20px rgba(0,0,0,0.2);';
 
         const title = document.createElement('h2');
-        title.textContent = 'Permission Request';
+        title.id = titleId;
+        title.textContent = opts.titleText;
         title.style.cssText = 'margin:0 0 1rem;font-size:1.5rem;color:var(--text-primary,#000);';
 
         const desc = document.createElement('p');
-        desc.textContent = '"' + pluginName + '" requests the following permissions:';
+        desc.textContent = opts.introText;
         desc.style.cssText = 'margin:0 0 1rem;color:var(--text-secondary,#666);';
 
         const list = document.createElement('ul');
         list.style.cssText = 'margin:0 0 1.5rem;padding-left:1.5rem;';
-        permissions.forEach(perm => {
+        (opts.bulletItems || []).forEach(text => {
           const item = document.createElement('li');
           item.style.cssText = 'margin:0.5rem 0;color:var(--text-primary,#000);';
-          const permName = document.createElement('strong');
-          permName.textContent = perm;
-          const permDesc = document.createTextNode(': ' + (PERMISSION_DESCRIPTIONS[perm] || 'Unknown permission'));
-          item.appendChild(permName);
-          item.appendChild(permDesc);
+          item.textContent = text;
           list.appendChild(item);
         });
+
+        let settled = false;
+        const finish = (value) => {
+          if (settled) return;
+          settled = true;
+          document.removeEventListener('keydown', onKeyDown, true);
+          if (modal.parentNode) modal.parentNode.removeChild(modal);
+          if (previousActive && typeof previousActive.focus === 'function') {
+            previousActive.focus();
+          }
+          resolve(value);
+        };
+
+        const onKeyDown = (e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            finish(false);
+          } else if (e.key === 'Tab') {
+            // Two-button focus trap: keep focus on the two dialog buttons in
+            // BOTH directions. With only two focusable elements, every Tab /
+            // Shift+Tab simply toggles to the other one, so focus can never
+            // escape to a background control.
+            e.preventDefault();
+            const other = document.activeElement === denyBtn ? allowBtn : denyBtn;
+            other.focus();
+          }
+        };
 
         const buttons = document.createElement('div');
         buttons.style.cssText = 'display:flex;gap:1rem;justify-content:flex-end;';
 
         const denyBtn = document.createElement('button');
-        denyBtn.textContent = 'Deny';
+        denyBtn.textContent = opts.denyLabel;
         denyBtn.className = 'btn btn-secondary';
         denyBtn.style.cssText = 'padding:0.5rem 1.5rem;border:1px solid #ccc;background:#fff;border-radius:4px;cursor:pointer;';
-        denyBtn.onclick = function() {
-          document.body.removeChild(modal);
-          resolve(false);
-        };
+        denyBtn.onclick = function() { finish(false); };
 
         const allowBtn = document.createElement('button');
-        allowBtn.textContent = 'Allow';
+        allowBtn.textContent = opts.allowLabel;
         allowBtn.className = 'btn btn-primary';
         allowBtn.style.cssText = 'padding:0.5rem 1.5rem;border:none;background:var(--accent,#007bff);color:#fff;border-radius:4px;cursor:pointer;';
-        allowBtn.onclick = function() {
-          document.body.removeChild(modal);
-          resolve(true);
-        };
+        allowBtn.onclick = function() { finish(true); };
 
         buttons.appendChild(denyBtn);
         buttons.appendChild(allowBtn);
@@ -219,7 +343,11 @@ const grantedPermissions = new Map();
         content.appendChild(buttons);
         modal.appendChild(content);
 
+        document.addEventListener('keydown', onKeyDown, true);
         document.body.appendChild(modal);
+        if (typeof denyBtn.focus === 'function') {
+          denyBtn.focus();
+        }
       });
     },
 
@@ -241,11 +369,13 @@ const grantedPermissions = new Map();
     },
 
     /**
-     * Clear all permissions (for testing)
+     * Clear all permissions and trust grants (for testing)
      */
     clearAll: function() {
       grantedPermissions.clear();
       savePermissions();
+      trustedPlugins.clear();
+      saveTrust();
     }
   };
 

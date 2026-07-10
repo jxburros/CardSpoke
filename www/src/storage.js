@@ -22,6 +22,11 @@ import {
   instanceKey
 } from './state.js';
 import { migrateStore as coreMigrateStore } from '@core/migrations.js';
+import {
+  encryptStorePayload,
+  decryptStorePayload,
+  isEncryptedEnvelope
+} from '@core/dataset-crypto.js';
 
 
       // Source Part 2/5: Storage drivers, navigation, and plugin runtime
@@ -512,14 +517,18 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
             const metadata = JSON.parse(metadataJson);
             this.activeDatasetId = metadata.activeDatasetId;
       
-            // Initialize datasets
+            // Initialize datasets. Legacy metadata stored the raw PIN in
+            // plaintext; it is intentionally NOT loaded (and saveMetadata
+            // scrubs it on the next write) — PINs live only in the
+            // encryption session, never in stored metadata (CS-001).
             for (const [id, meta] of Object.entries(metadata.datasets || {})) {
               const driver = await this.createDriver(meta.storage.driver, meta.storage.config);
               this.datasets.set(id, {
                 id,
                 name: meta.name,
                 driver,
-                pin: meta.pin || null,
+                pin: null,
+                hasPin: !!(meta.hasPin || meta.pin),
                 createdAt: meta.createdAt,
                 updatedAt: meta.updatedAt
               });
@@ -594,7 +603,8 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
                 driver: dataset.driver.getKind(),
                 config: {}
               },
-              pin: dataset.pin,
+              // Never persist the PIN itself — only whether one exists.
+              hasPin: !!(dataset.pin || dataset.hasPin),
               createdAt: dataset.createdAt,
               updatedAt: dataset.updatedAt
             };
@@ -662,7 +672,7 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
             id: dataset.id,
             name: dataset.name,
             storageKind: dataset.driver.getKind(),
-            hasPIN: !!dataset.pin,
+            hasPIN: !!(dataset.pin || dataset.hasPin),
             size: size,
             sizeFormatted: this.formatBytes(size),
             itemCount: keys.length,
@@ -684,7 +694,7 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
             id: d.id,
             name: d.name,
             storageKind: d.driver.getKind(),
-            hasPIN: !!d.pin,
+            hasPIN: !!(d.pin || d.hasPin),
             isActive: d.id === this.activeDatasetId
           }));
         }
@@ -802,64 +812,64 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
 
 
 
-      function toBase64(bytes) {
-        let binary = '';
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        return btoa(binary);
+      // =============================================================
+      // --- DATASET ENCRYPTION SESSION STATE (CS-001) ---
+      // The PIN for an encrypted dataset lives ONLY in memory for the
+      // current session. It is never written to storage in any form —
+      // the persisted envelope carries salt/KDF/cipher parameters, and
+      // unlocking re-derives the key from the PIN the user types.
+      // =============================================================
+
+      let activeSessionPin = null;
+      // When true, saveNow() refuses to write the active dataset key.
+      // Set while an encrypted dataset is locked (no/failed unlock) or
+      // while corrupted stored data awaits an explicit recovery choice,
+      // so the original payload can never be overwritten silently
+      // (CS-001 / CS-004).
+      let storageWriteLock = false;
+
+      function setSessionPin(pin) {
+        activeSessionPin = pin || null;
       }
 
-      function fromBase64(base64) {
-        const binary = atob(base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        return bytes;
+      function getSessionPin() {
+        return activeSessionPin;
       }
 
-      async function derivePinKey(pin, saltBytes) {
-        if (!window.crypto || !window.crypto.subtle) throw new Error('Web Crypto API unavailable');
-        const encoder = new TextEncoder();
-        const baseKey = await window.crypto.subtle.importKey('raw', encoder.encode(pin), 'PBKDF2', false, ['deriveKey']);
-        return window.crypto.subtle.deriveKey(
-          {
-            name: 'PBKDF2',
-            salt: saltBytes,
-            iterations: 250000,
-            hash: 'SHA-256'
-          },
-          baseKey,
-          { name: 'AES-GCM', length: 256 },
-          false,
-          ['encrypt', 'decrypt']
-        );
+      function isStorageWriteLocked() {
+        return storageWriteLock;
       }
 
-      async function encryptStorePayload(payload, pin) {
-        const salt = window.crypto.getRandomValues(new Uint8Array(16));
-        const iv = window.crypto.getRandomValues(new Uint8Array(12));
-        const key = await derivePinKey(pin, salt);
-        const data = new TextEncoder().encode(payload);
-        const encrypted = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
-        return JSON.stringify({
-          encrypted: true,
-          version: 1,
-          kdf: 'PBKDF2',
-          cipher: 'AES-GCM',
-          iterations: 250000,
-          salt: toBase64(salt),
-          iv: toBase64(iv),
-          payload: toBase64(new Uint8Array(encrypted))
-        });
+      /**
+       * Small, stable, non-cryptographic hash of a payload string. Used only
+       * to derive an idempotent quarantine key for corrupt data (CS-004), so
+       * retrying on the same bytes reuses one recovery copy.
+       */
+      function hashPayload(str) {
+        let h = 0;
+        for (let i = 0; i < str.length; i++) {
+          h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+        }
+        return (h >>> 0).toString(36);
       }
 
-      async function decryptStorePayload(encryptedPayload, pin) {
-        const envelope = typeof encryptedPayload === 'string' ? JSON.parse(encryptedPayload) : encryptedPayload;
-        if (!envelope || !envelope.encrypted) return encryptedPayload;
-        const salt = fromBase64(envelope.salt);
-        const iv = fromBase64(envelope.iv);
-        const ciphertext = fromBase64(envelope.payload);
-        const key = await derivePinKey(pin, salt);
-        const decrypted = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
-        return new TextDecoder().decode(decrypted);
+      // (isEncryptedEnvelope / encryptStorePayload / decryptStorePayload are
+      // imported from @core/dataset-crypto.js so the envelope format has
+      // real unit tests.)
+
+      /**
+       * Legacy stores persisted the dataset PIN inside store.metadata.
+       * Move it into the in-memory session (so saves keep encrypting)
+       * and delete it so the PIN is never written back out again.
+       * @returns {boolean} True if a legacy PIN was found and migrated.
+       */
+      function stripLegacyPinMetadata() {
+        if (store && store.metadata && store.metadata.pin) {
+          if (!activeSessionPin) activeSessionPin = store.metadata.pin;
+          delete store.metadata.pin;
+          return true;
+        }
+        return false;
       }
 
       function validateStoreConsistency() {
@@ -944,6 +954,15 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
 
       async function saveNow() {
         try {
+          // Never write while the dataset is locked (encrypted-but-not-
+          // unlocked) or awaiting corruption recovery: the stored payload
+          // is the user's only copy and must survive untouched (CS-001/CS-004).
+          if (storageWriteLock) {
+            savePending = false;
+            updateSaveStatus('locked');
+            return;
+          }
+
           // Run middleware pipeline before saving (Task 1.1)
           if (window.CardSpoke && window.CardSpoke.Middleware) {
             try {
@@ -967,9 +986,12 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
           // Use requestIdleCallback if available to avoid blocking UI
           const doSave = async () => {
             try {
+              // The PIN must never be part of the persisted payload; if a
+              // legacy store still carries one, adopt it for the session
+              // and strip it before serializing (CS-001).
+              stripLegacyPinMetadata();
               const payload = JSON.stringify(store);
-              const activeDataset = datasetManager && datasetManager.getActiveDataset ? datasetManager.getActiveDataset() : null;
-              const activePin = (activeDataset && activeDataset.pin) || (store && store.metadata && store.metadata.pin) || null;
+              const activePin = activeSessionPin;
               const finalPayload = activePin
                 ? await encryptStorePayload(payload, activePin)
                 : payload;
@@ -1000,9 +1022,6 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
               setTimeout(() => updateSaveStatus('idle'), 1000);
 
               console.log(`Saved in ${duration.toFixed(2)}ms`);
-              
-              // Schedule cloud sync if cloud storage is configured
-              scheduleCloudSync();
 
             } catch (e) {
               savePending = false;
@@ -1032,6 +1051,14 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
         if (saveTimeout) {
           clearTimeout(saveTimeout);
           saveTimeout = null;
+        }
+
+        // Locked datasets are read-only until unlocked or explicitly reset;
+        // surface that instead of pretending a save is scheduled.
+        if (storageWriteLock) {
+          savePending = false;
+          updateSaveStatus('locked');
+          return;
         }
 
         // If immediate save requested, save now
@@ -1076,6 +1103,10 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
           case 'error':
             indicator.textContent = 'Save failed';
             indicator.title = `Save failed at ${timeStr}`;
+            break;
+          case 'locked':
+            indicator.textContent = 'Not saved — dataset locked';
+            indicator.title = 'Changes are not being saved while the dataset is locked';
             break;
           default:
             indicator.textContent = '';
@@ -1124,25 +1155,246 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
         }
       }
 
+      /**
+       * Interactive unlock for an encrypted dataset envelope (CS-001).
+       * Tries the in-memory session PIN first, then prompts the user in a
+       * retry loop. Returns the decrypted payload string, or null when the
+       * user declines (or no dialog UI is available) — in which case the
+       * caller must leave the stored envelope untouched.
+       */
+      async function unlockEncryptedDataset(rawEnvelope) {
+        if (activeSessionPin) {
+          try {
+            return await decryptStorePayload(rawEnvelope, activeSessionPin);
+          } catch (_err) {
+            // Session PIN belongs to a different dataset — fall through.
+            activeSessionPin = null;
+          }
+        }
+
+        if (typeof showPromptDialog !== 'function' ||
+            typeof document === 'undefined' || !document.body) {
+          return null;
+        }
+
+        let attempt = 0;
+        for (;;) {
+          const pin = await showPromptDialog({
+            title: 'Unlock Encrypted Dataset',
+            message: attempt === 0
+              ? 'This dataset is protected with a PIN. Enter it to unlock your cards. Your data stays untouched until the correct PIN is entered.'
+              : 'Incorrect PIN. Please try again.',
+            label: 'PIN',
+            type: 'password',
+            confirmLabel: 'Unlock',
+            cancelLabel: 'Not now'
+          });
+          if (pin === null || pin === undefined) return null;
+          if (!pin.trim()) { attempt++; continue; }
+          try {
+            const decrypted = await decryptStorePayload(rawEnvelope, pin);
+            activeSessionPin = pin;
+            return decrypted;
+          } catch (err) {
+            console.warn('[Dataset] Unlock attempt failed');
+            attempt++;
+          }
+        }
+      }
+
+      /**
+       * Full-screen blocker shown while an encrypted dataset stays locked.
+       * Writes are disabled; the user can retry the PIN, download the
+       * encrypted payload, or switch to another dataset.
+       */
+      function showDatasetLockScreen(key) {
+        if (typeof document === 'undefined' || !document.body) return;
+        const existing = document.getElementById('datasetLockScreen');
+        if (existing) existing.remove();
+
+        // Deliberately NOT Escape-dismissable (data-a11y-managed): dismissing
+        // the lock screen would leave a locked dataset with no recovery UI.
+        const overlay = h('div', { id: 'datasetLockScreen', className: 'modal-overlay show', 'data-a11y-managed': 'true' });
+        const modal = h('div', {
+          className: 'modal',
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-labelledby': 'datasetLockTitle',
+          style: 'max-width: 480px;'
+        });
+        const header = h('div', { className: 'modal-header' });
+        header.appendChild(h('div', { className: 'modal-title', id: 'datasetLockTitle' }, 'Dataset Locked'));
+        modal.appendChild(header);
+
+        const body = h('div', { className: 'modal-body' });
+        body.appendChild(h('p', { style: 'margin-bottom: var(--space-lg);' },
+          'This dataset is encrypted and has not been unlocked. Your data is safe: nothing will be saved over it while it stays locked.'));
+
+        const actions = h('div', { style: 'display: flex; gap: var(--space-sm); flex-wrap: wrap;' });
+        actions.appendChild(h('button', {
+          className: 'btn btn-primary',
+          onclick: async () => {
+            overlay.remove();
+            await load();
+            render();
+          }
+        }, 'Unlock'));
+        actions.appendChild(h('button', {
+          className: 'btn',
+          onclick: () => {
+            const payload = localStorage.getItem(key);
+            if (payload && typeof downloadWithFeedback === 'function') {
+              downloadWithFeedback(payload, key + '-encrypted-backup.json', 'application/json');
+            }
+          }
+        }, 'Download encrypted backup'));
+        actions.appendChild(h('button', {
+          className: 'btn',
+          onclick: () => {
+            // The manager opens on top of this lock screen; the lock stays
+            // behind it until another dataset is loaded (load() clears it).
+            if (typeof showDatasetManager === 'function') showDatasetManager();
+          }
+        }, 'Switch dataset'));
+        body.appendChild(actions);
+        modal.appendChild(body);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        if (typeof trapFocus === 'function') trapFocus(modal);
+      }
+
+      /**
+       * Recovery blocker for unreadable stored data (CS-004). The original
+       * payload has already been quarantined; the active key is untouched
+       * and writes are locked until the user makes an explicit choice.
+       */
+      function showCorruptDataRecovery(key, raw, quarantineKey) {
+        if (typeof document === 'undefined' || !document.body) return;
+        const existing = document.getElementById('corruptRecoveryScreen');
+        if (existing) existing.remove();
+
+        // Deliberately NOT Escape-dismissable (data-a11y-managed): the user
+        // must make an explicit recovery choice before writes unlock.
+        const overlay = h('div', { id: 'corruptRecoveryScreen', className: 'modal-overlay show', 'data-a11y-managed': 'true' });
+        const modal = h('div', {
+          className: 'modal',
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-labelledby': 'corruptRecoveryTitle',
+          style: 'max-width: 560px;'
+        });
+        const header = h('div', { className: 'modal-header' });
+        header.appendChild(h('div', { className: 'modal-title', id: 'corruptRecoveryTitle' }, 'Stored Data Could Not Be Read'));
+        modal.appendChild(header);
+
+        const body = h('div', { className: 'modal-body' });
+        body.appendChild(h('p', { style: 'margin-bottom: var(--space-md);' },
+          'The saved data for this dataset could not be parsed. The original data has NOT been changed or deleted.'));
+        if (quarantineKey) {
+          body.appendChild(h('p', { style: 'margin-bottom: var(--space-md); color: var(--text-muted); font-size: var(--text-sm);' },
+            'A recovery copy was also stored under the key "' + quarantineKey + '".'));
+        }
+        body.appendChild(h('p', { style: 'margin-bottom: var(--space-lg);' },
+          'Download a copy of the raw data before deciding how to continue. Nothing will be overwritten until you explicitly choose "Start fresh".'));
+
+        const actions = h('div', { style: 'display: flex; gap: var(--space-sm); flex-wrap: wrap;' });
+        actions.appendChild(h('button', {
+          className: 'btn btn-primary',
+          onclick: () => {
+            if (typeof downloadWithFeedback === 'function') {
+              const stamp = new Date().toISOString().slice(0, 10);
+              downloadWithFeedback(raw, key + '-recovered-' + stamp + '.json', 'application/json');
+            }
+          }
+        }, 'Download raw data'));
+        actions.appendChild(h('button', {
+          className: 'btn',
+          onclick: () => location.reload()
+        }, 'Try again'));
+        actions.appendChild(h('button', {
+          className: 'btn btn-danger',
+          onclick: async () => {
+            const confirmed = typeof showConfirmDialog === 'function'
+              ? await showConfirmDialog(
+                  'Replace the unreadable data with a new empty dataset?\n\n' +
+                  (quarantineKey
+                    ? 'The quarantined recovery copy will be kept under "' + quarantineKey + '".'
+                    : 'Download the raw data first if you have not already — this overwrites the active key.'),
+                  {
+                    title: 'Start Fresh',
+                    confirmLabel: 'Start Fresh',
+                    cancelLabel: 'Cancel',
+                    confirmClassName: 'btn btn-danger'
+                  })
+              : false;
+            if (!confirmed) return;
+            storageWriteLock = false;
+            setStore(createDefaultStore());
+            overlay.remove();
+            save(true);
+            render();
+            showToast('Started a fresh dataset. The previous data remains quarantined.', 'info', 6000);
+          }
+        }, 'Start fresh'));
+        body.appendChild(actions);
+        modal.appendChild(body);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        if (typeof trapFocus === 'function') trapFocus(modal);
+      }
+
       async function load() {
         const key = instanceKey || 'nested_cards_store';
         let raw = localStorage.getItem(key);
-        const activeDataset = datasetManager && datasetManager.getActiveDataset ? datasetManager.getActiveDataset() : null;
-        const activePin = (activeDataset && activeDataset.pin) || (store && store.metadata && store.metadata.pin) || null;
-        if (raw && activePin) {
-          try {
-            raw = await decryptStorePayload(raw, activePin);
-          } catch (err) {
-            console.error('[Dataset] Failed to decrypt payload:', err);
-            showToast('Failed to decrypt dataset. Check your PIN.', 'error');
-            throw err;
-          }
+
+        // A fresh load re-decides the lock state for the (possibly new)
+        // active dataset; clear any blocker left from a previous dataset.
+        storageWriteLock = false;
+        if (typeof document !== 'undefined') {
+          const staleLock = document.getElementById('datasetLockScreen');
+          if (staleLock) staleLock.remove();
+          const staleRecovery = document.getElementById('corruptRecoveryScreen');
+          if (staleRecovery) staleRecovery.remove();
         }
+
         if (!raw) {
+          // A fresh/empty dataset must not inherit a prior dataset's session
+          // PIN, or the default store would be silently encrypted with it.
+          activeSessionPin = null;
           setStore(createDefaultStore());
           save();
           return;
         }
+
+        // Detect the encrypted envelope BEFORE parsing the payload as a
+        // store, so an encrypted dataset is never mistaken for (and then
+        // overwritten by) an empty store (CS-001).
+        let envelope = null;
+        try {
+          const probe = JSON.parse(raw);
+          if (isEncryptedEnvelope(probe)) envelope = probe;
+        } catch (_probeErr) {
+          // Unparseable payloads take the corruption-recovery path below.
+        }
+
+        if (envelope) {
+          const decrypted = await unlockEncryptedDataset(raw);
+          if (decrypted === null) {
+            // No unlock: boot with an empty in-memory store, writes locked,
+            // and a lock screen offering retry/backup/switch (CS-001).
+            storageWriteLock = true;
+            setStore(createDefaultStore());
+            updateSaveStatus('locked');
+            showDatasetLockScreen(key);
+            return;
+          }
+          raw = decrypted;
+        } else if (activeSessionPin) {
+          // The active dataset is not encrypted; a session PIN left over
+          // from a previously open dataset must not re-encrypt it.
+          activeSessionPin = null;
+        }
+
         try {
           const parsed = JSON.parse(raw);
           setStore({
@@ -1163,9 +1415,10 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
             setNavHistory(store.metadata.navHistory.slice(-100));
           }
 
+          const pinMigrated = stripLegacyPinMetadata();
           const repaired = validateStoreConsistency();
           const typedChanged = migrateTypedCards();
-          if (repaired || typedChanged) {
+          if (repaired || typedChanged || pinMigrated) {
             save();
             if (repaired) showToast('Data integrity check repaired structural metadata', 'info');
           }
@@ -1176,7 +1429,18 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
               .then(driver => driver.get(key))
               .then(async payload => {
                 if (!payload) return;
-                const parsedMirror = typeof payload === 'string' ? JSON.parse(payload) : payload;
+                let parsedMirror = typeof payload === 'string' ? JSON.parse(payload) : payload;
+                if (isEncryptedEnvelope(parsedMirror)) {
+                  // Only merge the mirror if the session PIN can open it;
+                  // otherwise leave the already-loaded store untouched.
+                  if (!activeSessionPin) return;
+                  try {
+                    parsedMirror = JSON.parse(await decryptStorePayload(parsedMirror, activeSessionPin));
+                  } catch (_mirrorErr) {
+                    console.warn('[IndexedDB] Mirror payload could not be decrypted; skipping');
+                    return;
+                  }
+                }
                 if (!parsedMirror || typeof parsedMirror !== 'object') return;
                 setStore({
                   rootOrder: parsedMirror.rootOrder || [],
@@ -1190,9 +1454,10 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
                 });
                 if (store.metadata && store.metadata.navState) setNavState({ ...navState, ...store.metadata.navState });
                 if (store.metadata && Array.isArray(store.metadata.navHistory)) setNavHistory(store.metadata.navHistory.slice(-100));
+                const mirrorPinMigrated = stripLegacyPinMetadata();
                 const mirrorRepaired = validateStoreConsistency();
                 const mirrorTypedChanged = migrateTypedCards();
-                if (mirrorRepaired || mirrorTypedChanged) save();
+                if (mirrorRepaired || mirrorTypedChanged || mirrorPinMigrated) save();
                 // The mirror payload may contain plugins the boot-time sync
                 // never saw; syncFromStore is idempotent, so re-run it.
                 if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
@@ -1208,10 +1473,19 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
             readDatasetFromLocalFile()
               .then(async payload => {
                 if (!payload) return;
-                const active = datasetManager && datasetManager.getActiveDataset ? datasetManager.getActiveDataset() : null;
-                const filePin = (active && active.pin) || (store && store.metadata && store.metadata.pin) || null;
-                const payloadText = filePin ? await decryptStorePayload(payload, filePin) : payload;
-                const parsedFile = JSON.parse(payloadText);
+                let parsedFile = JSON.parse(payload);
+                if (isEncryptedEnvelope(parsedFile)) {
+                  // Same rule as the IndexedDB mirror: an undecryptable file
+                  // payload must never replace the loaded store.
+                  if (!activeSessionPin) return;
+                  try {
+                    parsedFile = JSON.parse(await decryptStorePayload(parsedFile, activeSessionPin));
+                  } catch (_fileErr) {
+                    console.warn('[Local File] Payload could not be decrypted; skipping');
+                    return;
+                  }
+                }
+                if (!parsedFile || typeof parsedFile !== 'object') return;
                 setStore({
                   rootOrder: parsedFile.rootOrder || [],
                   cards: parsedFile.cards || {},
@@ -1224,9 +1498,10 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
                 });
                 if (store.metadata && store.metadata.navState) setNavState({ ...navState, ...store.metadata.navState });
                 if (store.metadata && Array.isArray(store.metadata.navHistory)) setNavHistory(store.metadata.navHistory.slice(-100));
+                const filePinMigrated = stripLegacyPinMetadata();
                 const fileRepaired = validateStoreConsistency();
                 const fileTypedChanged = migrateTypedCards();
-                if (fileRepaired || fileTypedChanged) save();
+                if (fileRepaired || fileTypedChanged || filePinMigrated) save();
                 // Same as the IndexedDB path: pick up plugins that arrived
                 // with the async payload (idempotent re-sync).
                 if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
@@ -1240,13 +1515,28 @@ import { migrateStore as coreMigrateStore } from '@core/migrations.js';
               });
           }
         } catch (e) {
-          console.error('[CardSpoke] Failed to parse stored data — resetting to clean state:', e);
-          setStore(createDefaultStore());
+          // CS-004: never overwrite unreadable data. Quarantine a copy under
+          // a recovery key, lock writes to the active key, and let the user
+          // choose download / retry / start-fresh explicitly.
+          console.error('[CardSpoke] Failed to parse stored data — entering recovery mode:', e);
+          let quarantineKey = null;
           try {
-            save();
-          } catch (_saveErr) { /* ignore */ }
+            // Content-derived suffix so retrying (which reloads the page) on the
+            // SAME corrupt payload reuses the SAME quarantine key instead of
+            // accumulating a new copy every reboot and eventually exhausting
+            // the storage quota.
+            quarantineKey = key + '.corrupt.' + hashPayload(raw);
+            localStorage.setItem(quarantineKey, raw);
+          } catch (quarantineErr) {
+            quarantineKey = null;
+            console.error('[CardSpoke] Could not quarantine corrupt payload:', quarantineErr);
+          }
+          storageWriteLock = true;
+          setStore(createDefaultStore());
+          updateSaveStatus('locked');
+          showCorruptDataRecovery(key, raw, quarantineKey);
           if (typeof showToast === 'function') {
-            showToast('Stored data was corrupted and has been reset.', 'warning', 6000);
+            showToast('Stored data could not be read. Recovery options are shown — nothing has been overwritten.', 'warning', 8000);
           }
         }
       }

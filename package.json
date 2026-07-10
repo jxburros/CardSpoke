@@ -1,6 +1,6 @@
 {
   "name": "cardspoke",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "description": "A lightweight, local-first card-based knowledge app",
   "main": "index.js",
   "scripts": {
@@ -9,6 +9,10 @@
     "build": "vite build",
     "dev": "vite",
     "preview": "vite preview",
+    "smoke": "node scripts/static-smoke.mjs",
+    "qa:browser": "node scripts/browser-qa.mjs",
+    "platform:android": "npx cap add android",
+    "platform:ios": "npx cap add ios",
     "sync": "npx cap sync",
     "sync:android": "npx cap sync android",
     "sync:ios": "npx cap sync ios",

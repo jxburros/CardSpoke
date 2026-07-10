@@ -1128,6 +1128,19 @@ import {
       };
       
       function handleEscape() {
+        // Overlays that install their own Escape handler — shared dialogs
+        // (data-a11y-managed), observer-enhanced modals (data-a11y-enhanced),
+        // and the plugin permission dialog — manage their own dismissal. If
+        // one is open, do nothing here, or the global handler would ALSO run
+        // (e.g. goBack()) and navigate the app out from under the dialog.
+        // The static upload modal is intentionally NOT in this set: it has no
+        // self-handler and is dismissed by the branch below.
+        if (document.querySelector(
+          '.modal-overlay.show[data-a11y-managed="true"], ' +
+          '.modal-overlay.show[data-a11y-enhanced="true"], ' +
+          '.permission-modal')) {
+          return;
+        }
         // Close menu if open
         if (menu.overlay.classList.contains('show')) {
           closeMenu();
@@ -2081,6 +2094,7 @@ import {
 
       (async function() {
         initToast();                       // Initialize toast container
+        initModalA11yObserver();           // Dialog a11y contract for dynamic overlays (CS-008)
 
         // Check for safe mode URL parameter before any plugin work
         const urlParams = new URLSearchParams(window.location.search);

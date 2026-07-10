@@ -1,4 +1,4 @@
-// Version: 0.18.0
+// Version: 0.18.1
 (function() {
   "use strict";
   const middlewares = [];
@@ -366,10 +366,12 @@
   };
   console.log("[PluginValidator] Validation system initialized");
   const STORAGE_KEY = "cardspoke_plugin_permissions";
+  const TRUST_KEY = "cardspoke_plugin_trust";
   const grantedPermissions = /* @__PURE__ */ new Map();
+  const trustedPlugins = /* @__PURE__ */ new Set();
   function loadPermissions() {
+    if (typeof localStorage === "undefined") return;
     try {
-      if (typeof localStorage === "undefined") return;
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -379,6 +381,22 @@
       }
     } catch (err) {
       console.error("[Permissions] Failed to load saved permissions:", err);
+    }
+    try {
+      const savedTrust = localStorage.getItem(TRUST_KEY);
+      if (savedTrust) {
+        JSON.parse(savedTrust).forEach((pluginId) => trustedPlugins.add(pluginId));
+      }
+    } catch (err) {
+      console.error("[Permissions] Failed to load saved trust grants:", err);
+    }
+  }
+  function saveTrust() {
+    try {
+      if (typeof localStorage === "undefined") return;
+      localStorage.setItem(TRUST_KEY, JSON.stringify(Array.from(trustedPlugins)));
+    } catch (err) {
+      console.error("[Permissions] Failed to save trust grants:", err);
     }
   }
   function savePermissions() {
@@ -481,50 +499,133 @@
       return granted;
     },
     /**
+     * Whether the user has accepted a plugin's JavaScript as fully trusted.
+     */
+    hasFullTrust: function(pluginId) {
+      return trustedPlugins.has(pluginId);
+    },
+    /** Record full-trust consent for a plugin (persisted). */
+    grantFullTrust: function(pluginId) {
+      trustedPlugins.add(pluginId);
+      saveTrust();
+      console.log("[Permissions] Full trust granted to", pluginId);
+    },
+    /** Remove full-trust consent (e.g. when the plugin is deleted). */
+    revokeFullTrust: function(pluginId) {
+      if (trustedPlugins.delete(pluginId)) {
+        saveTrust();
+        console.log("[Permissions] Full trust revoked from", pluginId);
+      }
+    },
+    /**
+     * Ask the user for full-trust consent before a JavaScript plugin runs.
+     * There is no script isolation in this runtime: plugin JS executes in
+     * the page realm and can reach everything the app can, regardless of
+     * declared permissions. The dialog says exactly that. Environments
+     * without a consent UI deny by default.
+     */
+    requestFullTrust: async function(pluginId, pluginName) {
+      if (this.hasFullTrust(pluginId)) {
+        return true;
+      }
+      if (typeof document === "undefined" || !document.body || typeof document.createElement !== "function" || typeof document.addEventListener !== "function") {
+        console.warn("[Permissions] No consent UI available; full trust denied for", pluginId);
+        return false;
+      }
+      const granted = await this._showDecisionDialog({
+        titleText: "Run Plugin Code?",
+        introText: '"' + pluginName + '" contains JavaScript. CardSpoke plugins are NOT sandboxed: this code will run with FULL access to this app — including every card in every unlocked dataset, browser storage, and the network. Declared permissions scope the plugin API but cannot contain malicious code.',
+        bulletItems: ["Only continue if you trust the author of this plugin."],
+        denyLabel: "Keep Suspended",
+        allowLabel: "Trust & Run"
+      });
+      if (granted) {
+        this.grantFullTrust(pluginId);
+      }
+      return granted;
+    },
+    /**
      * Show permission consent dialog
      */
     _showConsentDialog: async function(pluginId, pluginName, permissions) {
+      return this._showDecisionDialog({
+        titleText: "Permission Request",
+        introText: '"' + pluginName + '" requests the following permissions. Note: permissions describe what the plugin API offers this plugin; they are not a security sandbox.',
+        bulletItems: permissions.map(function(perm) {
+          return perm + ": " + (PERMISSION_DESCRIPTIONS[perm] || "Unknown permission");
+        }),
+        denyLabel: "Deny",
+        allowLabel: "Allow"
+      });
+    },
+    /**
+     * Shared accessible consent dialog (CS-008): role="dialog", aria-modal,
+     * labelled title, focus trap, Escape-to-deny, and focus restoration.
+     */
+    _showDecisionDialog: function(opts) {
       return new Promise((resolve) => {
+        const previousActive = document.activeElement;
         const modal = document.createElement("div");
-        modal.className = "modal permission-modal";
+        modal.className = "modal-overlay show permission-modal";
         modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;";
         const content = document.createElement("div");
+        content.setAttribute("role", "dialog");
+        content.setAttribute("aria-modal", "true");
+        const titleId = "permission-dialog-title-" + Date.now().toString(36);
+        content.setAttribute("aria-labelledby", titleId);
         content.style.cssText = "background:var(--bg-primary,#fff);padding:2rem;border-radius:8px;max-width:500px;box-shadow:0 4px 20px rgba(0,0,0,0.2);";
         const title = document.createElement("h2");
-        title.textContent = "Permission Request";
+        title.id = titleId;
+        title.textContent = opts.titleText;
         title.style.cssText = "margin:0 0 1rem;font-size:1.5rem;color:var(--text-primary,#000);";
         const desc = document.createElement("p");
-        desc.textContent = '"' + pluginName + '" requests the following permissions:';
+        desc.textContent = opts.introText;
         desc.style.cssText = "margin:0 0 1rem;color:var(--text-secondary,#666);";
         const list = document.createElement("ul");
         list.style.cssText = "margin:0 0 1.5rem;padding-left:1.5rem;";
-        permissions.forEach((perm) => {
+        (opts.bulletItems || []).forEach((text) => {
           const item = document.createElement("li");
           item.style.cssText = "margin:0.5rem 0;color:var(--text-primary,#000);";
-          const permName = document.createElement("strong");
-          permName.textContent = perm;
-          const permDesc = document.createTextNode(": " + (PERMISSION_DESCRIPTIONS[perm] || "Unknown permission"));
-          item.appendChild(permName);
-          item.appendChild(permDesc);
+          item.textContent = text;
           list.appendChild(item);
         });
+        let settled = false;
+        const finish = (value) => {
+          if (settled) return;
+          settled = true;
+          document.removeEventListener("keydown", onKeyDown, true);
+          if (modal.parentNode) modal.parentNode.removeChild(modal);
+          if (previousActive && typeof previousActive.focus === "function") {
+            previousActive.focus();
+          }
+          resolve(value);
+        };
+        const onKeyDown = (e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            finish(false);
+          } else if (e.key === "Tab") {
+            e.preventDefault();
+            const other = document.activeElement === denyBtn ? allowBtn : denyBtn;
+            other.focus();
+          }
+        };
         const buttons = document.createElement("div");
         buttons.style.cssText = "display:flex;gap:1rem;justify-content:flex-end;";
         const denyBtn = document.createElement("button");
-        denyBtn.textContent = "Deny";
+        denyBtn.textContent = opts.denyLabel;
         denyBtn.className = "btn btn-secondary";
         denyBtn.style.cssText = "padding:0.5rem 1.5rem;border:1px solid #ccc;background:#fff;border-radius:4px;cursor:pointer;";
         denyBtn.onclick = function() {
-          document.body.removeChild(modal);
-          resolve(false);
+          finish(false);
         };
         const allowBtn = document.createElement("button");
-        allowBtn.textContent = "Allow";
+        allowBtn.textContent = opts.allowLabel;
         allowBtn.className = "btn btn-primary";
         allowBtn.style.cssText = "padding:0.5rem 1.5rem;border:none;background:var(--accent,#007bff);color:#fff;border-radius:4px;cursor:pointer;";
         allowBtn.onclick = function() {
-          document.body.removeChild(modal);
-          resolve(true);
+          finish(true);
         };
         buttons.appendChild(denyBtn);
         buttons.appendChild(allowBtn);
@@ -533,7 +634,11 @@
         content.appendChild(list);
         content.appendChild(buttons);
         modal.appendChild(content);
+        document.addEventListener("keydown", onKeyDown, true);
         document.body.appendChild(modal);
+        if (typeof denyBtn.focus === "function") {
+          denyBtn.focus();
+        }
       });
     },
     /**
@@ -552,11 +657,13 @@
       }));
     },
     /**
-     * Clear all permissions (for testing)
+     * Clear all permissions and trust grants (for testing)
      */
     clearAll: function() {
       grantedPermissions.clear();
       savePermissions();
+      trustedPlugins.clear();
+      saveTrust();
     }
   };
   loadPermissions();
@@ -1219,6 +1326,9 @@
         if (PermissionsManager && PermissionsManager.revokePermissions) {
           PermissionsManager.revokePermissions(id);
         }
+        if (PermissionsManager && PermissionsManager.revokeFullTrust) {
+          PermissionsManager.revokeFullTrust(id);
+        }
         if (window.store && window.store.plugins) {
           delete window.store.plugins[id];
           if (window.save) {
@@ -1234,6 +1344,32 @@
     list: function() {
       return Array.from(plugins.values());
     },
+    /**
+     * Runtime-only teardown for a dataset switch. Disables the plugin (running
+     * its teardown + resource cleanup so no CSS/DOM/listeners leak) and drops
+     * the instance from the runtime so a subsequent syncFromStore() can cleanly
+     * re-register it — but deliberately does NOT touch the persisted store or
+     * the user's permission/trust grants, which are keyed to the plugin id and
+     * must survive switching away from and back to a dataset.
+     *
+     * Unlike unregister(), this never deletes store.plugins[id] or revokes
+     * consent. syncFromStore skips ids already in the runtime Map, so without
+     * this teardown a plugin carried over from the previous dataset would be
+     * stuck in its old enabled/definition state after a switch.
+     */
+    teardownForReload: async function(id) {
+      const instance = plugins.get(id);
+      if (!instance) return;
+      if (instance.enabled) {
+        await this.disable(id);
+      } else {
+        this._removeCSS(id);
+        this._cleanupResources(id);
+      }
+      plugins.delete(id);
+      pluginResources.delete(id);
+      dataUpdateListeners.delete(id);
+    },
     enable: async function(id) {
       const instance = plugins.get(id);
       if (!instance) {
@@ -1243,6 +1379,14 @@
         return;
       }
       captureInternalReferences();
+      const requiresFullTrust = !!(instance.definition.js || instance.definition.teardownJs);
+      if (requiresFullTrust && PermissionsManager && typeof PermissionsManager.requestFullTrust === "function") {
+        const pluginName = instance.definition.manifest && instance.definition.manifest.name || id;
+        const trusted = await PermissionsManager.requestFullTrust(id, pluginName);
+        if (!trusted) {
+          throw new Error('Plugin "' + id + '" was not enabled: full-trust consent was declined');
+        }
+      }
       if (instance.definition.manifest.config) {
         instance.context.config = instance.definition.manifest.config;
       }
@@ -1509,7 +1653,7 @@
         try {
           await this.enable(id);
         } catch (err) {
-          console.error("[Plugin] Installed but failed to enable", id, ":", err);
+          console.warn("[Plugin] Installed but not enabled", id, ":", err.message);
         }
       }
       console.log("[Plugin] Installed:", id);
@@ -1535,9 +1679,9 @@
       }
       return 'MEDIUM';
     },
-    syncFromStore: async function(safeMode2) {
-      if (typeof safeMode2 === "undefined" && typeof window !== "undefined" && window.location && typeof window.location.search === "string") {
-        safeMode2 = new URLSearchParams(window.location.search).has("safemode");
+    syncFromStore: async function(safeMode) {
+      if (typeof safeMode === "undefined" && typeof window !== "undefined" && window.location && typeof window.location.search === "string") {
+        safeMode = new URLSearchParams(window.location.search).has("safemode");
       }
       if (!window.store || !window.store.plugins) {
         return;
@@ -1571,7 +1715,7 @@
             def.teardown = _createSandboxedFunction(def.teardownJs);
           }
           this.register(id, def);
-          if (!safeMode2 && pluginData.enabled) {
+          if (!safeMode && pluginData.enabled) {
             await this.enable(id);
           }
         } catch (err) {
@@ -1760,10 +1904,76 @@
     }
     return { store: store2, changed, migratedCount, warnings };
   }
+  const PBKDF2_ITERATIONS = 25e4;
+  function getCrypto() {
+    const c = typeof globalThis !== "undefined" ? globalThis.crypto : void 0;
+    if (!c || !c.subtle) throw new Error("Web Crypto API unavailable");
+    return c;
+  }
+  function toBase64(bytes) {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+  function fromBase64(base64) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+  async function derivePinKey(pin, saltBytes) {
+    const cryptoApi = getCrypto();
+    const encoder = new TextEncoder();
+    const baseKey = await cryptoApi.subtle.importKey("raw", encoder.encode(pin), "PBKDF2", false, ["deriveKey"]);
+    return cryptoApi.subtle.deriveKey(
+      {
+        name: "PBKDF2",
+        salt: saltBytes,
+        iterations: PBKDF2_ITERATIONS,
+        hash: "SHA-256"
+      },
+      baseKey,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+  }
+  async function encryptStorePayload(payload, pin) {
+    const cryptoApi = getCrypto();
+    const salt = cryptoApi.getRandomValues(new Uint8Array(16));
+    const iv = cryptoApi.getRandomValues(new Uint8Array(12));
+    const key = await derivePinKey(pin, salt);
+    const data = new TextEncoder().encode(payload);
+    const encrypted = await cryptoApi.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
+    return JSON.stringify({
+      encrypted: true,
+      version: 1,
+      kdf: "PBKDF2",
+      cipher: "AES-GCM",
+      iterations: PBKDF2_ITERATIONS,
+      salt: toBase64(salt),
+      iv: toBase64(iv),
+      payload: toBase64(new Uint8Array(encrypted))
+    });
+  }
+  async function decryptStorePayload(encryptedPayload, pin) {
+    const envelope = typeof encryptedPayload === "string" ? JSON.parse(encryptedPayload) : encryptedPayload;
+    if (!envelope || !envelope.encrypted) return encryptedPayload;
+    const cryptoApi = getCrypto();
+    const salt = fromBase64(envelope.salt);
+    const iv = fromBase64(envelope.iv);
+    const ciphertext = fromBase64(envelope.payload);
+    const key = await derivePinKey(pin, salt);
+    const decrypted = await cryptoApi.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+    return new TextDecoder().decode(decrypted);
+  }
+  function isEncryptedEnvelope(value) {
+    return !!(value && typeof value === "object" && value.encrypted === true && typeof value.payload === "string" && typeof value.salt === "string" && typeof value.iv === "string");
+  }
   "use strict";
   const APP_CREATOR = "Jeffrey from GX Generations Software";
-  const APP_VERSION = '0.18.0';
-  const APP_RELEASE_DATE = "2026-07-09";
+  const APP_VERSION = '0.18.1';
+  const APP_RELEASE_DATE = "2026-07-10";
   const APP_UPDATER = "Claude Code (Sonnet 4.5)";
   const SCHEMA_VERSION = 4;
   const MAX_UNDO_STACK = 50;
@@ -2402,6 +2612,10 @@
     const focusableElements = modal.querySelectorAll(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
+    if (!focusableElements.length) {
+      return () => {
+      };
+    }
     const firstFocusable = focusableElements[0];
     const lastFocusable = focusableElements[focusableElements.length - 1];
     const handleKeyDown = (e) => {
@@ -2425,6 +2639,57 @@
     return () => {
       modal.removeEventListener("keydown", handleKeyDown);
     };
+  }
+  function enhanceModalA11y(overlay) {
+    if (!overlay || !overlay.dataset || overlay.dataset.a11yEnhanced === "true") return;
+    const modal = overlay.querySelector(".modal, .menu-panel");
+    if (!modal) return;
+    overlay.dataset.a11yEnhanced = "true";
+    const titleEl = modal.querySelector(".modal-title, .menu-title");
+    if (titleEl) {
+      if (!titleEl.id) titleEl.id = "dialog-title-" + uid();
+      modal.setAttribute("aria-labelledby", titleEl.id);
+    }
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    const previousActive = document.activeElement;
+    const releaseFocus = trapFocus(modal);
+    const isTopmostOverlay = () => {
+      const overlays = document.querySelectorAll(".modal-overlay.show, .menu-overlay.show");
+      return overlays.length > 0 && overlays[overlays.length - 1] === overlay;
+    };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape" && isTopmostOverlay()) {
+        e.preventDefault();
+        e.stopPropagation();
+        overlay.remove();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    const originalRemove = overlay.remove.bind(overlay);
+    overlay.remove = function() {
+      document.removeEventListener("keydown", onKeyDown, true);
+      if (typeof releaseFocus === "function") releaseFocus();
+      originalRemove();
+      if (previousActive && typeof previousActive.focus === "function" && document.contains(previousActive)) {
+        previousActive.focus();
+      }
+    };
+  }
+  function initModalA11yObserver() {
+    if (typeof MutationObserver === "undefined" || !document.body) return;
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (!node || node.nodeType !== 1 || !node.classList) return;
+          const isOverlay = node.classList.contains("show") && (node.classList.contains("modal-overlay") || node.classList.contains("menu-overlay"));
+          if (!isOverlay) return;
+          if (node.dataset.a11yManaged === "true" || node.classList.contains("permission-modal")) return;
+          enhanceModalA11y(node);
+        });
+      });
+    });
+    observer.observe(document.body, { childList: true });
   }
   function formatBytes(bytes) {
     if (bytes === 0) return "0 Bytes";
@@ -2498,197 +2763,6 @@
         isPaused = false;
         scheduleRemoval();
       }
-      function showModalDialog(options = {}) {
-        const {
-          title = "Dialog",
-          message: message2 = "",
-          content = null,
-          actions = [],
-          dismissValue = null,
-          width = "520px",
-          ariaLabelledBy = "",
-          onOpen = null
-        } = options;
-        return new Promise((resolve) => {
-          const previousActive = document.activeElement;
-          const overlay = h("div", { className: "modal-overlay show" });
-          const modal = h("div", {
-            className: "modal",
-            role: "dialog",
-            "aria-modal": "true",
-            "aria-labelledby": ariaLabelledBy || `dialog-title-${uid()}`,
-            style: `max-width: ${width};`
-          });
-          const modalHeader = h("div", { className: "modal-header" });
-          const titleEl = h("div", {
-            className: "modal-title",
-            id: modal.getAttribute("aria-labelledby")
-          }, title);
-          modalHeader.appendChild(titleEl);
-          const closeBtn = h("button", {
-            className: "modal-close",
-            type: "button",
-            "aria-label": "Close dialog"
-          }, "×");
-          modalHeader.appendChild(closeBtn);
-          modal.appendChild(modalHeader);
-          const modalBody = h("div", { className: "modal-body" });
-          if (message2) {
-            modalBody.appendChild(h("div", { className: "modal-message" }, message2));
-          }
-          if (content) {
-            modalBody.appendChild(content);
-          }
-          const modalActions = h("div", { className: "modal-actions" });
-          modalBody.appendChild(modalActions);
-          modal.appendChild(modalBody);
-          overlay.appendChild(modal);
-          let releasedFocus = null;
-          let settled = false;
-          const finish = (value) => {
-            if (settled) return;
-            settled = true;
-            document.removeEventListener("keydown", onKeyDown);
-            if (releasedFocus) releasedFocus();
-            overlay.remove();
-            if (previousActive && typeof previousActive.focus === "function") {
-              previousActive.focus();
-            }
-            resolve(value);
-          };
-          const onKeyDown = (e) => {
-            if (e.key === "Escape") {
-              e.preventDefault();
-              finish(dismissValue);
-            }
-          };
-          document.addEventListener("keydown", onKeyDown);
-          closeBtn.onclick = () => finish(dismissValue);
-          overlay.onclick = (e) => {
-            if (e.target === overlay) finish(dismissValue);
-          };
-          actions.forEach((action) => {
-            const btn = h("button", {
-              type: "button",
-              className: action.className || "btn",
-              onclick: () => finish(typeof action.getValue === "function" ? action.getValue() : action.value)
-            }, action.label);
-            if (typeof action.onCreate === "function") {
-              action.onCreate(btn);
-            }
-            if (action.autoFocus) {
-              btn.dataset.autofocus = "true";
-            }
-            modalActions.appendChild(btn);
-          });
-          document.body.appendChild(overlay);
-          releasedFocus = trapFocus(modal);
-          requestAnimationFrame(() => {
-            if (typeof onOpen === "function") {
-              onOpen({ overlay, modal, modalBody, finish });
-            }
-            const preferred = modal.querySelector('[data-autofocus="true"]');
-            if (preferred && typeof preferred.focus === "function") {
-              preferred.focus();
-            }
-          });
-        });
-      }
-      function showConfirmDialog2(message2, options = {}) {
-        return showModalDialog({
-          title: options.title || "Confirm Action",
-          message: message2,
-          width: options.width || "520px",
-          dismissValue: false,
-          actions: [
-            {
-              label: options.cancelLabel || "Cancel",
-              value: false,
-              className: "btn",
-              autoFocus: !options.confirmFirst
-            },
-            {
-              label: options.confirmLabel || "Confirm",
-              value: true,
-              className: options.confirmClassName || "btn btn-primary",
-              autoFocus: !!options.confirmFirst
-            }
-          ]
-        });
-      }
-      function showChoiceDialog2(message2, options = {}) {
-        return showModalDialog({
-          title: options.title || "Choose Action",
-          message: message2,
-          width: options.width || "520px",
-          dismissValue: options.dismissValue ?? null,
-          actions: options.actions || []
-        });
-      }
-      function showPromptDialog2(options = {}) {
-        const fieldId = `dialog-input-${uid()}`;
-        const inputWrap = h("div", { className: "form-group dialog-field" });
-        if (options.label) {
-          inputWrap.appendChild(h("label", { className: "form-label", for: fieldId }, options.label));
-        }
-        const input = h("input", {
-          id: fieldId,
-          type: options.type || "text",
-          className: "form-input",
-          value: options.defaultValue || "",
-          placeholder: options.placeholder || "",
-          autocomplete: "off"
-        });
-        input.dataset.autofocus = "true";
-        if (Array.isArray(options.suggestions) && options.suggestions.length > 0) {
-          const datalistId = `dialog-datalist-${uid()}`;
-          input.setAttribute("list", datalistId);
-          const datalist = h("datalist", { id: datalistId });
-          options.suggestions.forEach((suggestion) => {
-            datalist.appendChild(h("option", { value: suggestion }));
-          });
-          inputWrap.appendChild(input);
-          inputWrap.appendChild(datalist);
-        } else {
-          inputWrap.appendChild(input);
-        }
-        let submitBtn = null;
-        input.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" && submitBtn) {
-            e.preventDefault();
-            submitBtn.click();
-          }
-        });
-        return showModalDialog({
-          title: options.title || "Enter Value",
-          message: options.message || "",
-          content: inputWrap,
-          width: options.width || "520px",
-          dismissValue: null,
-          actions: [
-            {
-              label: options.cancelLabel || "Cancel",
-              value: null,
-              className: "btn"
-            },
-            {
-              label: options.confirmLabel || "Save",
-              className: options.confirmClassName || "btn btn-primary",
-              getValue: () => input.value,
-              onCreate: (btn) => {
-                submitBtn = btn;
-              }
-            }
-          ],
-          onOpen: () => {
-            input.focus();
-            input.select();
-          }
-        }).then((value) => {
-          submitBtn = null;
-          return value;
-        });
-      }
     };
     toast.addEventListener("mouseenter", pauseTimer);
     toast.addEventListener("mouseleave", resumeTimer);
@@ -2706,6 +2780,199 @@
       }
     });
     scheduleRemoval();
+  }
+  function showModalDialog(options = {}) {
+    const {
+      title = "Dialog",
+      message = "",
+      content = null,
+      actions = [],
+      dismissValue = null,
+      width = "520px",
+      ariaLabelledBy = "",
+      onOpen = null
+    } = options;
+    return new Promise((resolve) => {
+      const previousActive = document.activeElement;
+      const overlay = h("div", { className: "modal-overlay show", "data-a11y-managed": "true" });
+      const modal = h("div", {
+        className: "modal",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-labelledby": ariaLabelledBy || `dialog-title-${uid()}`,
+        style: `max-width: ${width};`
+      });
+      const modalHeader = h("div", { className: "modal-header" });
+      const titleEl = h("div", {
+        className: "modal-title",
+        id: modal.getAttribute("aria-labelledby")
+      }, title);
+      modalHeader.appendChild(titleEl);
+      const closeBtn = h("button", {
+        className: "modal-close",
+        type: "button",
+        "aria-label": "Close dialog"
+      }, "×");
+      modalHeader.appendChild(closeBtn);
+      modal.appendChild(modalHeader);
+      const modalBody = h("div", { className: "modal-body" });
+      if (message) {
+        modalBody.appendChild(h("div", { className: "modal-message" }, message));
+      }
+      if (content) {
+        modalBody.appendChild(content);
+      }
+      const modalActions = h("div", { className: "modal-actions" });
+      modalBody.appendChild(modalActions);
+      modal.appendChild(modalBody);
+      overlay.appendChild(modal);
+      let releasedFocus = null;
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener("keydown", onKeyDown);
+        if (releasedFocus) releasedFocus();
+        overlay.remove();
+        if (previousActive && typeof previousActive.focus === "function") {
+          previousActive.focus();
+        }
+        resolve(value);
+      };
+      const onKeyDown = (e) => {
+        if (e.key === "Escape") {
+          const overlays = document.querySelectorAll(".modal-overlay.show, .menu-overlay.show");
+          if (overlays.length && overlays[overlays.length - 1] !== overlay) return;
+          e.preventDefault();
+          finish(dismissValue);
+        }
+      };
+      document.addEventListener("keydown", onKeyDown);
+      closeBtn.onclick = () => finish(dismissValue);
+      overlay.onclick = (e) => {
+        if (e.target === overlay) finish(dismissValue);
+      };
+      actions.forEach((action) => {
+        const btn = h("button", {
+          type: "button",
+          className: action.className || "btn",
+          onclick: () => finish(typeof action.getValue === "function" ? action.getValue() : action.value)
+        }, action.label);
+        if (typeof action.onCreate === "function") {
+          action.onCreate(btn);
+        }
+        if (action.autoFocus) {
+          btn.dataset.autofocus = "true";
+        }
+        modalActions.appendChild(btn);
+      });
+      document.body.appendChild(overlay);
+      releasedFocus = trapFocus(modal);
+      requestAnimationFrame(() => {
+        if (typeof onOpen === "function") {
+          onOpen({ overlay, modal, modalBody, finish });
+        }
+        const preferred = modal.querySelector('[data-autofocus="true"]');
+        if (preferred && typeof preferred.focus === "function") {
+          preferred.focus();
+        }
+      });
+    });
+  }
+  function showConfirmDialog(message, options = {}) {
+    return showModalDialog({
+      title: options.title || "Confirm Action",
+      message,
+      width: options.width || "520px",
+      dismissValue: false,
+      actions: [
+        {
+          label: options.cancelLabel || "Cancel",
+          value: false,
+          className: "btn",
+          autoFocus: !options.confirmFirst
+        },
+        {
+          label: options.confirmLabel || "Confirm",
+          value: true,
+          className: options.confirmClassName || "btn btn-primary",
+          autoFocus: !!options.confirmFirst
+        }
+      ]
+    });
+  }
+  function showChoiceDialog(message, options = {}) {
+    return showModalDialog({
+      title: options.title || "Choose Action",
+      message,
+      width: options.width || "520px",
+      dismissValue: options.dismissValue ?? null,
+      actions: options.actions || []
+    });
+  }
+  function showPromptDialog(options = {}) {
+    const fieldId = `dialog-input-${uid()}`;
+    const inputWrap = h("div", { className: "form-group dialog-field" });
+    if (options.label) {
+      inputWrap.appendChild(h("label", { className: "form-label", for: fieldId }, options.label));
+    }
+    const input = h("input", {
+      id: fieldId,
+      type: options.type || "text",
+      className: "form-input",
+      value: options.defaultValue || "",
+      placeholder: options.placeholder || "",
+      autocomplete: "off"
+    });
+    input.dataset.autofocus = "true";
+    if (Array.isArray(options.suggestions) && options.suggestions.length > 0) {
+      const datalistId = `dialog-datalist-${uid()}`;
+      input.setAttribute("list", datalistId);
+      const datalist = h("datalist", { id: datalistId });
+      options.suggestions.forEach((suggestion) => {
+        datalist.appendChild(h("option", { value: suggestion }));
+      });
+      inputWrap.appendChild(input);
+      inputWrap.appendChild(datalist);
+    } else {
+      inputWrap.appendChild(input);
+    }
+    let submitBtn = null;
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && submitBtn) {
+        e.preventDefault();
+        submitBtn.click();
+      }
+    });
+    return showModalDialog({
+      title: options.title || "Enter Value",
+      message: options.message || "",
+      content: inputWrap,
+      width: options.width || "520px",
+      dismissValue: null,
+      actions: [
+        {
+          label: options.cancelLabel || "Cancel",
+          value: null,
+          className: "btn"
+        },
+        {
+          label: options.confirmLabel || "Save",
+          className: options.confirmClassName || "btn btn-primary",
+          getValue: () => input.value,
+          onCreate: (btn) => {
+            submitBtn = btn;
+          }
+        }
+      ],
+      onOpen: () => {
+        input.focus();
+        input.select();
+      }
+    }).then((value) => {
+      submitBtn = null;
+      return value;
+    });
   }
   let renderCleanupCallbacks = [];
   function registerRenderCleanup(fn) {
@@ -2881,71 +3148,43 @@
     if (!query || query.trim() === "") {
       return [];
     }
-    if (!datasetManager) {
-      return fuzzySearchCards(store, query);
-    }
+    const currentKey = typeof instanceKey !== "undefined" && instanceKey || "nested_cards_store";
+    const currentName = store && store.metadata && store.metadata.name || currentKey;
+    const MAX_RESULTS = 100;
+    const searchableKeys = scope === "all" && typeof getAllDatasetKeys === "function" ? getAllDatasetKeys() : scope !== "current" && scope !== "all" ? [scope] : [currentKey];
     const allResults = [];
-    if (scope === "current") {
-      const results = fuzzySearchCards(store, query);
-      const currentDataset = datasetManager.getActiveDataset();
-      results.forEach((result) => {
-        allResults.push({
-          ...result,
-          datasetId: currentDataset.id,
-          datasetName: currentDataset.name
+    for (const key of searchableKeys) {
+      try {
+        let datasetStore;
+        let datasetName;
+        if (key === currentKey) {
+          datasetStore = store;
+          datasetName = currentName;
+        } else {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== "object") continue;
+          if (parsed.encrypted === true && typeof parsed.payload === "string") {
+            continue;
+          }
+          if (!parsed.cards || typeof parsed.cards !== "object") continue;
+          datasetStore = { cards: parsed.cards };
+          datasetName = parsed.metadata && parsed.metadata.name || key;
+        }
+        const results = fuzzySearchCards(datasetStore, query);
+        results.forEach((result) => {
+          allResults.push({
+            ...result,
+            datasetId: key,
+            datasetName
+          });
         });
-      });
-    } else if (scope === "all") {
-      const datasets = datasetManager.listDatasets();
-      const currentDatasetId = datasetManager.activeDatasetId;
-      for (const dataset of datasets) {
-        try {
-          let datasetStore;
-          if (dataset.id === currentDatasetId) {
-            datasetStore = store;
-          } else {
-            const driver = datasetManager.datasets.get(dataset.id).driver;
-            const storeData = await driver.get("store");
-            datasetStore = storeData || { cards: {} };
-          }
-          const results = fuzzySearchCards(datasetStore, query);
-          results.forEach((result) => {
-            allResults.push({
-              ...result,
-              datasetId: dataset.id,
-              datasetName: dataset.name
-            });
-          });
-        } catch (err) {
-          console.warn(`Failed to search dataset ${dataset.name}:`, err);
-        }
-      }
-    } else {
-      const dataset = datasetManager.datasets.get(scope);
-      if (dataset) {
-        try {
-          let datasetStore;
-          if (scope === datasetManager.activeDatasetId) {
-            datasetStore = store;
-          } else {
-            const storeData = await dataset.driver.get("store");
-            datasetStore = storeData || { cards: {} };
-          }
-          const results = fuzzySearchCards(datasetStore, query);
-          results.forEach((result) => {
-            allResults.push({
-              ...result,
-              datasetId: dataset.id,
-              datasetName: dataset.name
-            });
-          });
-        } catch (err) {
-          console.warn(`Failed to search dataset ${dataset.name}:`, err);
-        }
+      } catch (err) {
+        console.warn(`Failed to search dataset ${key}:`, err);
       }
     }
     allResults.sort((a, b) => b.score - a.score);
-    const MAX_RESULTS = 100;
     return allResults.slice(0, MAX_RESULTS);
   }
   class StorageDriver {
@@ -3340,7 +3579,8 @@
             id,
             name: meta.name,
             driver,
-            pin: meta.pin || null,
+            pin: null,
+            hasPin: !!(meta.hasPin || meta.pin),
             createdAt: meta.createdAt,
             updatedAt: meta.updatedAt
           });
@@ -3400,7 +3640,8 @@
             driver: dataset.driver.getKind(),
             config: {}
           },
-          pin: dataset.pin,
+          // Never persist the PIN itself — only whether one exists.
+          hasPin: !!(dataset.pin || dataset.hasPin),
           createdAt: dataset.createdAt,
           updatedAt: dataset.updatedAt
         };
@@ -3451,7 +3692,7 @@
         id: dataset.id,
         name: dataset.name,
         storageKind: dataset.driver.getKind(),
-        hasPIN: !!dataset.pin,
+        hasPIN: !!(dataset.pin || dataset.hasPin),
         size,
         sizeFormatted: this.formatBytes(size),
         itemCount: keys.length,
@@ -3471,7 +3712,7 @@
         id: d.id,
         name: d.name,
         storageKind: d.driver.getKind(),
-        hasPIN: !!d.pin,
+        hasPIN: !!(d.pin || d.hasPin),
         isActive: d.id === this.activeDatasetId
       }));
     }
@@ -3566,60 +3807,31 @@
     const text = await file.text();
     return text || null;
   }
-  function toBase64(bytes) {
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    return btoa(binary);
+  let activeSessionPin = null;
+  let storageWriteLock = false;
+  function setSessionPin(pin) {
+    activeSessionPin = pin || null;
   }
-  function fromBase64(base64) {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
+  function getSessionPin() {
+    return activeSessionPin;
   }
-  async function derivePinKey(pin, saltBytes) {
-    if (!window.crypto || !window.crypto.subtle) throw new Error("Web Crypto API unavailable");
-    const encoder = new TextEncoder();
-    const baseKey = await window.crypto.subtle.importKey("raw", encoder.encode(pin), "PBKDF2", false, ["deriveKey"]);
-    return window.crypto.subtle.deriveKey(
-      {
-        name: "PBKDF2",
-        salt: saltBytes,
-        iterations: 25e4,
-        hash: "SHA-256"
-      },
-      baseKey,
-      { name: "AES-GCM", length: 256 },
-      false,
-      ["encrypt", "decrypt"]
-    );
+  function isStorageWriteLocked() {
+    return storageWriteLock;
   }
-  async function encryptStorePayload(payload, pin) {
-    const salt = window.crypto.getRandomValues(new Uint8Array(16));
-    const iv = window.crypto.getRandomValues(new Uint8Array(12));
-    const key = await derivePinKey(pin, salt);
-    const data = new TextEncoder().encode(payload);
-    const encrypted = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
-    return JSON.stringify({
-      encrypted: true,
-      version: 1,
-      kdf: "PBKDF2",
-      cipher: "AES-GCM",
-      iterations: 25e4,
-      salt: toBase64(salt),
-      iv: toBase64(iv),
-      payload: toBase64(new Uint8Array(encrypted))
-    });
+  function hashPayload(str) {
+    let h2 = 0;
+    for (let i = 0; i < str.length; i++) {
+      h2 = Math.imul(31, h2) + str.charCodeAt(i) | 0;
+    }
+    return (h2 >>> 0).toString(36);
   }
-  async function decryptStorePayload(encryptedPayload, pin) {
-    const envelope = typeof encryptedPayload === "string" ? JSON.parse(encryptedPayload) : encryptedPayload;
-    if (!envelope || !envelope.encrypted) return encryptedPayload;
-    const salt = fromBase64(envelope.salt);
-    const iv = fromBase64(envelope.iv);
-    const ciphertext = fromBase64(envelope.payload);
-    const key = await derivePinKey(pin, salt);
-    const decrypted = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
-    return new TextDecoder().decode(decrypted);
+  function stripLegacyPinMetadata() {
+    if (store && store.metadata && store.metadata.pin) {
+      if (!activeSessionPin) activeSessionPin = store.metadata.pin;
+      delete store.metadata.pin;
+      return true;
+    }
+    return false;
   }
   function validateStoreConsistency() {
     if (!store || !store.cards || typeof store.cards !== "object") return false;
@@ -3688,6 +3900,11 @@
   }
   async function saveNow() {
     try {
+      if (storageWriteLock) {
+        savePending = false;
+        updateSaveStatus("locked");
+        return;
+      }
       if (window.CardSpoke && window.CardSpoke.Middleware) {
         try {
           const result = await window.CardSpoke.Middleware.run("card.save", [store]);
@@ -3706,9 +3923,9 @@
       store.metadata.navHistory = Array.isArray(navHistory) ? navHistory.slice(-100) : [];
       const doSave = async () => {
         try {
+          stripLegacyPinMetadata();
           const payload = JSON.stringify(store);
-          const activeDataset = datasetManager && datasetManager.getActiveDataset ? datasetManager.getActiveDataset() : null;
-          const activePin = activeDataset && activeDataset.pin || store && store.metadata && store.metadata.pin || null;
+          const activePin = activeSessionPin;
           const finalPayload = activePin ? await encryptStorePayload(payload, activePin) : payload;
           localStorage.setItem(key, finalPayload);
           if (isIndexedDbDataset()) {
@@ -3726,7 +3943,6 @@
           updateSaveStatus("saved");
           setTimeout(() => updateSaveStatus("idle"), 1e3);
           console.log(`Saved in ${duration.toFixed(2)}ms`);
-          scheduleCloudSync();
         } catch (e) {
           savePending = false;
           if (e.name === "QuotaExceededError") {
@@ -3754,6 +3970,11 @@
     if (saveTimeout) {
       clearTimeout(saveTimeout);
       saveTimeout = null;
+    }
+    if (storageWriteLock) {
+      savePending = false;
+      updateSaveStatus("locked");
+      return;
     }
     if (immediate) {
       saveNow();
@@ -3788,6 +4009,10 @@
       case "error":
         indicator.textContent = "Save failed";
         indicator.title = `Save failed at ${timeStr}`;
+        break;
+      case "locked":
+        indicator.textContent = "Not saved — dataset locked";
+        indicator.title = "Changes are not being saved while the dataset is locked";
         break;
       default:
         indicator.textContent = "";
@@ -3826,24 +4051,201 @@
       showToast("Failed to clear data: " + e.message, "error");
     }
   }
+  async function unlockEncryptedDataset(rawEnvelope) {
+    if (activeSessionPin) {
+      try {
+        return await decryptStorePayload(rawEnvelope, activeSessionPin);
+      } catch (_err) {
+        activeSessionPin = null;
+      }
+    }
+    if (typeof showPromptDialog !== "function" || typeof document === "undefined" || !document.body) {
+      return null;
+    }
+    let attempt = 0;
+    for (; ; ) {
+      const pin = await showPromptDialog({
+        title: "Unlock Encrypted Dataset",
+        message: attempt === 0 ? "This dataset is protected with a PIN. Enter it to unlock your cards. Your data stays untouched until the correct PIN is entered." : "Incorrect PIN. Please try again.",
+        label: "PIN",
+        type: "password",
+        confirmLabel: "Unlock",
+        cancelLabel: "Not now"
+      });
+      if (pin === null || pin === void 0) return null;
+      if (!pin.trim()) {
+        attempt++;
+        continue;
+      }
+      try {
+        const decrypted = await decryptStorePayload(rawEnvelope, pin);
+        activeSessionPin = pin;
+        return decrypted;
+      } catch (err) {
+        console.warn("[Dataset] Unlock attempt failed");
+        attempt++;
+      }
+    }
+  }
+  function showDatasetLockScreen(key) {
+    if (typeof document === "undefined" || !document.body) return;
+    const existing = document.getElementById("datasetLockScreen");
+    if (existing) existing.remove();
+    const overlay = h("div", { id: "datasetLockScreen", className: "modal-overlay show", "data-a11y-managed": "true" });
+    const modal = h("div", {
+      className: "modal",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "datasetLockTitle",
+      style: "max-width: 480px;"
+    });
+    const header2 = h("div", { className: "modal-header" });
+    header2.appendChild(h("div", { className: "modal-title", id: "datasetLockTitle" }, "Dataset Locked"));
+    modal.appendChild(header2);
+    const body = h("div", { className: "modal-body" });
+    body.appendChild(h(
+      "p",
+      { style: "margin-bottom: var(--space-lg);" },
+      "This dataset is encrypted and has not been unlocked. Your data is safe: nothing will be saved over it while it stays locked."
+    ));
+    const actions = h("div", { style: "display: flex; gap: var(--space-sm); flex-wrap: wrap;" });
+    actions.appendChild(h("button", {
+      className: "btn btn-primary",
+      onclick: async () => {
+        overlay.remove();
+        await load();
+        render();
+      }
+    }, "Unlock"));
+    actions.appendChild(h("button", {
+      className: "btn",
+      onclick: () => {
+        const payload = localStorage.getItem(key);
+        if (payload && typeof downloadWithFeedback === "function") {
+          downloadWithFeedback(payload, key + "-encrypted-backup.json", "application/json");
+        }
+      }
+    }, "Download encrypted backup"));
+    actions.appendChild(h("button", {
+      className: "btn",
+      onclick: () => {
+        if (typeof showDatasetManager === "function") showDatasetManager();
+      }
+    }, "Switch dataset"));
+    body.appendChild(actions);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    if (typeof trapFocus === "function") trapFocus(modal);
+  }
+  function showCorruptDataRecovery(key, raw, quarantineKey) {
+    if (typeof document === "undefined" || !document.body) return;
+    const existing = document.getElementById("corruptRecoveryScreen");
+    if (existing) existing.remove();
+    const overlay = h("div", { id: "corruptRecoveryScreen", className: "modal-overlay show", "data-a11y-managed": "true" });
+    const modal = h("div", {
+      className: "modal",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "corruptRecoveryTitle",
+      style: "max-width: 560px;"
+    });
+    const header2 = h("div", { className: "modal-header" });
+    header2.appendChild(h("div", { className: "modal-title", id: "corruptRecoveryTitle" }, "Stored Data Could Not Be Read"));
+    modal.appendChild(header2);
+    const body = h("div", { className: "modal-body" });
+    body.appendChild(h(
+      "p",
+      { style: "margin-bottom: var(--space-md);" },
+      "The saved data for this dataset could not be parsed. The original data has NOT been changed or deleted."
+    ));
+    if (quarantineKey) {
+      body.appendChild(h(
+        "p",
+        { style: "margin-bottom: var(--space-md); color: var(--text-muted); font-size: var(--text-sm);" },
+        'A recovery copy was also stored under the key "' + quarantineKey + '".'
+      ));
+    }
+    body.appendChild(h(
+      "p",
+      { style: "margin-bottom: var(--space-lg);" },
+      'Download a copy of the raw data before deciding how to continue. Nothing will be overwritten until you explicitly choose "Start fresh".'
+    ));
+    const actions = h("div", { style: "display: flex; gap: var(--space-sm); flex-wrap: wrap;" });
+    actions.appendChild(h("button", {
+      className: "btn btn-primary",
+      onclick: () => {
+        if (typeof downloadWithFeedback === "function") {
+          const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+          downloadWithFeedback(raw, key + "-recovered-" + stamp + ".json", "application/json");
+        }
+      }
+    }, "Download raw data"));
+    actions.appendChild(h("button", {
+      className: "btn",
+      onclick: () => location.reload()
+    }, "Try again"));
+    actions.appendChild(h("button", {
+      className: "btn btn-danger",
+      onclick: async () => {
+        const confirmed = typeof showConfirmDialog === "function" ? await showConfirmDialog(
+          "Replace the unreadable data with a new empty dataset?\n\n" + (quarantineKey ? 'The quarantined recovery copy will be kept under "' + quarantineKey + '".' : "Download the raw data first if you have not already — this overwrites the active key."),
+          {
+            title: "Start Fresh",
+            confirmLabel: "Start Fresh",
+            cancelLabel: "Cancel",
+            confirmClassName: "btn btn-danger"
+          }
+        ) : false;
+        if (!confirmed) return;
+        storageWriteLock = false;
+        setStore(createDefaultStore());
+        overlay.remove();
+        save(true);
+        render();
+        showToast("Started a fresh dataset. The previous data remains quarantined.", "info", 6e3);
+      }
+    }, "Start fresh"));
+    body.appendChild(actions);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    if (typeof trapFocus === "function") trapFocus(modal);
+  }
   async function load() {
     const key = instanceKey || "nested_cards_store";
     let raw = localStorage.getItem(key);
-    const activeDataset = datasetManager && datasetManager.getActiveDataset ? datasetManager.getActiveDataset() : null;
-    const activePin = activeDataset && activeDataset.pin || store && store.metadata && store.metadata.pin || null;
-    if (raw && activePin) {
-      try {
-        raw = await decryptStorePayload(raw, activePin);
-      } catch (err) {
-        console.error("[Dataset] Failed to decrypt payload:", err);
-        showToast("Failed to decrypt dataset. Check your PIN.", "error");
-        throw err;
-      }
+    storageWriteLock = false;
+    if (typeof document !== "undefined") {
+      const staleLock = document.getElementById("datasetLockScreen");
+      if (staleLock) staleLock.remove();
+      const staleRecovery = document.getElementById("corruptRecoveryScreen");
+      if (staleRecovery) staleRecovery.remove();
     }
     if (!raw) {
+      activeSessionPin = null;
       setStore(createDefaultStore());
       save();
       return;
+    }
+    let envelope = null;
+    try {
+      const probe = JSON.parse(raw);
+      if (isEncryptedEnvelope(probe)) envelope = probe;
+    } catch (_probeErr) {
+    }
+    if (envelope) {
+      const decrypted = await unlockEncryptedDataset(raw);
+      if (decrypted === null) {
+        storageWriteLock = true;
+        setStore(createDefaultStore());
+        updateSaveStatus("locked");
+        showDatasetLockScreen(key);
+        return;
+      }
+      raw = decrypted;
+    } else if (activeSessionPin) {
+      activeSessionPin = null;
     }
     try {
       const parsed = JSON.parse(raw);
@@ -3863,9 +4265,10 @@
       if (store.metadata && Array.isArray(store.metadata.navHistory)) {
         setNavHistory(store.metadata.navHistory.slice(-100));
       }
+      const pinMigrated = stripLegacyPinMetadata();
       const repaired = validateStoreConsistency();
       const typedChanged = migrateTypedCards();
-      if (repaired || typedChanged) {
+      if (repaired || typedChanged || pinMigrated) {
         save();
         if (repaired) showToast("Data integrity check repaired structural metadata", "info");
       }
@@ -3873,7 +4276,16 @@
       if (storageType === "indexeddb") {
         getIndexedDbMirrorDriver().then((driver) => driver.get(key)).then(async (payload) => {
           if (!payload) return;
-          const parsedMirror = typeof payload === "string" ? JSON.parse(payload) : payload;
+          let parsedMirror = typeof payload === "string" ? JSON.parse(payload) : payload;
+          if (isEncryptedEnvelope(parsedMirror)) {
+            if (!activeSessionPin) return;
+            try {
+              parsedMirror = JSON.parse(await decryptStorePayload(parsedMirror, activeSessionPin));
+            } catch (_mirrorErr) {
+              console.warn("[IndexedDB] Mirror payload could not be decrypted; skipping");
+              return;
+            }
+          }
           if (!parsedMirror || typeof parsedMirror !== "object") return;
           setStore({
             rootOrder: parsedMirror.rootOrder || [],
@@ -3887,9 +4299,10 @@
           });
           if (store.metadata && store.metadata.navState) setNavState({ ...navState, ...store.metadata.navState });
           if (store.metadata && Array.isArray(store.metadata.navHistory)) setNavHistory(store.metadata.navHistory.slice(-100));
+          const mirrorPinMigrated = stripLegacyPinMetadata();
           const mirrorRepaired = validateStoreConsistency();
           const mirrorTypedChanged = migrateTypedCards();
-          if (mirrorRepaired || mirrorTypedChanged) save();
+          if (mirrorRepaired || mirrorTypedChanged || mirrorPinMigrated) save();
           if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
             window.CardSpoke.Plugin.syncFromStore().catch((err) => console.error("[Plugin] Re-sync after IndexedDB load failed:", err));
           }
@@ -3900,10 +4313,17 @@
       } else if (storageType === "localfile") {
         readDatasetFromLocalFile().then(async (payload) => {
           if (!payload) return;
-          const active = datasetManager && datasetManager.getActiveDataset ? datasetManager.getActiveDataset() : null;
-          const filePin = active && active.pin || store && store.metadata && store.metadata.pin || null;
-          const payloadText = filePin ? await decryptStorePayload(payload, filePin) : payload;
-          const parsedFile = JSON.parse(payloadText);
+          let parsedFile = JSON.parse(payload);
+          if (isEncryptedEnvelope(parsedFile)) {
+            if (!activeSessionPin) return;
+            try {
+              parsedFile = JSON.parse(await decryptStorePayload(parsedFile, activeSessionPin));
+            } catch (_fileErr) {
+              console.warn("[Local File] Payload could not be decrypted; skipping");
+              return;
+            }
+          }
+          if (!parsedFile || typeof parsedFile !== "object") return;
           setStore({
             rootOrder: parsedFile.rootOrder || [],
             cards: parsedFile.cards || {},
@@ -3916,9 +4336,10 @@
           });
           if (store.metadata && store.metadata.navState) setNavState({ ...navState, ...store.metadata.navState });
           if (store.metadata && Array.isArray(store.metadata.navHistory)) setNavHistory(store.metadata.navHistory.slice(-100));
+          const filePinMigrated = stripLegacyPinMetadata();
           const fileRepaired = validateStoreConsistency();
           const fileTypedChanged = migrateTypedCards();
-          if (fileRepaired || fileTypedChanged) save();
+          if (fileRepaired || fileTypedChanged || filePinMigrated) save();
           if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
             window.CardSpoke.Plugin.syncFromStore().catch((err) => console.error("[Plugin] Re-sync after local-file load failed:", err));
           }
@@ -3928,14 +4349,21 @@
         });
       }
     } catch (e) {
-      console.error("[CardSpoke] Failed to parse stored data — resetting to clean state:", e);
-      setStore(createDefaultStore());
+      console.error("[CardSpoke] Failed to parse stored data — entering recovery mode:", e);
+      let quarantineKey = null;
       try {
-        save();
-      } catch (_saveErr) {
+        quarantineKey = key + ".corrupt." + hashPayload(raw);
+        localStorage.setItem(quarantineKey, raw);
+      } catch (quarantineErr) {
+        quarantineKey = null;
+        console.error("[CardSpoke] Could not quarantine corrupt payload:", quarantineErr);
       }
+      storageWriteLock = true;
+      setStore(createDefaultStore());
+      updateSaveStatus("locked");
+      showCorruptDataRecovery(key, raw, quarantineKey);
       if (typeof showToast === "function") {
-        showToast("Stored data was corrupted and has been reset.", "warning", 6e3);
+        showToast("Stored data could not be read. Recovery options are shown — nothing has been overwritten.", "warning", 8e3);
       }
     }
   }
@@ -4160,6 +4588,34 @@
         return "LocalStorage";
     }
   }
+  function getAllDatasetKeys() {
+    return Object.keys(localStorage).filter(
+      (k) => (k === "nested_cards_store" || k.startsWith("nested_cards_") || k.startsWith("cards_")) && !k.includes(".corrupt.")
+    );
+  }
+  function isSafeModeActive() {
+    return typeof window !== "undefined" && window.location && new URLSearchParams(window.location.search).has("safemode");
+  }
+  async function reconcilePluginsAfterDatasetSwitch() {
+    if (!(window.CardSpoke && window.CardSpoke.Plugin)) return;
+    const Plugin = window.CardSpoke.Plugin;
+    if (Plugin.teardownForReload) {
+      for (const instance of Plugin.listAll()) {
+        try {
+          await Plugin.teardownForReload(instance.id);
+        } catch (err) {
+          console.warn("[Dataset] Plugin teardown on switch failed:", instance.id, err);
+        }
+      }
+    }
+    if (!isSafeModeActive() && Plugin.syncFromStore) {
+      try {
+        await Plugin.syncFromStore();
+      } catch (err) {
+        console.error("[Dataset] Plugin re-sync after switch failed:", err);
+      }
+    }
+  }
   async function migrateCurrentDatasetStorage(targetStorage) {
     const currentStorage = store.metadata && store.metadata.storageType || "localstorage";
     if (targetStorage === currentStorage) {
@@ -4299,21 +4755,38 @@
     render();
     showToast(`View mode: ${store.viewMode}`, "info");
   }
+  function buildInstanceExport() {
+    const metadata = { ...store.metadata || {} };
+    delete metadata.pin;
+    delete metadata.storageConfig;
+    delete metadata.navState;
+    delete metadata.navHistory;
+    return {
+      exportType: "instance",
+      formatVersion: 2,
+      appVersion: APP_VERSION,
+      schemaVersion: SCHEMA_VERSION,
+      timestamp: Date.now(),
+      cards: store.cards,
+      rootIds: store.rootOrder,
+      plugins: store.plugins,
+      bookmarks: store.bookmarks || [],
+      recentCards: store.recentCards || [],
+      viewMode: store.viewMode || "normal",
+      activeTheme: store.activeTheme || "light",
+      metadata
+    };
+  }
   function exportJSON(type = "instance") {
     let data;
     if (type === "instance") {
-      data = {
-        exportType: "instance",
-        appVersion: APP_VERSION,
-        timestamp: Date.now(),
-        cards: store.cards,
-        rootIds: store.rootOrder,
-        plugins: store.plugins
-      };
+      data = buildInstanceExport();
     } else if (type === "plugins") {
       data = {
         exportType: "plugins",
+        formatVersion: 2,
         appVersion: APP_VERSION,
+        schemaVersion: SCHEMA_VERSION,
         timestamp: Date.now(),
         plugins: store.plugins
       };
@@ -4474,7 +4947,20 @@
         showToast("Invalid import: rootIds must be an array", "error");
         throw new Error("Invalid rootIds structure");
       }
-      if (pkg.plugins && pkg.exportType === "instance") {
+      if (typeof pkg.schemaVersion === "number" && pkg.schemaVersion > SCHEMA_VERSION) {
+        const proceed = await showConfirmDialog(
+          `This backup uses schema v${pkg.schemaVersion}, but this app version supports schema v${SCHEMA_VERSION}.
+
+Importing may lose fields this version does not understand. Continue?`,
+          {
+            title: "Newer Backup Format",
+            confirmLabel: "Import Anyway",
+            cancelLabel: "Cancel"
+          }
+        );
+        if (!proceed) throw new Error("Import cancelled: incompatible schema version");
+      }
+      if (pkg.plugins && (pkg.exportType === "instance" || pkg.exportType === "plugins")) {
         const modCount = Object.keys(pkg.plugins).length;
         if (modCount > 0) {
           const confirmImportMods = await showConfirmDialog(
@@ -4539,17 +5025,69 @@ Do you want to import the plugins?
           });
         }
       }
-      if (pkg.exportType === "instance" && pkg.plugins) {
+      if ((pkg.exportType === "instance" || pkg.exportType === "plugins") && pkg.plugins) {
         Object.entries(pkg.plugins).forEach(([modId, plugin]) => {
-          if (!store.plugins[modId]) {
+          if (store.plugins[modId] || !plugin || typeof plugin !== "object") return;
+          if (plugin.definition && plugin.definition.manifest) {
             store.plugins[modId] = {
-              enabled: !!plugin.enabled,
-              js: plugin.js || "",
-              css: plugin.css || "",
-              meta: plugin.meta ? { ...plugin.meta } : {}
+              definition: plugin.definition,
+              enabled: !!plugin.enabled
+            };
+          } else if (plugin.js || plugin.css || plugin.meta || plugin.manifest) {
+            const meta = plugin.meta || plugin.manifest || {};
+            store.plugins[modId] = {
+              definition: {
+                manifest: {
+                  id: meta.id || modId,
+                  name: meta.name || modId,
+                  version: typeof meta.version === "string" && meta.version || "1.0.0",
+                  author: meta.author || meta.creator || "Unknown",
+                  layer: meta.layer || "feature",
+                  description: meta.description || "",
+                  permissions: Array.isArray(meta.permissions) ? meta.permissions : []
+                },
+                css: typeof plugin.css === "string" && plugin.css ? plugin.css : null,
+                js: typeof plugin.js === "string" && plugin.js ? plugin.js : null,
+                teardownJs: typeof plugin.teardownJs === "string" && plugin.teardownJs ? plugin.teardownJs : null
+              },
+              enabled: false
             };
           }
         });
+        if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
+          try {
+            await window.CardSpoke.Plugin.syncFromStore();
+          } catch (err) {
+            console.error("[Import] Plugin sync failed:", err);
+          }
+        }
+      }
+      if (pkg.exportType === "instance") {
+        if (Array.isArray(pkg.bookmarks)) {
+          if (!store.bookmarks) store.bookmarks = [];
+          pkg.bookmarks.forEach((oldId) => {
+            const newId = idMap[oldId];
+            if (newId && !store.bookmarks.includes(newId)) store.bookmarks.push(newId);
+          });
+        }
+        if (Array.isArray(pkg.recentCards)) {
+          if (!store.recentCards) store.recentCards = [];
+          const restoredRecents = pkg.recentCards.map((oldId) => idMap[oldId]).filter(Boolean);
+          store.recentCards = restoredRecents.concat(store.recentCards.filter((id) => !restoredRecents.includes(id))).slice(0, 10);
+        }
+        if (pkg.viewMode === "normal" || pkg.viewMode === "compact") {
+          store.viewMode = pkg.viewMode;
+        }
+        if (pkg.activeTheme === "light" || pkg.activeTheme === "dark") {
+          store.activeTheme = pkg.activeTheme;
+          if (typeof applyTheme === "function") applyTheme(pkg.activeTheme);
+        }
+        if (pkg.metadata && typeof pkg.metadata === "object") {
+          if (!store.metadata) store.metadata = {};
+          if (pkg.metadata.name && !store.metadata.name) {
+            store.metadata.name = pkg.metadata.name;
+          }
+        }
       }
       importedIds.forEach((cardId) => {
         const storedCard = store.cards[cardId];
@@ -4608,7 +5146,7 @@ Do you want to import the plugins?
     modalHeader.appendChild(closeBtn);
     modal.appendChild(modalHeader);
     const modalBody = h("div", { className: "modal-body" });
-    const allKeys = Object.keys(localStorage).filter((k) => k.startsWith("nested_cards_") || k === "nested_cards_store");
+    const allKeys = getAllDatasetKeys();
     const current = instanceKey || "nested_cards_store";
     const description = h(
       "p",
@@ -4659,11 +5197,14 @@ Do you want to import the plugins?
             return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
           };
           const parsed = data ? JSON.parse(data) : null;
-          const cardCount = parsed ? Object.keys(parsed.cards || {}).length : 0;
-          const datasetName2 = parsed && parsed.metadata && parsed.metadata.name || key;
-          const storageType = parsed && parsed.metadata && parsed.metadata.storageType || "localstorage";
-          const storageTypeDisplay = getStorageTypeLabel(storageType);
-          datasetMeta.textContent = `Storage: ${storageTypeDisplay} • Size: ${formatBytes2(size)} • Cards: ${cardCount}`;
+          if (parsed && parsed.encrypted === true && typeof parsed.payload === "string") {
+            datasetMeta.textContent = `Storage: LocalStorage • Size: ${formatBytes2(size)} • Encrypted (PIN protected)`;
+          } else {
+            const cardCount = parsed ? Object.keys(parsed.cards || {}).length : 0;
+            const storageType = parsed && parsed.metadata && parsed.metadata.storageType || "localstorage";
+            const storageTypeDisplay = getStorageTypeLabel(storageType);
+            datasetMeta.textContent = `Storage: ${storageTypeDisplay} • Size: ${formatBytes2(size)} • Cards: ${cardCount}`;
+          }
         } catch (e) {
           datasetMeta.textContent = "Storage: Unknown • Unable to read dataset info";
         }
@@ -4675,13 +5216,13 @@ Do you want to import the plugins?
           const openBtn = h("button", {
             className: "btn btn-primary",
             onclick: async () => {
+              overlay.remove();
               localStorage.setItem("activeInstance", key);
               setInstanceKey(key);
-              load();
-              if (!safeMode) {
-              }
+              await load();
+              await reconcilePluginsAfterDatasetSwitch();
+              if (typeof updateDatasetSelector === "function") updateDatasetSelector();
               render();
-              overlay.remove();
               showToast("Switched to: " + key);
             }
           }, "Open");
@@ -4719,9 +5260,11 @@ This action cannot be undone!`, {
                 const otherKey = allKeys.find((k) => k !== key);
                 localStorage.setItem("activeInstance", otherKey);
                 setInstanceKey(otherKey);
-                load();
+                await load();
+                await reconcilePluginsAfterDatasetSwitch();
                 render();
               }
+              if (typeof updateDatasetSelector === "function") updateDatasetSelector();
               overlay.remove();
               showToast("Dataset deleted: " + key);
               setTimeout(() => showDatasetManager(), 100);
@@ -4817,9 +5360,7 @@ This action cannot be undone!`, {
         const storageType = document.getElementById("newDatasetStorage").value;
         const pin = document.getElementById("newDatasetPin").value.trim();
         if (!name) {
-          const now = /* @__PURE__ */ new Date();
-          const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "_");
-          const count = Object.keys(localStorage).filter((k) => k.startsWith("cards_")).length + 1;
+          const count = getAllDatasetKeys().length + 1;
           name = "Dataset_" + count;
         }
         if (storageType === "localfile") {
@@ -4831,6 +5372,10 @@ This action cannot be undone!`, {
         const shortId = Date.now().toString(36).slice(-4);
         const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 20);
         const newKey = "cards_" + cleanName + "_" + shortId;
+        if (pin && !(window.crypto && window.crypto.subtle)) {
+          showToast("PIN protection requires the Web Crypto API, which is unavailable in this environment", "error");
+          return;
+        }
         const newStore = {
           rootOrder: [],
           cards: {},
@@ -4843,17 +5388,22 @@ This action cannot be undone!`, {
             name,
             storageType,
             storageConfig: {},
-            createdAt: Date.now(),
-            pin: pin || null
+            createdAt: Date.now()
           }
         };
         localStorage.setItem("activeInstance", newKey);
         setInstanceKey(newKey);
         setStore(newStore);
+        setSessionPin(pin || null);
         save();
+        if (typeof updateDatasetSelector === "function") updateDatasetSelector();
         render();
         overlay.remove();
-        showToast(`Created new dataset: ${name} (${storageType})`);
+        if (pin) {
+          showToast(`Created encrypted dataset: ${name}. Remember your PIN — without it the data cannot be recovered.`, "warning", 8e3);
+        } else {
+          showToast(`Created new dataset: ${name} (${storageType})`);
+        }
       }
     }, "+ Create Dataset");
     createForm.appendChild(nameLabel);
@@ -4919,6 +5469,15 @@ This action cannot be undone!`, {
     const displayName = store && store.metadata && store.metadata.name || currentKey;
     const storageType = store && store.metadata && store.metadata.storageType || "localstorage";
     const storageTypeDisplay = getStorageTypeLabel(storageType);
+    let pinProtected = "No";
+    try {
+      const probe = currentData ? JSON.parse(currentData) : null;
+      if (probe && probe.encrypted === true && typeof probe.payload === "string") {
+        pinProtected = typeof getSessionPin === "function" && getSessionPin() ? "Yes (unlocked this session)" : "Yes (locked)";
+      }
+    } catch (_e) {
+      pinProtected = "Unknown (unreadable data)";
+    }
     const infoRow = (label, value) => {
       const row = h("div", { style: "margin-bottom: var(--space-sm);" });
       row.appendChild(h("strong", {}, label));
@@ -4937,7 +5496,7 @@ This action cannot be undone!`, {
         infoRow("Name:", displayName),
         infoRow("Storage Type:", storageTypeDisplay),
         infoRow("Size:", formatBytes2(dataSize)),
-        infoRow("PIN Protected:", "No")
+        infoRow("PIN Protected:", pinProtected)
       )
     );
     modalBody.appendChild(currentSection);
@@ -5084,6 +5643,7 @@ This action cannot be undone!`, {
         var headerRow = h("div", { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);" });
         headerRow.appendChild(h("div", { style: "font-weight: 700; font-size: var(--text-lg);" }, manifest.name || plugin.id));
         var riskBadge = h("span", {
+          title: risk === 'SAFE' ? "CSS-only theme — runs no JavaScript" : "Contains JavaScript. Plugins are not sandboxed: once enabled (with your consent), this code has full access to the app and your data.",
           style: "font-size: var(--text-xs); padding: 2px 8px; border-radius: 4px; font-weight: 600; " + (risk === 'SAFE' ? "background: #d1fae5; color: #065f46;" : risk === 'LOW' ? "background: #dbeafe; color: #1e40af;" : risk === 'MEDIUM' ? "background: #fef3c7; color: #92400e;" : "background: #fee2e2; color: #991b1b;")
         }, risk);
         headerRow.appendChild(riskBadge);
@@ -6811,6 +7371,23 @@ ${prefix}`;
               }, result.datasetName);
               cardEl.style.position = "relative";
               cardEl.appendChild(datasetBadge);
+              const activeKey = instanceKey || "nested_cards_store";
+              if (result.datasetId && result.datasetId !== activeKey) {
+                cardEl.onclick = async () => {
+                  localStorage.setItem("activeInstance", result.datasetId);
+                  setInstanceKey(result.datasetId);
+                  await load();
+                  if (typeof reconcilePluginsAfterDatasetSwitch === "function") {
+                    await reconcilePluginsAfterDatasetSwitch();
+                  }
+                  if (store.cards && store.cards[card.id]) {
+                    goTo("read", { cardId: card.id });
+                  } else {
+                    render();
+                  }
+                  showToast("Switched to dataset: " + result.datasetName);
+                };
+              }
             }
             if (result.approximate) {
               const matchBadge = h("span", {
@@ -6967,13 +7544,27 @@ ${prefix}`;
     }
   }
   function updateDatasetSelector() {
-    if (!datasetSelector || !datasetManager) return;
+    if (!datasetSelector) return;
     datasetSelector.innerHTML = "";
     const currentOption = document.createElement("option");
     currentOption.value = "current";
     currentOption.textContent = "Current Dataset";
     datasetSelector.appendChild(currentOption);
-    const datasets = datasetManager.listDatasets();
+    const datasetKeys = typeof getAllDatasetKeys === "function" ? getAllDatasetKeys() : [];
+    const currentKey = instanceKey || "nested_cards_store";
+    const datasets = datasetKeys.map((key) => {
+      let name = key;
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key));
+        if (parsed && parsed.encrypted === true) {
+          name = key + " (encrypted)";
+        } else if (parsed && parsed.metadata && parsed.metadata.name) {
+          name = parsed.metadata.name;
+        }
+      } catch (_e) {
+      }
+      return { id: key, name, isActive: key === currentKey };
+    });
     if (datasets.length > 1) {
       const allOption = document.createElement("option");
       allOption.value = "all";
@@ -8205,6 +8796,11 @@ ${prefix}`;
     }, description: "Toggle grid/list view" }
   };
   function handleEscape() {
+    if (document.querySelector(
+      '.modal-overlay.show[data-a11y-managed="true"], .modal-overlay.show[data-a11y-enhanced="true"], .permission-modal'
+    )) {
+      return;
+    }
     if (menu.overlay.classList.contains("show")) {
       closeMenu();
       return;
@@ -9172,9 +9768,10 @@ ${prefix}`;
   window.showToast = showToast;
   (async function() {
     initToast();
+    initModalA11yObserver();
     const urlParams = new URLSearchParams(window.location.search);
-    let safeMode2 = urlParams.has("safemode");
-    if (safeMode2) {
+    let safeMode = urlParams.has("safemode");
+    if (safeMode) {
       console.warn("[Safe Mode] Plugins disabled via ?safemode parameter");
       showToast("Safe Mode Active - Plugins Disabled", "warning");
     }
@@ -9191,7 +9788,7 @@ ${prefix}`;
     const savedTypography = localStorage.getItem("cardspoke_typography") || "default";
     document.documentElement.setAttribute("data-typography", savedTypography);
     if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
-      await window.CardSpoke.Plugin.syncFromStore(safeMode2);
+      await window.CardSpoke.Plugin.syncFromStore(safeMode);
     }
     if (typeof applyRegistryComponents === "function") {
       applyRegistryComponents();
