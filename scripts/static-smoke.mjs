@@ -96,6 +96,13 @@ check(`package.json (${pkg.version}) matches built bundle (${versionInBundle})`,
 const lock = JSON.parse(read('package-lock.json'));
 check(`package-lock.json root version (${lock.version}) matches package.json`, lock.version === pkg.version);
 
+// The service-worker cache namespace must advance with every release (CS-101):
+// a byte-identical worker never re-installs, leaving returning users pinned to
+// the previous release's cache-first app.js.
+const sw = read('www/service-worker.js');
+const swVersion = (sw.match(/const CACHE_VERSION = 'cardspoke-app-shell-v([^'-]+)/) || [])[1];
+check(`service-worker cache version (${swVersion}) matches package.json (${pkg.version})`, swVersion === pkg.version);
+
 // ── CSP still present and plugin-honest ──────────────────────────────────
 check('index.html ships a CSP', indexHtml.includes('Content-Security-Policy'));
 check('CSP restricts connect-src', /connect-src [^;]*raw\.githubusercontent\.com/.test(indexHtml));

@@ -31,9 +31,10 @@
  *   9. rich-text XSS payload stays inert
  *  10. 360px mobile layout has no horizontal overflow
  *
- * Requirements (not part of normal npm install):
- *   npm install --no-save playwright-core
- *   a Chromium binary — pass via CHROMIUM_PATH or PLAYWRIGHT_BROWSERS_PATH
+ * Requirements (CS-102 — reproducible from a clean checkout):
+ *   npm ci                                   (playwright is a pinned devDependency)
+ *   npx playwright install --with-deps chromium   (or reuse an existing binary
+ *   via CHROMIUM_PATH / PLAYWRIGHT_BROWSERS_PATH)
  *
  * Usage: node scripts/browser-qa.mjs
  */
@@ -48,10 +49,17 @@ import { encryptStorePayload, isEncryptedEnvelope, decryptStorePayload } from '.
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WWW = resolve(ROOT, 'www');
 const ART_DIR = process.env.QA_ARTIFACT_DIR || resolve(ROOT, 'qa-artifacts');
-const EXECUTABLE =
-  process.env.CHROMIUM_PATH ||
-  (process.env.PLAYWRIGHT_BROWSERS_PATH && join(process.env.PLAYWRIGHT_BROWSERS_PATH, 'chromium')) ||
-  '/opt/pw-browsers/chromium';
+// Explicit binary overrides first; otherwise leave undefined so playwright
+// resolves the chromium it installed via `npx playwright install chromium`.
+const EXECUTABLE = (() => {
+  if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
+  if (process.env.PLAYWRIGHT_BROWSERS_PATH) {
+    const candidate = join(process.env.PLAYWRIGHT_BROWSERS_PATH, 'chromium');
+    if (existsSync(candidate)) return candidate;
+  }
+  if (existsSync('/opt/pw-browsers/chromium')) return '/opt/pw-browsers/chromium';
+  return undefined;
+})();
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
@@ -596,6 +604,43 @@ await scenario('dataset-manager-and-multisearch (NEW-2/3/4)', async () => {
   await page.waitForSelector('.modal-overlay.show .btn:has-text("Switch Dataset")');
   await page.click('.modal-overlay.show .btn:has-text("Switch Dataset")');
   await page.waitForSelector('#newDatasetName');
+
+  // CS-105: form labels are programmatically associated with their controls
+  const labelWiring = await page.evaluate(() => {
+    const wired = id => {
+      const label = document.querySelector(`label[for="${id}"]`);
+      return !!(label && label.control && label.control.id === id);
+    };
+    return {
+      name: wired('newDatasetName'),
+      storage: wired('newDatasetStorage'),
+      pin: wired('newDatasetPin'),
+      pinConfirm: wired('newDatasetPinConfirm'),
+      pinDescribed: (document.getElementById('newDatasetPin') || {})
+        .getAttribute?.('aria-describedby') === 'newDatasetPinHelp'
+    };
+  });
+  check('dataset name label wired to its input (CS-105)', labelWiring.name);
+  check('storage label wired to its select (CS-105)', labelWiring.storage);
+  check('PIN label wired to its input (CS-105)', labelWiring.pin);
+  check('PIN confirm label wired to its input (CS-105)', labelWiring.pinConfirm);
+  check('PIN input described by its help text (CS-105)', labelWiring.pinDescribed);
+
+  // CS-106: a mismatched PIN confirmation must block creation
+  await page.fill('#newDatasetName', 'Mismatch Vault');
+  await page.fill('#newDatasetPin', '1234');
+  await page.fill('#newDatasetPinConfirm', '4321');
+  await page.click('.modal-overlay.show .btn:has-text("+ Create Dataset")');
+  await page.waitForTimeout(500);
+  const afterMismatch = await page.evaluate(() => ({
+    active: localStorage.getItem('activeInstance') || '',
+    formStillOpen: !!document.getElementById('newDatasetName')
+  }));
+  check('mismatched PIN confirmation blocks dataset creation (CS-106)',
+    !afterMismatch.active.startsWith('cards_mismatch_vault'));
+  check('creation form stays open after PIN mismatch (CS-106)', afterMismatch.formStillOpen);
+  await page.fill('#newDatasetPin', '');
+  await page.fill('#newDatasetPinConfirm', '');
 
   // Create an unencrypted second dataset
   await page.fill('#newDatasetName', 'Plain Vault');

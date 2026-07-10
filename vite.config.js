@@ -455,6 +455,29 @@ export default defineConfig({
       }
     },
     {
+      // CS-101: the service-worker cache namespace must advance on every
+      // release, otherwise returning users keep the previous release's
+      // cache-first app.js forever (the browser only re-installs a worker
+      // whose bytes changed). Rewrite CACHE_VERSION from package.json on
+      // every build so it cannot drift from the app version.
+      name: 'sync-service-worker-version',
+      closeBundle() {
+        const swPath = resolve(__dirname, 'www/service-worker.js');
+        const sw = fs.readFileSync(swPath, 'utf-8');
+        const re = /const CACHE_VERSION = 'cardspoke-app-shell-v[^']+';/;
+        if (!re.test(sw)) {
+          throw new Error(
+            '[sync-service-worker-version] CACHE_VERSION declaration not found in www/service-worker.js'
+          );
+        }
+        const next = sw.replace(
+          re,
+          `const CACHE_VERSION = 'cardspoke-app-shell-v${APP_VERSION}-public-1';`
+        );
+        if (next !== sw) fs.writeFileSync(swPath, next, 'utf-8');
+      }
+    },
+    {
       // CS-006: `vite preview` serves dist/, which previously contained only
       // app.js — so previewing the production build 404'd. Copy the static
       // site files alongside the bundle so dist/ is a complete, previewable
