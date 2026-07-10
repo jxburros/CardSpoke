@@ -12,6 +12,21 @@ This guide covers platform prerequisites and workflows for building and running 
 
 ## Typical Workflows
 
+### 0) One-time setup: add the native platforms
+
+The native projects (`android/`, `ios/`) are **generated, not committed**. On a
+fresh checkout every sync/open command fails with
+"*android platform has not been added yet*" until you create them:
+
+```bash
+npm run platform:android   # npx cap add android — generates android/
+npm run platform:ios       # npx cap add ios — generates ios/ (macOS only)
+```
+
+Run this once per checkout (and again after deleting the generated folders).
+The generated projects are local build artifacts; keep signing assets out of
+the repository.
+
 ### 1) Sync web assets to native platforms
 
 ```bash

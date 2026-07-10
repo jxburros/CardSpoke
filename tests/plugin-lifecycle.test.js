@@ -166,6 +166,9 @@ function grantAll(id, manifest) {
   if (manifest.permissions && manifest.permissions.length) {
     Permissions.grantPermissions(id, manifest.permissions);
   }
+  // JS plugins additionally require full-trust consent before enable()
+  // (CS-002); these tests model a user who accepted the consent dialog.
+  Permissions.grantFullTrust(id);
 }
 
 function appliedCss(dom, id) {
@@ -298,6 +301,7 @@ test('feature sample wires live middleware through ctx.api.middleware', async ()
 test('createCard with tags emits a card.create event carrying the tagged card', async () => {
   freshHarness();
   Permissions.grantPermissions('tag-watcher', ['data-modify']);
+  Permissions.grantFullTrust('tag-watcher');
   const id = await Plugin.install({
     manifest: { id: 'tag-watcher', name: 'Tag Watcher', version: '1.0.0', author: 't', layer: 'feature', permissions: ['data-modify'] },
     js: "ctx.logger.info('ready');"
@@ -449,6 +453,7 @@ test('a syntax error in plugin js fails install cleanly (nothing registered)', a
 
 test('a failing setup leaves the plugin installed but suspended', async () => {
   freshHarness();
+  Permissions.grantFullTrust('crasher'); // let setup actually run (and crash)
   const id = await Plugin.install({
     manifest: { name: 'Crasher', version: '1.0.0', author: 'T', layer: 'feature' },
     js: "throw new Error('boom');"

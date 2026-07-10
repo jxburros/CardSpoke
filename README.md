@@ -2,7 +2,7 @@
 
 ![CardSpoke logo](./CardSpoke.svg)
 
-**Version:** 0.18.0 Public Preview | **Schema:** v4
+**Version:** 0.18.1 Public Preview | **Schema:** v4
 
 CardSpoke is a lightweight, local-first, card-based knowledge app for organizing notes, ideas, references, writing, research, and personal information in flexible card trees.
 
@@ -85,7 +85,9 @@ Plugin layers:
 - **Feature:** Adds UI or behavior through the plugin API.
 - **App:** Deeper customization with higher risk and explicit user control.
 
-The plugin runtime includes permission prompts, risk assessment, safe mode, resource cleanup, middleware hooks, component overrides, and sample plugins.
+The plugin runtime includes consent prompts, risk labels, safe mode, resource cleanup, middleware hooks, component overrides, and sample plugins.
+
+**Trust model:** plugins that contain JavaScript run with full access to the app and its data — there is no sandbox, and declared permissions scope the plugin API rather than enforce a security boundary. CardSpoke asks for explicit consent before any plugin JavaScript runs; only install plugins from authors you trust. See [Security & Safety](./docs/policies/SECURITY_AND_SAFETY.md).
 
 ## Getting Started
 
@@ -127,15 +129,21 @@ CardSpoke uses Capacitor for native packaging workflows. The public product focu
 2. Desktop packaging next
 3. Mobile packaging after that
 
-Capacitor commands remain available for development:
+Capacitor commands remain available for development. The native projects are
+generated, so add the platform once per fresh checkout before syncing:
 
 ```bash
+npm run platform:android   # one-time: generates android/ (npx cap add android)
+npm run platform:ios       # one-time: generates ios/ (macOS only)
+
 npm run sync
 npm run sync:android
 npm run sync:ios
 npm run open:android
 npm run open:ios
 ```
+
+See the [Capacitor guide](./docs/guides/README.CAPACITOR.md) for prerequisites.
 
 Mobile builds should be treated as experimental until platform-specific security hardening is completed.
 

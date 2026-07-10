@@ -594,12 +594,16 @@ const dataUpdateListeners = new Map();
   // Centralized factory for all plugin JS execution.
   // All plugin code strings are compiled here, providing a single upgrade
   // point if stronger isolation (iframe/Worker message-passing) is ever
-  // implemented. Code runs on the main thread in strict mode inside a
-  // function scope whose only named parameter is `ctx` — the plugin's
-  // supported API surface. The safety boundary is consent-based, not
-  // process-based: the validator screens packages before registration,
-  // every ctx API call is permission-gated, layer-based risk assessment
-  // decides auto-enable, and `?safemode` boots with all plugins disabled.
+  // implemented.
+  //
+  // TRUST MODEL (CS-002): there is NO sandbox. Plugin code runs on the main
+  // thread in the page realm and can reach window, document, localStorage,
+  // fetch, and the host bridge directly — declared permissions scope the
+  // supported ctx API surface but are NOT a security boundary. Every plugin
+  // that ships JavaScript therefore requires explicit full-trust consent
+  // (Permissions.requestFullTrust) before enable(). The validator screens
+  // packages for obvious footguns, layer-based risk labels set expectations,
+  // and `?safemode` boots with all plugins disabled.
   //
   // Compilation is eager so that a syntax error in plugin code fails the
   // install/sync step immediately (where it is caught and reported) instead
@@ -702,10 +706,13 @@ const dataUpdateListeners = new Map();
         pluginResources.delete(id);
         dataUpdateListeners.delete(id);
 
-        // Revoke any permissions the user granted this plugin so a future
-        // reinstall must ask for consent again.
+        // Revoke any permissions and full-trust consent the user granted
+        // this plugin so a future reinstall must ask again.
         if (Permissions && Permissions.revokePermissions) {
           Permissions.revokePermissions(id);
+        }
+        if (Permissions && Permissions.revokeFullTrust) {
+          Permissions.revokeFullTrust(id);
         }
 
         // Remove from store
@@ -728,6 +735,34 @@ const dataUpdateListeners = new Map();
       return Array.from(plugins.values());
     },
 
+    /**
+     * Runtime-only teardown for a dataset switch. Disables the plugin (running
+     * its teardown + resource cleanup so no CSS/DOM/listeners leak) and drops
+     * the instance from the runtime so a subsequent syncFromStore() can cleanly
+     * re-register it — but deliberately does NOT touch the persisted store or
+     * the user's permission/trust grants, which are keyed to the plugin id and
+     * must survive switching away from and back to a dataset.
+     *
+     * Unlike unregister(), this never deletes store.plugins[id] or revokes
+     * consent. syncFromStore skips ids already in the runtime Map, so without
+     * this teardown a plugin carried over from the previous dataset would be
+     * stuck in its old enabled/definition state after a switch.
+     */
+    teardownForReload: async function(id) {
+      const instance = plugins.get(id);
+      if (!instance) return;
+      if (instance.enabled) {
+        await this.disable(id);
+      } else {
+        // Even when suspended, drop any resources/CSS defensively.
+        this._removeCSS(id);
+        this._cleanupResources(id);
+      }
+      plugins.delete(id);
+      pluginResources.delete(id);
+      dataUpdateListeners.delete(id);
+    },
+
     enable: async function(id) {
       const instance = plugins.get(id);
       if (!instance) {
@@ -740,6 +775,20 @@ const dataUpdateListeners = new Map();
 
       // Capture stable internal references before plugin runs
       captureInternalReferences();
+
+      // CS-002: JavaScript plugins run unsandboxed in the page realm, so
+      // running one is a full-trust decision. Require explicit, persisted
+      // consent before any package-sourced JS executes. (Plugins registered
+      // programmatically with real functions are host code already.)
+      const requiresFullTrust = !!(instance.definition.js || instance.definition.teardownJs);
+      if (requiresFullTrust && Permissions &&
+          typeof Permissions.requestFullTrust === 'function') {
+        const pluginName = (instance.definition.manifest && instance.definition.manifest.name) || id;
+        const trusted = await Permissions.requestFullTrust(id, pluginName);
+        if (!trusted) {
+          throw new Error('Plugin "' + id + '" was not enabled: full-trust consent was declined');
+        }
+      }
 
       // Task 2.6: Pass config to plugin context
       if (instance.definition.manifest.config) {
@@ -1089,15 +1138,17 @@ const dataUpdateListeners = new Map();
         }
       }
 
-      // Auto-enable only low-risk layers; app-layer (HIGH) plugins stay
-      // suspended until the user enables them explicitly. A failing setup()
-      // leaves the plugin installed-but-disabled instead of aborting install.
+      // Only CSS-only themes (SAFE) enable silently — they execute no
+      // JavaScript. Anything carrying JS goes through enable(), whose
+      // full-trust consent dialog the user must accept first (CS-002);
+      // declining leaves the plugin installed-but-suspended. App-layer
+      // (HIGH) plugins always stay suspended until enabled explicitly.
       const risk = this.assessModRisk(pkg);
       if (risk === 'SAFE' || risk === 'LOW') {
         try {
           await this.enable(id);
         } catch (err) {
-          console.error('[Plugin] Installed but failed to enable', id, ':', err);
+          console.warn('[Plugin] Installed but not enabled', id, ':', err.message);
         }
       }
 

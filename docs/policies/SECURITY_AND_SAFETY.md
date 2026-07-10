@@ -47,14 +47,37 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 - For plugins introducing network access, include mockable clients and offline fallbacks.
 - Audit dependencies for known CVEs before releases.
 
+## Plugin Trust Model (v0.18.0)
+
+**JavaScript plugins are fully trusted code.** There is no sandbox: plugin
+JavaScript is compiled with `new Function` and runs on the main thread in the
+page realm, where it can reach `window`, `document`, LocalStorage, IndexedDB,
+`fetch`, and the host bridge directly. The declared `permissions` array scopes
+what the *supported* `ctx` API offers a well-behaved plugin — it is a
+compatibility and UX contract, **not a security boundary**, and cannot contain
+malicious code.
+
+The controls that follow from that honesty:
+
+- **Full-trust consent (required)**: any plugin that ships JavaScript must be
+  explicitly accepted by the user in a consent dialog that states the above
+  before it is enabled — at install, at re-import, and (once per plugin) at
+  first enable. Consent is revoked when the plugin is deleted.
+- **No silent JS enable**: only CSS-only themes (risk `SAFE`) auto-enable.
+  Everything carrying JavaScript stays suspended until consent is given.
+- **Risk labeling** (sets expectations, not guarantees): `SAFE` = CSS-only
+  theme; `LOW` = feature layer without overrides; `HIGH` = app layer or
+  overrides; visual badges shown in the Plugin Manager.
+- **Safe Mode**: booting with `?safemode` registers plugins but never runs them.
+- **Validation**: manifests, size limits, and obvious footguns (`eval`,
+  arbitrary `new Function`) are screened before registration.
+
+Users should only install plugins from authors they trust — the same rule as
+installing any software. Real isolation (Worker/iframe with a message
+protocol) is tracked as future hardening work.
+
 ## Security Improvements Implemented (v0.15.1+)
 
-- **Plugin Risk Assessment**: Plugins are automatically analyzed and categorized by risk level (LOW/MEDIUM/HIGH)
-  - Theme-layer plugins with CSS-only are marked as LOW RISK
-  - Feature-layer plugins with JavaScript are marked MEDIUM RISK
-  - App-layer plugins with overrides are marked HIGH RISK
-  - Security warnings shown during installation based on risk level
-  - Visual risk badges displayed in the Plugin Manager
 - **JSON Import Validation**: Schema validation for imported data to prevent corruption
 - **Content Security Policy**: CSP headers added to limit attack surface
 - **Dependency Updates**: Regular `npm audit` to fix known vulnerabilities
@@ -64,8 +87,8 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 The app ships a hardened CSP in `www/index.html`:
 
 - `default-src 'self'` — the app is self-contained; no third-party scripts, styles, or fonts load at startup.
-- `connect-src 'self' https://raw.githubusercontent.com` — the only permitted network destination beyond the app's own origin is the curated plugin gallery. There is no wildcard: even plugins granted the `network` permission cannot reach arbitrary hosts, and "Install from URL" only resolves gallery-hosted packages.
-- `script-src 'self' 'unsafe-eval'` — `'unsafe-eval'` is required by the plugin runtime, which compiles the `setup`/`teardown` functions of JSON plugin packages at install/enable time (see `www/src/core/plugin-api.js`). This is a deliberate, documented trade-off: plugin risk assessment, permission prompts, and Safe Mode exist to contain it. Moving plugin execution into sandboxed workers/iframes is tracked as future hardening work.
+- `connect-src 'self' https://raw.githubusercontent.com` — the only permitted `fetch`/XHR destination beyond the app's own origin is the curated plugin gallery, and "Install from URL" only resolves gallery-hosted packages. Note the honest caveat: `img-src` still allows any HTTPS image, so CSP alone does not prevent a *malicious, user-accepted* plugin from signalling data out via image requests — which is why enabling JavaScript plugins requires the full-trust consent described above.
+- `script-src 'self' 'unsafe-eval'` — `'unsafe-eval'` is required by the plugin runtime, which compiles the `setup`/`teardown` functions of JSON plugin packages at install/enable time (see `www/src/core/plugin-api.js`). This is a deliberate, documented trade-off under the full-trust plugin model: consent dialogs, risk labels, and Safe Mode set expectations, and moving plugin execution into sandboxed workers/iframes is tracked as future hardening work.
 - `frame-src 'none'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'` — frames, plugin objects, and external form posts are not used and are blocked outright.
 
 ## Security Hardening Checklist for Capacitor Builds
@@ -90,7 +113,7 @@ The app ships a hardened CSP in `www/index.html`:
 
 ## Static Analysis & Code Quality
 
-- Testing: `npm test` currently runs 434 uvu tests across 37 test files
+- Testing: `npm test` runs the full uvu suite under `tests/` (the run prints the current test count; CI blocks deployment on any failure)
 - Linting: Consider adding ESLint for code quality
 - Security scanning: Run `npm audit` before each release
 - Code review: All plugins should be reviewed before publication

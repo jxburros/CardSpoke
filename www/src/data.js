@@ -16,6 +16,7 @@
 
 import {
   APP_VERSION,
+  SCHEMA_VERSION,
   MAX_TRASH_SIZE,
   createDefaultStore,
   store, setStore,
@@ -160,6 +161,60 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
           case 'indexeddb': return 'IndexedDB';
           case 'localfile': return 'Local File (chosen location)';
           default: return 'LocalStorage';
+        }
+      }
+
+      /**
+       * Enumerate every dataset key in LocalStorage. Datasets have
+       * historically used two key shapes: the default 'nested_cards_store'
+       * (plus legacy 'nested_cards_*' variants) and 'cards_<name>_<id>'
+       * produced by the Create Dataset flow. Quarantined recovery copies
+       * ('<key>.corrupt.<ts>') are excluded.
+       */
+      function getAllDatasetKeys() {
+        return Object.keys(localStorage).filter(k =>
+          (k === 'nested_cards_store' || k.startsWith('nested_cards_') || k.startsWith('cards_')) &&
+          !k.includes('.corrupt.')
+        );
+      }
+
+      /** Safe mode disables all plugin execution (?safemode URL parameter). */
+      function isSafeModeActive() {
+        return typeof window !== 'undefined' && window.location &&
+          new URLSearchParams(window.location.search).has('safemode');
+      }
+
+      /**
+       * After the active dataset changes, make the running plugin set match
+       * the NEW dataset. Every plugin registered for the previous dataset is
+       * torn down from the runtime (cleaning its CSS/DOM/resources) WITHOUT
+       * disturbing the persisted store or the user's trust/permission grants;
+       * then syncFromStore re-registers and re-enables exactly the new
+       * dataset's plugins per their stored enabled flags.
+       *
+       * A plain disable() is not enough: it leaves the instance registered, so
+       * syncFromStore (which skips ids already in the runtime) can neither
+       * re-enable a carried-over plugin nor pick up a differing definition —
+       * the plugin would be stuck in the previous dataset's state until reload.
+       */
+      async function reconcilePluginsAfterDatasetSwitch() {
+        if (!(window.CardSpoke && window.CardSpoke.Plugin)) return;
+        const Plugin = window.CardSpoke.Plugin;
+        if (Plugin.teardownForReload) {
+          for (const instance of Plugin.listAll()) {
+            try {
+              await Plugin.teardownForReload(instance.id);
+            } catch (err) {
+              console.warn('[Dataset] Plugin teardown on switch failed:', instance.id, err);
+            }
+          }
+        }
+        if (!isSafeModeActive() && Plugin.syncFromStore) {
+          try {
+            await Plugin.syncFromStore();
+          } catch (err) {
+            console.error('[Dataset] Plugin re-sync after switch failed:', err);
+          }
         }
       }
 
@@ -352,21 +407,49 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
 
       // --- DATA (IMPORT/EXPORT) ---
 
+      /**
+       * Versioned instance backup (CS-005). formatVersion 2 includes every
+       * user-owned field — cards, hierarchy, plugins (modern persisted
+       * shape), bookmarks, recent cards, view mode, theme, and dataset
+       * metadata — plus schemaVersion for compatibility checks on import.
+       * The dataset PIN and storage handles are intentionally excluded.
+       */
+      function buildInstanceExport() {
+        const metadata = { ...(store.metadata || {}) };
+        // Never export secrets or environment-specific storage handles.
+        delete metadata.pin;
+        delete metadata.storageConfig;
+        // Navigation position is ephemeral and its card IDs would not
+        // survive the import-time ID remap.
+        delete metadata.navState;
+        delete metadata.navHistory;
+        return {
+          exportType: 'instance',
+          formatVersion: 2,
+          appVersion: APP_VERSION,
+          schemaVersion: SCHEMA_VERSION,
+          timestamp: Date.now(),
+          cards: store.cards,
+          rootIds: store.rootOrder,
+          plugins: store.plugins,
+          bookmarks: store.bookmarks || [],
+          recentCards: store.recentCards || [],
+          viewMode: store.viewMode || 'normal',
+          activeTheme: store.activeTheme || 'light',
+          metadata
+        };
+      }
+
       function exportJSON(type = 'instance') {
         let data;
         if (type === 'instance') {
-          data = {
-            exportType: 'instance',
-            appVersion: APP_VERSION,
-            timestamp: Date.now(),
-            cards: store.cards,
-            rootIds: store.rootOrder,
-            plugins: store.plugins
-          };
+          data = buildInstanceExport();
         } else if (type === 'plugins') {
           data = {
             exportType: 'plugins',
+            formatVersion: 2,
             appVersion: APP_VERSION,
+            schemaVersion: SCHEMA_VERSION,
             timestamp: Date.now(),
             plugins: store.plugins
           };
@@ -569,8 +652,23 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
           throw new Error('Invalid rootIds structure');
         }
 
+        // Schema compatibility: newer-schema backups may contain data this
+        // version does not understand. Ask before merging (CS-005).
+        if (typeof pkg.schemaVersion === 'number' && pkg.schemaVersion > SCHEMA_VERSION) {
+          const proceed = await showConfirmDialog(
+            `This backup uses schema v${pkg.schemaVersion}, but this app version supports schema v${SCHEMA_VERSION}.\n\n` +
+            'Importing may lose fields this version does not understand. Continue?',
+            {
+              title: 'Newer Backup Format',
+              confirmLabel: 'Import Anyway',
+              cancelLabel: 'Cancel'
+            }
+          );
+          if (!proceed) throw new Error('Import cancelled: incompatible schema version');
+        }
+
         // Validate plugins if present (and warn about security)
-        if (pkg.plugins && pkg.exportType === 'instance') {
+        if (pkg.plugins && (pkg.exportType === 'instance' || pkg.exportType === 'plugins')) {
           const modCount = Object.keys(pkg.plugins).length;
           if (modCount > 0) {
             const confirmImportMods = await showConfirmDialog(
@@ -640,19 +738,86 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
           }
         }
         
-        if (pkg.exportType === 'instance' && pkg.plugins) {
+        if ((pkg.exportType === 'instance' || pkg.exportType === 'plugins') && pkg.plugins) {
+          // Restore plugins in the modern persisted shape ({definition,
+          // enabled}) — the runtime refuses to execute entries without a
+          // definition, so the old lossy conversion made every JSON
+          // export/import silently break plugins (CS-005). Legacy-shape
+          // entries ({js, css, meta}) are upgraded to a definition so they
+          // become runnable again; they stay suspended until enabled.
           Object.entries(pkg.plugins).forEach(([modId, plugin]) => {
-            if (!store.plugins[modId]) {
+            if (store.plugins[modId] || !plugin || typeof plugin !== 'object') return;
+            if (plugin.definition && plugin.definition.manifest) {
               store.plugins[modId] = {
-                enabled: !!plugin.enabled,
-                js: plugin.js || '',
-                css: plugin.css || '',
-                meta: plugin.meta ? { ...plugin.meta } : {}
+                definition: plugin.definition,
+                enabled: !!plugin.enabled
+              };
+            } else if (plugin.js || plugin.css || plugin.meta || plugin.manifest) {
+              const meta = plugin.meta || plugin.manifest || {};
+              store.plugins[modId] = {
+                definition: {
+                  manifest: {
+                    id: meta.id || modId,
+                    name: meta.name || modId,
+                    version: (typeof meta.version === 'string' && meta.version) || '1.0.0',
+                    author: meta.author || meta.creator || 'Unknown',
+                    layer: meta.layer || 'feature',
+                    description: meta.description || '',
+                    permissions: Array.isArray(meta.permissions) ? meta.permissions : []
+                  },
+                  css: typeof plugin.css === 'string' && plugin.css ? plugin.css : null,
+                  js: typeof plugin.js === 'string' && plugin.js ? plugin.js : null,
+                  teardownJs: typeof plugin.teardownJs === 'string' && plugin.teardownJs ? plugin.teardownJs : null
+                },
+                enabled: false
               };
             }
           });
+          // Register the restored plugins with the runtime (idempotent);
+          // enabling still goes through the normal consent gates.
+          if (window.CardSpoke && window.CardSpoke.Plugin && window.CardSpoke.Plugin.syncFromStore) {
+            try {
+              await window.CardSpoke.Plugin.syncFromStore();
+            } catch (err) {
+              console.error('[Import] Plugin sync failed:', err);
+            }
+          }
         }
-        
+
+        // Restore the remaining user-owned fields from instance backups
+        // (bookmarks and recent cards follow the card ID remap).
+        if (pkg.exportType === 'instance') {
+          if (Array.isArray(pkg.bookmarks)) {
+            if (!store.bookmarks) store.bookmarks = [];
+            pkg.bookmarks.forEach(oldId => {
+              const newId = idMap[oldId];
+              if (newId && !store.bookmarks.includes(newId)) store.bookmarks.push(newId);
+            });
+          }
+          if (Array.isArray(pkg.recentCards)) {
+            if (!store.recentCards) store.recentCards = [];
+            const restoredRecents = pkg.recentCards.map(oldId => idMap[oldId]).filter(Boolean);
+            store.recentCards = restoredRecents
+              .concat(store.recentCards.filter(id => !restoredRecents.includes(id)))
+              .slice(0, 10);
+          }
+          if (pkg.viewMode === 'normal' || pkg.viewMode === 'compact') {
+            store.viewMode = pkg.viewMode;
+          }
+          if (pkg.activeTheme === 'light' || pkg.activeTheme === 'dark') {
+            store.activeTheme = pkg.activeTheme;
+            if (typeof applyTheme === 'function') applyTheme(pkg.activeTheme);
+          }
+          if (pkg.metadata && typeof pkg.metadata === 'object') {
+            if (!store.metadata) store.metadata = {};
+            // Only adopt the dataset display name when the target has none —
+            // imports merge into the current dataset rather than replace it.
+            if (pkg.metadata.name && !store.metadata.name) {
+              store.metadata.name = pkg.metadata.name;
+            }
+          }
+        }
+
         // Import safeguards: repair baseline card structure in place
         // (children/tags arrays, modsData object). Preserves plugin
         // metadata and warns instead of stripping anything.
@@ -722,8 +887,8 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         modal.appendChild(modalHeader);
         const modalBody = h('div', { className: 'modal-body' });
 
-        // Get all existing datasets (instances)
-        const allKeys = Object.keys(localStorage).filter(k => k.startsWith('nested_cards_') || k === 'nested_cards_store');
+        // Get all existing datasets (instances) — both key shapes (NEW-2)
+        const allKeys = getAllDatasetKeys();
         const current = instanceKey || 'nested_cards_store';
 
         // Title and description
@@ -775,14 +940,16 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
                 const i = Math.floor(Math.log(bytes) / Math.log(k));
                 return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
               };
-              
+
               const parsed = data ? JSON.parse(data) : null;
-              const cardCount = parsed ? Object.keys(parsed.cards || {}).length : 0;
-              const datasetName = (parsed && parsed.metadata && parsed.metadata.name) || key;
-              const storageType = (parsed && parsed.metadata && parsed.metadata.storageType) || 'localstorage';
-              const storageTypeDisplay = getStorageTypeLabel(storageType);
-              
-              datasetMeta.textContent = `Storage: ${storageTypeDisplay} • Size: ${formatBytes(size)} • Cards: ${cardCount}`;
+              if (parsed && parsed.encrypted === true && typeof parsed.payload === 'string') {
+                datasetMeta.textContent = `Storage: LocalStorage • Size: ${formatBytes(size)} • Encrypted (PIN protected)`;
+              } else {
+                const cardCount = parsed ? Object.keys(parsed.cards || {}).length : 0;
+                const storageType = (parsed && parsed.metadata && parsed.metadata.storageType) || 'localstorage';
+                const storageTypeDisplay = getStorageTypeLabel(storageType);
+                datasetMeta.textContent = `Storage: ${storageTypeDisplay} • Size: ${formatBytes(size)} • Cards: ${cardCount}`;
+              }
             } catch (e) {
               datasetMeta.textContent = 'Storage: Unknown • Unable to read dataset info';
             }
@@ -795,16 +962,16 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
             const actions = h('div', { style: 'display: flex; gap: var(--space-sm);' });
             
             if (!isCurrent) {
-              const openBtn = h('button', { 
+              const openBtn = h('button', {
                 className: 'btn btn-primary',
                 onclick: async () => {
+                  overlay.remove();
                   localStorage.setItem('activeInstance', key);
                   setInstanceKey(key);
-                  load();
-                  if (!safeMode) {
-                  }
+                  await load();
+                  await reconcilePluginsAfterDatasetSwitch();
+                  if (typeof updateDatasetSelector === 'function') updateDatasetSelector();
                   render();
-                  overlay.remove();
                   showToast('Switched to: ' + key);
                 }
               }, 'Open');
@@ -841,9 +1008,11 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
                     const otherKey = allKeys.find(k => k !== key);
                     localStorage.setItem('activeInstance', otherKey);
                     setInstanceKey(otherKey);
-                    load();
+                    await load();
+                    await reconcilePluginsAfterDatasetSwitch();
                     render();
                   }
+                  if (typeof updateDatasetSelector === 'function') updateDatasetSelector();
                   overlay.remove();
                   showToast('Dataset deleted: ' + key);
                   // Reopen manager to refresh list
@@ -958,9 +1127,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
 
             // Generate a readable default name if none provided
             if (!name) {
-              const now = new Date();
-              const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '_');
-              const count = Object.keys(localStorage).filter(k => k.startsWith('cards_')).length + 1;
+              const count = getAllDatasetKeys().length + 1;
               name = 'Dataset_' + count;
             }
 
@@ -976,7 +1143,16 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
             const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20);
             const newKey = 'cards_' + cleanName + '_' + shortId;
 
-            // Store the display name and storage type in the store metadata
+            if (pin && !(window.crypto && window.crypto.subtle)) {
+              showToast('PIN protection requires the Web Crypto API, which is unavailable in this environment', 'error');
+              return;
+            }
+
+            // Store the display name and storage type in the store metadata.
+            // The PIN itself is NEVER persisted (not even inside the
+            // encrypted payload) — it lives in the encryption session only,
+            // and unlocking after a reload re-derives the key from the PIN
+            // the user types (CS-001).
             const newStore = {
               rootOrder: [],
               cards: {},
@@ -989,19 +1165,23 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
                 name: name,
                 storageType: storageType,
                 storageConfig: {},
-                createdAt: Date.now(),
-                pin: pin || null
+                createdAt: Date.now()
               }
             };
 
-            // Save to localStorage (for now - cloud sync will happen on subsequent saves)
             localStorage.setItem('activeInstance', newKey);
             setInstanceKey(newKey);
             setStore(newStore);
+            setSessionPin(pin || null);
             save();
+            if (typeof updateDatasetSelector === 'function') updateDatasetSelector();
             render();
             overlay.remove();
-            showToast(`Created new dataset: ${name} (${storageType})`);
+            if (pin) {
+              showToast(`Created encrypted dataset: ${name}. Remember your PIN — without it the data cannot be recovered.`, 'warning', 8000);
+            } else {
+              showToast(`Created new dataset: ${name} (${storageType})`);
+            }
           }
         }, '+ Create Dataset');
 
@@ -1091,6 +1271,19 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         const storageType = (store && store.metadata && store.metadata.storageType) || 'localstorage';
         const storageTypeDisplay = getStorageTypeLabel(storageType);
 
+        // Report PIN protection from the stored envelope, not a hardcoded 'No'
+        let pinProtected = 'No';
+        try {
+          const probe = currentData ? JSON.parse(currentData) : null;
+          if (probe && probe.encrypted === true && typeof probe.payload === 'string') {
+            pinProtected = (typeof getSessionPin === 'function' && getSessionPin())
+              ? 'Yes (unlocked this session)'
+              : 'Yes (locked)';
+          }
+        } catch (_e) {
+          pinProtected = 'Unknown (unreadable data)';
+        }
+
         // Create info sections using safe DOM methods
         const infoRow = (label, value) => {
           const row = h('div', { style: 'margin-bottom: var(--space-sm);' });
@@ -1108,7 +1301,7 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
             infoRow('Name:', displayName),
             infoRow('Storage Type:', storageTypeDisplay),
             infoRow('Size:', formatBytes(dataSize)),
-            infoRow('PIN Protected:', 'No')
+            infoRow('PIN Protected:', pinProtected)
           )
         );
         modalBody.appendChild(currentSection);
@@ -1262,6 +1455,9 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
             headerRow.appendChild(h('div', { style: 'font-weight: 700; font-size: var(--text-lg);' }, manifest.name || plugin.id));
             
             var riskBadge = h('span', {
+              title: risk === 'SAFE'
+                ? 'CSS-only theme — runs no JavaScript'
+                : 'Contains JavaScript. Plugins are not sandboxed: once enabled (with your consent), this code has full access to the app and your data.',
               style: 'font-size: var(--text-xs); padding: 2px 8px; border-radius: 4px; font-weight: 600; ' +
                 (risk === 'SAFE' ? 'background: #d1fae5; color: #065f46;' :
                  risk === 'LOW' ? 'background: #dbeafe; color: #1e40af;' :
