@@ -284,6 +284,9 @@ test('assessModRisk classifies pure CSS theme package as SAFE', () => {
 });
 
 test('assessModRisk classifies feature plugin with pkg.js string as LOW', () => {
+  // The feature layer is the JS-carrying tier; enabling it always goes through
+  // the full-trust consent dialog, so LOW means "auto-enables after consent",
+  // not "runs ungated".
   const pkg = {
     manifest: { layer: 'feature' },
     js: '(function(){ console.log("feature"); })();',

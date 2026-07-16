@@ -51,7 +51,12 @@ import {
         }
         let current = navState.cardId;
         const path = [];
+        const seenCrumb = new Set();
         while (current) {
+          // Guard against a cyclic parent chain (e.g. from a hand-crafted
+          // import) so breadcrumb rendering can never spin forever.
+          if (seenCrumb.has(current)) break;
+          seenCrumb.add(current);
           const c = store.cards[current];
           if (!c) break;
           path.unshift(c);
@@ -737,8 +742,25 @@ import {
         const parentSel = h('select', { id: 'cardParent', className: 'form-select' });
         const parVal = card.parentId || '';
         parentSel.appendChild(h('option', { value: '', selected: !parVal }, '(Root Level)'));
+        // Exclude the card itself AND all of its descendants from the parent
+        // options: reparenting a card into its own subtree would create a
+        // cycle that hangs breadcrumb/ancestor traversal. Walk is cycle-safe.
+        const excludedParentIds = new Set([card.id]);
+        if (editing && card.id) {
+          const descStack = [card.id];
+          const seenDesc = new Set();
+          while (descStack.length) {
+            const curId = descStack.pop();
+            if (seenDesc.has(curId)) continue;
+            seenDesc.add(curId);
+            const cur = store.cards[curId];
+            if (cur && Array.isArray(cur.children)) {
+              for (const kid of cur.children) { excludedParentIds.add(kid); descStack.push(kid); }
+            }
+          }
+        }
         const parentCards = Object.values(store.cards)
-          .filter(c => c.id !== card.id)
+          .filter(c => !excludedParentIds.has(c.id))
           .sort((a, b) => (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase()));
         parentCards.forEach(c => {
           parentSel.appendChild(h('option', { value: c.id, selected: parVal === c.id }, c.title || '(Untitled)'));
@@ -1035,6 +1057,9 @@ import {
                   const activeKey = instanceKey || 'nested_cards_store';
                   if (result.datasetId && result.datasetId !== activeKey) {
                     cardEl.onclick = async () => {
+                      // Flush the current dataset's pending save to ITS key
+                      // before switching, so a stale timer can't misfile it.
+                      await flushPendingSave();
                       localStorage.setItem('activeInstance', result.datasetId);
                       setInstanceKey(result.datasetId);
                       await load();
@@ -1505,7 +1530,11 @@ import {
 
       function updateSearchSelection(delta = 0) {
         if (!searchResultsState.items.length) return;
-        const max = searchResultsState.items.length - 1;
+        // Navigate only within results actually rendered so far (results render
+        // in batches); otherwise the selection can advance past the last
+        // rendered element and highlight nothing.
+        const rendered = searchResultsState.elements.length;
+        const max = (rendered > 0 ? rendered : searchResultsState.items.length) - 1;
         const next = Math.min(max, Math.max(0, searchResultsState.selectedIndex + delta));
         searchResultsState.selectedIndex = next;
         searchResultsState.elements.forEach((el, idx) => {

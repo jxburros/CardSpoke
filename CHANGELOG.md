@@ -6,6 +6,89 @@ The format follows Keep a Changelog and the project uses semantic versioning whe
 
 ---
 
+## [0.19.0] – 2026-07-16
+
+Security, data-integrity, and plugin-runtime hardening from the 2026-07-16
+pre-release audit. This release fixes a card-content exfiltration channel,
+several data-loss paths, and an app-freeze bug, and closes gaps in the plugin
+lifecycle.
+
+### Security
+
+- **Card content could be exfiltrated by a CSS-only "theme" plugin.** Card
+  titles (and tags) were reflected into DOM `value="…"` attributes, which a
+  plugin's CSS attribute selectors could read character-by-character and beacon
+  out via `background: url(https://…)`. Two fixes: the DOM helper now sets form
+  values as a live property, never as a CSS-selectable attribute; and the CSP
+  `img-src` no longer allows arbitrary `https:` images (same-origin plus
+  `data:`/`blob:` only), which removes the network leg of the leak. Both are
+  guarded by new smoke/browser-QA regressions.
+
+### Fixed — data integrity
+
+- **Migrating a PIN-protected dataset wrote it in plaintext.** Storage-settings
+  migration to IndexedDB or a local file serialized the store without
+  encryption before the deferred encrypted save; the plaintext copy could be
+  what durably remained. Migration now encrypts with the active session PIN
+  exactly like the normal save path.
+- **Switching datasets mid-save could destroy an encrypted dataset.** A queued
+  debounced save read the *current* dataset key at fire time, so a timer
+  scheduled for dataset A could fire after a switch and write A's (unencrypted)
+  data into dataset B's key. Every switch now flushes the pending save to its
+  own key first (and cancels it when the active dataset is being deleted).
+- **Editing a card's parent to one of its own descendants froze the app.** The
+  resulting parent cycle spun breadcrumb rendering forever. The parent picker
+  now excludes the card's descendants, breadcrumb/ancestor/descendant walks are
+  cycle-guarded, and imports repair cyclic/dangling parents before persisting.
+- Undo/redo history and the trash bin are now cleared on dataset load, so one
+  dataset's undo entries can no longer be replayed against — or inject a foreign
+  card into — another dataset.
+- Restoring a trashed card whose parent no longer exists now keeps it reachable
+  at the root instead of leaving it an invisible orphan.
+- `QuotaExceededError` detection now recognizes the differently-named variants
+  used by some engines, so a full-storage save is reported rather than swallowed.
+
+### Fixed — plugin runtime
+
+- **Boot no longer deadlocks on a hung plugin.** A plugin whose `setup()` never
+  resolved blocked the sequential boot sync and left a blank page; boot re-enable
+  is now time-boxed, and a plugin that fails or hangs on boot is suspended so it
+  cannot re-break every subsequent load.
+- **Suspending a plugin can no longer remove another plugin's component
+  override.** The component registry now tracks ownership: a plugin only tracks
+  a slot it actually won, and cleanup only unregisters a slot it still owns.
+- **A failed enable no longer leaves the app's brand permanently renamed.** The
+  `appName` override is applied only after the permission check, and is restored
+  on any setup failure (previously, declining a shipped sample's permission left
+  the logo replaced with no way back).
+- Deleting a plugin now sweeps its namespaced `ctx.storage` keys, honoring the
+  documented "everything created through `ctx.api.*` is removed on delete"
+  invariant (a reinstall can no longer inherit stale values).
+- One plugin's throwing middleware no longer starves other plugins' hooks or
+  silently prevents the core operation — each middleware runs fault-isolated.
+
+### Fixed — editing & search
+
+- Duplicating a card, and adding/removing tags, are now undoable; deleting a
+  card with children is grouped so a single Undo restores the whole subtree.
+- Advanced Search with filters but no query text now matches all cards before
+  applying the tag/bookmark/date filters, instead of searching for a literal
+  `*`.
+- Search-results keyboard navigation is clamped to the results actually
+  rendered, so arrowing past the last rendered result no longer loses the
+  highlight.
+
+### Changed
+
+- Native `sync` scripts now build first, so `npx cap sync` can no longer package
+  a stale committed bundle into the mobile shells.
+- The dev-only `test.html`/`diagnostic.html` harnesses are trimmed from the
+  GitHub Pages deploy (they remain in the repo for local use).
+- `www/capabilities.json` advertises the current version and is covered by the
+  version-consistency smoke check.
+
+---
+
 ## [0.18.2] – 2026-07-10
 
 Release-hardening fixes from the 2026-07-10 audit / QA / stress-test report.

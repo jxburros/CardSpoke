@@ -1,6 +1,6 @@
 # Middleware Pipeline API
 
-**Version:** 0.17.0
+**Version:** 0.19.0
 
 The Middleware Pipeline provides a priority-weighted, interceptor-style architecture that allows plugins to wrap core operations, modify data, or cancel operations before they complete.
 

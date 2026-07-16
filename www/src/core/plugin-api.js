@@ -157,9 +157,15 @@ const dataUpdateListeners = new Map();
         }
 
         if (ComponentRegistry) {
-          ComponentRegistry.register(name, component, component.priority || 0);
-          const resource = { type: 'component', name: name };
-          resources.add(resource);
+          const won = ComponentRegistry.register(name, component, component.priority || 0);
+          // Only track the slot as this plugin's resource if the registration
+          // actually took effect. Otherwise a lower-priority plugin that lost
+          // the slot would, on suspend, unregister the winning plugin's still
+          // active override.
+          if (won) {
+            const resource = { type: 'component', name: name, component: component };
+            resources.add(resource);
+          }
         }
       },
 
@@ -715,6 +721,34 @@ const dataUpdateListeners = new Map();
           Permissions.revokeFullTrust(id);
         }
 
+        // Sweep this plugin's namespaced ctx.storage entries so a reinstall
+        // (or a different plugin that reuses the same id) cannot silently
+        // inherit the previous installation's stored values. This honors the
+        // documented invariant that everything created through ctx.api.* is
+        // removed on delete.
+        try {
+          const prefix = 'plugin_' + id + '_';
+          if (typeof localStorage !== 'undefined') {
+            const toRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k && k.indexOf(prefix) === 0) toRemove.push(k);
+            }
+            toRemove.forEach(k => localStorage.removeItem(k));
+          }
+          if (window.storageDriver && typeof window.storageDriver.list === 'function' &&
+              typeof window.storageDriver.remove === 'function') {
+            const keys = await window.storageDriver.list(prefix);
+            if (Array.isArray(keys)) {
+              for (const k of keys) {
+                await window.storageDriver.remove(k.indexOf(prefix) === 0 ? k : prefix + k);
+              }
+            }
+          }
+        } catch (sweepErr) {
+          console.warn('[Plugin] Storage sweep failed for', id, ':', sweepErr);
+        }
+
         // Remove from store
         if (window.store && window.store.plugins) {
           delete window.store.plugins[id];
@@ -763,6 +797,16 @@ const dataUpdateListeners = new Map();
       dataUpdateListeners.delete(id);
     },
 
+    // Restore the brand button to its pre-override content (the logo <img>).
+    // Safe to call unconditionally; a no-op when the plugin never overrode it.
+    _restoreBrandOverride: function(instance) {
+      if (instance && instance._savedBrandHTML != null) {
+        const brandBtn = document.getElementById && document.getElementById('brandBtn');
+        if (brandBtn) brandBtn.innerHTML = instance._savedBrandHTML;
+        instance._savedBrandHTML = null;
+      }
+    },
+
     enable: async function(id) {
       const instance = plugins.get(id);
       if (!instance) {
@@ -795,10 +839,22 @@ const dataUpdateListeners = new Map();
         instance.context.config = instance.definition.manifest.config;
       }
 
+      // Check permissions BEFORE applying any visible override, running CSS,
+      // or running setup — so a declined permission dialog (or any later
+      // failure) can never leave the app's brand/DOM mutated with no clean
+      // way back.
+      if (instance.definition.manifest.permissions) {
+        const granted = await this._checkPermissions(id, instance.definition.manifest.permissions);
+        if (!granted) {
+          throw new Error('Permissions not granted for plugin: ' + id);
+        }
+      }
+
       // Task 2.6: Apply overrides from manifest. appName renames the brand
-      // button; we snapshot its original content first so disable() can
-      // fully restore it (the button normally holds the logo <img>, which
-      // setting textContent would otherwise destroy with no way back).
+      // button; we snapshot its original content first so disable() (and the
+      // setup-failure path below) can fully restore it — the button normally
+      // holds the logo <img>, which setting textContent would otherwise
+      // destroy with no way back.
       if (instance.definition.manifest.overrides) {
         const overrides = instance.definition.manifest.overrides;
         if (overrides.appName && typeof overrides.appName === 'string') {
@@ -807,14 +863,6 @@ const dataUpdateListeners = new Map();
             if (instance._savedBrandHTML == null) instance._savedBrandHTML = brandBtn.innerHTML;
             brandBtn.textContent = overrides.appName;
           }
-        }
-      }
-
-      // Check permissions
-      if (instance.definition.manifest.permissions) {
-        const granted = await this._checkPermissions(id, instance.definition.manifest.permissions);
-        if (!granted) {
-          throw new Error('Permissions not granted for plugin: ' + id);
         }
       }
 
@@ -833,16 +881,18 @@ const dataUpdateListeners = new Map();
           if (window.showToast) {
             window.showToast('Plugin "' + id + '" failed to start: ' + err.message, 'error');
           }
-          
-          // Clean up partially applied resources
+
+          // Clean up partially applied resources, including any brand override
+          // applied above, so a failed enable leaves no ghost UI behind.
+          this._restoreBrandOverride(instance);
           this._removeCSS(id);
           this._cleanupResources(id);
-          
+
           // Log to plugin context if available
           if (instance.context && instance.context.logger) {
             instance.context.logger.error('Plugin setup failed and was disabled: ' + err.message);
           }
-          
+
           throw err;
         }
       }
@@ -879,11 +929,7 @@ const dataUpdateListeners = new Map();
 
       // Restore the brand button if this plugin overrode appName, so no
       // ghost UI (or a destroyed logo) is left behind on suspend/remove.
-      if (instance._savedBrandHTML != null) {
-        const brandBtn = document.getElementById && document.getElementById('brandBtn');
-        if (brandBtn) brandBtn.innerHTML = instance._savedBrandHTML;
-        instance._savedBrandHTML = null;
-      }
+      this._restoreBrandOverride(instance);
 
       // Remove CSS
       this._removeCSS(id);
@@ -962,10 +1008,13 @@ const dataUpdateListeners = new Map();
               cleanup.domElements++;
             }
           } else if (resource.type === 'component') {
-            // Unregister component
+            // Unregister the component only if this plugin still owns the slot
+            // (identity-checked), so cleaning up a plugin that never won the
+            // registration can't remove another plugin's active override.
             if (ComponentRegistry) {
-              ComponentRegistry.unregister(resource.name);
-              cleanup.components++;
+              if (ComponentRegistry.unregister(resource.name, resource.component)) {
+                cleanup.components++;
+              }
             }
           } else if (resource.type === 'middleware') {
             // Unregister middleware interceptor
@@ -1172,6 +1221,11 @@ const dataUpdateListeners = new Map();
       if (layer === 'theme' && !hasJS && hasCSS) {
         return 'SAFE';
       }
+      // The feature layer is, by definition, the JavaScript-carrying tier: a
+      // feature plugin runs through the plugin API and enabling it always goes
+      // through the explicit full-trust consent dialog (see enable()), which is
+      // the real disclosure. LOW here reflects "auto-enables after consent",
+      // not "runs with no gate". App layer / component overrides are HIGH.
       if (layer === 'feature' && !hasOverrides) {
         return 'LOW';
       }
@@ -1242,11 +1296,40 @@ const dataUpdateListeners = new Map();
           this.register(id, def);
 
           if (!safeMode && pluginData.enabled) {
-            await this.enable(id);
+            try {
+              await this._enableWithTimeout(id);
+            } catch (enableErr) {
+              // A plugin that throws or hangs during boot re-enable is
+              // quarantined (persisted as suspended) so it can neither block
+              // boot (the enable is time-boxed) nor re-break every subsequent
+              // boot. The user can re-enable it from the Plugin Manager.
+              console.error('[Plugin] Boot re-enable failed; suspending', id, ':', enableErr);
+              this._persistEnabledState(id, false);
+            }
           }
         } catch (err) {
           console.error('[Plugin] Failed to sync plugin', id, ':', err);
         }
+      }
+    },
+
+    // Time-box enable() so a single plugin with a never-resolving setup()
+    // cannot block the sequential boot sync and leave the app on a blank
+    // screen. The timeout unblocks the boot loop; a still-pending setup is
+    // simply abandoned (not awaited).
+    _enableWithTimeout: async function(id, timeoutMs) {
+      const limit = typeof timeoutMs === 'number' ? timeoutMs : 5000;
+      let timer = null;
+      const timeout = new Promise((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Plugin "' + id + '" enable() timed out after ' + limit + 'ms')),
+          limit
+        );
+      });
+      try {
+        await Promise.race([this.enable(id), timeout]);
+      } finally {
+        if (timer) clearTimeout(timer);
       }
     },
 

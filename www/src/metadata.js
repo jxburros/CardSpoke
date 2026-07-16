@@ -66,6 +66,14 @@ function h(tag, props = {}, ...children) {
     else if (k === 'selected' || k === 'disabled' || k === 'checked' || k === 'readonly') {
       if (v) el.setAttribute(k, '');
     }
+    else if (k === 'value' && (tag === 'input' || tag === 'textarea')) {
+      // Set the field's live value as a DOM property, never as an HTML
+      // attribute. Reflecting user content (card titles, tags) into a
+      // [value="…"] attribute makes it readable by plugin CSS attribute
+      // selectors — a silent exfiltration channel. The input property is not
+      // matchable by CSS and carries the same value for form reads.
+      el.value = v == null ? '' : v;
+    }
     else if (v !== false && v !== null && v !== undefined) el.setAttribute(k, v);
   });
   children.flat().forEach(ch => {
@@ -895,7 +903,19 @@ const header = {
         if (!query || query.trim() === '') {
           return [];
         }
-        
+        // '*' is the "match everything" sentinel used by Advanced Search's
+        // filters-only path: return all cards so the tag/bookmark/date filters
+        // apply to the full set instead of to a literal-'*' substring search.
+        if (query.trim() === '*') {
+          return Object.values(store.cards).map(card => ({
+            card,
+            score: 100,
+            approximate: false,
+            titleMatch: false,
+            bodyMatch: false
+          }));
+        }
+
         const results = [];
         const queryLower = query.toLowerCase().trim();
         const queryTerms = queryLower.split(/\s+/).filter(Boolean);

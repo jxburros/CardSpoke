@@ -986,46 +986,15 @@ import {
           // Use requestIdleCallback if available to avoid blocking UI
           const doSave = async () => {
             try {
-              // The PIN must never be part of the persisted payload; if a
-              // legacy store still carries one, adopt it for the session
-              // and strip it before serializing (CS-001).
-              stripLegacyPinMetadata();
-              const payload = JSON.stringify(store);
-              const activePin = activeSessionPin;
-              const finalPayload = activePin
-                ? await encryptStorePayload(payload, activePin)
-                : payload;
-
-              localStorage.setItem(key, finalPayload);
-
-              if (isIndexedDbDataset()) {
-                getIndexedDbMirrorDriver()
-                  .then(driver => driver.set(key, finalPayload))
-                  .catch(err => console.error('[IndexedDB] Mirror save failed:', err));
-              }
-
-              if (getStorageType() === 'localfile') {
-                writeDatasetToLocalFile(finalPayload)
-                  .catch(err => {
-                    console.error('[Local File] Save failed:', err);
-                    showToast('Local file save failed: ' + err.message, 'error');
-                  });
-              }
-
-
+              await persistStoreNow(key);
               const duration = performance.now() - startTime;
-              lastSaveTime = Date.now();
-              savePending = false;
-
               // Show success indicator briefly
               updateSaveStatus('saved');
               setTimeout(() => updateSaveStatus('idle'), 1000);
-
               console.log(`Saved in ${duration.toFixed(2)}ms`);
-
             } catch (e) {
               savePending = false;
-              if (e.name === 'QuotaExceededError') {
+              if (isQuotaError(e)) {
                 showToast('Storage quota exceeded! Please clear old data or export your cards.', 'error');
               } else {
                 showToast('Failed to save: ' + e.message, 'error');
@@ -1044,6 +1013,90 @@ import {
           savePending = false;
           updateSaveStatus('error');
         }
+      }
+
+      /**
+       * Persist the current store to a specific dataset key, encrypting when a
+       * session PIN is active. Shared by the debounced save and by
+       * flushPendingSave() so a dataset switch cannot redirect a pending write
+       * to another dataset's key. Throws on primary-write failure so the caller
+       * can report it. (CS-001: never write plaintext for an encrypted dataset.)
+       */
+      async function persistStoreNow(key) {
+        // The PIN must never be part of the persisted payload; if a legacy
+        // store still carries one, adopt it for the session and strip it
+        // before serializing (CS-001).
+        stripLegacyPinMetadata();
+        const payload = JSON.stringify(store);
+        const activePin = activeSessionPin;
+        const finalPayload = activePin
+          ? await encryptStorePayload(payload, activePin)
+          : payload;
+
+        localStorage.setItem(key, finalPayload);
+
+        if (isIndexedDbDataset()) {
+          getIndexedDbMirrorDriver()
+            .then(driver => driver.set(key, finalPayload))
+            .catch(err => console.error('[IndexedDB] Mirror save failed:', err));
+        }
+
+        if (getStorageType() === 'localfile') {
+          writeDatasetToLocalFile(finalPayload)
+            .catch(err => {
+              console.error('[Local File] Save failed:', err);
+              showToast('Local file save failed: ' + err.message, 'error');
+            });
+        }
+
+        lastSaveTime = Date.now();
+        savePending = false;
+        if (typeof setDirty === 'function') setDirty(false);
+      }
+
+      // QuotaExceededError is named differently across engines; match the
+      // common variants so a full-disk save is reported, not swallowed.
+      function isQuotaError(e) {
+        return !!e && (e.name === 'QuotaExceededError' ||
+          e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
+      }
+
+      /**
+       * Flush a pending debounced save synchronously (awaitable), writing the
+       * CURRENT store to the CURRENT dataset key. Callers MUST await this before
+       * switching datasets so a stale debounce timer can never fire after the
+       * key changed and write one dataset's data (possibly unencrypted) into
+       * another dataset's key (CS-101-adjacent data-loss race).
+       */
+      async function flushPendingSave() {
+        if (saveTimeout) { clearTimeout(saveTimeout); saveTimeout = null; }
+        if (!savePending) return;
+        if (storageWriteLock) { savePending = false; return; }
+        const key = instanceKey || 'nested_cards_store';
+        if (!store.metadata) store.metadata = {};
+        store.metadata.navState = { ...navState };
+        store.metadata.navHistory = Array.isArray(navHistory) ? navHistory.slice(-100) : [];
+        try {
+          await persistStoreNow(key);
+        } catch (e) {
+          console.error('[Storage] Flush-before-switch save failed:', e);
+          if (isQuotaError(e)) {
+            showToast('Storage quota exceeded! Please clear old data or export your cards.', 'error');
+          } else {
+            showToast('Failed to save: ' + e.message, 'error');
+          }
+          updateSaveStatus('error');
+        }
+      }
+
+      /**
+       * Cancel a pending debounced save WITHOUT writing. Used when the current
+       * dataset is being deleted, so a queued timer can't recreate it at its
+       * (now removed) key after the switch.
+       */
+      function cancelPendingSave() {
+        if (saveTimeout) { clearTimeout(saveTimeout); saveTimeout = null; }
+        savePending = false;
       }
 
       function save(immediate = false) {
@@ -1350,6 +1403,14 @@ import {
         // A fresh load re-decides the lock state for the (possibly new)
         // active dataset; clear any blocker left from a previous dataset.
         storageWriteLock = false;
+
+        // Undo/redo history and the trash bin are in-memory and scoped to the
+        // active dataset. A load (boot or dataset switch) must not let one
+        // dataset's undo entries or trashed cards apply to another — doing so
+        // could inject a foreign card object or throw mid-undo.
+        if (Array.isArray(undoStack)) undoStack.length = 0;
+        if (Array.isArray(redoStack)) redoStack.length = 0;
+        if (Array.isArray(trashBin)) trashBin.length = 0;
         if (typeof document !== 'undefined') {
           const staleLock = document.getElementById('datasetLockScreen');
           if (staleLock) staleLock.remove();

@@ -1,6 +1,6 @@
 # Plugin API Documentation
 
-**Version:** 0.18.0
+**Version:** 0.19.0
 
 The Plugin API provides a permission-scoped, resource-managed surface for
 plugin development. Plugin JS runs on the **main thread** (there is no iframe
@@ -96,7 +96,7 @@ Every plugin receives a context object:
 ```javascript
 {
   modId: string,              // Plugin ID
-  appVersion: string,         // App version (0.17.0)
+  appVersion: string,         // App version (0.19.0)
   schemaVersion: number,      // Schema version (4)
   api: {
     ui: UIApi,                 // UI manipulation

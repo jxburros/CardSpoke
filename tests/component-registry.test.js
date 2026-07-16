@@ -117,6 +117,34 @@ test('Has checks component existence', () => {
   assert.ok(window.CardSpoke.ComponentRegistry.has('Existent'), 'Existent found');
 });
 
+// Ownership tracking (audit 2026-07-16): a losing registration must not let a
+// plugin later remove the winner's live override.
+test('register returns true when it wins and false when out-prioritized', () => {
+  const R = window.CardSpoke.ComponentRegistry;
+  R.clear();
+  const hi = { render: () => ({ who: 'hi' }) };
+  const lo = { render: () => ({ who: 'lo' }) };
+  assert.equal(R.register('Card', hi, 100), true, 'first registration wins');
+  assert.equal(R.register('Card', lo, 10), false, 'lower priority is rejected');
+  assert.equal(R.get('Card'), hi, 'higher-priority component retained');
+});
+
+test('unregister(name, expected) only removes when identity matches', () => {
+  const R = window.CardSpoke.ComponentRegistry;
+  R.clear();
+  const winner = { render: () => ({}) };
+  const loser = { render: () => ({}) };
+  R.register('Card', winner, 100);
+  // The loser (which never held the slot) tries to clean up: identity mismatch
+  // must be a no-op so the winner's active override survives.
+  assert.equal(R.unregister('Card', loser), false, 'mismatched identity does not unregister');
+  assert.ok(R.has('Card'), 'winner still registered');
+  assert.equal(R.get('Card'), winner);
+  // The winner's own cleanup matches identity and removes it.
+  assert.equal(R.unregister('Card', winner), true, 'matching identity unregisters');
+  assert.not.ok(R.has('Card'));
+});
+
 test('Clear removes all components', () => {
   window.CardSpoke.ComponentRegistry.clear();
 

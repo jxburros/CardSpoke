@@ -807,6 +807,34 @@ await scenario('responsive-360', async () => {
   await context.close();
 });
 
+// 13 ─ Card content not reflected into a CSS-selectable value attribute (SEC-1)
+await scenario('card-title-not-css-selectable (SEC-1)', async () => {
+  const errors = [];
+  const { context, page } = await freshPage(errors);
+  await page.goto(BASE);
+  await page.waitForSelector('#main');
+
+  await createCardViaUI(page, 'Attr Probe Card');
+  // Creation lands on the read view; open the editor, where the title input is
+  // pre-filled via the h({ value }) helper.
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.waitForSelector('#cardTitle');
+
+  const probe = await page.evaluate(() => {
+    const el = document.getElementById('cardTitle');
+    return { attr: el.getAttribute('value'), prop: el.value };
+  });
+  check('editor title is pre-filled with the card title', probe.prop === 'Attr Probe Card',
+    `value property=${JSON.stringify(probe.prop)}`);
+  // The whole point of SEC-1: user content must live only as the input's value
+  // PROPERTY, never as a [value="…"] attribute a plugin CSS attribute-selector
+  // could read and exfiltrate.
+  check('title is NOT exposed as a CSS-selectable value attribute (SEC-1)', probe.attr === null,
+    `getAttribute('value')=${JSON.stringify(probe.attr)}`);
+  check('no console/page errors', errors.length === 0, errors.join(' | '));
+  await context.close();
+});
+
 await browser.close();
 server.close();
 

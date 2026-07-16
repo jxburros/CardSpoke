@@ -147,9 +147,15 @@ const middlewaresByOperation = new Map();
         try {
           await middleware.handler(ctx, next);
         } catch (err) {
+          // Per-plugin fault isolation: one plugin's middleware throwing must
+          // not starve every lower-priority plugin's hook for this operation,
+          // nor abort (and thereby silently prevent) the core operation.
+          // Record the error, then continue the pipeline. If the failing
+          // handler had already called next(), the index is past the
+          // remaining middlewares and this call is a no-op.
           ctx.error = err;
-          console.error('[Middleware] Error in', middleware.name, ':', err);
-          throw err;
+          console.error('[Middleware] Error in', middleware.name, '(isolated, pipeline continues):', err);
+          await next();
         }
       };
 
