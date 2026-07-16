@@ -81,6 +81,13 @@ jobs:
           path: qa-artifacts/
           if-no-files-found: ignore
 
+      # Dev-only harnesses (they fetch+eval the bundle) have no place on the
+      # public site. Trim them from the deploy artifact only; they stay in the
+      # repo for local `npm run preview`/debugging. Runs after browser QA so QA
+      # can still exercise the full built site.
+      - name: Trim dev-only pages from the deploy
+        run: rm -f www/test.html www/diagnostic.html
+
       - uses: actions/configure-pages@v6
 
       - uses: actions/upload-pages-artifact@v5

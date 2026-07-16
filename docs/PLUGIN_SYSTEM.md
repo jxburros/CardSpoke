@@ -5,7 +5,7 @@ how to build one for each of the three layers, how the lifecycle works
 (install, enable, suspend, delete, reload), and the complete `ctx` API
 reference.
 
-**App Version:** 0.17.0 | **Schema Version:** 4
+**App Version:** 0.19.0 | **Schema Version:** 4
 
 Companion documents:
 
@@ -212,7 +212,7 @@ Every plugin gets an isolated context:
 ```text
 ctx
 ├─ modId            plugin id (string)
-├─ appVersion       e.g. '0.17.0'
+├─ appVersion       e.g. '0.19.0'
 ├─ schemaVersion    e.g. 4
 ├─ config           manifest.config (live; settings panel writes here)
 ├─ logger           log / info / warn / error (prefixed console)

@@ -47,7 +47,7 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 - For plugins introducing network access, include mockable clients and offline fallbacks.
 - Audit dependencies for known CVEs before releases.
 
-## Plugin Trust Model (v0.18.0)
+## Plugin Trust Model (v0.19.0)
 
 **JavaScript plugins are fully trusted code.** There is no sandbox: plugin
 JavaScript is compiled with `new Function` and runs on the main thread in the
@@ -82,12 +82,13 @@ protocol) is tracked as future hardening work.
 - **Content Security Policy**: CSP headers added to limit attack surface
 - **Dependency Updates**: Regular `npm audit` to fix known vulnerabilities
 
-## Content Security Policy (v0.18.0)
+## Content Security Policy (v0.19.0)
 
 The app ships a hardened CSP in `www/index.html`:
 
 - `default-src 'self'` — the app is self-contained; no third-party scripts, styles, or fonts load at startup.
-- `connect-src 'self' https://raw.githubusercontent.com` — the only permitted `fetch`/XHR destination beyond the app's own origin is the curated plugin gallery, and "Install from URL" only resolves gallery-hosted packages. Note the honest caveat: `img-src` still allows any HTTPS image, so CSP alone does not prevent a *malicious, user-accepted* plugin from signalling data out via image requests — which is why enabling JavaScript plugins requires the full-trust consent described above.
+- `connect-src 'self' https://raw.githubusercontent.com` — the only permitted `fetch`/XHR destination beyond the app's own origin is the curated plugin gallery, and "Install from URL" only resolves gallery-hosted packages.
+- `img-src 'self' data: blob:` — images are limited to the app's own origin plus inline `data:`/`blob:` data; arbitrary remote (`https:`) image loads are blocked. This closes the CSS `url()` / image-beacon channel a malicious or user-accepted plugin could otherwise use to signal data out of the page. It is paired with the app never reflecting user content (card titles, tags) into CSS-selectable DOM `value` attributes, so plugin CSS attribute selectors cannot read card content either.
 - `script-src 'self' 'unsafe-eval'` — `'unsafe-eval'` is required by the plugin runtime, which compiles the `setup`/`teardown` functions of JSON plugin packages at install/enable time (see `www/src/core/plugin-api.js`). This is a deliberate, documented trade-off under the full-trust plugin model: consent dialogs, risk labels, and Safe Mode set expectations, and moving plugin execution into sandboxed workers/iframes is tracked as future hardening work.
 - `frame-src 'none'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'` — frames, plugin objects, and external form posts are not used and are blocked outright.
 

@@ -137,9 +137,17 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         const result = _kernel.deleteCard(id);
         _syncKernelToStore();
 
-        // Add each deleted card to undo stack and trash bin
+        // Group the whole cascade so a single Undo restores the entire subtree
+        // atomically. result.deleted is root-first; push it children-first so
+        // the group's reverse-order replay restores PARENTS before children —
+        // children then re-attach to an existing parent instead of becoming
+        // unreachable orphans.
+        const groupedDelete = window.startUndoGroup && window.startUndoGroup('deleteCard');
+        for (let i = result.deleted.length - 1; i >= 0; i--) {
+          pushUndo('deleteCard', { card: result.deleted[i] });
+        }
+        if (groupedDelete && window.endUndoGroup) window.endUndoGroup();
         for (const deleted of result.deleted) {
-          pushUndo('deleteCard', { card: deleted });
           trashBin.unshift({ card: deleted, deletedAt: Date.now() });
           if (trashBin.length > MAX_TRASH_SIZE) trashBin.pop();
         }
@@ -231,16 +239,26 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         if (targetStorage === 'indexeddb') {
           const driver = new IndexedDBDriver();
           await driver.init({ dbName: 'CardSpokeDB', storeName: 'datasets' });
-          await driver.set(instanceKey, JSON.stringify(store));
           store.metadata.storageType = 'indexeddb';
           store.metadata.storageConfig = { dbName: 'CardSpokeDB', storeName: 'datasets' };
+          // Encrypt exactly as the normal save path does, so migrating a
+          // PIN-protected dataset never writes its plaintext to the target
+          // backend (CS-001).
+          const encPayload = activeSessionPin
+            ? await encryptStorePayload(JSON.stringify(store), activeSessionPin)
+            : JSON.stringify(store);
+          await driver.set(instanceKey, encPayload);
         } else if (targetStorage === 'localfile') {
           if (typeof window.showSaveFilePicker !== 'function') {
             throw new Error('Local file location selection is not supported in this environment');
           }
           store.metadata.storageType = 'localfile';
           if (!store.metadata.storageConfig) store.metadata.storageConfig = {};
-          await writeDatasetToLocalFile(JSON.stringify(store));
+          // Same encryption guard for the chosen-file backend (CS-001).
+          const encPayload = activeSessionPin
+            ? await encryptStorePayload(JSON.stringify(store), activeSessionPin)
+            : JSON.stringify(store);
+          await writeDatasetToLocalFile(encPayload);
         } else {
           store.metadata.storageType = 'localstorage';
           store.metadata.storageConfig = {};
@@ -318,13 +336,23 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
       function duplicateCard(id, withChildren = false) {
         if (!_kernel.hasCard(id)) return null;
 
-        const groupedUndo = withChildren && window.startUndoGroup && window.startUndoGroup('duplicateCard');
-
         const result = _kernel.duplicateHierarchy(id, withChildren);
         _syncKernelToStore();
 
-        save();
+        // Make the duplicate undoable: one createCard entry per new card,
+        // grouped so a single Undo removes the whole duplicated subtree.
+        // allNewIds is root-first, so the group's reverse-order replay removes
+        // children before parents (no orphaned removals).
+        const ids = result.allNewIds && result.allNewIds.length
+          ? result.allNewIds
+          : (result.newId ? [result.newId] : []);
+        const groupedUndo = ids.length > 1 && window.startUndoGroup && window.startUndoGroup('duplicateCard');
+        for (const newId of ids) {
+          pushUndo('createCard', { cardId: newId, card: store.cards[newId] });
+        }
         if (groupedUndo && window.endUndoGroup) window.endUndoGroup();
+
+        save();
         return result.newId;
       }
 
@@ -345,6 +373,16 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         // The kernel placed the duplicate next to the original; reparent it.
         _kernel.reparent(result.newId, newParentId);
         _syncKernelToStore();
+
+        // Make the duplicate undoable (grouped for a multi-card subtree).
+        const ids = result.allNewIds && result.allNewIds.length
+          ? result.allNewIds
+          : [result.newId];
+        const groupedUndo = ids.length > 1 && window.startUndoGroup && window.startUndoGroup('duplicateCard');
+        for (const newId of ids) {
+          if (store.cards[newId]) pushUndo('createCard', { cardId: newId, card: store.cards[newId] });
+        }
+        if (groupedUndo && window.endUndoGroup) window.endUndoGroup();
 
         return result.newId;
       }
@@ -833,6 +871,16 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
           }
         });
 
+        // A hand-crafted or third-party import can carry cyclic or dangling
+        // parent references. Repair them (break cycles, drop missing parents,
+        // rebuild rootOrder) before persisting so breadcrumb/ancestor traversal
+        // can never hang on the imported data.
+        try {
+          if (typeof validateStoreConsistency === 'function') validateStoreConsistency();
+        } catch (err) {
+          console.warn('[Import] Consistency repair skipped:', err);
+        }
+
         save();
         
         showToast(`Imported ${Object.keys(remappedCards).length} cards`);
@@ -966,6 +1014,11 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
                 className: 'btn btn-primary',
                 onclick: async () => {
                   overlay.remove();
+                  // Flush the current dataset's pending save to ITS key before
+                  // switching, so a stale debounce timer can't later write this
+                  // dataset's (possibly unencrypted) data into the opened
+                  // dataset's key.
+                  await flushPendingSave();
                   localStorage.setItem('activeInstance', key);
                   setInstanceKey(key);
                   await load();
@@ -1002,6 +1055,10 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
                   cancelLabel: 'Cancel',
                   confirmClassName: 'btn btn-danger'
                 })) {
+                  // If we're deleting the active dataset, cancel any pending
+                  // debounced save first so it can't fire after removal and
+                  // silently recreate this dataset at its key.
+                  if (isCurrent) cancelPendingSave();
                   localStorage.removeItem(key);
                   if (isCurrent && allKeys.length > 1) {
                     // Switch to another dataset
@@ -1209,6 +1266,9 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
               }
             };
 
+            // Flush the current dataset's pending save to its own key before
+            // switching to the new dataset, so an in-flight edit isn't lost.
+            await flushPendingSave();
             localStorage.setItem('activeInstance', newKey);
             setInstanceKey(newKey);
             setStore(newStore);
@@ -2351,21 +2411,25 @@ import { migrateCard as coreMigrateCard } from '@core/migrations.js';
         return _kernel.getTags(cardId);
       }
 
-      function addTag(cardId, tag, skipSave = false) {
+      function addTag(cardId, tag, skipSave = false, skipUndo = false) {
         _syncStoreToKernel();
         const result = _kernel.addTag(cardId, tag);
         if (result) {
           _syncKernelToStore();
+          // Record for undo unless this call is itself an undo/redo replay
+          // (skipUndo) — pushUndo clears the redo stack, so replays must not.
+          if (!skipUndo) pushUndo('addTag', { cardId, tag });
           if (!skipSave) save();
         }
         return result;
       }
 
-      function removeTag(cardId, tag, skipSave = false) {
+      function removeTag(cardId, tag, skipSave = false, skipUndo = false) {
         _syncStoreToKernel();
         const result = _kernel.removeTag(cardId, tag);
         if (result) {
           _syncKernelToStore();
+          if (!skipUndo) pushUndo('removeTag', { cardId, tag });
           if (!skipSave) save();
         }
         return result;

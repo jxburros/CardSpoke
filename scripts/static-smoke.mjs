@@ -103,9 +103,21 @@ const sw = read('www/service-worker.js');
 const swVersion = (sw.match(/const CACHE_VERSION = 'cardspoke-app-shell-v([^'-]+)/) || [])[1];
 check(`service-worker cache version (${swVersion}) matches package.json (${pkg.version})`, swVersion === pkg.version);
 
+// capabilities.json is a public plugin-API reference shipped with the site;
+// keep its advertised version in step with the release so plugin authors are
+// not told a stale app version.
+const capabilities = JSON.parse(read('www/capabilities.json'));
+check(`capabilities.json version (${capabilities.version}) matches package.json (${pkg.version})`,
+  capabilities.version === pkg.version);
+
 // ── CSP still present and plugin-honest ──────────────────────────────────
 check('index.html ships a CSP', indexHtml.includes('Content-Security-Policy'));
 check('CSP restricts connect-src', /connect-src [^;]*raw\.githubusercontent\.com/.test(indexHtml));
+// img-src must not allow arbitrary https images: a plugin CSS url(https://…)
+// background is otherwise a data-exfiltration beacon channel (SEC-1). Keep
+// images same-origin plus inline data:/blob:.
+const imgSrc = (indexHtml.match(/img-src([^;]*);/) || [])[1] || '';
+check('CSP img-src does not allow arbitrary https: images', !/\bhttps:/.test(imgSrc));
 
 if (failures.length) {
   console.error(`\n${failures.length} smoke check(s) failed.`);

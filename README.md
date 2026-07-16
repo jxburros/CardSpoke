@@ -2,7 +2,7 @@
 
 ![CardSpoke logo](./CardSpoke.svg)
 
-**Version:** 0.18.1 Public Preview | **Schema:** v4
+**Version:** 0.19.0 Public Preview | **Schema:** v4
 
 CardSpoke is a lightweight, local-first, card-based knowledge app for organizing notes, ideas, references, writing, research, and personal information in flexible card trees.
 
@@ -115,10 +115,22 @@ The plugin runtime includes consent prompts, risk labels, safe mode, resource cl
    npm run dev
    ```
 
+   Note: the dev server serves the pre-built `www/app.js`. After editing files
+   under `www/src/`, re-run `npm run build` (or run `npx vite build --watch` in a
+   second terminal) to see the change; only `index.html`/`styles.css` edits are
+   picked up live.
+
 5. Preview the built app.
 
    ```bash
    npm run preview
+   ```
+
+6. Run the release checks (the same gates CI enforces before deploying).
+
+   ```bash
+   npm run smoke        # fast static checks: version consistency, CSP, bundle sanity
+   npm run qa:browser   # end-to-end browser QA in headless Chromium
    ```
 
 ## Desktop and Mobile Packaging

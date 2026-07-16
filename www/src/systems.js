@@ -128,12 +128,15 @@ import {
             case 'deleteCard':
               const cardData = action.data.card;
               store.cards[cardData.id] = cardData;
-              if (cardData.parentId) {
-                const parent = store.cards[cardData.parentId];
-                if (parent && !parent.children.includes(cardData.id)) {
-                  parent.children.push(cardData.id);
+              const undelParent = cardData.parentId ? store.cards[cardData.parentId] : null;
+              if (undelParent) {
+                if (Array.isArray(undelParent.children) && !undelParent.children.includes(cardData.id)) {
+                  undelParent.children.push(cardData.id);
                 }
               } else {
+                // Root card, OR the parent no longer exists (e.g. restoring a
+                // child before its still-deleted parent): keep the card
+                // reachable at root instead of leaving it an invisible orphan.
                 if (!store.rootOrder.includes(cardData.id)) {
                   store.rootOrder.push(cardData.id);
                 }
@@ -160,13 +163,13 @@ import {
               break;
               
             case 'addTag':
-              removeTag(action.data.cardId, action.data.tag, true);
+              removeTag(action.data.cardId, action.data.tag, true, true);
               break;
-              
+
             case 'removeTag':
-              addTag(action.data.cardId, action.data.tag, true);
+              addTag(action.data.cardId, action.data.tag, true, true);
               break;
-              
+
             case 'moveCard':
               const movedCard = store.cards[action.data.cardId];
               if (movedCard) {
@@ -266,13 +269,13 @@ import {
               break;
               
             case 'addTag':
-              addTag(action.data.cardId, action.data.tag, true);
+              addTag(action.data.cardId, action.data.tag, true, true);
               break;
-              
+
             case 'removeTag':
-              removeTag(action.data.cardId, action.data.tag, true);
+              removeTag(action.data.cardId, action.data.tag, true, true);
               break;
-              
+
             case 'moveCard':
               const mvCard = store.cards[action.data.cardId];
               if (mvCard) {

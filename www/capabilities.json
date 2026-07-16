@@ -1,7 +1,7 @@
 {
-  "version": "0.18.0",
+  "version": "0.19.0",
   "schemaVersion": 4,
-  "lastUpdated": "2026-02-17",
+  "lastUpdated": "2026-07-16",
   "description": "CardSpoke Plugin API Capabilities - Complete reference for plugin developers and AI agents",
   
   "permissions": [

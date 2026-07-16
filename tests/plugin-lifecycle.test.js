@@ -463,6 +463,65 @@ test('a failing setup leaves the plugin installed but suspended', async () => {
   assert.is(window.store.plugins[id].enabled, false, 'persisted as suspended');
 });
 
+// ── Audit 2026-07-16 hardening regressions ────────────────────────────────
+
+test('a setup failure after an appName override restores the brand button', async () => {
+  const dom = freshHarness();
+  const originalBrand = dom.brandBtn.innerHTML;
+  assert.ok(originalBrand.includes('brand-logo'), 'brand starts as the logo');
+
+  const id = 'brand-crasher';
+  Permissions.grantFullTrust(id); // accept the JS consent so setup runs (and throws)
+  await Plugin.install({
+    manifest: { id, name: 'Brand Crasher', version: '1.0.0', author: 't', layer: 'app',
+      overrides: { appName: 'Crashed' } },
+    js: "throw new Error('setup boom');"
+  });
+
+  let threw = false;
+  try { await Plugin.enable(id); } catch (_e) { threw = true; }
+  assert.ok(threw, 'enable rejects when setup throws');
+  // Before the fix the override ran first and was never undone on failure,
+  // permanently replacing the logo with the plugin name.
+  assert.is(dom.brandBtn.innerHTML, originalBrand, 'brand restored to the logo after setup failure');
+});
+
+test('deleting a plugin sweeps its namespaced ctx.storage keys', async () => {
+  freshHarness();
+  const id = 'store-sweeper';
+  Permissions.grantPermissions(id, ['storage']);
+  Permissions.grantFullTrust(id);
+  await Plugin.install({
+    manifest: { id, name: 'Store Sweeper', version: '1.0.0', author: 't', layer: 'feature', permissions: ['storage'] },
+    js: "ctx.api.storage.set('note', { v: 1 });"
+  });
+  assert.ok(localStorage.getItem('plugin_' + id + '_note'), 'plugin wrote a namespaced storage key');
+
+  await Plugin.unregister(id);
+  assert.not.ok(localStorage.getItem('plugin_' + id + '_note'),
+    'plugin storage swept on delete (no stale value a reinstall could inherit)');
+});
+
+test('a hung plugin setup is time-boxed so it cannot block boot forever', async () => {
+  freshHarness();
+  const id = 'hang-plugin';
+  // Programmatic registration with a never-resolving setup (no js string, so no
+  // consent needed) models a plugin whose setup() hangs on boot.
+  Plugin.register(id, {
+    manifest: { id, name: 'Hang', version: '1.0.0', author: 't', layer: 'feature' },
+    setup: () => new Promise(() => {})
+  });
+
+  let timedOut = false;
+  try {
+    await Plugin._enableWithTimeout(id, 50); // short timeout for the test
+  } catch (_e) {
+    timedOut = true;
+  }
+  assert.ok(timedOut, 'enable() is abandoned after the timeout instead of hanging');
+  assert.is(Plugin.get(id).enabled, false, 'hung plugin left disabled, boot can proceed');
+});
+
 // ── All nine samples install through the real runtime ─────────────────────
 test('every sample package installs without error and lands in the right state', async () => {
   freshHarness();

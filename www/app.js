@@ -1,4 +1,4 @@
-// Version: 0.18.2
+// Version: 0.19.0
 (function() {
   "use strict";
   const middlewares = [];
@@ -104,8 +104,8 @@
           await middleware.handler(ctx, next);
         } catch (err) {
           ctx.error = err;
-          console.error("[Middleware] Error in", middleware.name, ":", err);
-          throw err;
+          console.error("[Middleware] Error in", middleware.name, "(isolated, pipeline continues):", err);
+          await next();
         }
       };
       try {
@@ -151,7 +151,7 @@
       const existing = components.get(name);
       if (existing && componentPriorities.get(name) > priority) {
         console.warn("[ComponentRegistry] Component", name, "not overridden (lower priority)");
-        return;
+        return false;
       }
       if (existing && componentPriorities.get(name) === priority) {
         console.warn('[ComponentRegistry] Conflict: Component "' + name + '" is already registered at priority ' + priority + ". The previous registration will be overridden. Consider using different priority levels to avoid ambiguous overrides.");
@@ -159,16 +159,25 @@
       components.set(name, component);
       componentPriorities.set(name, priority);
       console.log("[ComponentRegistry] Registered:", name, "priority:", priority);
+      return true;
     },
     /**
-     * Unregister a component
+     * Unregister a component.
+     * @param {string} name
+     * @param {Object} [expected] - If provided, only unregister when this exact
+     *   component still owns the slot. Prevents one plugin's cleanup from
+     *   yanking a different plugin's live registration of the same name.
+     * @returns {boolean} whether a registration was removed
      */
-    unregister: function(name) {
-      if (components.has(name)) {
-        components.delete(name);
-        componentPriorities.delete(name);
-        console.log("[ComponentRegistry] Unregistered:", name);
+    unregister: function(name, expected) {
+      if (!components.has(name)) return false;
+      if (expected !== void 0 && components.get(name) !== expected) {
+        return false;
       }
+      components.delete(name);
+      componentPriorities.delete(name);
+      console.log("[ComponentRegistry] Unregistered:", name);
+      return true;
     },
     /**
      * Get a component by name
@@ -868,9 +877,11 @@
           throw new Error("Plugin does not have ui-override permission");
         }
         if (ComponentRegistry) {
-          ComponentRegistry.register(name, component, component.priority || 0);
-          const resource = { type: "component", name };
-          resources.add(resource);
+          const won = ComponentRegistry.register(name, component, component.priority || 0);
+          if (won) {
+            const resource = { type: "component", name, component };
+            resources.add(resource);
+          }
         }
       },
       unregisterComponent: function(name) {
@@ -1329,6 +1340,27 @@
         if (PermissionsManager && PermissionsManager.revokeFullTrust) {
           PermissionsManager.revokeFullTrust(id);
         }
+        try {
+          const prefix = "plugin_" + id + "_";
+          if (typeof localStorage !== "undefined") {
+            const toRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k && k.indexOf(prefix) === 0) toRemove.push(k);
+            }
+            toRemove.forEach((k) => localStorage.removeItem(k));
+          }
+          if (window.storageDriver && typeof window.storageDriver.list === "function" && typeof window.storageDriver.remove === "function") {
+            const keys = await window.storageDriver.list(prefix);
+            if (Array.isArray(keys)) {
+              for (const k of keys) {
+                await window.storageDriver.remove(k.indexOf(prefix) === 0 ? k : prefix + k);
+              }
+            }
+          }
+        } catch (sweepErr) {
+          console.warn("[Plugin] Storage sweep failed for", id, ":", sweepErr);
+        }
         if (window.store && window.store.plugins) {
           delete window.store.plugins[id];
           if (window.save) {
@@ -1370,6 +1402,15 @@
       pluginResources.delete(id);
       dataUpdateListeners.delete(id);
     },
+    // Restore the brand button to its pre-override content (the logo <img>).
+    // Safe to call unconditionally; a no-op when the plugin never overrode it.
+    _restoreBrandOverride: function(instance) {
+      if (instance && instance._savedBrandHTML != null) {
+        const brandBtn = document.getElementById && document.getElementById("brandBtn");
+        if (brandBtn) brandBtn.innerHTML = instance._savedBrandHTML;
+        instance._savedBrandHTML = null;
+      }
+    },
     enable: async function(id) {
       const instance = plugins.get(id);
       if (!instance) {
@@ -1390,6 +1431,12 @@
       if (instance.definition.manifest.config) {
         instance.context.config = instance.definition.manifest.config;
       }
+      if (instance.definition.manifest.permissions) {
+        const granted = await this._checkPermissions(id, instance.definition.manifest.permissions);
+        if (!granted) {
+          throw new Error("Permissions not granted for plugin: " + id);
+        }
+      }
       if (instance.definition.manifest.overrides) {
         const overrides = instance.definition.manifest.overrides;
         if (overrides.appName && typeof overrides.appName === "string") {
@@ -1398,12 +1445,6 @@
             if (instance._savedBrandHTML == null) instance._savedBrandHTML = brandBtn.innerHTML;
             brandBtn.textContent = overrides.appName;
           }
-        }
-      }
-      if (instance.definition.manifest.permissions) {
-        const granted = await this._checkPermissions(id, instance.definition.manifest.permissions);
-        if (!granted) {
-          throw new Error("Permissions not granted for plugin: " + id);
         }
       }
       if (instance.definition.css) {
@@ -1418,6 +1459,7 @@
           if (window.showToast) {
             window.showToast('Plugin "' + id + '" failed to start: ' + err.message, "error");
           }
+          this._restoreBrandOverride(instance);
           this._removeCSS(id);
           this._cleanupResources(id);
           if (instance.context && instance.context.logger) {
@@ -1449,11 +1491,7 @@
           }
         }
       }
-      if (instance._savedBrandHTML != null) {
-        const brandBtn = document.getElementById && document.getElementById("brandBtn");
-        if (brandBtn) brandBtn.innerHTML = instance._savedBrandHTML;
-        instance._savedBrandHTML = null;
-      }
+      this._restoreBrandOverride(instance);
       this._removeCSS(id);
       this._cleanupResources(id);
       instance.enabled = false;
@@ -1517,8 +1555,9 @@
             }
           } else if (resource.type === "component") {
             if (ComponentRegistry) {
-              ComponentRegistry.unregister(resource.name);
-              cleanup.components++;
+              if (ComponentRegistry.unregister(resource.name, resource.component)) {
+                cleanup.components++;
+              }
             }
           } else if (resource.type === "middleware") {
             if (MiddlewareManager) {
@@ -1716,11 +1755,35 @@
           }
           this.register(id, def);
           if (!safeMode && pluginData.enabled) {
-            await this.enable(id);
+            try {
+              await this._enableWithTimeout(id);
+            } catch (enableErr) {
+              console.error("[Plugin] Boot re-enable failed; suspending", id, ":", enableErr);
+              this._persistEnabledState(id, false);
+            }
           }
         } catch (err) {
           console.error("[Plugin] Failed to sync plugin", id, ":", err);
         }
+      }
+    },
+    // Time-box enable() so a single plugin with a never-resolving setup()
+    // cannot block the sequential boot sync and leave the app on a blank
+    // screen. The timeout unblocks the boot loop; a still-pending setup is
+    // simply abandoned (not awaited).
+    _enableWithTimeout: async function(id, timeoutMs) {
+      const limit = typeof timeoutMs === "number" ? timeoutMs : 5e3;
+      let timer = null;
+      const timeout = new Promise((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Plugin "' + id + '" enable() timed out after ' + limit + "ms")),
+          limit
+        );
+      });
+      try {
+        await Promise.race([this.enable(id), timeout]);
+      } finally {
+        if (timer) clearTimeout(timer);
       }
     },
     /**
@@ -1972,8 +2035,8 @@
   }
   "use strict";
   const APP_CREATOR = "Jeffrey from GX Generations Software";
-  const APP_VERSION = '0.18.2';
-  const APP_RELEASE_DATE = "2026-07-10";
+  const APP_VERSION = '0.19.0';
+  const APP_RELEASE_DATE = "2026-07-16";
   const APP_UPDATER = "Claude Code (Sonnet 4.5)";
   const SCHEMA_VERSION = 4;
   const MAX_UNDO_STACK = 50;
@@ -2255,7 +2318,10 @@
     getAncestors(id) {
       const ancestors = [];
       let current = this.cards[id];
+      const seen = /* @__PURE__ */ new Set();
       while (current && current.parentId) {
+        if (seen.has(current.id)) break;
+        seen.add(current.id);
         const parent = this.cards[current.parentId];
         if (!parent) break;
         ancestors.push(cloneCard(parent));
@@ -2277,7 +2343,10 @@
      */
     getDescendantIds(id) {
       const ids = [];
+      const seen = /* @__PURE__ */ new Set();
       const walk = (cardId) => {
+        if (seen.has(cardId)) return;
+        seen.add(cardId);
         const card = this.cards[cardId];
         if (!card) return;
         for (const childId of card.children || []) {
@@ -2566,6 +2635,8 @@
       else if (k === "onchange") el.onchange = v;
       else if (k === "selected" || k === "disabled" || k === "checked" || k === "readonly") {
         if (v) el.setAttribute(k, "");
+      } else if (k === "value" && (tag === "input" || tag === "textarea")) {
+        el.value = v == null ? "" : v;
       } else if (v !== false && v !== null && v !== void 0) el.setAttribute(k, v);
     });
     children.flat().forEach((ch) => {
@@ -3114,6 +3185,15 @@
     const SINGLE_TERM_APPROX_THRESHOLD = 48;
     if (!query || query.trim() === "") {
       return [];
+    }
+    if (query.trim() === "*") {
+      return Object.values(store2.cards).map((card) => ({
+        card,
+        score: 100,
+        approximate: false,
+        titleMatch: false,
+        bodyMatch: false
+      }));
     }
     const results = [];
     const queryLower = query.toLowerCase().trim();
@@ -3923,29 +4003,14 @@
       store.metadata.navHistory = Array.isArray(navHistory) ? navHistory.slice(-100) : [];
       const doSave = async () => {
         try {
-          stripLegacyPinMetadata();
-          const payload = JSON.stringify(store);
-          const activePin = activeSessionPin;
-          const finalPayload = activePin ? await encryptStorePayload(payload, activePin) : payload;
-          localStorage.setItem(key, finalPayload);
-          if (isIndexedDbDataset()) {
-            getIndexedDbMirrorDriver().then((driver) => driver.set(key, finalPayload)).catch((err) => console.error("[IndexedDB] Mirror save failed:", err));
-          }
-          if (getStorageType() === "localfile") {
-            writeDatasetToLocalFile(finalPayload).catch((err) => {
-              console.error("[Local File] Save failed:", err);
-              showToast("Local file save failed: " + err.message, "error");
-            });
-          }
+          await persistStoreNow(key);
           const duration = performance.now() - startTime;
-          lastSaveTime = Date.now();
-          savePending = false;
           updateSaveStatus("saved");
           setTimeout(() => updateSaveStatus("idle"), 1e3);
           console.log(`Saved in ${duration.toFixed(2)}ms`);
         } catch (e) {
           savePending = false;
-          if (e.name === "QuotaExceededError") {
+          if (isQuotaError(e)) {
             showToast("Storage quota exceeded! Please clear old data or export your cards.", "error");
           } else {
             showToast("Failed to save: " + e.message, "error");
@@ -3965,6 +4030,61 @@
       savePending = false;
       updateSaveStatus("error");
     }
+  }
+  async function persistStoreNow(key) {
+    stripLegacyPinMetadata();
+    const payload = JSON.stringify(store);
+    const activePin = activeSessionPin;
+    const finalPayload = activePin ? await encryptStorePayload(payload, activePin) : payload;
+    localStorage.setItem(key, finalPayload);
+    if (isIndexedDbDataset()) {
+      getIndexedDbMirrorDriver().then((driver) => driver.set(key, finalPayload)).catch((err) => console.error("[IndexedDB] Mirror save failed:", err));
+    }
+    if (getStorageType() === "localfile") {
+      writeDatasetToLocalFile(finalPayload).catch((err) => {
+        console.error("[Local File] Save failed:", err);
+        showToast("Local file save failed: " + err.message, "error");
+      });
+    }
+    lastSaveTime = Date.now();
+    savePending = false;
+    if (typeof setDirty === "function") setDirty(false);
+  }
+  function isQuotaError(e) {
+    return !!e && (e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED" || e.code === 22 || e.code === 1014);
+  }
+  async function flushPendingSave() {
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
+    if (!savePending) return;
+    if (storageWriteLock) {
+      savePending = false;
+      return;
+    }
+    const key = instanceKey || "nested_cards_store";
+    if (!store.metadata) store.metadata = {};
+    store.metadata.navState = { ...navState };
+    store.metadata.navHistory = Array.isArray(navHistory) ? navHistory.slice(-100) : [];
+    try {
+      await persistStoreNow(key);
+    } catch (e) {
+      console.error("[Storage] Flush-before-switch save failed:", e);
+      if (isQuotaError(e)) {
+        showToast("Storage quota exceeded! Please clear old data or export your cards.", "error");
+      } else {
+        showToast("Failed to save: " + e.message, "error");
+      }
+      updateSaveStatus("error");
+    }
+  }
+  function cancelPendingSave() {
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
+    savePending = false;
   }
   function save(immediate = false) {
     if (saveTimeout) {
@@ -4216,6 +4336,9 @@
     const key = instanceKey || "nested_cards_store";
     let raw = localStorage.getItem(key);
     storageWriteLock = false;
+    if (Array.isArray(undoStack)) undoStack.length = 0;
+    if (Array.isArray(redoStack)) redoStack.length = 0;
+    if (Array.isArray(trashBin)) trashBin.length = 0;
     if (typeof document !== "undefined") {
       const staleLock = document.getElementById("datasetLockScreen");
       if (staleLock) staleLock.remove();
@@ -4565,8 +4688,12 @@
     const { skipSave = false, skipHooks = false } = opts;
     const result = _kernel.deleteCard(id);
     _syncKernelToStore();
+    const groupedDelete = window.startUndoGroup && window.startUndoGroup("deleteCard");
+    for (let i = result.deleted.length - 1; i >= 0; i--) {
+      pushUndo("deleteCard", { card: result.deleted[i] });
+    }
+    if (groupedDelete && window.endUndoGroup) window.endUndoGroup();
     for (const deleted of result.deleted) {
-      pushUndo("deleteCard", { card: deleted });
       trashBin.unshift({ card: deleted, deletedAt: Date.now() });
       if (trashBin.length > MAX_TRASH_SIZE) trashBin.pop();
     }
@@ -4627,16 +4754,18 @@
     if (targetStorage === "indexeddb") {
       const driver = new IndexedDBDriver();
       await driver.init({ dbName: "CardSpokeDB", storeName: "datasets" });
-      await driver.set(instanceKey, JSON.stringify(store));
       store.metadata.storageType = "indexeddb";
       store.metadata.storageConfig = { dbName: "CardSpokeDB", storeName: "datasets" };
+      const encPayload = activeSessionPin ? await encryptStorePayload(JSON.stringify(store), activeSessionPin) : JSON.stringify(store);
+      await driver.set(instanceKey, encPayload);
     } else if (targetStorage === "localfile") {
       if (typeof window.showSaveFilePicker !== "function") {
         throw new Error("Local file location selection is not supported in this environment");
       }
       store.metadata.storageType = "localfile";
       if (!store.metadata.storageConfig) store.metadata.storageConfig = {};
-      await writeDatasetToLocalFile(JSON.stringify(store));
+      const encPayload = activeSessionPin ? await encryptStorePayload(JSON.stringify(store), activeSessionPin) : JSON.stringify(store);
+      await writeDatasetToLocalFile(encPayload);
     } else {
       store.metadata.storageType = "localstorage";
       store.metadata.storageConfig = {};
@@ -4707,11 +4836,15 @@
   }
   function duplicateCard(id, withChildren = false) {
     if (!_kernel.hasCard(id)) return null;
-    const groupedUndo = withChildren && window.startUndoGroup && window.startUndoGroup("duplicateCard");
     const result = _kernel.duplicateHierarchy(id, withChildren);
     _syncKernelToStore();
-    save();
+    const ids = result.allNewIds && result.allNewIds.length ? result.allNewIds : result.newId ? [result.newId] : [];
+    const groupedUndo = ids.length > 1 && window.startUndoGroup && window.startUndoGroup("duplicateCard");
+    for (const newId of ids) {
+      pushUndo("createCard", { cardId: newId, card: store.cards[newId] });
+    }
     if (groupedUndo && window.endUndoGroup) window.endUndoGroup();
+    save();
     return result.newId;
   }
   function duplicateCardAsChild(id, newParentId, withChildren = false) {
@@ -4720,6 +4853,12 @@
     if (!result.newId) return null;
     _kernel.reparent(result.newId, newParentId);
     _syncKernelToStore();
+    const ids = result.allNewIds && result.allNewIds.length ? result.allNewIds : [result.newId];
+    const groupedUndo = ids.length > 1 && window.startUndoGroup && window.startUndoGroup("duplicateCard");
+    for (const newId of ids) {
+      if (store.cards[newId]) pushUndo("createCard", { cardId: newId, card: store.cards[newId] });
+    }
+    if (groupedUndo && window.endUndoGroup) window.endUndoGroup();
     return result.newId;
   }
   function toggleBookmark(cardId) {
@@ -5100,6 +5239,11 @@ Do you want to import the plugins?
           }
         }
       });
+      try {
+        if (typeof validateStoreConsistency === "function") validateStoreConsistency();
+      } catch (err) {
+        console.warn("[Import] Consistency repair skipped:", err);
+      }
       save();
       showToast(`Imported ${Object.keys(remappedCards).length} cards`);
       render();
@@ -5217,6 +5361,7 @@ Do you want to import the plugins?
             className: "btn btn-primary",
             onclick: async () => {
               overlay.remove();
+              await flushPendingSave();
               localStorage.setItem("activeInstance", key);
               setInstanceKey(key);
               await load();
@@ -5255,6 +5400,7 @@ This action cannot be undone!`, {
               cancelLabel: "Cancel",
               confirmClassName: "btn btn-danger"
             })) {
+              if (isCurrent) cancelPendingSave();
               localStorage.removeItem(key);
               if (isCurrent && allKeys.length > 1) {
                 const otherKey = allKeys.find((k) => k !== key);
@@ -5424,6 +5570,7 @@ This action cannot be undone!`, {
             createdAt: Date.now()
           }
         };
+        await flushPendingSave();
         localStorage.setItem("activeInstance", newKey);
         setInstanceKey(newKey);
         setStore(newStore);
@@ -6387,20 +6534,22 @@ This action cannot be undone!`, {
   function getTags(cardId) {
     return _kernel.getTags(cardId);
   }
-  function addTag(cardId, tag, skipSave = false) {
+  function addTag(cardId, tag, skipSave = false, skipUndo = false) {
     _syncStoreToKernel();
     const result = _kernel.addTag(cardId, tag);
     if (result) {
       _syncKernelToStore();
+      if (!skipUndo) pushUndo("addTag", { cardId, tag });
       if (!skipSave) save();
     }
     return result;
   }
-  function removeTag(cardId, tag, skipSave = false) {
+  function removeTag(cardId, tag, skipSave = false, skipUndo = false) {
     _syncStoreToKernel();
     const result = _kernel.removeTag(cardId, tag);
     if (result) {
       _syncKernelToStore();
+      if (!skipUndo) pushUndo("removeTag", { cardId, tag });
       if (!skipSave) save();
     }
     return result;
@@ -6536,7 +6685,10 @@ This action cannot be undone!`, {
     }
     let current = navState.cardId;
     const path = [];
+    const seenCrumb = /* @__PURE__ */ new Set();
     while (current) {
+      if (seenCrumb.has(current)) break;
+      seenCrumb.add(current);
       const c = store.cards[current];
       if (!c) break;
       path.unshift(c);
@@ -7136,7 +7288,24 @@ ${prefix}`;
     const parentSel = h("select", { id: "cardParent", className: "form-select" });
     const parVal = card.parentId || "";
     parentSel.appendChild(h("option", { value: "", selected: !parVal }, "(Root Level)"));
-    const parentCards = Object.values(store.cards).filter((c) => c.id !== card.id).sort((a, b) => (a.title || "").toLowerCase().localeCompare((b.title || "").toLowerCase()));
+    const excludedParentIds = /* @__PURE__ */ new Set([card.id]);
+    if (editing && card.id) {
+      const descStack = [card.id];
+      const seenDesc = /* @__PURE__ */ new Set();
+      while (descStack.length) {
+        const curId = descStack.pop();
+        if (seenDesc.has(curId)) continue;
+        seenDesc.add(curId);
+        const cur = store.cards[curId];
+        if (cur && Array.isArray(cur.children)) {
+          for (const kid of cur.children) {
+            excludedParentIds.add(kid);
+            descStack.push(kid);
+          }
+        }
+      }
+    }
+    const parentCards = Object.values(store.cards).filter((c) => !excludedParentIds.has(c.id)).sort((a, b) => (a.title || "").toLowerCase().localeCompare((b.title || "").toLowerCase()));
     parentCards.forEach((c) => {
       parentSel.appendChild(h("option", { value: c.id, selected: parVal === c.id }, c.title || "(Untitled)"));
     });
@@ -7409,6 +7578,7 @@ ${prefix}`;
               const activeKey = instanceKey || "nested_cards_store";
               if (result.datasetId && result.datasetId !== activeKey) {
                 cardEl.onclick = async () => {
+                  await flushPendingSave();
                   localStorage.setItem("activeInstance", result.datasetId);
                   setInstanceKey(result.datasetId);
                   await load();
@@ -7759,7 +7929,8 @@ ${prefix}`;
   }, 180);
   function updateSearchSelection(delta = 0) {
     if (!searchResultsState.items.length) return;
-    const max = searchResultsState.items.length - 1;
+    const rendered = searchResultsState.elements.length;
+    const max = (rendered > 0 ? rendered : searchResultsState.items.length) - 1;
     const next = Math.min(max, Math.max(0, searchResultsState.selectedIndex + delta));
     searchResultsState.selectedIndex = next;
     searchResultsState.elements.forEach((el, idx) => {
@@ -7986,10 +8157,10 @@ ${prefix}`;
       case "deleteCard":
         const cardData = action.data.card;
         store.cards[cardData.id] = cardData;
-        if (cardData.parentId) {
-          const parent = store.cards[cardData.parentId];
-          if (parent && !parent.children.includes(cardData.id)) {
-            parent.children.push(cardData.id);
+        const undelParent = cardData.parentId ? store.cards[cardData.parentId] : null;
+        if (undelParent) {
+          if (Array.isArray(undelParent.children) && !undelParent.children.includes(cardData.id)) {
+            undelParent.children.push(cardData.id);
           }
         } else {
           if (!store.rootOrder.includes(cardData.id)) {
@@ -8015,10 +8186,10 @@ ${prefix}`;
         }
         break;
       case "addTag":
-        removeTag(action.data.cardId, action.data.tag, true);
+        removeTag(action.data.cardId, action.data.tag, true, true);
         break;
       case "removeTag":
-        addTag(action.data.cardId, action.data.tag, true);
+        addTag(action.data.cardId, action.data.tag, true, true);
         break;
       case "moveCard":
         const movedCard = store.cards[action.data.cardId];
@@ -8107,10 +8278,10 @@ ${prefix}`;
         }
         break;
       case "addTag":
-        addTag(action.data.cardId, action.data.tag, true);
+        addTag(action.data.cardId, action.data.tag, true, true);
         break;
       case "removeTag":
-        removeTag(action.data.cardId, action.data.tag, true);
+        removeTag(action.data.cardId, action.data.tag, true, true);
         break;
       case "moveCard":
         const mvCard = store.cards[action.data.cardId];

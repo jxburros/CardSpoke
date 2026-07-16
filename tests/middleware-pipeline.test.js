@@ -132,6 +132,32 @@ test('Wildcard operation matches all', async () => {
   assert.equal(executed, true, 'Wildcard matched');
 });
 
+// Fault isolation (audit 2026-07-16): one plugin's throwing middleware must
+// not starve other plugins' hooks or silently prevent the core operation.
+test('a throwing middleware is isolated; later middlewares still run and the op is not prevented', async () => {
+  window.CardSpoke.Middleware.clear();
+  const ran = [];
+
+  window.CardSpoke.Middleware.register({
+    name: 'a-high', priority: 30, operations: ['*'],
+    handler: async (ctx, next) => { ran.push('a'); await next(); }
+  });
+  window.CardSpoke.Middleware.register({
+    name: 'b-throws', priority: 20, operations: ['*'],
+    handler: async () => { throw new Error('boom'); }
+  });
+  window.CardSpoke.Middleware.register({
+    name: 'c-low', priority: 10, operations: ['*'],
+    handler: async (ctx, next) => { ran.push('c'); await next(); }
+  });
+
+  const result = await window.CardSpoke.Middleware.run('card.save', []);
+
+  assert.ok(ran.includes('a'), 'first middleware ran');
+  assert.ok(ran.includes('c'), 'a throwing middleware does not starve the next one');
+  assert.not.ok(result.prevented, 'a throwing middleware does not prevent the operation');
+});
+
 test('Can unregister middleware', () => {
   window.CardSpoke.Middleware.clear();
   

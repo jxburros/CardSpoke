@@ -31,8 +31,8 @@
 
 // ── App metadata constants ────────────────────────────────────────────────────
 export const APP_CREATOR = 'Jeffrey from GX Generations Software';
-export const APP_VERSION = '0.18.2';
-export const APP_RELEASE_DATE = '2026-07-10';
+export const APP_VERSION = '0.19.0';
+export const APP_RELEASE_DATE = '2026-07-16';
 export const APP_UPDATER = 'Claude Code (Sonnet 4.5)';
 export const SCHEMA_VERSION = 4;
 

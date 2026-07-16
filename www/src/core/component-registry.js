@@ -39,7 +39,11 @@ const componentPriorities = new Map();
       const existing = components.get(name);
       if (existing && componentPriorities.get(name) > priority) {
         console.warn('[ComponentRegistry] Component', name, 'not overridden (lower priority)');
-        return;
+        // Return false so callers (e.g. the plugin runtime) can tell the
+        // registration did NOT take effect and avoid tracking a slot they
+        // do not own — otherwise suspending the losing plugin would later
+        // unregister the winning plugin's still-active override.
+        return false;
       }
 
       // Phase 3.2: Conflict Warning System
@@ -54,17 +58,26 @@ const componentPriorities = new Map();
       componentPriorities.set(name, priority);
 
       console.log('[ComponentRegistry] Registered:', name, 'priority:', priority);
+      return true;
     },
 
     /**
-     * Unregister a component
+     * Unregister a component.
+     * @param {string} name
+     * @param {Object} [expected] - If provided, only unregister when this exact
+     *   component still owns the slot. Prevents one plugin's cleanup from
+     *   yanking a different plugin's live registration of the same name.
+     * @returns {boolean} whether a registration was removed
      */
-    unregister: function(name) {
-      if (components.has(name)) {
-        components.delete(name);
-        componentPriorities.delete(name);
-        console.log('[ComponentRegistry] Unregistered:', name);
+    unregister: function(name, expected) {
+      if (!components.has(name)) return false;
+      if (expected !== undefined && components.get(name) !== expected) {
+        return false;
       }
+      components.delete(name);
+      componentPriorities.delete(name);
+      console.log('[ComponentRegistry] Unregistered:', name);
+      return true;
     },
 
     /**

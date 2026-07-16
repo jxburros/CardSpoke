@@ -313,7 +313,11 @@ export class Kernel {
   getAncestors(id) {
     const ancestors = [];
     let current = this.cards[id];
+    const seen = new Set();
     while (current && current.parentId) {
+      // Guard against a cyclic parent chain so this can't loop forever.
+      if (seen.has(current.id)) break;
+      seen.add(current.id);
       const parent = this.cards[current.parentId];
       if (!parent) break;
       ancestors.push(cloneCard(parent));
@@ -337,7 +341,12 @@ export class Kernel {
    */
   getDescendantIds(id) {
     const ids = [];
+    const seen = new Set();
     const walk = (cardId) => {
+      // Guard against a cyclic children array (e.g. from a hand-crafted
+      // import) so this can't recurse forever / overflow the stack.
+      if (seen.has(cardId)) return;
+      seen.add(cardId);
       const card = this.cards[cardId];
       if (!card) return;
       for (const childId of card.children || []) {
