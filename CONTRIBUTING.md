@@ -6,9 +6,9 @@ Thank you for your interest in contributing to CardSpoke! This document outlines
 
 By submitting a contribution to this project, you agree to the following terms:
 
-1. **License Grant**: You grant JX Holdings, LLC and Jeffrey Guntly a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable license to use, reproduce, prepare derivative works of, publicly display, publicly perform, sublicense, and distribute your contributions and such derivative works.
+1. **License Grant**: You grant [JX Holdings, LLC](https://jxholdings.com) and [Jeffrey Guntly](https://github.com/jxburros) a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable license to use, reproduce, prepare derivative works of, publicly display, publicly perform, sublicense, and distribute your contributions and such derivative works.
 
-2. **Commercial Use**: You acknowledge and agree that JX Holdings, LLC retains the right to use your contributions in future commercial versions of CardSpoke. This includes, but is not limited to, paid versions, enterprise editions, or any other monetized offerings.
+2. **Commercial Use**: You acknowledge and agree that [JX Holdings, LLC](https://jxholdings.com) retains the right to use your contributions in future commercial versions of CardSpoke. This includes, but is not limited to, paid versions, enterprise editions, or any other monetized offerings.
 
 3. **Original Work**: You represent that your contributions are your original work and that you have the right to grant the licenses described above.
 
@@ -50,6 +50,6 @@ If you have any questions about contributing, please open an issue for discussio
 
 ## Copyright
 
-Copyright 2026 Jeffrey Guntly (JX Holdings, LLC)
+Copyright 2026 [Jeffrey Guntly](https://github.com/jxburros) ([JX Holdings, LLC](https://jxholdings.com))
 
 This project is licensed under the Apache License 2.0. See the LICENSE file for details.

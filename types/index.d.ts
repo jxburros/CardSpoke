@@ -308,7 +308,7 @@ declare global {
     /**
      * Public plugin surface, assembled and frozen by
      * www/src/core/global-api.js before any app-layer code runs.
-     * Shape is a stability contract — see docs/PLUGIN_INVARIANTS.md.
+     * Shape is a stability contract — see docs/architecture/PLUGIN_INVARIANTS.md.
      */
     CardSpoke: {
       /** Register AND enable a plugin (session-only; not persisted). */

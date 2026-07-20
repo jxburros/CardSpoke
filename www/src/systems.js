@@ -2075,7 +2075,7 @@ import {
       // window.save, kept in sync by state.js). This block must run before
       // the boot sequence below so that plugins restored at startup find a
       // complete host API. The set of names is a STABILITY CONTRACT —
-      // see docs/PLUGIN_INVARIANTS.md before renaming or removing any.
+      // see docs/architecture/PLUGIN_INVARIANTS.md before renaming or removing any.
       // =============================================================
 
       window.save = save;

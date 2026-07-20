@@ -32,7 +32,7 @@
  *
  * The shape of this object is a STABILITY CONTRACT. Plugins and the app
  * layer both program against it. Do not remove or rename members — see
- * docs/PLUGIN_INVARIANTS.md before changing anything here.
+ * docs/architecture/PLUGIN_INVARIANTS.md before changing anything here.
  */
 
 import { Middleware } from './middleware.js';
@@ -91,7 +91,7 @@ const CardSpokeAPI = Object.freeze({
 
   // ── Full runtime subsystems ────────────────────────────────────────────
   // Used by the app layer and by app-layer plugins. See
-  // docs/PLUGIN_SYSTEM.md for which parts are supported plugin API.
+  // docs/architecture/PLUGIN_SYSTEM.md for which parts are supported plugin API.
   Plugin: Plugin,
   PluginSandbox: Object.freeze({ createFunction: PluginSandbox }),
   Middleware: Middleware,

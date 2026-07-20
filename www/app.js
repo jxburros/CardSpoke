@@ -1,4 +1,4 @@
-// Version: 0.19.0
+// Version: 0.20.0
 (function() {
   "use strict";
   const middlewares = [];
@@ -1245,7 +1245,7 @@
   function createPluginContext(pluginId) {
     return {
       modId: pluginId,
-      appVersion: window.APP_VERSION || "0.18.0",
+      appVersion: window.APP_VERSION || "0.20.0",
       schemaVersion: window.SCHEMA_VERSION || 4,
       api: {
         ui: createUIApi(pluginId),
@@ -1915,7 +1915,7 @@
     },
     // ── Full runtime subsystems ────────────────────────────────────────────
     // Used by the app layer and by app-layer plugins. See
-    // docs/PLUGIN_SYSTEM.md for which parts are supported plugin API.
+    // docs/architecture/PLUGIN_SYSTEM.md for which parts are supported plugin API.
     Plugin: PluginManager,
     PluginSandbox: Object.freeze({ createFunction: _createSandboxedFunction }),
     Middleware: MiddlewareManager,
@@ -2034,10 +2034,10 @@
     return !!(value && typeof value === "object" && value.encrypted === true && typeof value.payload === "string" && typeof value.salt === "string" && typeof value.iv === "string");
   }
   "use strict";
-  const APP_CREATOR = "Jeffrey from GX Generations Software";
-  const APP_VERSION = '0.19.0';
-  const APP_RELEASE_DATE = "2026-07-16";
-  const APP_UPDATER = "Claude Code (Sonnet 4.5)";
+  const APP_CREATOR = "Jeffrey Guntly";
+  const APP_VERSION = '0.20.0';
+  const APP_RELEASE_DATE = "2026-07-20";
+  const APP_UPDATER = "JX Holdings, LLC";
   const SCHEMA_VERSION = 4;
   const MAX_UNDO_STACK = 50;
   const MAX_TRASH_SIZE = 100;

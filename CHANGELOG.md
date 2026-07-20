@@ -6,6 +6,17 @@ The format follows Keep a Changelog and the project uses semantic versioning whe
 
 ---
 
+## [0.20.0] – 2026-07-20
+
+### Changed
+
+- Reorganized documentation around a role-based documentation home, dedicated architecture and historical-report sections, and an AI/contributor context guide that records document precedence and current public scope.
+- Updated public app and package metadata to identify CardSpoke as created by Jeffrey Guntly and maintained by JX Holdings, LLC.
+- Updated the in-app footer with links to the [CardSpoke repository](https://github.com/jxburros/CardSpoke), [Jeffrey Guntly's GitHub profile](https://github.com/jxburros), and [JX Holdings, LLC](https://jxholdings.com).
+- Advanced all release metadata and public documentation references to version 0.20.0. Schema version remains 4; this release does not change persisted data or the plugin API contract.
+
+---
+
 ## [0.19.0] – 2026-07-16
 
 Security, data-integrity, and plugin-runtime hardening from the 2026-07-16

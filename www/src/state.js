@@ -30,10 +30,10 @@
  */
 
 // ── App metadata constants ────────────────────────────────────────────────────
-export const APP_CREATOR = 'Jeffrey from GX Generations Software';
-export const APP_VERSION = '0.19.0';
-export const APP_RELEASE_DATE = '2026-07-16';
-export const APP_UPDATER = 'Claude Code (Sonnet 4.5)';
+export const APP_CREATOR = 'Jeffrey Guntly';
+export const APP_VERSION = '0.20.0';
+export const APP_RELEASE_DATE = '2026-07-20';
+export const APP_UPDATER = 'JX Holdings, LLC';
 export const SCHEMA_VERSION = 4;
 
 // ── Undo / trash size limits ──────────────────────────────────────────────────
@@ -71,7 +71,7 @@ export let store = createDefaultStore();
  * and plugin persistence, and it must never observe a stale object after a
  * dataset switch or async storage-mirror load. Keep the mirror in sync here,
  * in the single place where the reference changes.
- * See docs/PLUGIN_INVARIANTS.md.
+ * See docs/architecture/PLUGIN_INVARIANTS.md.
  */
 export function setStore(s) {
   store = s;

@@ -47,7 +47,7 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 - For plugins introducing network access, include mockable clients and offline fallbacks.
 - Audit dependencies for known CVEs before releases.
 
-## Plugin Trust Model (v0.19.0)
+## Plugin Trust Model (v0.20.0)
 
 **JavaScript plugins are fully trusted code.** There is no sandbox: plugin
 JavaScript is compiled with `new Function` and runs on the main thread in the
@@ -82,7 +82,7 @@ protocol) is tracked as future hardening work.
 - **Content Security Policy**: CSP headers added to limit attack surface
 - **Dependency Updates**: Regular `npm audit` to fix known vulnerabilities
 
-## Content Security Policy (v0.19.0)
+## Content Security Policy (v0.20.0)
 
 The app ships a hardened CSP in `www/index.html`:
 

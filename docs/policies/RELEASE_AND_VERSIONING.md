@@ -1,6 +1,6 @@
 # Release & Versioning Notes
 
-CardSpoke's current release policy is for the main public app: the web app first, then desktop packaging, then mobile packaging.
+CardSpoke's current release policy is for the main public app: the web app first, then desktop packaging, then mobile packaging. CardSpoke is created by [Jeffrey Guntly](https://github.com/jxburros) and maintained by [JX Holdings, LLC](https://jxholdings.com).
 
 ## Versioning Model
 
@@ -34,6 +34,7 @@ Those items require a separate future-version scope or another repository.
 ## Release Checklist (Core App)
 
 - Update changelog with user-facing summary and breaking changes.
+- Update the version in `package.json`, `package-lock.json`, `www/src/state.js`, `www/index.html`, and `www/capabilities.json`; verify the generated bundle and service-worker cache version through `npm run smoke`.
 - Record schema changes and migration notes.
 - Verify plugin compatibility and note known incompatibilities.
 - Run `npm run build`.

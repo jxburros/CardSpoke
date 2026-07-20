@@ -6,7 +6,7 @@
  * enabled flag, reload survival (serialize store → fresh runtime →
  * syncFromStore), reinstall-as-update, safe mode, and permission revocation
  * on delete. This is the regression suite for the stability guarantees in
- * docs/PLUGIN_INVARIANTS.md.
+ * docs/architecture/PLUGIN_INVARIANTS.md.
  */
 
 import { test } from 'uvu';

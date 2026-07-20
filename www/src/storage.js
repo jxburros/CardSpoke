@@ -1653,7 +1653,7 @@ import {
       // =============================================================
       // --- Modern Plugin System ---
       // Use the modern Plugin API (window.CardSpoke.Plugin) for all extensions.
-      // See docs/PLUGIN_SYSTEM.md for complete plugin development documentation.
+      // See docs/architecture/PLUGIN_SYSTEM.md for complete plugin development documentation.
       // =============================================================
 
       // =============================================================

@@ -4,11 +4,11 @@ This reference documents the surfaces plugin developers can rely on. It
 consolidates the runtime contracts assembled by
 `www/src/core/global-api.js` and consumed across `www/src/`.
 
-**Current Version:** 0.19.0 | **Schema Version:** 4
+**Current Version:** 0.20.0 | **Schema Version:** 4
 
 For the narrative guide, worked examples, and lifecycle walkthrough see
-[`../PLUGIN_SYSTEM.md`](../PLUGIN_SYSTEM.md). For the stability contract (what
-must not change) see [`../PLUGIN_INVARIANTS.md`](../PLUGIN_INVARIANTS.md).
+[`../architecture/PLUGIN_SYSTEM.md`](../architecture/PLUGIN_SYSTEM.md). For the stability contract (what
+must not change) see [`../architecture/PLUGIN_INVARIANTS.md`](../architecture/PLUGIN_INVARIANTS.md).
 
 ## Global objects
 
@@ -46,7 +46,7 @@ for advanced app-layer plugins.
 ## Plugin package format
 
 Plugins are JSON packages; `js` is the body of the setup function (receives
-`ctx`). See [`../PLUGIN_SYSTEM.md`](../PLUGIN_SYSTEM.md#plugin-package-format)
+`ctx`). See [`../architecture/PLUGIN_SYSTEM.md`](../architecture/PLUGIN_SYSTEM.md#plugin-package-format)
 for the full field reference.
 
 ```json
@@ -107,7 +107,7 @@ real `setup`/`teardown` functions via `registerPlugin` — but only string
 ## Plugin context (`ctx`)
 
 - **`ctx.modId`** — the plugin id.
-- **`ctx.appVersion`** — `'0.19.0'`.
+- **`ctx.appVersion`** — `'0.20.0'`.
 - **`ctx.schemaVersion`** — `4`.
 - **`ctx.config`** — live `manifest.config` object (the settings panel writes
   here). Present when the manifest declares `config`.

@@ -110,6 +110,13 @@ const capabilities = JSON.parse(read('www/capabilities.json'));
 check(`capabilities.json version (${capabilities.version}) matches package.json (${pkg.version})`,
   capabilities.version === pkg.version);
 
+check('footer links to the canonical CardSpoke repository',
+  indexHtml.includes('href="https://github.com/jxburros/CardSpoke"'));
+check('footer credits Jeffrey Guntly GitHub profile',
+  indexHtml.includes('href="https://github.com/jxburros"'));
+check('footer credits JX Holdings, LLC',
+  indexHtml.includes('href="https://jxholdings.com"'));
+
 // ── CSP still present and plugin-honest ──────────────────────────────────
 check('index.html ships a CSP', indexHtml.includes('Content-Security-Policy'));
 check('CSP restricts connect-src', /connect-src [^;]*raw\.githubusercontent\.com/.test(indexHtml));
