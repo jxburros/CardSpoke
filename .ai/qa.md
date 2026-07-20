@@ -187,7 +187,6 @@ Run:
 npm run build
 ~~~
 
-
 Validate:
 
 - Vite build completes successfully.

@@ -6,6 +6,16 @@ The format follows Keep a Changelog and the project uses semantic versioning whe
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- Removed the nonexistent Node package entry point from this browser-only package.
+- Moved dependency-audit summary generation into a checked-in Node script so the GitHub Pages workflow passes shell validation without changing the release gate.
+- Corrected the remaining markdownlint findings in the QA profile, plugin review skill, and historical audit report.
+
+---
+
 ## [0.20.0] – 2026-07-20
 
 ### Changed
