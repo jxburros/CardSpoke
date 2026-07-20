@@ -581,7 +581,7 @@ const dataUpdateListeners = new Map();
   function createPluginContext(pluginId) {
     return {
       modId: pluginId,
-      appVersion: window.APP_VERSION || '0.18.0',
+      appVersion: window.APP_VERSION || '0.20.0',
       schemaVersion: window.SCHEMA_VERSION || 4,
       api: {
         ui: createUIApi(pluginId),

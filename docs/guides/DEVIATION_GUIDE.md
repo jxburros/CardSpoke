@@ -9,7 +9,7 @@ A Deviation is any fork or derivative build of CardSpoke. Use this guide to stay
 
 ## Mandatory Metadata
 
-Include the required metadata block for Deviations (see [Plugin System](../PLUGIN_SYSTEM.md)) with the appropriate manifest fields.
+Include the required metadata block for Deviations (see [Plugin System](../architecture/PLUGIN_SYSTEM.md)) with the appropriate manifest fields.
 
 ## Licenses & Attribution
 

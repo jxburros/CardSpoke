@@ -6,7 +6,7 @@
     "`teardownJs` is optional extra cleanup for things the tracker cannot see (setInterval, MutationObserver, ...). It receives the same ctx object as setup.",
     "layer: 'theme' = CSS only (auto-enabled) | 'feature' = CSS+JS (auto-enabled unless it declares overrides) | 'app' = deep transformation (user must enable it manually).",
     "permissions your js needs: 'ui-override' (ctx.api.ui.inject/replace/registerComponent), 'data-modify' (create/update/delete cards, tags), 'storage' (ctx.api.storage), 'network' (ctx.api.network), 'filesystem' (ctx.api.filesystem). The user is asked for consent on first enable.",
-    "Full documentation: docs/PLUGIN_SYSTEM.md. Hard constraints: docs/PLUGIN_INVARIANTS.md."
+    "Full documentation: docs/architecture/PLUGIN_SYSTEM.md. Hard constraints: docs/architecture/PLUGIN_INVARIANTS.md."
   ],
   "id": "my-plugin",
   "manifest": {

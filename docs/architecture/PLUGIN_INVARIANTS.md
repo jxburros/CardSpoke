@@ -6,7 +6,7 @@ UI, the boot sequence, and the persisted data of every user depend on them.
 
 > Breaking any invariant here breaks installed plugins, silently or loudly.
 > If you must change one, treat it like a schema migration: bump the app
-> version, migrate persisted data, update `docs/PLUGIN_SYSTEM.md`, the
+> version, migrate persisted data, update `docs/architecture/PLUGIN_SYSTEM.md`, the
 > samples, the tests, and this file — in the same change.
 
 The regression suite that enforces most of these is
@@ -128,7 +128,7 @@ corresponding `ctx.api` methods.
 
 - The package fields `id`, `manifest` (`name`, `version`, `layer` required),
   `css`, `js`, `teardownJs`, `config`, `overrides` mean what
-  `docs/PLUGIN_SYSTEM.md` says. `javascript` is accepted as a legacy alias
+  `docs/architecture/PLUGIN_SYSTEM.md` says. `javascript` is accepted as a legacy alias
   of `js`. Top-level `id`/`config`/`overrides` are normalized into the
   manifest at install.
 - **`js` is a setup-function BODY receiving `ctx`.** It is compiled by the
@@ -220,7 +220,7 @@ Changing anything above? Then in the same PR:
 
 1. Migrate persisted data if the schema moved (a `syncFromStore`-level
    migration for `store.plugins`).
-2. Update `docs/PLUGIN_SYSTEM.md`, this file, `sample-plugins/` (all nine
+2. Update `docs/architecture/PLUGIN_SYSTEM.md`, this file, `sample-plugins/` (all nine
    packages + TEMPLATE), and `types/index.d.ts`.
 3. Update `tests/plugin-lifecycle.test.js` / `tests/sample-extensions.test.js`
    and make `npm test` pass.

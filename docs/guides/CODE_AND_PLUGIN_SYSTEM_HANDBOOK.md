@@ -335,7 +335,7 @@ The modern plugin system uses `setup` and `teardown` functions instead of indivi
 ### Plugin Context (`ctx`) includes
 
 - `modId` - The plugin's unique identifier
-- `appVersion` - Current app version (0.19.0)
+- `appVersion` - Current app version (0.20.0)
 - `schemaVersion` - Current schema version (4)
 - `config` - Live `manifest.config` object (present when the manifest declares `config`)
 - `api` - API object with `ui`, `data`, `storage`, `events`, `middleware`, `network`, and `filesystem` namespaces
@@ -713,8 +713,8 @@ Runtime subsystems:
 
 - `README.md` — top-level orientation and doc index
 - `docs/guides/DEVELOPER_GUIDE.md` — core development workflow
-- `docs/PLUGIN_SYSTEM.md` — formal plugin system reference
-- `docs/PLUGIN_INVARIANTS.md` — the stability contract (what must not change)
+- `docs/architecture/PLUGIN_SYSTEM.md` — formal plugin system reference
+- `docs/architecture/PLUGIN_INVARIANTS.md` — the stability contract (what must not change)
 - `docs/api/API_REFERENCE.md` — API contract details
 - `docs/api/PLUGIN_API.md` — per-method `ctx` API reference
 - `sample-plugins/` — nine working packages (three per layer) + `TEMPLATE.json`

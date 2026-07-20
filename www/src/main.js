@@ -18,7 +18,7 @@
  * CardSpoke Application Entry Point
  *
  * This module is the Vite IIFE build entry point. Module ordering here is a
- * STABILITY CONTRACT (see docs/PLUGIN_INVARIANTS.md):
+ * STABILITY CONTRACT (see docs/architecture/PLUGIN_INVARIANTS.md):
  *
  *   1. `core/global-api.js` initializes the plugin runtime and attaches the
  *      public `window.CardSpoke` surface. It MUST run before any app-layer

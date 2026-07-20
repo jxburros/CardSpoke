@@ -2,9 +2,11 @@
 
 ![CardSpoke logo](./CardSpoke.svg)
 
-**Version:** 0.19.0 Public Preview | **Schema:** v4
+**Version:** 0.20.0 Public Preview | **Schema:** v4
 
 CardSpoke is a lightweight, local-first, card-based knowledge app for organizing notes, ideas, references, writing, research, and personal information in flexible card trees.
+
+Created by [Jeffrey Guntly](https://github.com/jxburros) and [JX Holdings, LLC](https://jxholdings.com). The source of truth is the [CardSpoke repository](https://github.com/jxburros/CardSpoke).
 
 The public app is focused on the main CardSpoke experience first: the web app, followed by desktop packaging, then mobile packaging. Spin-offs, alternate shells, OS-specific app suites, typed-card platform experiments, runtime profiles, and cloud storage drivers are intentionally out of scope for this repository's current public version.
 
@@ -170,6 +172,8 @@ Mobile builds should be treated as experimental until platform-specific security
 
 ## Documentation
 
+Start with the [Documentation home](./docs/README.md) for a role-based map and the [AI & contributor context](./docs/AI_CONTEXT.md) for document precedence and review rules.
+
 ### Guides
 
 - [Developer Guide](./docs/guides/DEVELOPER_GUIDE.md)
@@ -188,8 +192,8 @@ Mobile builds should be treated as experimental until platform-specific security
 
 ### Plugin System
 
-- [Plugin System Overview](./docs/PLUGIN_SYSTEM.md)
-- [Plugin Invariants](./docs/PLUGIN_INVARIANTS.md)
+- [Plugin System Overview](./docs/architecture/PLUGIN_SYSTEM.md)
+- [Plugin Invariants](./docs/architecture/PLUGIN_INVARIANTS.md)
 
 ### Policies
 
@@ -235,6 +239,10 @@ Ensure you are on Node 18 or later and that `npm install` completed successfully
 ### Capacitor sync fails
 
 Confirm that Android SDK or Xcode is installed and that `npx cap doctor` reports no blocking errors. See the Capacitor guide for platform-specific setup.
+
+## Maintained by
+
+CardSpoke is created by [Jeffrey Guntly](https://github.com/jxburros) and maintained by [JX Holdings, LLC](https://jxholdings.com). See [Contributing](./CONTRIBUTING.md) for contribution terms and expectations.
 
 ## Contributing
 

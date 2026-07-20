@@ -8,7 +8,7 @@
 ## 1. Summary
 
 - **CardSpoke** is a lightweight, card-based information system that presents knowledge in hierarchical, tiered structures.
-- It is **free to use**, owned by **JX Holdings, LLC**, and intentionally **malleable**, with a built-in **Plugin System**.
+- It is **free to use**, owned by [**JX Holdings, LLC**](https://jxholdings.com), and intentionally **malleable**, with a built-in **Plugin System**.
 - Users own their data; CardSpoke does **not** host or collect data except voluntary submissions.
 - The ecosystem allows **Plugins**, **Deviations**, and **community contributions** with required credit, versioning, and transparency.
 
@@ -53,7 +53,7 @@ All Angled content requires:
 
 ### 3.1 CardSpoke Core
 
-- Owned by **JX Holdings, LLC**.
+- Owned by [**JX Holdings, LLC**](https://jxholdings.com), created by [Jeffrey Guntly](https://github.com/jxburros).
 - Free to use.
 - Source code may be open for modification and distribution.
 - "CardSpoke" name and branding may not be reused for forks or remixes.

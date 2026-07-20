@@ -3,7 +3,7 @@
  *
  * Validates every package in sample-plugins/ against the real
  * PluginValidator and the package-format conventions documented in
- * docs/PLUGIN_SYSTEM.md:
+ * docs/architecture/PLUGIN_SYSTEM.md:
  *   - js is a SETUP BODY receiving `ctx` (never a self-registering script)
  *   - permissions used by the code are declared in the manifest
  *   - the gallery manifest lists every package with a matching id

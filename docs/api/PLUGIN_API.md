@@ -1,6 +1,6 @@
 # Plugin API Documentation
 
-**Version:** 0.19.0
+**Version:** 0.20.0
 
 The Plugin API provides a permission-scoped, resource-managed surface for
 plugin development. Plugin JS runs on the **main thread** (there is no iframe
@@ -13,8 +13,8 @@ automatically removed when it is suspended.
 
 This page is the per-method reference for the `ctx` API. For the narrative
 guide, package format, and lifecycle walkthrough see
-[`../PLUGIN_SYSTEM.md`](../PLUGIN_SYSTEM.md); for the stability contract see
-[`../PLUGIN_INVARIANTS.md`](../PLUGIN_INVARIANTS.md). Working examples live in
+[`../architecture/PLUGIN_SYSTEM.md`](../architecture/PLUGIN_SYSTEM.md); for the stability contract see
+[`../architecture/PLUGIN_INVARIANTS.md`](../architecture/PLUGIN_INVARIANTS.md). Working examples live in
 [`../../sample-plugins/`](../../sample-plugins/) (nine packages, three per
 layer, plus `TEMPLATE.json`).
 
@@ -96,7 +96,7 @@ Every plugin receives a context object:
 ```javascript
 {
   modId: string,              // Plugin ID
-  appVersion: string,         // App version (0.19.0)
+  appVersion: string,         // App version (0.20.0)
   schemaVersion: number,      // Schema version (4)
   api: {
     ui: UIApi,                 // UI manipulation
@@ -522,9 +522,9 @@ When a plugin is disabled, all resources are automatically cleaned up.
 
 ## See Also
 
-- [Plugin System Documentation](../PLUGIN_SYSTEM.md) - Complete plugin system guide including permissions
+- [Plugin System Documentation](../architecture/PLUGIN_SYSTEM.md) - Complete plugin system guide including permissions
 - [API Reference](./API_REFERENCE.md) - Consolidated runtime contracts
-- [Plugin Invariants](../PLUGIN_INVARIANTS.md) - The stability contract
+- [Plugin Invariants](../architecture/PLUGIN_INVARIANTS.md) - The stability contract
 - [`sample-plugins/`](../../sample-plugins/) - Nine working packages + `TEMPLATE.json`
 - [Middleware Pipeline](./MIDDLEWARE_PIPELINE.md) - Intercept operations
 - [Component Registry](./COMPONENT_REGISTRY.md) - UI components
