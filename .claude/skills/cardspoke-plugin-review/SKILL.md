@@ -89,8 +89,8 @@ If a proposed fix changes runtime behavior rather than the plugin, check it
 against `docs/PLUGIN_INVARIANTS.md` first: the `window.CardSpoke` surface,
 boot order, host-bridge globals, `store.plugins` schema, permission names,
 middleware operation names, component names, and CSS selectors are contracts.
-Changing one means following that document's change checklist (docs + samples
-+ tests + version bump), not a quiet edit.
+Changing one means following that document's change checklist (documentation,
+samples, tests, and a version bump), not a quiet edit.
 
 ## Validation commands
 

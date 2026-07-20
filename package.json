@@ -2,7 +2,6 @@
   "name": "cardspoke",
   "version": "0.20.0",
   "description": "A lightweight, local-first card-based knowledge app",
-  "main": "index.js",
   "scripts": {
     "test": "uvu tests",
     "test:watch": "uvu tests --watch",

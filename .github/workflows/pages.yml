@@ -40,14 +40,7 @@ jobs:
       - name: Dependency audit
         run: |
           npm audit --json > npm-audit-report.json || true
-          node -e '
-            const r = JSON.parse(require("fs").readFileSync("npm-audit-report.json", "utf8"));
-            const v = (r.metadata && r.metadata.vulnerabilities) || {};
-            const line = Object.entries(v).map(([k, n]) => `${k}: ${n}`).join(", ") || "none";
-            console.log("Vulnerabilities —", line);
-            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY || "/dev/null",
-              `### npm audit\n\nVulnerabilities — ${line}\n`);
-          '
+          node scripts/summarize-npm-audit.mjs npm-audit-report.json
           npm audit --audit-level=high
 
       - name: Upload dependency audit report
