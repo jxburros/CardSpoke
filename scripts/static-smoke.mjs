@@ -111,11 +111,11 @@ check(`capabilities.json version (${capabilities.version}) matches package.json 
   capabilities.version === pkg.version);
 
 check('footer links to the canonical CardSpoke repository',
-  indexHtml.includes('https://github.com/jxburros/CardSpoke'));
+  indexHtml.includes('href="https://github.com/jxburros/CardSpoke"'));
 check('footer credits Jeffrey Guntly GitHub profile',
-  indexHtml.includes('https://github.com/jxburros'));
+  indexHtml.includes('href="https://github.com/jxburros"'));
 check('footer credits JX Holdings, LLC',
-  indexHtml.includes('https://jxholdings.com'));
+  indexHtml.includes('href="https://jxholdings.com"'));
 
 // ── CSP still present and plugin-honest ──────────────────────────────────
 check('index.html ships a CSP', indexHtml.includes('Content-Security-Policy'));
