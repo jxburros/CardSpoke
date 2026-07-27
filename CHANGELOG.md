@@ -8,8 +8,23 @@ The format follows Keep a Changelog and the project uses semantic versioning whe
 
 ## [Unreleased]
 
+### Changed
+
+- Documented dataset encryption at rest (AES-GCM with a PBKDF2-derived key from the optional dataset PIN) in the storage/privacy and security policies, where the shipped feature had gone unmentioned.
+- Documented the Plugin Manager gallery request to `raw.githubusercontent.com` as the app's only outbound connection, including what it does and does not reveal.
+- Rewrote the architecture overview to match the implementation: no plugin sandbox or isolated contexts, the real storage-driver set with LocalStorage as the default, real bundle sizes, and honest priority tie-breaking rules.
+- Pointed security disclosures at private GitHub vulnerability reporting instead of public issues.
+- Added the `npm run smoke` and `npm run qa:browser` deployment gates to the test guide, developer guide, release checklist, and QA profile, which previously named only a subset of the checks CI enforces.
+- Annotated the 2026-07-10 audit report with the five findings resolved in v0.18.2 and the two still open.
+
 ### Fixed
 
+- Corrected the component registry documentation: the host queries only `Card`, `Header`, `Sidebar`, and `SearchBar`, and three of the four documented prop shapes were wrong. Examples and the TypeScript snippet now match `www/src/rendering.js`.
+- Corrected `PluginUtils` in `types/index.d.ts`, which declared six helpers that are not reachable from `ctx.utils` while omitting the twenty async helpers that are. Added the Header/Sidebar/SearchBar prop types and fixed registry return types.
+- Aligned `types/package.json` version and license with the root package (0.20.0, Apache-2.0).
+- Fixed plugin documentation paths in the agent skill files, which pointed at `docs/PLUGIN_SYSTEM.md` and `docs/PLUGIN_INVARIANTS.md` instead of their real `docs/architecture/` locations.
+- Corrected stale counts, dates, and claims: test suite baseline (33 files, 403 tests), Code of Conduct date, Capacitor CLI dependency location, export filename patterns, the nonexistent plugin dev-tools surface, and a "legacy concatenation build" that no longer exists.
+- Added the missing `analysis/` entry to the documentation index.
 - Removed the nonexistent Node package entry point from this browser-only package.
 - Moved dependency-audit summary generation into a checked-in Node script so the GitHub Pages workflow passes shell validation without changing the release gate.
 - Corrected the remaining markdownlint findings in the QA profile, plugin review skill, and historical audit report.

@@ -9,7 +9,7 @@ A Deviation is any fork or derivative build of CardSpoke. Use this guide to stay
 
 ## Mandatory Metadata
 
-Include the required metadata block for Deviations (see [Plugin System](../architecture/PLUGIN_SYSTEM.md)) with the appropriate manifest fields.
+Include the Deviation notice and credit block from the Required Notice Template below. If your Deviation also ships a plugin package, follow the manifest field requirements in [Plugin System](../architecture/PLUGIN_SYSTEM.md).
 
 ## Licenses & Attribution
 
@@ -31,7 +31,7 @@ Include the required metadata block for Deviations (see [Plugin System](../archi
 ## Safety & Data
 
 - Respect the local-first model; do not collect or transmit data without opt-in.
-- Provide migration and rollback instructions if you diverge from core schemas. Note how you handle exports created by the core (JSON/CSV/Markdown/TXT files named `cardspoke-{type}-{timestamp}.{ext}`, e.g. `cardspoke-instance-1719936000000.json`) and whether your build can import/export them without loss.
+- Provide migration and rollback instructions if you diverge from core schemas. Note how you handle exports created by the core — JSON exports are named `cardspoke-{type}-{timestamp}.json` (e.g. `cardspoke-instance-1719936000000.json`), while CSV/Markdown/TXT exports are named `cardspoke-{YYYY-MM-DD}.{ext}` with no type segment — and whether your build can import/export them without loss.
 
 ## Required Notice Template
 

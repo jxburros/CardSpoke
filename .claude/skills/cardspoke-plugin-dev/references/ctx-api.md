@@ -2,11 +2,11 @@
 
 The setup body runs as `function(ctx) { <your js> }`. Everything created via
 `ctx.api.*` is tracked and auto-removed on suspend/delete. Full detail in
-`docs/PLUGIN_SYSTEM.md`.
+`docs/architecture/PLUGIN_SYSTEM.md`.
 
 ```text
 ctx.modId            plugin id
-ctx.appVersion       '0.17.0'
+ctx.appVersion       '0.20.0'
 ctx.schemaVersion    4
 ctx.config           manifest.config (live; settings panel writes here)
 ctx.logger           .log / .info / .warn / .error   (prefixed console)

@@ -105,7 +105,7 @@ This catalog describes the current public CardSpoke app scope: the main local-fi
 - **Risk assessment:** Risk scoring based on layer and code analysis.
 - **Metadata transparency:** Plugins declare name, version, author, description, layer, compatibility, and permissions.
 - **TypeScript support:** Type definitions available in `types/` for plugin development.
-- **Dev tools:** Inspect plugins, hook stats, and error logs.
+- **Plugin introspection:** Inspect installed plugins with `Plugin.get(id)` and `Plugin.list()`; setup/teardown errors surface as toasts and console warnings. There is no `Plugin.devTools` object or hook-statistics view.
 
 ## Accessibility Features
 

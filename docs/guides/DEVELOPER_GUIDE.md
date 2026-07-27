@@ -102,7 +102,7 @@ Do not add OS-specific shells, alternate app suites, typed-card domain systems, 
 
 - Update changelog and metadata for every public release.
 - Keep README, feature docs, and first-public-scope docs aligned.
-- Run `npm run build` and `npm test` before release.
+- Run `npm run build`, `npm test`, `npm run smoke`, and `npm run qa:browser` before release — the same gates `.github/workflows/pages.yml` enforces, alongside `npm audit --audit-level=high`.
 - Confirm `www/index.html` + `www/app.js` + `www/styles.css` can load locally.
 - Clearly mark mobile builds as experimental until platform hardening is complete.
 

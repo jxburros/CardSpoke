@@ -15,8 +15,8 @@ npm run test:watch
 ## Current Suite Status
 
 - Framework: [uvu](https://github.com/lukeed/uvu)
-- Test files: 26 (`*.test.js`)
-- Latest baseline: **347 / 347 passing** (`npm test`)
+- Test files: 33 (`*.test.js`)
+- Latest baseline: **403 / 403 passing** (`npm test`, verified at 0.20.0)
 
 ## What's Covered
 
