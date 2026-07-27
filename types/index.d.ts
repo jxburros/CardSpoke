@@ -17,7 +17,7 @@
 
 /**
  * CardSpoke Core Type Definitions
- * @version 0.17.0
+ * @version 0.20.0
  * @module @cardspoke/core
  */
 
@@ -221,10 +221,19 @@ export interface CardComponentProps {
   onSelect: () => void;
 }
 
-/** Props passed to a registered Sidebar component */
+/** Props passed to a registered Header component: the default header node */
+export interface HeaderComponentProps {
+  header: HTMLElement;
+}
+
+/** Props passed to a registered Sidebar component: the default menu panel node */
 export interface SidebarComponentProps {
-  cards: Card[];
-  selectedCardId: string | null;
+  panel: HTMLElement;
+}
+
+/** Props passed to a registered SearchBar component: the default wrapper node */
+export interface SearchBarComponentProps {
+  wrapper: HTMLElement;
 }
 
 export interface MiddlewareContext {
@@ -249,13 +258,31 @@ export interface Middleware {
   handler: MiddlewareFunction;
 }
 
+/**
+ * Async host helpers exposed as `ctx.utils` / `window.CardSpoke.utils`.
+ * Populated in www/src/storage.js — keep this in step with that block.
+ */
 export interface PluginUtils {
-  uid(): string;
-  debounce(func: Function, wait: number): Function;
-  escapeHtml(str: string): string;
-  normalizeTagInput(raw: string): string;
-  cloneCard(card: Card): Card;
-  highlightText(text: string, query: string): string;
+  createCard(data: Partial<Card>): Promise<{ id: string; card: Card }>;
+  updateCard(cardId: string, changes: Partial<Card>): Promise<boolean>;
+  getCard(cardId: string): Promise<Card | null>;
+  searchCards(query: string): Promise<Card[]>;
+  getTags(cardId: string): Promise<string[]>;
+  addTag(cardId: string, tag: string): Promise<boolean>;
+  removeTag(cardId: string, tag: string): Promise<boolean>;
+  setTags(cardId: string, tags: string[]): Promise<boolean>;
+  getAllTags(): Promise<string[]>;
+  showToast(message: string, type?: string, duration?: number): Promise<void>;
+  getDatasetMeta(): Promise<Record<string, any>>;
+  getAccessibilitySettings(): Promise<Record<string, any>>;
+  setTheme(theme: 'light' | 'dark'): Promise<boolean>;
+  getTheme(): Promise<string>;
+  setTypography(preset: string): Promise<boolean>;
+  getTypography(): Promise<string>;
+  setHighContrast(enabled: boolean): Promise<boolean>;
+  isHighContrast(): Promise<boolean>;
+  prefersReducedMotion(): Promise<boolean>;
+  getThemeVariables(): Promise<Record<string, any>>;
 }
 
 export interface StorageDriver {
@@ -373,8 +400,9 @@ export interface MiddlewareManager {
 }
 
 export interface ComponentRegistryClass {
-  register(name: string, component: Component, priority?: number): void;
-  unregister(name: string): void;
+  /** Returns false when a lower-priority registration is rejected. */
+  register(name: string, component: Component, priority?: number): boolean;
+  unregister(name: string): boolean;
   get(name: string): Component | undefined;
   resolve(name: string): Component | undefined;
   has(name: string): boolean;
@@ -384,7 +412,7 @@ export interface ComponentRegistryClass {
 
 export interface StorageDriverRegistryClass {
   register(name: string, driver: StorageDriver): void;
-  unregister(name: string): void;
+  unregister(name: string): boolean;
   get(name: string): StorageDriver | undefined;
   setActive(name: string): Promise<void>;
   getActive(): StorageDriver;

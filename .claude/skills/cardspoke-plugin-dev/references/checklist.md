@@ -36,6 +36,6 @@ Tests / distribution
 
 Contract
 
-- [ ] No change to anything in `docs/PLUGIN_INVARIANTS.md`. If a runtime
+- [ ] No change to anything in `docs/architecture/PLUGIN_INVARIANTS.md`. If a runtime
       change was truly required, its change checklist was followed (docs,
       samples, tests, version bump).

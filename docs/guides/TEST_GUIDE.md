@@ -16,6 +16,13 @@ Watch mode:
 npm run test:watch
 ```
 
+Release gates (also enforced by CI before any deploy):
+
+```bash
+npm run smoke        # static release checks (scripts/static-smoke.mjs)
+npm run qa:browser   # Playwright end-to-end release QA (scripts/browser-qa.mjs)
+```
+
 ## Test Scope
 
 Tests should cover the main CardSpoke app and the plugin runtime.

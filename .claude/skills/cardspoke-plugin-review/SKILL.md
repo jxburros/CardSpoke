@@ -12,8 +12,8 @@ description: >-
 # Reviewing / Debugging a CardSpoke Plugin
 
 Validate a package against the runtime contract and diagnose lifecycle
-failures. Ground truth: `docs/PLUGIN_INVARIANTS.md` and the runtime in
-`www/src/core/plugin-api.js`. Full behavior: `docs/PLUGIN_SYSTEM.md`.
+failures. Ground truth: `docs/architecture/PLUGIN_INVARIANTS.md` and the runtime in
+`www/src/core/plugin-api.js`. Full behavior: `docs/architecture/PLUGIN_SYSTEM.md`.
 
 ## Review pass (run top to bottom)
 
@@ -86,7 +86,7 @@ failures. Ground truth: `docs/PLUGIN_INVARIANTS.md` and the runtime in
 ## Invariant guardrails
 
 If a proposed fix changes runtime behavior rather than the plugin, check it
-against `docs/PLUGIN_INVARIANTS.md` first: the `window.CardSpoke` surface,
+against `docs/architecture/PLUGIN_INVARIANTS.md` first: the `window.CardSpoke` surface,
 boot order, host-bridge globals, `store.plugins` schema, permission names,
 middleware operation names, component names, and CSS selectors are contracts.
 Changing one means following that document's change checklist (documentation,

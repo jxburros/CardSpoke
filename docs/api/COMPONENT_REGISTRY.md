@@ -110,19 +110,26 @@ Clears all registered components from the registry. Used internally (e.g. during
 
 ## Standard Components
 
-The following core components are available for override:
+The host app queries exactly four component names. Registering any other name
+succeeds but has no effect, because nothing looks it up:
 
-| Component | Purpose | Props |
-|-----------|---------|-------|
-| `Card` | Card display | `{ id, title, body, tags, children }` |
-| `CardEditor` | Card editing form | `{ card, onSave, onCancel }` |
-| `Sidebar` | Left sidebar | `{ bookmarks, recentCards }` |
-| `SearchBar` | Search input | `{ onSearch, query }` |
-| `SearchResults` | Search results list | `{ results, query }` |
-| `TagList` | Tag display | `{ tags, onTagClick }` |
-| `Modal` | Modal dialog | `{ title, content, onClose }` |
-| `Toast` | Notification | `{ message, type }` |
-| `Menu` | Hamburger menu | `{ items }` |
+| Component | Purpose | Props | Queried at |
+|-----------|---------|-------|------------|
+| `Card` | Card tile in list/grid views | `{ card, isSelected, opts, onSelect }` | `www/src/rendering.js:181` |
+| `Header` | App header element | `{ header }` (the default header node) | `www/src/rendering.js:1155` |
+| `Sidebar` | Menu panel | `{ panel }` (the default panel node) | `www/src/rendering.js:1172` |
+| `SearchBar` | Search input wrapper | `{ wrapper }` (the default wrapper node) | `www/src/rendering.js:1189` |
+
+`Card` receives the card data itself: `props.card.title`, `props.card.tags`, and
+so on. `Header`, `Sidebar`, and `SearchBar` receive the DOM node the app was
+about to render, so an override can decorate or replace it.
+
+Each `render()` must return an `HTMLElement`. Returning anything else leaves the
+default rendering in place.
+
+> Names such as `CardEditor`, `SearchResults`, `TagList`, `Modal`, `Toast`, and
+> `Menu` are **not** override points today. Widening this list is a host-app
+> change, not a plugin-side one.
 
 ## Examples
 
@@ -131,20 +138,22 @@ The following core components are available for override:
 ```javascript
 // In plugin setup(ctx): ctx.api.ui.registerComponent('Card', { ... })
 ctx.api.ui.registerComponent('Card', {
-  render: (props) => {
-    const card = document.createElement('article');
-    card.className = 'enhanced-card';
-    card.setAttribute('data-card-id', props.id);
-    
+  // props = { card, isSelected, opts, onSelect }
+  render: ({ card, isSelected, onSelect }) => {
+    const el = document.createElement('article');
+    el.className = 'enhanced-card' + (isSelected ? ' is-selected' : '');
+    el.setAttribute('data-card-id', card.id);
+    el.addEventListener('click', onSelect);
+
     const header = document.createElement('header');
     const title = document.createElement('h2');
-    title.textContent = props.title || 'Untitled';
+    title.textContent = card.title || 'Untitled';
     header.appendChild(title);
-    
-    if (props.tags && props.tags.length > 0) {
+
+    if (card.tags && card.tags.length > 0) {
       const tagContainer = document.createElement('div');
       tagContainer.className = 'tag-container';
-      props.tags.forEach(tag => {
+      card.tags.forEach(tag => {
         const tagEl = document.createElement('span');
         tagEl.className = 'tag';
         tagEl.textContent = tag;
@@ -152,15 +161,15 @@ ctx.api.ui.registerComponent('Card', {
       });
       header.appendChild(tagContainer);
     }
-    
+
     const body = document.createElement('div');
     body.className = 'card-body';
-    body.textContent = props.body || '';
-    
-    card.appendChild(header);
-    card.appendChild(body);
-    
-    return card;
+    body.textContent = card.body || '';
+
+    el.appendChild(header);
+    el.appendChild(body);
+
+    return el;
   },
   priority: 50
 });
@@ -169,27 +178,20 @@ ctx.api.ui.registerComponent('Card', {
 ### Custom Search Bar
 
 ```javascript
+// props = { wrapper } — the default search wrapper the app was about to render.
+// There is no onSearch/query prop: decorate the real wrapper rather than
+// rebuilding the search input, so the app's own handlers keep working.
 ctx.api.ui.registerComponent('SearchBar', {
-  render: (props) => {
+  render: ({ wrapper }) => {
     const container = document.createElement('div');
     container.className = 'search-container';
-    
-    const input = document.createElement('input');
-    input.type = 'search';
-    input.placeholder = 'Search with AI...';
-    input.value = props.query || '';
-    input.oninput = (e) => {
-      if (props.onSearch) {
-        props.onSearch(e.target.value);
-      }
-    };
-    
+
     const icon = document.createElement('span');
     icon.textContent = '🔍';
-    
+
     container.appendChild(icon);
-    container.appendChild(input);
-    
+    container.appendChild(wrapper);
+
     return container;
   },
   priority: 75
@@ -220,7 +222,7 @@ ctx.api.ui.registerComponent('Card', {
     
     const timestamp = document.createElement('span');
     timestamp.className = 'timestamp';
-    timestamp.textContent = new Date(props.createdAt).toLocaleDateString();
+    timestamp.textContent = new Date(props.card.createdAt).toLocaleDateString();
     
     wrapper.appendChild(timestamp);
     wrapper.appendChild(originalElement);
@@ -245,18 +247,31 @@ When a component is requested:
 The core app checks the registry before rendering. This uses the internal `ComponentRegistry` module directly (not `window.CardSpoke`, which plugin code is confined to):
 
 ```javascript
-function renderCard(card) {
-  const CardComponent = ComponentRegistry.get('Card');
-  
-  if (CardComponent) {
-    // Use registered component
-    return CardComponent.render(card);
-  } else {
-    // Fallback to default rendering
-    return defaultRenderCard(card);
+// Simplified from www/src/rendering.js:181
+function renderCardTile(card, opts) {
+  const CustomCard = ComponentRegistry.get('Card');
+
+  if (CustomCard && typeof CustomCard.render === 'function') {
+    try {
+      const customEl = CustomCard.render({
+        card: card,
+        isSelected: opts.isSelected || false,
+        opts: opts,
+        onSelect: function() { goTo('read', { cardId: card.id }); }
+      });
+      // Anything that is not an HTMLElement is ignored and the default is used
+      if (customEl instanceof HTMLElement) return customEl;
+    } catch (err) {
+      console.warn('[ComponentRegistry] Custom Card render failed, using default:', err);
+    }
   }
+
+  return defaultRenderCardTile(card, opts);
 }
 ```
+
+A throwing or non-`HTMLElement`-returning override never breaks the app: the
+host catches it, warns, and falls back to the default rendering.
 
 ## Integration with Plugin API
 
@@ -285,19 +300,26 @@ ctx.api.ui.registerComponent('Card', {
 
 Using type definitions from the repository:
 
-```typescript
-/// <reference path="path/to/CardSpoke/types/index.d.ts" />
+The declarations are top-level named exports — there is no `CardSpoke` namespace
+type. Import them from the `types/` directory:
 
-const MyCard: CardSpoke.Component = {
-  render: (props: CardSpoke.CardProps) => {
-    // TypeScript knows props shape
-    return element;
+```typescript
+import type { Component, CardComponentProps } from './path/to/CardSpoke/types';
+
+const MyCard: Component = {
+  render: (props: CardComponentProps) => {
+    const el = document.createElement('article');
+    el.textContent = props.card.title;
+    return el;
   },
   priority: 50
 };
 
 ctx.api.ui.registerComponent('Card', MyCard);
 ```
+
+`HeaderComponentProps`, `SidebarComponentProps`, and `SearchBarComponentProps`
+are declared for the other three override points.
 
 **Note:** The `@cardspoke/core` package is not currently published to npm. Reference the type definitions directly from the `types/` directory in the repository.
 

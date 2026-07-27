@@ -141,7 +141,7 @@ Record:
 Recommended additional command:
 
 ~~~bash
-npm audit --audit-level=critical
+npm audit --audit-level=high
 ~~~
 
 A nonzero audit result should be reported as a security finding, but it should not automatically block all other QA unless the vulnerability directly prevents the app from running.
@@ -310,14 +310,14 @@ Check for:
 
 ---
 
-## core.2 IndexedDB Storage Validation
+## core.2 Storage Persistence Validation
 
 Use browser dev tools or automation-accessible storage inspection.
 
 Validate:
 
-- Card graphs save to IndexedDB.
-- Relational/linked data saves to IndexedDB.
+- Card graphs save to the dataset's active driver — LocalStorage by default; check IndexedDB or the chosen local file only if the dataset's storage driver has been switched.
+- Relational/linked data saves to that same driver.
 - Data remains after page refresh.
 - Data remains after closing and reopening the app.
 - Deleted data is actually removed or correctly tombstoned, depending on app design.
@@ -843,6 +843,8 @@ Failure condition:
 `release` passes if:
 
 - All required `quick`, `core`, and `plugin` checks pass or are clearly documented.
+- `npm run smoke` (`scripts/static-smoke.mjs`) passes — required deployment gate.
+- `npm run qa:browser` (`scripts/browser-qa.mjs`) passes — required deployment gate.
 - Android Capacitor sync/open works in supported environment.
 - iOS Capacitor sync/open works in supported macOS environment or is correctly marked blocked on Windows.
 - 10,000+ card stress test does not catastrophically fail.
@@ -864,7 +866,6 @@ Includes:
 - Dependency install
 - Test runner
 - Vite build
-- Manual concatenation build
 - Dev server startup
 - Preview startup
 - `file://` standalone open test

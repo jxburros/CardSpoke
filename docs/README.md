@@ -19,6 +19,7 @@ CardSpoke is a local-first, card-based knowledge app. This documentation describ
 - [`guides/`](./guides/) — development, testing, Capacitor, offline-first, feature, and deviation guides.
 - [`policies/`](./policies/) — release, security, privacy, and community policies.
 - [`specifications/`](./specifications/) — product scope and longer-term specification material.
+- [`analysis/`](./analysis/) — functional reviews and analysis write-ups.
 - [`reports/`](./reports/) — dated historical audits; these record past findings and are not current release documentation.
 
 ## Documentation status and authority

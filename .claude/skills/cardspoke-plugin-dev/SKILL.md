@@ -20,8 +20,8 @@ tested, reload-safe package.
 
 Authoritative references (read before/while working — they are the contract):
 
-- `docs/PLUGIN_SYSTEM.md` — full guide + complete `ctx` API reference.
-- `docs/PLUGIN_INVARIANTS.md` — what must not change; also the exact list of
+- `docs/architecture/PLUGIN_SYSTEM.md` — full guide + complete `ctx` API reference.
+- `docs/architecture/PLUGIN_INVARIANTS.md` — what must not change; also the exact list of
   hook names, permissions, selectors, and store schema you build against.
 - `sample-plugins/` — nine working packages (3 per layer) + `TEMPLATE.json`.
 - Bundled quick refs in this skill: [`references/ctx-api.md`](references/ctx-api.md),
@@ -135,10 +135,10 @@ enforces that every gallery entry points at a real package.
   survival — only string `js`/`teardownJs` are persisted. Module-form
   definitions with real functions are session-only dev tools.
 - Don't reach past `ctx.api.*` into app internals from a feature plugin; that
-  couples you to non-contract code (`docs/PLUGIN_INVARIANTS.md` lists what is
+  couples you to non-contract code (`docs/architecture/PLUGIN_INVARIANTS.md` lists what is
   actually stable).
 - Don't widen the plugin runtime to solve a single plugin's need — fix the
-  plugin. Runtime changes must honor `docs/PLUGIN_INVARIANTS.md` and update
+  plugin. Runtime changes must honor `docs/architecture/PLUGIN_INVARIANTS.md` and update
   its change checklist.
 - Keep themes CSS-only and use the documented CSS variables / `:root.dark`
   rather than hard-coding colors on core selectors.

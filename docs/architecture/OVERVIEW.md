@@ -34,10 +34,10 @@
 │  ┌────────────────────────────────────────────────────────────┐   │
 │  │            🔌 Plugin Manager                               │   │
 │  │  ┌────────────────────────────────────────────────────┐   │   │
-│  │  │  Active Plugins (Isolated Contexts)               │   │   │
+│  │  │  Active Plugins (No Sandbox, Page Realm)          │   │   │
 │  │  │  ┌──────────────┬──────────────┬──────────────┐  │   │   │
 │  │  │  │   Plugin 1   │   Plugin 2   │   Plugin 3   │  │   │   │
-│  │  │  │   Context    │   Context    │   Context    │  │   │   │
+│  │  │  │  page realm  │  page realm  │  page realm  │  │   │   │
 │  │  │  └──────────────┴──────────────┴──────────────┘  │   │   │
 │  │  └────────────────────────────────────────────────────┘   │   │
 │  └────────────────────────────────────────────────────────────┘   │
@@ -53,15 +53,15 @@
 │  │            💾 Storage Driver Registry                      │   │
 │  │  ┌────────────────────────────────────────────────────┐   │   │
 │  │  │  Available Drivers                                 │   │   │
-│  │  │  • IndexedDB (default) ✓                          │   │   │
-│  │  │  • LocalStorage                                   │   │   │
-│  │  │  • Custom Cloud Driver (plugin)                   │   │   │
-│  │  │  • Git-based Driver (plugin)                      │   │   │
+│  │  │  • LocalStorage (default)                         │   │   │
+│  │  │  • IndexedDB (opt-in, per dataset)                │   │   │
+│  │  │  • Local File (File System Access API)            │   │   │
+│  │  │  • Custom drivers: registry only, unused          │   │   │
 │  │  └────────────────────────────────────────────────────┘   │   │
 │  └────────────────────────────────────────────────────────────┘   │
 │                                                                      │
 │  ┌────────────────────────────────────────────────────────────┐   │
-│  │            🛠️  Plugin API (Sandboxed)                      │   │
+│  │            🛠️  Plugin API (Full Trust)                     │   │
 │  │  ┌──────────────────┬──────────────────┐                  │   │
 │  │  │   ctx.api.ui     │   ctx.api.data   │                  │   │
 │  │  │   • inject()     │   • getCard()    │                  │   │
@@ -110,7 +110,7 @@ Logger Middleware (priority: -100)
     ├─ Logs the operation
     └─ Calls next()
     ↓
-Plugin.notifyDataUpdate({ type: 'create', card })
+Plugin.notifyDataUpdate({ type: 'card.create', cardId, card })
     ↓
 Plugins receive update via ctx.api.data.onUpdate()
     ↓
@@ -133,7 +133,7 @@ Components re-render via Component Registry
                      ↓
 ┌────────────────────────────────────────────────┐
 │              Plugin Activation                  │
-│  1. Create isolated context                    │
+│  1. Create plugin context (ctx)                │
 │  2. Apply CSS                                  │
 │  3. Call setup(ctx)                            │
 │  4. Track resources                            │
@@ -189,39 +189,57 @@ Component Request: "Card"
 
 ### 2. Priority-Based Resolution
 
-- **Middleware**: Higher priority runs first
-- **Components**: Higher priority overrides lower
-- **Deterministic**: Same priority = last registered wins
+- **Middleware**: Higher priority runs first. On a priority tie the sort is
+  stable, so the *first* registered runs first; a conflict warning is logged
+- **Components**: Higher priority overrides lower. On a priority tie the *last*
+  registered wins (the earlier registration is replaced) and a conflict warning
+  is logged. A lower-priority registration is rejected outright
 
 ### 3. Resource Management
 
-- **Automatic Tracking**: All resources tracked via plugin context
-- **Clean Unload**: Resources removed on plugin disable
-- **No Leaks**: WeakMap/WeakSet prevent memory leaks
+- **Automatic Tracking**: DOM nodes, listeners, styles, component overrides, and
+  middleware registered through `ctx` are recorded per plugin
+- **Clean Unload**: Tracked resources are removed on plugin disable/suspend
+- **Best-effort, not enforced**: cleanup covers what a plugin does *through the
+  `ctx` API*. A plugin that touches `document` directly is responsible for its
+  own teardown, and anything it leaves behind survives suspend
 
 ### 4. Security Layers
 
-- **Sandboxing**: Isolated plugin contexts
-- **Permissions**: Explicit capability model
-- **Validation**: Middleware can validate operations
-- **Namespacing**: Storage automatically isolated
+There is **no sandbox**. Plugin JavaScript is compiled with `new Function` and
+runs on the main thread in the page realm, with full reach over `window`,
+`document`, storage, and the network. The layers below manage *trust and
+expectations*, not isolation — see
+[Security & Safety](../policies/SECURITY_AND_SAFETY.md) for the full trust model.
 
-### 5. Backward Compatibility
+- **Full-trust consent**: any plugin shipping JavaScript requires explicit user
+  acceptance before it runs; CSS-only themes are the only auto-enabled layer
+- **Permissions**: a compatibility and UX contract that scopes what the
+  supported `ctx` API offers a well-behaved plugin — **not** a security boundary
+- **Risk labels**: `SAFE` / `LOW` / `HIGH` badges set expectations in the Plugin
+  Manager
+- **Safe Mode**: `?safemode` registers plugins without executing any of them
+- **Validation**: manifest, size, and footgun screening before registration
+- **Namespacing**: plugin storage keys are prefixed `plugin_<pluginId>_`, which
+  organizes data — it does not prevent one plugin from reading another's keys
 
-- **Bridge Layer**: Translates legacy calls
-- **Dual Support**: Both systems coexist
-- **Gradual Migration**: No forced upgrades
-- **Zero Breaking**: All existing plugins work
+### 5. Compatibility
+
+- **Schema gating**: plugins declare schema compatibility and are blocked on
+  incompatible schema versions
+- **Legacy-format tolerance**: plugin entries without a modern definition are
+  recognized and reported rather than crashing the registry
+- **Gradual Migration**: no forced upgrades within a schema version
 
 ## Technology Stack
 
 ```text
 ┌─────────────────────────────────────────┐
 │          Development Layer              │
-│  • TypeScript definitions               │
+│  • TypeScript definitions (types/)      │
 │  • Vite build system                    │
-│  • ES modules support                   │
-│  • Hot module replacement               │
+│  • ES modules in www/src/               │
+│  • uvu test suite                       │
 └─────────────────────────────────────────┘
               ↓
 ┌─────────────────────────────────────────┐
@@ -252,29 +270,44 @@ Component Request: "Card"
 
 ## Size Impact
 
-| Component | Size (minified) | Size (gzipped) |
-|-----------|----------------|----------------|
-| Middleware | ~3 KB | ~1.2 KB |
-| Component Registry | ~2 KB | ~0.8 KB |
-| Plugin API | ~6 KB | ~2.5 KB |
-| Storage Registry | ~1.5 KB | ~0.6 KB |
-| Permissions | ~2.5 KB | ~1 KB |
-| **Total New Code** | **~15 KB** | **~6 KB** |
+Everything under `www/src/` is fused by Vite into the single `www/app.js` the app
+ships, so per-module *minified* sizes are not separable after the build. The
+figures below are source sizes of the plugin-runtime modules, measured at 0.20.0:
 
-## Conclusion
+| Module (`www/src/core/`) | Source size |
+|--------------------------|-------------|
+| `plugin-api.js` | ~52 KB |
+| `permissions.js` | ~14 KB |
+| `plugin-validator.js` | ~8 KB |
+| `middleware.js` | ~6 KB |
+| `global-api.js` | ~4.4 KB |
+| `dataset-crypto.js` | ~4.1 KB |
+| `component-registry.js` | ~4.1 KB |
+| `storage-driver-registry.js` | ~3.4 KB |
+| `migrations.js` | ~2.6 KB |
+| **Total plugin runtime (source)** | **~98 KB** |
 
-The new architecture provides:
+Shipped bundle: `www/app.js` is ~391 KB raw, ~79 KB gzipped. Re-measure with
+`ls -l www/app.js` and `gzip -c www/app.js | wc -c` rather than trusting these
+numbers after significant changes.
 
-- ✅ Modern plugin development experience
-- ✅ Enterprise-grade security and isolation
-- ✅ Type safety and developer tooling
-- ✅ Pluggable storage and UI components
-- ✅ Perfect backward compatibility
-- ✅ Minimal performance overhead
+## Summary
 
-While maintaining:
+What this architecture provides:
 
-- ✅ Simple API for basic plugins
-- ✅ Local-first data model
-- ✅ Lightweight core bundle
-- ✅ File:// protocol support
+- A documented plugin API with middleware hooks and component overrides
+- Consent, risk labeling, and Safe Mode around full-trust plugin code
+- TypeScript definitions under `types/` for plugin authors
+- Pluggable storage drivers (LocalStorage, IndexedDB, Local File)
+- A local-first data model with no accounts, hosted sync, or telemetry
+- A single-bundle app that loads without a build step at runtime
+
+What it explicitly does **not** provide:
+
+- Plugin isolation or sandboxing of any kind
+- A security boundary from the `permissions` array
+- Cloud storage drivers or remote sync
+- Guaranteed cleanup of plugin side effects made outside the `ctx` API
+
+The bundled `www/app.js` path also works from `file://`; the service worker,
+offline caching, and the plugin gallery fetch require an HTTP origin.

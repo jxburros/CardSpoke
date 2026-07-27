@@ -11,7 +11,7 @@ description: "Use when working on CardSpoke Vite builds, Capacitor sync, Android
 
 ## Workflow
 
-- Treat Vite build output as authoritative; keep legacy concatenation fallback clearly secondary.
+- Treat `npm run build` (Vite, which fuses the app-layer modules internally) as the sole build path — there is no separate legacy concatenation script to maintain.
 - Run the relevant Capacitor sync command after web build changes that affect native shells.
 - Check local-first data ownership and mobile filesystem/preferences behavior before changing storage.
 - Keep Capacitor guide and release/version docs aligned with scripts.

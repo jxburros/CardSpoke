@@ -139,13 +139,17 @@ const restore = ctx.api.ui.replace('#card-title', newElement);
 
 #### `ctx.api.ui.registerComponent(name, component)`
 
-Register a UI component.
+Register a UI component override. The host queries only `Card`, `Header`,
+`Sidebar`, and `SearchBar`; `render()` must return an `HTMLElement` or the
+default rendering is kept. See
+[Component Registry](./COMPONENT_REGISTRY.md) for each component's props.
 
 ```javascript
+// Card props: { card, isSelected, opts, onSelect }
 ctx.api.ui.registerComponent('Card', {
   render: (props) => {
     const el = document.createElement('div');
-    el.textContent = props.title;
+    el.textContent = props.card.title;
     return el;
   },
   priority: 10

@@ -39,11 +39,22 @@ Those items require a separate future-version scope or another repository.
 - Verify plugin compatibility and note known incompatibilities.
 - Run `npm run build`.
 - Run `npm test`.
+- Run `npm run smoke` (static release checks: version consistency, CSP, bundle sanity).
+- Run `npm run qa:browser` (Playwright end-to-end release QA).
+- Run `npm audit --audit-level=high` (the level CI enforces).
 - Confirm `www/index.html`, `www/app.js`, and `www/styles.css` still open locally after build.
 - Confirm import/export smoke tests with a real dataset.
 - Confirm Plugin Manager install, enable, suspend, delete, and Safe Mode flows.
 - Confirm README, Feature Catalog, and First Public Scope agree with the release.
 - Tag release with version and schemaVersion.
+
+> The four automated checks above are the same gates `.github/workflows/pages.yml`
+> enforces before a Pages deploy; a red QA job deploys nothing.
+>
+> **Gap to close before the public release:** no git tags exist in this
+> repository, even though 0.18.0 through 0.20.0 have shipped. The tagging step
+> above is policy, not current practice. Either start tagging (and backfill the
+> shipped versions) or drop the step so the policy matches reality.
 
 ## Release Checklist (Plugin)
 

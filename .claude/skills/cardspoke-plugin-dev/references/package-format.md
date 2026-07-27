@@ -1,6 +1,6 @@
 # Plugin package format quick reference
 
-A plugin is one JSON file. Canonical field docs: `docs/PLUGIN_SYSTEM.md`.
+A plugin is one JSON file. Canonical field docs: `docs/architecture/PLUGIN_SYSTEM.md`.
 
 ```json
 {
