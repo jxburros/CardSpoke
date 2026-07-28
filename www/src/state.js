@@ -31,8 +31,8 @@
 
 // ── App metadata constants ────────────────────────────────────────────────────
 export const APP_CREATOR = 'Jeffrey Guntly';
-export const APP_VERSION = '0.20.0';
-export const APP_RELEASE_DATE = '2026-07-20';
+export const APP_VERSION = '0.21.0';
+export const APP_RELEASE_DATE = '2026-07-28';
 export const APP_UPDATER = 'JX Holdings, LLC';
 export const SCHEMA_VERSION = 4;
 

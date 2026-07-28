@@ -1,8 +1,8 @@
 {
-  "version": "0.20.0",
+  "version": "0.21.0",
   "schemaVersion": 4,
-  "lastUpdated": "2026-07-20",
-  "description": "CardSpoke Plugin API Capabilities - Complete reference for plugin developers and AI agents",
+  "lastUpdated": "2026-07-28",
+  "description": "CardSpoke Plugin API Capabilities - Complete reference for plugin developers and AI agents. Every JS-bearing plugin runs inside its own sandboxed Worker (CS-002, resolved): no document/window/localStorage/raw fetch, every ctx.api call is async, and UI is described with ctx.h(tag, props, children) instead of document.createElement.",
   
   "permissions": [
     {
@@ -50,59 +50,59 @@
       "methods": [
         {
           "name": "inject",
-          "description": "Inject an element into the DOM at a specified selector",
-          "signature": "inject(selector: string, element: HTMLElement, position?: 'before'|'after'|'prepend'|'append'): () => void",
+          "description": "Build real DOM from a vnode (ctx.h(...)) and inject it at a specified selector. There is no DOM inside the plugin's sandboxed worker, so a vnode description crosses instead of a real HTMLElement.",
+          "signature": "inject(selector: string, vnode: Vnode, position?: 'before'|'after'|'prepend'|'append'): Promise<{ remove(): Promise<void>, update(vnode: Vnode): Promise<void> }>",
           "args": [
             {"name": "selector", "type": "string", "description": "CSS selector for target element"},
-            {"name": "element", "type": "HTMLElement", "description": "Element to inject"},
+            {"name": "vnode", "type": "Vnode", "description": "ctx.h(tag, props, children) description of the element to inject"},
             {"name": "position", "type": "string", "optional": true, "default": "append", "description": "Where to inject relative to target"}
           ],
-          "returns": "Function to remove the injected element",
-          "example": "ctx.api.ui.inject('body', myElement, 'append')"
+          "returns": "Promise resolving to a handle: remove() undoes the injection, update(vnode) replaces its attrs/children in place",
+          "example": "await ctx.api.ui.inject('body', ctx.h('div', {}, 'Hello'), 'append')"
         },
         {
           "name": "replace",
-          "description": "Replace an element in the DOM",
-          "signature": "replace(selector: string, element: HTMLElement): () => void",
+          "description": "Replace an element in the DOM with one built from a vnode",
+          "signature": "replace(selector: string, vnode: Vnode): Promise<{ remove(): Promise<void>, update(vnode: Vnode): Promise<void> }>",
           "args": [
             {"name": "selector", "type": "string", "description": "CSS selector for element to replace"},
-            {"name": "element", "type": "HTMLElement", "description": "New element"}
+            {"name": "vnode", "type": "Vnode", "description": "ctx.h(tag, props, children) description of the replacement element"}
           ],
-          "returns": "Function to restore the original element",
-          "example": "ctx.api.ui.replace('.header', newHeader)"
+          "returns": "Promise resolving to a handle (same shape as inject); the original is restored on remove()/cleanup",
+          "example": "await ctx.api.ui.replace('.header', ctx.h('div', {}, 'New header'))"
         },
         {
           "name": "registerComponent",
-          "description": "Register a custom component that can override default rendering",
-          "signature": "registerComponent(name: string, component: Component): void",
+          "description": "Register a custom component that can override default rendering. render(props) returns a vnode (may be async), not an HTMLElement.",
+          "signature": "registerComponent(name: string, component: { render(props): Vnode | Promise<Vnode>, priority?: number }): Promise<void>",
           "args": [
             {"name": "name", "type": "string", "description": "Component name (e.g., 'Card', 'Sidebar')"},
-            {"name": "component", "type": "object", "description": "Component object with render method and priority"}
+            {"name": "component", "type": "object", "description": "Component object with render method (returns a vnode) and priority"}
           ],
-          "returns": "void",
-          "example": "ctx.api.ui.registerComponent('Card', { render: (props) => {...}, priority: 10 })"
+          "returns": "Promise<void>",
+          "example": "await ctx.api.ui.registerComponent('Card', { render: (props) => ctx.h('div', {}, props.card.title), priority: 10 })"
         },
         {
           "name": "unregisterComponent",
           "description": "Unregister a custom component",
-          "signature": "unregisterComponent(name: string): void",
+          "signature": "unregisterComponent(name: string): Promise<void>",
           "args": [
             {"name": "name", "type": "string", "description": "Component name to unregister"}
           ],
-          "returns": "void",
-          "example": "ctx.api.ui.unregisterComponent('Card')"
+          "returns": "Promise<void>",
+          "example": "await ctx.api.ui.unregisterComponent('Card')"
         },
         {
           "name": "showToast",
           "description": "Show a toast notification to the user",
-          "signature": "showToast(message: string, type?: 'info'|'success'|'warning'|'error', duration?: number): void",
+          "signature": "showToast(message: string, type?: 'info'|'success'|'warning'|'error', duration?: number): Promise<void>",
           "args": [
             {"name": "message", "type": "string", "description": "Message to display"},
             {"name": "type", "type": "string", "optional": true, "default": "info", "description": "Toast type"},
             {"name": "duration", "type": "number", "optional": true, "description": "Duration in milliseconds"}
           ],
-          "returns": "void",
-          "example": "ctx.api.ui.showToast('Card saved!', 'success')"
+          "returns": "Promise<void>",
+          "example": "await ctx.api.ui.showToast('Card saved!', 'success')"
         }
       ]
     },
@@ -113,112 +113,112 @@
         {
           "name": "getCard",
           "description": "Get a card by ID",
-          "signature": "getCard(id: string): Card | undefined",
+          "signature": "getCard(id: string): Promise<Card | undefined>",
           "permission": "none",
           "args": [
             {"name": "id", "type": "string", "description": "Card ID"}
           ],
-          "returns": "Card object or undefined if not found",
-          "example": "const card = ctx.api.data.getCard('card-123')"
+          "returns": "Promise resolving to the card object or undefined if not found",
+          "example": "const card = await ctx.api.data.getCard('card-123')"
         },
         {
           "name": "listCards",
           "description": "Get all cards",
-          "signature": "listCards(): Card[]",
+          "signature": "listCards(): Promise<Card[]>",
           "permission": "none",
           "args": [],
-          "returns": "Array of card objects",
-          "example": "const cards = ctx.api.data.listCards()"
+          "returns": "Promise resolving to an array of card objects",
+          "example": "const cards = await ctx.api.data.listCards()"
         },
         {
           "name": "createCard",
           "description": "Create a new card",
-          "signature": "createCard(data: {title?: string, body?: string, parentId?: string}): Card",
+          "signature": "createCard(data: {title?: string, body?: string, parentId?: string}): Promise<string>",
           "permission": "data-modify",
           "args": [
             {"name": "data", "type": "object", "description": "Card data with optional title, body, and parentId"}
           ],
-          "returns": "Created card object",
-          "example": "ctx.api.data.createCard({title: 'My Card', body: 'Content'})"
+          "returns": "Promise resolving to the new card's id",
+          "example": "await ctx.api.data.createCard({title: 'My Card', body: 'Content'})"
         },
         {
           "name": "updateCard",
           "description": "Update an existing card",
-          "signature": "updateCard(id: string, updates: Partial<Card>): Card",
+          "signature": "updateCard(id: string, updates: Partial<Card>): Promise<Card>",
           "permission": "data-modify",
           "args": [
             {"name": "id", "type": "string", "description": "Card ID"},
             {"name": "updates", "type": "object", "description": "Fields to update"}
           ],
-          "returns": "Updated card object",
-          "example": "ctx.api.data.updateCard('card-123', {title: 'New Title'})"
+          "returns": "Promise resolving to the updated card object",
+          "example": "await ctx.api.data.updateCard('card-123', {title: 'New Title'})"
         },
         {
           "name": "deleteCard",
           "description": "Delete a card",
-          "signature": "deleteCard(id: string): boolean",
+          "signature": "deleteCard(id: string): Promise<boolean>",
           "permission": "data-modify",
           "args": [
             {"name": "id", "type": "string", "description": "Card ID"}
           ],
-          "returns": "true if deleted, false otherwise",
-          "example": "ctx.api.data.deleteCard('card-123')"
+          "returns": "Promise resolving to true if deleted, false otherwise",
+          "example": "await ctx.api.data.deleteCard('card-123')"
         },
         {
           "name": "getTags",
           "description": "Get tags for a specific card",
-          "signature": "getTags(cardId: string): string[]",
+          "signature": "getTags(cardId: string): Promise<string[]>",
           "permission": "none",
           "args": [
             {"name": "cardId", "type": "string", "description": "Card ID"}
           ],
-          "returns": "Array of tag strings",
-          "example": "const tags = ctx.api.data.getTags('card-123')"
+          "returns": "Promise resolving to an array of tag strings",
+          "example": "const tags = await ctx.api.data.getTags('card-123')"
         },
         {
           "name": "addTag",
           "description": "Add a tag to a card",
-          "signature": "addTag(cardId: string, tag: string): boolean",
+          "signature": "addTag(cardId: string, tag: string): Promise<boolean>",
           "permission": "data-modify",
           "args": [
             {"name": "cardId", "type": "string", "description": "Card ID"},
             {"name": "tag", "type": "string", "description": "Tag to add"}
           ],
-          "returns": "true if successful",
-          "example": "ctx.api.data.addTag('card-123', 'important')"
+          "returns": "Promise resolving to true if successful",
+          "example": "await ctx.api.data.addTag('card-123', 'important')"
         },
         {
           "name": "removeTag",
           "description": "Remove a tag from a card",
-          "signature": "removeTag(cardId: string, tag: string): boolean",
+          "signature": "removeTag(cardId: string, tag: string): Promise<boolean>",
           "permission": "data-modify",
           "args": [
             {"name": "cardId", "type": "string", "description": "Card ID"},
             {"name": "tag", "type": "string", "description": "Tag to remove"}
           ],
-          "returns": "true if successful",
-          "example": "ctx.api.data.removeTag('card-123', 'important')"
+          "returns": "Promise resolving to true if successful",
+          "example": "await ctx.api.data.removeTag('card-123', 'important')"
         },
         {
           "name": "setTags",
           "description": "Replace all tags for a card",
-          "signature": "setTags(cardId: string, tags: string[]): boolean",
+          "signature": "setTags(cardId: string, tags: string[]): Promise<boolean>",
           "permission": "data-modify",
           "args": [
             {"name": "cardId", "type": "string", "description": "Card ID"},
             {"name": "tags", "type": "array", "description": "New tags array"}
           ],
-          "returns": "true if successful",
-          "example": "ctx.api.data.setTags('card-123', ['work', 'urgent'])"
+          "returns": "Promise resolving to true if successful",
+          "example": "await ctx.api.data.setTags('card-123', ['work', 'urgent'])"
         },
         {
           "name": "getAllTags",
           "description": "Get all unique tags across all cards",
-          "signature": "getAllTags(): string[]",
+          "signature": "getAllTags(): Promise<string[]>",
           "permission": "none",
           "args": [],
-          "returns": "Array of unique tag strings",
-          "example": "const allTags = ctx.api.data.getAllTags()"
+          "returns": "Promise resolving to an array of unique tag strings",
+          "example": "const allTags = await ctx.api.data.getAllTags()"
         },
         {
           "name": "onUpdate",
@@ -347,10 +347,11 @@
     "operations": [
       {
         "name": "card.render",
-        "description": "Called when a card is rendered in the UI",
-        "args": ["card", "element"],
+        "description": "A batched decorator, not a (mwCtx, next) middleware — fires once per tile per render batch, with NO live DOM element and NO next()/stopPropagation(). Registered the same way (ctx.api.middleware.register({operations:['card.render'], handler})) but handler(card, tileSnapshot) returns a patch object instead. See docs/architecture/PLUGIN_SYSTEM.md 'The card.render decorator contract'.",
+        "args": ["card", "tileSnapshot"],
         "canPrevent": false,
-        "example": "Middleware can modify card element styling or inject badges"
+        "handlerReturns": "{ addClass?, removeClass?, setStyle?, setStyleByIndex?, appendChildren?, prependChildren? } | null",
+        "example": "handler: async (card, tileSnapshot) => tileSnapshot.hasTags ? { addClass: ['tagged'] } : null"
       },
       {
         "name": "card.save",
@@ -393,8 +394,8 @@
     "available": [
       {
         "name": "Card",
-        "description": "Individual card component in the sidebar or main view",
-        "props": ["card", "isSelected", "onSelect"],
+        "description": "Individual card tile, resolved via a batched RPC round trip into the plugin's worker once per render pass. render(props) returns a vnode (ctx.h(...)), may be async, and races a short deadline — a slow/hung render falls back to the default tile for that pass.",
+        "props": ["card", "isSelected", "opts"],
         "canReplace": true,
         "priority": "Higher priority components override lower priority ones"
       },
@@ -407,8 +408,8 @@
       }
     ],
     "usage": {
-      "register": "ctx.api.ui.registerComponent(name, {render: (props) => HTMLElement, priority: number})",
-      "example": "ctx.api.ui.registerComponent('Card', {render: (props) => {...}, priority: 10})"
+      "register": "await ctx.api.ui.registerComponent(name, {render: (props) => Vnode | Promise<Vnode>, priority: number})",
+      "example": "await ctx.api.ui.registerComponent('Card', {render: (props) => ctx.h('div', {}, props.card.title), priority: 10})"
     }
   },
 
@@ -495,7 +496,12 @@
       "appVersion": {
         "type": "string",
         "description": "CardSpoke application version",
-        "example": "'0.18.0'"
+        "example": "'0.21.0'"
+      },
+      "h": {
+        "type": "function",
+        "description": "ctx.h(tag, props, children) — build a vnode; there is no document.createElement inside the sandboxed worker",
+        "example": "ctx.h('button', { onclick: () => {...} }, 'Click me')"
       },
       "schemaVersion": {
         "type": "number",
@@ -572,16 +578,17 @@
 
   "security": {
     "notes": [
-      "Permissions are enforced at API boundaries",
-      "Plugins run in the same context as the main app (no sandboxing)",
-      "Storage is namespaced per plugin (prefix: 'plugin_{id}_')",
+      "Every JS-bearing plugin runs inside its own dedicated Web Worker (CS-002, resolved) — no document, window, localStorage, or raw fetch/XMLHttpRequest/WebSocket/indexedDB/caches",
+      "Permissions are enforced by the sandbox's construction, not just checked at API boundaries — a denied permission is unreachable, not merely discouraged",
+      "Storage is namespaced per plugin (prefix: 'plugin_{id}_') and that namespace is a real boundary now, not just a naming convention",
+      "A hung setup() (or a genuine infinite loop) is time-boxed and its worker is forcibly terminated — it cannot freeze the app",
       "All setup errors trigger automatic cleanup",
       "Teardown errors are logged but don't stop app"
     ],
     "best-practices": [
       "Always request minimum required permissions",
       "Validate user input before creating/updating cards",
-      "Handle errors gracefully in async operations",
+      "Handle errors gracefully in async operations (every ctx.api call is a Promise)",
       "Test teardown thoroughly to avoid memory leaks",
       "Document all permissions in manifest description"
     ]
@@ -593,8 +600,8 @@
       "code": "window.CardSpoke.Plugin.register('my-plugin', {\n  manifest: {\n    name: 'My Plugin',\n    version: '1.0.0',\n    author: 'Your Name',\n    description: 'Plugin description',\n    layer: 'feature',\n    permissions: []\n  },\n  setup: async function(ctx) {\n    ctx.logger.info('Plugin enabled');\n  },\n  teardown: async function(ctx) {\n    ctx.logger.info('Plugin disabled');\n  }\n});"
     },
     "ui-injection": {
-      "description": "Inject an element into the UI",
-      "code": "const badge = document.createElement('div');\nbadge.textContent = 'My Badge';\nconst remove = ctx.api.ui.inject('body', badge, 'append');\n// Store remove function for cleanup in teardown\nthis._removeBadge = remove;"
+      "description": "Inject an element into the UI (there is no document inside the sandbox — build a vnode with ctx.h instead)",
+      "code": "const badge = ctx.h('div', {}, 'My Badge');\nconst handle = await ctx.api.ui.inject('body', badge, 'append');\n// handle.remove() undoes the injection (also happens automatically on disable);\n// handle.update(newVnode) replaces its attrs/children in place."
     },
     "middleware": {
       "description": "Register middleware to intercept operations",

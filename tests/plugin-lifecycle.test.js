@@ -14,9 +14,12 @@ import * as assert from 'uvu/assert';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { installFakeWorkerGlobal } from './helpers/fake-worker-global.js';
 import { Plugin, resetForTesting } from '../www/src/core/plugin-api.js';
 import { Permissions } from '../www/src/core/permissions.js';
 import { Middleware } from '../www/src/core/middleware.js';
+
+installFakeWorkerGlobal();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const samplesDir = join(__dirname, '..', 'sample-plugins');
@@ -39,14 +42,26 @@ function makeFakeElement(tag) {
     parentNode: null,
     dataset: {},
     // Mimic real DOM coupling: setting textContent replaces content (clears
-    // children/innerHTML); setting innerHTML replaces the text. Enough for the
-    // appName-override save/restore round-trip.
-    get textContent() { return this._textContent; },
-    set textContent(v) { this._textContent = String(v); this._innerHTML = String(v); this.children = []; this.childNodes = []; },
+    // children/innerHTML); setting innerHTML replaces the text. Reading
+    // textContent aggregates descendant text-node children (real DOM
+    // behavior) — needed now that ctx.h()-built vnodes append their text as
+    // children via document.createTextNode rather than setting
+    // .textContent directly (see www/src/core/plugin-vnode.js).
+    get textContent() {
+      return this.children.map(c => (c && typeof c === 'object' && 'text' in c) ? c.text : (c && c.textContent) || '').join('');
+    },
+    set textContent(v) { this._textContent = String(v); this._innerHTML = String(v); this.children = [{ text: String(v) }]; this.childNodes = []; },
     get innerHTML() { return this._innerHTML; },
     set innerHTML(v) { this._innerHTML = String(v); },
     setAttribute(name, value) { this.attrs[name] = value; },
     getAttribute(name) { return this.attrs[name]; },
+    removeAttribute(name) { delete this.attrs[name]; },
+    // Real DOM shapes used by www/src/core/plugin-vnode.js's
+    // updateElementFromVnode (Array.from(el.attributes), el.firstChild) —
+    // normal, idiomatic DOM APIs to write production code against; faked
+    // here rather than avoided there.
+    get attributes() { return Object.keys(this.attrs).map(name => ({ name: name, value: this.attrs[name] })); },
+    get firstChild() { return this.children[0] || null; },
     appendChild(child) {
       child.parentNode = this;
       this.children.push(child);
@@ -77,6 +92,26 @@ function makeFakeElement(tag) {
     querySelectorAll() { return []; },
     classList: {
       add() {}, remove() {}, contains() { return false; }
+    },
+    // Vnode-built elements (ctx.h) wire onclick/etc. via addEventListener
+    // (see www/src/core/plugin-vnode.js) — tests that simulate a click call
+    // el._dispatch('click', descriptor).
+    _listeners: {},
+    addEventListener(type, fn) { (this._listeners[type] || (this._listeners[type] = [])).push(fn); },
+    removeEventListener(type, fn) {
+      const list = this._listeners[type];
+      if (!list) return;
+      const i = list.indexOf(fn);
+      if (i !== -1) list.splice(i, 1);
+    },
+    // Returns a promise that resolves once every listener's own promise
+    // (see plugin-vnode.js's makeDomListener, which returns one) settles —
+    // lets tests `await el._dispatch('click', ...)` a simulated click on a
+    // vnode-built element deterministically instead of guessing at a
+    // timeout for the underlying cross-thread RPC round trip.
+    _dispatch(type, eventLike) {
+      const evt = eventLike || { type, preventDefault() {}, stopPropagation() {} };
+      return Promise.all((this._listeners[type] || []).map(fn => fn(evt)));
     }
   };
   return el;
@@ -166,9 +201,6 @@ function grantAll(id, manifest) {
   if (manifest.permissions && manifest.permissions.length) {
     Permissions.grantPermissions(id, manifest.permissions);
   }
-  // JS plugins additionally require full-trust consent before enable()
-  // (CS-002); these tests model a user who accepted the consent dialog.
-  Permissions.grantFullTrust(id);
 }
 
 function appliedCss(dom, id) {
@@ -300,18 +332,27 @@ test('feature sample wires live middleware through ctx.api.middleware', async ()
 
 test('createCard with tags emits a card.create event carrying the tagged card', async () => {
   freshHarness();
-  Permissions.grantPermissions('tag-watcher', ['data-modify']);
-  Permissions.grantFullTrust('tag-watcher');
+  Permissions.grantPermissions('tag-watcher', ['data-modify', 'storage']);
+  // The whole onUpdate/createCard interaction runs inside the plugin's own
+  // sandboxed worker now (ctx.api.data.onUpdate's callback and
+  // ctx.api.data.createCard both live there); the result is recorded via
+  // ctx.api.storage as an observable side-channel for this test to read
+  // back, since there's no `Plugin.get(id).context` for a js-bearing
+  // (sandboxed) package to poke at directly from outside anymore.
   const id = await Plugin.install({
-    manifest: { id: 'tag-watcher', name: 'Tag Watcher', version: '1.0.0', author: 't', layer: 'feature', permissions: ['data-modify'] },
-    js: "ctx.logger.info('ready');"
+    manifest: {
+      id: 'tag-watcher', name: 'Tag Watcher', version: '1.0.0', author: 't', layer: 'feature',
+      permissions: ['data-modify', 'storage']
+    },
+    js: [
+      "var seen = [];",
+      "ctx.api.data.onUpdate(function(e) { if (e.type === 'card.create') seen.push(e); });",
+      "await ctx.api.data.createCard({ title: 'Tagged', body: '', tags: ['todo'] });",
+      "await ctx.api.storage.set('seen', seen);"
+    ].join('\n')
   });
 
-  const seen = [];
-  const ctx = Plugin.get(id).context;
-  ctx.api.data.onUpdate(e => { if (e.type === 'card.create') seen.push(e); });
-  ctx.api.data.createCard({ title: 'Tagged', body: '', tags: ['todo'] });
-
+  const seen = JSON.parse(localStorage.getItem('plugin_' + id + '_seen'));
   assert.is(seen.length, 1, 'exactly one card.create event');
   assert.ok(seen[0].card, 'event carries the card');
   assert.equal(seen[0].card.tags, ['todo'], 'event card already has its tags');
@@ -330,8 +371,14 @@ test('app sample installs suspended (HIGH risk) and enables manually', async () 
   await Plugin.enable(id);
   assert.is(Plugin.get(id).enabled, true);
   assert.is(window.store.plugins[id].enabled, true, 'manual enable persisted');
-  assert.ok(dom.header.children.some(el => el.className.includes('plugin-kanban-btn')), 'Board button injected');
-  assert.ok(dom.body.children.some(el => el.className.includes('plugin-kanban-overlay')), 'overlay injected');
+  const boardBtn = dom.header.children.find(el => el.className.includes('plugin-kanban-btn'));
+  assert.ok(boardBtn, 'Board button injected');
+
+  // The overlay is only injected once opened (a click-driven vnode
+  // update — see sample-plugins/apps/kanban-board.json), not eagerly at
+  // enable time; simulate the click and await the resulting RPC round trip.
+  await boardBtn._dispatch('click');
+  assert.ok(dom.body.children.some(el => el.className.includes('plugin-kanban-overlay')), 'overlay injected on open');
 
   await Plugin.disable(id);
   assert.is(dom.header.children.length, 0, 'injected DOM cleaned up on suspend');
@@ -354,20 +401,34 @@ test('app appName override renames the brand button and restores it on suspend',
   assert.is(dom.brandBtn.innerHTML, originalBrand, 'brand (logo) fully restored on suspend');
 });
 
-test('pomodoro app runs teardownJs on suspend (interval cleared)', async () => {
-  freshHarness();
+test('pomodoro app starts its timer and cleans up on suspend', async () => {
+  const dom = freshHarness();
   const pkg = loadSample('apps/pomodoro-desk.json');
   grantAll(pkg.id, pkg.manifest);
   const id = await Plugin.install(pkg);
   await Plugin.enable(id);
 
-  const ctx = Plugin.get(id).context;
-  assert.ok(ctx._pomodoro, 'setup stashed timer state on ctx');
+  // Timer state (ctx._pomodoro) now lives inside the plugin's sandboxed
+  // worker, not on a `Plugin.get(id).context` the test can poke at
+  // directly. Start the timer through the real injected UI instead and
+  // observe the widget's own re-render — this also exercises the vnode
+  // update() path (www/src/core/plugin-vnode.js) end to end.
+  const widget = dom.header.children.find(el => el.className === 'plugin-pomodoro');
+  assert.ok(widget, 'pomodoro widget injected');
+  const startBtn = widget.children[1];
+  assert.is(startBtn.textContent, 'Start', 'starts idle');
 
-  // Start the timer, then suspend — teardownJs must clear the interval
-  ctx._pomodoro.intervalId = setInterval(() => {}, 60000);
+  await startBtn._dispatch('click');
+  const runningWidget = dom.header.children.find(el => el.className === 'plugin-pomodoro');
+  assert.is(runningWidget.children[1].textContent, 'Pause', 'timer started (widget re-rendered via update())');
+
+  // Suspending while the worker's own setInterval is presumably still
+  // running must terminate cleanly (worker.terminate() tears down its
+  // timers with it) — this is the new capability the sandbox provides:
+  // main-thread code could never be interrupted like this.
   await Plugin.disable(id);
-  assert.is(ctx._pomodoro.intervalId, null, 'teardownJs cleared the interval');
+  assert.is(Plugin.get(id).enabled, false, 'suspended cleanly with the timer still active');
+  assert.is(dom.header.children.length, 0, 'widget removed on suspend');
 });
 
 // ── Delete / update / duplicate handling ──────────────────────────────────
@@ -416,7 +477,7 @@ test('a created plugin (manifest + js string) survives reload and re-runs setup'
   grantAll('hello-header', { permissions: ['ui-override'] });
   const id = await Plugin.install({
     manifest: { id: 'hello-header', name: 'Hello Header', version: '1.0.0', author: 'T', layer: 'feature', permissions: ['ui-override'] },
-    js: "var el = document.createElement('span'); el.className = 'hello-header'; ctx.api.ui.inject('.header', el, 'append');"
+    js: "await ctx.api.ui.inject('.header', ctx.h('span', { className: 'hello-header' }), 'append');"
   });
   assert.is(Plugin.get(id).enabled, true, 'auto-enabled at install');
 
@@ -453,7 +514,6 @@ test('a syntax error in plugin js fails install cleanly (nothing registered)', a
 
 test('a failing setup leaves the plugin installed but suspended', async () => {
   freshHarness();
-  Permissions.grantFullTrust('crasher'); // let setup actually run (and crash)
   const id = await Plugin.install({
     manifest: { name: 'Crasher', version: '1.0.0', author: 'T', layer: 'feature' },
     js: "throw new Error('boom');"
@@ -471,7 +531,6 @@ test('a setup failure after an appName override restores the brand button', asyn
   assert.ok(originalBrand.includes('brand-logo'), 'brand starts as the logo');
 
   const id = 'brand-crasher';
-  Permissions.grantFullTrust(id); // accept the JS consent so setup runs (and throws)
   await Plugin.install({
     manifest: { id, name: 'Brand Crasher', version: '1.0.0', author: 't', layer: 'app',
       overrides: { appName: 'Crashed' } },
@@ -490,10 +549,9 @@ test('deleting a plugin sweeps its namespaced ctx.storage keys', async () => {
   freshHarness();
   const id = 'store-sweeper';
   Permissions.grantPermissions(id, ['storage']);
-  Permissions.grantFullTrust(id);
   await Plugin.install({
     manifest: { id, name: 'Store Sweeper', version: '1.0.0', author: 't', layer: 'feature', permissions: ['storage'] },
-    js: "ctx.api.storage.set('note', { v: 1 });"
+    js: "await ctx.api.storage.set('note', { v: 1 });"
   });
   assert.ok(localStorage.getItem('plugin_' + id + '_note'), 'plugin wrote a namespaced storage key');
 
@@ -522,6 +580,30 @@ test('a hung plugin setup is time-boxed so it cannot block boot forever', async 
   assert.is(Plugin.get(id).enabled, false, 'hung plugin left disabled, boot can proceed');
 });
 
+test('a hung sandboxed plugin setup is terminated, not just abandoned (CS-002 hardening)', async () => {
+  freshHarness();
+  const id = 'infinite-loop-plugin';
+  Plugin.register(id, {
+    manifest: { id, name: 'Infinite Loop', version: '1.0.0', author: 't', layer: 'feature' },
+    js: 'while (true) {}'
+  });
+
+  let timedOut = false;
+  try {
+    await Plugin._enableWithTimeout(id, 300);
+  } catch (_e) {
+    timedOut = true;
+  }
+  assert.ok(timedOut, 'enable() times out instead of hanging forever');
+  assert.is(Plugin.get(id).enabled, false, 'left suspended after the hang');
+  assert.not.ok(Plugin.get(id).workerHandle, 'the hung worker was actually terminated, not just abandoned');
+  // The real proof this test exists for: a genuine `while(true){}` in the
+  // worker only pins that worker's own OS thread. If it had run on the main
+  // thread instead (the pre-sandbox architecture), it would have frozen this
+  // entire test process — there would be no way to reach this assertion at
+  // all, let alone the rest of the suite after it.
+});
+
 // ── All nine samples install through the real runtime ─────────────────────
 test('every sample package installs without error and lands in the right state', async () => {
   freshHarness();
@@ -540,6 +622,17 @@ test('every sample package installs without error and lands in the right state',
     assert.ok(window.store.plugins[id], `${p}: persisted`);
   }
   assert.is(Plugin.listAll().length, 9, 'all nine samples installed');
+});
+
+// Real, unterminated worker_threads.Worker instances keep the Node process
+// alive after the test file's assertions finish. Most tests above already
+// disable what they enable, but this is a defensive backstop for the last
+// test in the file (there's no subsequent freshHarness()/resetForTesting()
+// call to catch it).
+test.after(async () => {
+  for (const instance of Plugin.list()) {
+    if (instance.enabled) await Plugin.disable(instance.id);
+  }
 });
 
 test.run();

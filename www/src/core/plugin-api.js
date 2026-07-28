@@ -23,14 +23,26 @@ import { PluginValidator } from './plugin-validator.js';
 import { Permissions } from './permissions.js';
 import { ComponentRegistry } from './component-registry.js';
 import { Middleware } from './middleware.js';
+import { createPluginWorker } from './plugin-worker-manager.js';
+import { dispatch } from './plugin-rpc.js';
+import { vnodeToDOM, updateElementFromVnode, applyPatch } from './plugin-vnode.js';
 
 const plugins = new Map();
 const pluginResources = new Map();
 const dataUpdateListeners = new Map();
+let nextDomHandleId = 1;
 
   // Task 1.5: Central global event bus for cross-plugin communication
   // Handlers stored as { pluginId, callback } entries per event name
   const globalEventBus = new Map();
+
+  // Plugin ids that currently have a live Card render hook — either they own
+  // the `Card` slot in ComponentRegistry, or they registered at least one
+  // `card.render` decorator. rendering.js consults this to know which
+  // plugin workers to fan a render batch out to; it is empty (and the whole
+  // batch/RPC path is skipped entirely) for the common case of no such
+  // plugins installed.
+  const cardRenderPluginIds = new Set();
 
   // Stable internal references to core functions (Phase 1.3)
   // Captured at initialization time to prevent plugins from
@@ -68,141 +80,49 @@ const dataUpdateListeners = new Map();
     return true;
   }
 
-  function createUIApi(pluginId) {
+  function trackResource(pluginId, resource) {
     const resources = pluginResources.get(pluginId) || new Set();
-
-    return {
-      inject: function(selector, element, position) {
-        // Check ui-override permission
-        if (!hasPermission(pluginId, 'ui-override')) {
-          throw new Error('Plugin does not have ui-override permission');
-        }
-
-        position = position || 'append';
-        const target = document.querySelector(selector);
-        if (!target) {
-          console.warn('[Plugin:' + pluginId + '] Selector not found:', selector);
-          return () => {};
-        }
-
-        switch (position) {
-          case 'before':
-            if (!target.parentNode) {
-              console.warn('[Plugin:' + pluginId + '] Target has no parent node for "before" injection');
-              return () => {};
-            }
-            target.parentNode.insertBefore(element, target);
-            break;
-          case 'after':
-            if (!target.parentNode) {
-              console.warn('[Plugin:' + pluginId + '] Target has no parent node for "after" injection');
-              return () => {};
-            }
-            target.parentNode.insertBefore(element, target.nextSibling);
-            break;
-          case 'prepend':
-            target.insertBefore(element, target.firstChild);
-            break;
-          case 'append':
-          default:
-            target.appendChild(element);
-            break;
-        }
-
-        const resource = { type: 'dom', element: element };
-        resources.add(resource);
-
-        return function() {
-          if (element.parentNode) {
-            element.parentNode.removeChild(element);
-          }
-          resources.delete(resource);
-        };
-      },
-
-      replace: function(selector, element) {
-        // Check ui-override permission
-        if (!hasPermission(pluginId, 'ui-override')) {
-          throw new Error('Plugin does not have ui-override permission');
-        }
-
-        const target = document.querySelector(selector);
-        if (!target) {
-          console.warn('[Plugin:' + pluginId + '] Selector not found:', selector);
-          return () => {};
-        }
-
-        const original = target;
-        if (!target.parentNode) {
-          console.warn('[Plugin:' + pluginId + '] Target has no parent node for replace');
-          return () => {};
-        }
-        target.parentNode.replaceChild(element, target);
-
-        const resource = { type: 'dom', element: element, original: original };
-        resources.add(resource);
-
-        return function() {
-          if (element.parentNode) {
-            element.parentNode.replaceChild(original, element);
-          }
-          resources.delete(resource);
-        };
-      },
-
-      registerComponent: function(name, component) {
-        // Check ui-override permission
-        if (!hasPermission(pluginId, 'ui-override')) {
-          throw new Error('Plugin does not have ui-override permission');
-        }
-
-        if (ComponentRegistry) {
-          const won = ComponentRegistry.register(name, component, component.priority || 0);
-          // Only track the slot as this plugin's resource if the registration
-          // actually took effect. Otherwise a lower-priority plugin that lost
-          // the slot would, on suspend, unregister the winning plugin's still
-          // active override.
-          if (won) {
-            const resource = { type: 'component', name: name, component: component };
-            resources.add(resource);
-          }
-        }
-      },
-
-      unregisterComponent: function(name) {
-        if (ComponentRegistry) {
-          ComponentRegistry.unregister(name);
-        }
-      },
-
-      showToast: function(message, type, duration) {
-        var fn = InternalAPI.ui.showToast || window.showToast;
-        if (fn) {
-          fn(message, type || 'info', duration);
-        }
-      }
-    };
+    resources.add(resource);
+    return resource;
   }
 
-  function createDataApi(pluginId) {
-    const resources = pluginResources.get(pluginId) || new Set();
+  // ---------------------------------------------------------------------
+  // ctx.api.data / ctx.api.storage / ctx.api.events / ctx.api.filesystem
+  //
+  // These four surfaces are plain data in, plain data (or an already-async
+  // Promise) out — nothing DOM-shaped crosses through them. That means the
+  // exact same implementation serves BOTH callers:
+  //   - a plugin registered with a real function (`registerPlugin`, session-
+  //     only "host code" per PLUGIN_INVARIANTS.md — never sandboxed, since
+  //     functions can't come from a persisted/untrusted package) calls these
+  //     directly as `ctx.api.data.getCard(...)`.
+  //   - a sandboxed, worker-hosted plugin reaches them via the RPC
+  //     dispatcher below, which calls the identical function with the
+  //     identical arguments.
+  // ---------------------------------------------------------------------
 
+  function createDataApi(pluginId) {
     return {
       onUpdate: function(callback) {
         const listeners = dataUpdateListeners.get(pluginId) || [];
         listeners.push(callback);
         dataUpdateListeners.set(pluginId, listeners);
 
-        const resource = { type: 'listener', callback: callback };
-        resources.add(resource);
+        const resource = trackResource(pluginId, { type: 'listener', callback: callback });
 
         return function() {
           const idx = listeners.indexOf(callback);
-          if (idx !== -1) {
-            listeners.splice(idx, 1);
-          }
-          resources.delete(resource);
+          if (idx !== -1) listeners.splice(idx, 1);
+          const resources = pluginResources.get(pluginId);
+          if (resources) resources.delete(resource);
         };
+      },
+
+      offUpdate: function(callback) {
+        const listeners = dataUpdateListeners.get(pluginId);
+        if (!listeners) return;
+        const idx = listeners.indexOf(callback);
+        if (idx !== -1) listeners.splice(idx, 1);
       },
 
       getCard: function(id) {
@@ -228,7 +148,6 @@ const dataUpdateListeners = new Map();
       },
 
       createCard: function(data) {
-        // Check data-modify permission
         if (!hasPermission(pluginId, 'data-modify')) {
           throw new Error('Plugin does not have data-modify permission');
         }
@@ -260,7 +179,6 @@ const dataUpdateListeners = new Map();
       },
 
       updateCard: function(id, updates) {
-        // Check data-modify permission
         if (!hasPermission(pluginId, 'data-modify')) {
           throw new Error('Plugin does not have data-modify permission');
         }
@@ -274,7 +192,6 @@ const dataUpdateListeners = new Map();
       },
 
       deleteCard: function(id) {
-        // Check data-modify permission
         if (!hasPermission(pluginId, 'data-modify')) {
           throw new Error('Plugin does not have data-modify permission');
         }
@@ -289,56 +206,40 @@ const dataUpdateListeners = new Map();
 
       getTags: function(cardId) {
         var fn = InternalAPI.data.getTags || window.getTags;
-        if (fn) {
-          return fn(cardId);
-        }
+        if (fn) return fn(cardId);
         return [];
       },
 
       addTag: function(cardId, tag) {
-        // Check data-modify permission
         if (!hasPermission(pluginId, 'data-modify')) {
           throw new Error('Plugin does not have data-modify permission');
         }
-
         var fn = InternalAPI.data.addTag || window.addTag;
-        if (fn) {
-          return fn(cardId, tag);
-        }
+        if (fn) return fn(cardId, tag);
         return false;
       },
 
       removeTag: function(cardId, tag) {
-        // Check data-modify permission
         if (!hasPermission(pluginId, 'data-modify')) {
           throw new Error('Plugin does not have data-modify permission');
         }
-
         var fn = InternalAPI.data.removeTag || window.removeTag;
-        if (fn) {
-          return fn(cardId, tag);
-        }
+        if (fn) return fn(cardId, tag);
         return false;
       },
 
       setTags: function(cardId, tags) {
-        // Check data-modify permission
         if (!hasPermission(pluginId, 'data-modify')) {
           throw new Error('Plugin does not have data-modify permission');
         }
-
         var fn = InternalAPI.data.setTags || window.setTags;
-        if (fn) {
-          return fn(cardId, tags);
-        }
+        if (fn) return fn(cardId, tags);
         return false;
       },
 
       getAllTags: function() {
         var fn = InternalAPI.data.getAllTags || window.getAllTags;
-        if (fn) {
-          return fn();
-        }
+        if (fn) return fn();
         return [];
       }
     };
@@ -353,26 +254,22 @@ const dataUpdateListeners = new Map();
       },
 
       get: async function(key) {
-        // Check storage permission
         if (!hasPermission(pluginId, 'storage')) {
           throw new Error('Plugin does not have storage permission');
         }
-
         const fullKey = namespace + key;
         if (window.storageDriver && window.storageDriver.get) {
           return await window.storageDriver.get(fullKey);
         }
         const raw = localStorage.getItem(fullKey);
         if (raw === null) return null;
-        try { return JSON.parse(raw); } catch(e) { return raw; }
+        try { return JSON.parse(raw); } catch (e) { return raw; }
       },
 
       set: async function(key, value) {
-        // Check storage permission
         if (!hasPermission(pluginId, 'storage')) {
           throw new Error('Plugin does not have storage permission');
         }
-
         const fullKey = namespace + key;
         if (window.storageDriver && window.storageDriver.set) {
           return await window.storageDriver.set(fullKey, value);
@@ -381,11 +278,9 @@ const dataUpdateListeners = new Map();
       },
 
       remove: async function(key) {
-        // Check storage permission
         if (!hasPermission(pluginId, 'storage')) {
           throw new Error('Plugin does not have storage permission');
         }
-
         const fullKey = namespace + key;
         if (window.storageDriver && window.storageDriver.remove) {
           return await window.storageDriver.remove(fullKey);
@@ -394,16 +289,13 @@ const dataUpdateListeners = new Map();
       },
 
       list: async function(prefix) {
-        // Check storage permission
         if (!hasPermission(pluginId, 'storage')) {
           throw new Error('Plugin does not have storage permission');
         }
-
         const fullPrefix = namespace + (prefix || '');
         if (window.storageDriver && window.storageDriver.list) {
           return await window.storageDriver.list(fullPrefix);
         }
-        // Fallback for localStorage
         const keys = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
@@ -418,41 +310,36 @@ const dataUpdateListeners = new Map();
 
   function createEventApi(pluginId) {
     // Task 1.5: Use global event bus for cross-plugin communication while
-    // preserving per-plugin ctx.api.events interface
-    const resources = pluginResources.get(pluginId) || new Set();
-
+    // preserving per-plugin ctx.api.events interface. `callback` here may be
+    // a plain function (legacy host-code plugins) or an RPC remote-callback
+    // stub (sandboxed plugins) — both are just "a function to call later" as
+    // far as this bus is concerned.
     return {
       on: function(event, callback) {
-        // Ensure the handlers array exists in the global bus, then append to the same reference
-        if (!globalEventBus.has(event)) {
-          globalEventBus.set(event, []);
-        }
+        if (!globalEventBus.has(event)) globalEventBus.set(event, []);
         const handlers = globalEventBus.get(event);
         handlers.push({ pluginId: pluginId, callback: callback });
 
-        const resource = { type: 'event', event: event, callback: callback };
-        resources.add(resource);
+        const resource = trackResource(pluginId, { type: 'event', event: event, callback: callback });
 
         return function() {
           const list = globalEventBus.get(event);
           if (list) {
             const idx = list.findIndex(function(h) { return h.callback === callback && h.pluginId === pluginId; });
-            if (idx !== -1) {
-              list.splice(idx, 1);
-            }
+            if (idx !== -1) list.splice(idx, 1);
           }
-          resources.delete(resource);
+          const resources = pluginResources.get(pluginId);
+          if (resources) resources.delete(resource);
         };
       },
 
-      emit: function(event) {
+      emit: function(event, args) {
         const handlers = globalEventBus.get(event);
         if (handlers) {
-          const args = Array.prototype.slice.call(arguments, 1);
-          // Iterate over a copy to avoid issues if handlers array is modified during dispatch
+          const callArgs = Array.isArray(args) ? args : Array.prototype.slice.call(arguments, 1);
           handlers.slice().forEach(function(entry) {
             try {
-              entry.callback.apply(null, args);
+              entry.callback.apply(null, callArgs);
             } catch (err) {
               console.error('[EventBus] Handler error in plugin ' + entry.pluginId + ':', err);
             }
@@ -460,87 +347,12 @@ const dataUpdateListeners = new Map();
         }
       },
 
-      once: function(event, callback) {
-        const self = this;
-        const wrapper = function() {
-          self.off(event, wrapper);
-          callback.apply(null, arguments);
-        };
-        return this.on(event, wrapper);
-      },
-
       off: function(event, callback) {
         const list = globalEventBus.get(event);
         if (list) {
           const idx = list.findIndex(function(h) { return h.callback === callback && h.pluginId === pluginId; });
-          if (idx !== -1) {
-            list.splice(idx, 1);
-          }
+          if (idx !== -1) list.splice(idx, 1);
         }
-      }
-    };
-  }
-
-  function createMiddlewareApi(pluginId) {
-    const resources = pluginResources.get(pluginId) || new Set();
-
-    return {
-      /**
-       * Register a middleware interceptor for core operations
-       * ('card.create', 'card.update', 'card.delete', 'card.save',
-       * 'card.render', or '*'). The name is namespaced per plugin, and the
-       * registration is tracked so it is automatically removed when the
-       * plugin is disabled or unregistered.
-       *
-       * @param {Object} middleware - { name, priority?, operations?, handler }
-       * @returns {Function} Unregister function
-       */
-      register: function(middleware) {
-        if (!middleware || !middleware.name || typeof middleware.handler !== 'function') {
-          throw new Error('Middleware must have a name and a handler function');
-        }
-        if (!Middleware) {
-          throw new Error('Middleware pipeline not available');
-        }
-
-        const namespacedName = pluginId + ':' + middleware.name;
-        Middleware.register({
-          name: namespacedName,
-          priority: middleware.priority || 0,
-          operations: middleware.operations || ['*'],
-          handler: middleware.handler
-        });
-
-        const resource = { type: 'middleware', name: namespacedName };
-        resources.add(resource);
-
-        return function() {
-          Middleware.unregister(namespacedName);
-          resources.delete(resource);
-        };
-      },
-
-      unregister: function(name) {
-        if (Middleware) {
-          Middleware.unregister(pluginId + ':' + name);
-        }
-      }
-    };
-  }
-
-  function createNetworkApi(pluginId) {
-    return {
-      fetch: async function(url, options) {
-        if (!hasPermission(pluginId, 'network')) {
-          throw new Error('Plugin does not have network permission');
-        }
-        return window.fetch(url, options);
-      },
-      xhr: function() {
-        if (!hasPermission(pluginId, 'network')) {
-          throw new Error('Plugin does not have network permission');
-        }
-        return new XMLHttpRequest();
       }
     };
   }
@@ -568,6 +380,129 @@ const dataUpdateListeners = new Map();
     };
   }
 
+  // ---------------------------------------------------------------------
+  // Legacy, host-code ctx (used ONLY for plugins registered with real
+  // functions via registerPlugin/window.CardSpoke.registerPlugin — a
+  // session-only, non-persisted path that PLUGIN_INVARIANTS.md documents as
+  // "host code already," since a function value cannot come from a
+  // persisted/untrusted package in the first place). This ctx runs directly
+  // on the main thread with the pre-sandbox, synchronous DOM-capable UI API
+  // — there is nothing to sandbox here because nothing here can be a
+  // downloaded plugin package.
+  // ---------------------------------------------------------------------
+
+  function createLegacyUIApi(pluginId) {
+    return {
+      inject: function(selector, element, position) {
+        if (!hasPermission(pluginId, 'ui-override')) {
+          throw new Error('Plugin does not have ui-override permission');
+        }
+        position = position || 'append';
+        const target = document.querySelector(selector);
+        if (!target) return () => {};
+        switch (position) {
+          case 'before':
+            if (!target.parentNode) return () => {};
+            target.parentNode.insertBefore(element, target);
+            break;
+          case 'after':
+            if (!target.parentNode) return () => {};
+            target.parentNode.insertBefore(element, target.nextSibling);
+            break;
+          case 'prepend':
+            target.insertBefore(element, target.firstChild);
+            break;
+          default:
+            target.appendChild(element);
+            break;
+        }
+        const resource = trackResource(pluginId, { type: 'dom', element: element });
+        return function() {
+          if (element.parentNode) element.parentNode.removeChild(element);
+          const resources = pluginResources.get(pluginId);
+          if (resources) resources.delete(resource);
+        };
+      },
+      replace: function(selector, element) {
+        if (!hasPermission(pluginId, 'ui-override')) {
+          throw new Error('Plugin does not have ui-override permission');
+        }
+        const target = document.querySelector(selector);
+        if (!target || !target.parentNode) return () => {};
+        const original = target;
+        target.parentNode.replaceChild(element, target);
+        const resource = trackResource(pluginId, { type: 'dom', element: element, original: original });
+        return function() {
+          if (element.parentNode) element.parentNode.replaceChild(original, element);
+          const resources = pluginResources.get(pluginId);
+          if (resources) resources.delete(resource);
+        };
+      },
+      registerComponent: function(name, component) {
+        if (!hasPermission(pluginId, 'ui-override')) {
+          throw new Error('Plugin does not have ui-override permission');
+        }
+        if (ComponentRegistry) {
+          const won = ComponentRegistry.register(name, component, component.priority || 0);
+          if (won) {
+            if (name === 'Card') cardRenderPluginIds.add(pluginId);
+            trackResource(pluginId, { type: 'component', name: name, component: component });
+          }
+        }
+      },
+      unregisterComponent: function(name) {
+        if (ComponentRegistry) ComponentRegistry.unregister(name);
+        if (name === 'Card') cardRenderPluginIds.delete(pluginId);
+      },
+      showToast: function(message, type, duration) {
+        var fn = InternalAPI.ui.showToast || window.showToast;
+        if (fn) fn(message, type || 'info', duration);
+      }
+    };
+  }
+
+  function createLegacyMiddlewareApi(pluginId) {
+    return {
+      register: function(middleware) {
+        if (!middleware || !middleware.name || typeof middleware.handler !== 'function') {
+          throw new Error('Middleware must have a name and a handler function');
+        }
+        if (!Middleware) throw new Error('Middleware pipeline not available');
+        const namespacedName = pluginId + ':' + middleware.name;
+        Middleware.register({
+          name: namespacedName,
+          priority: middleware.priority || 0,
+          operations: middleware.operations || ['*'],
+          handler: middleware.handler
+        });
+        trackResource(pluginId, { type: 'middleware', name: namespacedName });
+        return function() {
+          Middleware.unregister(namespacedName);
+        };
+      },
+      unregister: function(name) {
+        if (Middleware) Middleware.unregister(pluginId + ':' + name);
+      }
+    };
+  }
+
+  function createLegacyNetworkApi(pluginId) {
+    return {
+      fetch: async function(url, options) {
+        if (!hasPermission(pluginId, 'network')) {
+          throw new Error('Plugin does not have network permission');
+        }
+        return window.fetch(url, options);
+      },
+      xhr: function() {
+        if (!hasPermission(pluginId, 'network')) {
+          throw new Error('Plugin does not have network permission');
+        }
+        return new XMLHttpRequest();
+      }
+    };
+  }
+
   function createLogger(pluginId) {
     const prefix = '[Plugin:' + pluginId + ']';
     return {
@@ -578,18 +513,18 @@ const dataUpdateListeners = new Map();
     };
   }
 
-  function createPluginContext(pluginId) {
+  function createLegacyPluginContext(pluginId) {
     return {
       modId: pluginId,
-      appVersion: window.APP_VERSION || '0.20.0',
+      appVersion: window.APP_VERSION || '0.21.0',
       schemaVersion: window.SCHEMA_VERSION || 4,
       api: {
-        ui: createUIApi(pluginId),
+        ui: createLegacyUIApi(pluginId),
         data: createDataApi(pluginId),
         storage: createStorageApi(pluginId),
         events: createEventApi(pluginId),
-        middleware: createMiddlewareApi(pluginId),
-        network: createNetworkApi(pluginId),
+        middleware: createLegacyMiddlewareApi(pluginId),
+        network: createLegacyNetworkApi(pluginId),
         filesystem: createFilesystemApi(pluginId)
       },
       utils: window.CardSpoke && window.CardSpoke.utils ? window.CardSpoke.utils : {},
@@ -597,41 +532,223 @@ const dataUpdateListeners = new Map();
     };
   }
 
-  // Centralized factory for all plugin JS execution.
-  // All plugin code strings are compiled here, providing a single upgrade
-  // point if stronger isolation (iframe/Worker message-passing) is ever
-  // implemented.
-  //
-  // TRUST MODEL (CS-002): there is NO sandbox. Plugin code runs on the main
-  // thread in the page realm and can reach window, document, localStorage,
-  // fetch, and the host bridge directly — declared permissions scope the
-  // supported ctx API surface but are NOT a security boundary. Every plugin
-  // that ships JavaScript therefore requires explicit full-trust consent
-  // (Permissions.requestFullTrust) before enable(). The validator screens
-  // packages for obvious footguns, layer-based risk labels set expectations,
-  // and `?safemode` boots with all plugins disabled.
-  //
-  // Compilation is eager so that a syntax error in plugin code fails the
-  // install/sync step immediately (where it is caught and reported) instead
-  // of surfacing later at enable time.
-  function _createSandboxedFunction(code) {
-    const compiled = new Function('ctx', '"use strict";\n' + code);
-    const wrapper = function(ctx) {
-      return compiled(ctx);
+  // ---------------------------------------------------------------------
+  // Sandboxed (worker) host handlers — the RPC dispatch target for every
+  // JS-bearing installed plugin package. Unlike the legacy ctx above, a
+  // vnode (not a real element) crosses this boundary, component render
+  // functions stay inside the worker and are invoked by RPC, and network
+  // responses are converted to a serializable shim.
+  // ---------------------------------------------------------------------
+
+  function createWorkerUIHandlers(pluginId) {
+    const domHandles = new Map(); // handleId -> { element, original? }
+
+    function doInject(selector, vnode, position) {
+      if (!hasPermission(pluginId, 'ui-override')) {
+        throw new Error('Plugin does not have ui-override permission');
+      }
+      position = position || 'append';
+      const target = document.querySelector(selector);
+      if (!target) return null;
+      const element = vnodeToDOM(vnode);
+      switch (position) {
+        case 'before':
+          if (!target.parentNode) return null;
+          target.parentNode.insertBefore(element, target);
+          break;
+        case 'after':
+          if (!target.parentNode) return null;
+          target.parentNode.insertBefore(element, target.nextSibling);
+          break;
+        case 'prepend':
+          target.insertBefore(element, target.firstChild);
+          break;
+        default:
+          target.appendChild(element);
+          break;
+      }
+      const handleId = nextDomHandleId++;
+      domHandles.set(handleId, { element: element });
+      trackResource(pluginId, { type: 'dom', element: element });
+      return handleId;
+    }
+
+    function doReplace(selector, vnode) {
+      if (!hasPermission(pluginId, 'ui-override')) {
+        throw new Error('Plugin does not have ui-override permission');
+      }
+      const target = document.querySelector(selector);
+      if (!target || !target.parentNode) return null;
+      const element = vnodeToDOM(vnode);
+      const original = target;
+      target.parentNode.replaceChild(element, target);
+      const handleId = nextDomHandleId++;
+      domHandles.set(handleId, { element: element, original: original });
+      trackResource(pluginId, { type: 'dom', element: element, original: original });
+      return handleId;
+    }
+
+    return {
+      inject: function(selector, vnode, position) { return doInject(selector, vnode, position); },
+      replace: function(selector, vnode) { return doReplace(selector, vnode); },
+      removeInjected: function(handleId) {
+        const entry = domHandles.get(handleId);
+        if (!entry) return;
+        if (entry.original && entry.element.parentNode) {
+          entry.element.parentNode.replaceChild(entry.original, entry.element);
+        } else if (entry.element.parentNode) {
+          entry.element.parentNode.removeChild(entry.element);
+        }
+        domHandles.delete(handleId);
+      },
+      updateInjected: function(handleId, vnode) {
+        const entry = domHandles.get(handleId);
+        if (!entry) return;
+        updateElementFromVnode(entry.element, vnode);
+      },
+      registerComponent: function(name, priority) {
+        if (!hasPermission(pluginId, 'ui-override')) {
+          throw new Error('Plugin does not have ui-override permission');
+        }
+        const instance = plugins.get(pluginId);
+        const component = {
+          priority: priority || 0,
+          render: async function(props) {
+            if (!instance || !instance.workerHandle) throw new Error('Plugin worker not available');
+            const vnode = await instance.workerHandle.callWithDeadline(['ui', 'componentRender'], [name, props], BOOT_COMPONENT_TIMEOUT_MS);
+            return vnodeToDOM(vnode);
+          }
+        };
+        const won = ComponentRegistry.register(name, component, priority || 0);
+        if (won) {
+          if (name === 'Card') cardRenderPluginIds.add(pluginId);
+          trackResource(pluginId, { type: 'component', name: name, component: component });
+        }
+        return won;
+      },
+      unregisterComponent: function(name) {
+        if (ComponentRegistry) ComponentRegistry.unregister(name);
+        if (name === 'Card') cardRenderPluginIds.delete(pluginId);
+      },
+      showToast: function(message, type, duration) {
+        var fn = InternalAPI.ui.showToast || window.showToast;
+        if (fn) fn(message, type || 'info', duration);
+      }
     };
-    // Marker so serialization never tries to stringify this wrapper —
-    // the original source string in definition.js is the canonical form.
-    wrapper.__cardspokeCompiled = true;
-    return wrapper;
   }
 
-  function _functionToCtxCode(fn) {
-    if (typeof fn !== 'function') return null;
-    // Compiled wrappers must never be stringified — their source is a
-    // closure over internal state. The raw code string in definition.js is
-    // the canonical serialized form for those.
-    if (fn.__cardspokeCompiled) return null;
-    return 'return (' + fn.toString() + ')(ctx);';
+  function createWorkerMiddlewareHandlers(pluginId) {
+    return {
+      register: function(name, priority, operations) {
+        const ops = operations || ['*'];
+        if (ops.indexOf('card.render') !== -1) {
+          cardRenderPluginIds.add(pluginId);
+          trackResource(pluginId, { type: 'card-decorator', name: name });
+          return true;
+        }
+
+        const namespacedName = pluginId + ':' + name;
+        const wrapper = async function(mwCtx, realNext) {
+          const instance = plugins.get(pluginId);
+          if (!instance || !instance.workerHandle) { await realNext(); return; }
+          const nextProxy = async function() {
+            await realNext();
+            return { args: mwCtx.args, prevented: mwCtx.prevented, stopped: mwCtx.stopped };
+          };
+          const outcome = await instance.workerHandle.callWithDeadline(
+            ['middleware', 'invoke'], [name, mwCtx.operation, mwCtx.args, nextProxy], MIDDLEWARE_TIMEOUT_MS
+          );
+          if (outcome) {
+            if (outcome.args !== undefined) mwCtx.args = outcome.args;
+            if (outcome.prevented) mwCtx.preventDefault();
+            if (outcome.stopped) mwCtx.stopPropagation();
+          }
+        };
+        Middleware.register({ name: namespacedName, priority: priority || 0, operations: ops, handler: wrapper });
+        trackResource(pluginId, { type: 'middleware', name: namespacedName });
+        return true;
+      },
+      unregister: function(name) {
+        cardRenderPluginIds.delete(pluginId);
+        Middleware.unregister(pluginId + ':' + name);
+      }
+    };
+  }
+
+  function createWorkerNetworkHandlers(pluginId) {
+    return {
+      fetch: async function(url, options) {
+        if (!hasPermission(pluginId, 'network')) {
+          throw new Error('Plugin does not have network permission');
+        }
+        const response = await window.fetch(url, options);
+        const bodyBuffer = await response.arrayBuffer();
+        return {
+          ok: response.ok,
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url,
+          headers: Array.from(response.headers.entries()),
+          bodyBuffer: bodyBuffer
+        };
+      }
+    };
+  }
+
+  function createUtilsHandlers() {
+    const utils = (window.CardSpoke && window.CardSpoke.utils) || {};
+    return new Proxy({}, {
+      get: function(_target, prop) {
+        if (typeof prop !== 'string') return undefined;
+        return async function() {
+          const fn = utils[prop];
+          if (typeof fn !== 'function') throw new Error('Unknown utils method: ' + prop);
+          return await fn.apply(utils, arguments);
+        };
+      }
+    });
+  }
+
+  function createLoggerHandlers() {
+    return {
+      log: function() { console.log.apply(console, arguments); },
+      info: function() { console.info.apply(console, arguments); },
+      warn: function() { console.warn.apply(console, arguments); },
+      error: function() { console.error.apply(console, arguments); }
+    };
+  }
+
+  /** Full onCall dispatch tree for a sandboxed plugin's worker channel. */
+  function createHostHandlers(pluginId) {
+    return {
+      data: createDataApi(pluginId),
+      storage: createStorageApi(pluginId),
+      events: createEventApi(pluginId),
+      filesystem: createFilesystemApi(pluginId),
+      network: createWorkerNetworkHandlers(pluginId),
+      ui: createWorkerUIHandlers(pluginId),
+      middleware: createWorkerMiddlewareHandlers(pluginId),
+      utils: createUtilsHandlers(),
+      logger: createLoggerHandlers()
+    };
+  }
+
+  // eslint-disable-next-line no-empty-function
+  const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
+
+  // Centralized syntax pre-check for all plugin JS. This never executes the
+  // code — constructing a Function parses the body without invoking it — so
+  // it is safe to run on the main thread purely to surface a bad package's
+  // syntax error synchronously at install time, before the string is ever
+  // sent to a worker to actually run. Real execution always happens inside
+  // the plugin's dedicated worker (see plugin-worker-bootstrap.js). Compiled
+  // as an AsyncFunction to match the worker's actual compile step exactly —
+  // otherwise a plugin correctly using top-level `await` would pass this
+  // check under a plain Function but be a real SyntaxError under the
+  // worker's AsyncFunction compile (or vice versa).
+  function _checkSyntax(code) {
+    // eslint-disable-next-line no-new-func
+    new AsyncFunction('ctx', '"use strict";\n' + code);
   }
 
   function _createSerializableDefinition(definition) {
@@ -639,10 +756,18 @@ const dataUpdateListeners = new Map();
     return {
       manifest: definition.manifest,
       css: definition.css,
-      js: (typeof definition.js === 'string' && definition.js) || _functionToCtxCode(definition.setup),
-      teardownJs: (typeof definition.teardownJs === 'string' && definition.teardownJs) || _functionToCtxCode(definition.teardown)
+      js: (typeof definition.js === 'string' && definition.js) || null,
+      teardownJs: (typeof definition.teardownJs === 'string' && definition.teardownJs) || null
     };
   }
+
+  const ENABLE_TIMEOUT_MS = 5000;
+  const TEARDOWN_TIMEOUT_MS = 5000;
+  const MIDDLEWARE_TIMEOUT_MS = 5000;
+  const BOOT_COMPONENT_TIMEOUT_MS = 3000;
+  const CARD_RENDER_DEADLINE_MS = 80;
+  const HANG_BACKSTOP_MS = 10000;
+  let hangWatcherTimer = null;
 
   const PluginManager = {
     register: function(id, definition) {
@@ -681,18 +806,28 @@ const dataUpdateListeners = new Map();
         }
       }
 
-      // Pre-initialize the shared resources Set so that all API factory functions
-      // (createUIApi, createDataApi, createEventApi) close over the correct Set
-      // instead of creating orphaned Sets that _cleanupResources cannot reach.
+      // Pre-initialize the shared resources Set so that all host handler
+      // factories close over the correct Set instead of creating orphaned
+      // Sets that _cleanupResources cannot reach.
       const resources = new Set();
       pluginResources.set(id, resources);
 
-      const context = createPluginContext(id);
+      // A definition carrying `js`/`teardownJs` strings (every
+      // persisted/installed package) gets no ctx here at all — it is built
+      // fresh inside a dedicated worker each time the plugin is enabled.
+      // Everything else (registerPlugin's documented session-only "host
+      // code" path, including a no-op registration with neither functions
+      // nor strings) gets a conventional legacy same-thread ctx up front.
+      const context = (!definition.js && !definition.teardownJs)
+        ? createLegacyPluginContext(id)
+        : null;
+
       const instance = {
         id: id,
         definition: definition,
         context: context,
         enabled: false,
+        workerHandle: null,
         resources: resources
       };
 
@@ -711,14 +846,12 @@ const dataUpdateListeners = new Map();
         plugins.delete(id);
         pluginResources.delete(id);
         dataUpdateListeners.delete(id);
+        cardRenderPluginIds.delete(id);
 
-        // Revoke any permissions and full-trust consent the user granted
-        // this plugin so a future reinstall must ask again.
+        // Revoke any permissions the user granted this plugin so a future
+        // reinstall must ask again.
         if (Permissions && Permissions.revokePermissions) {
           Permissions.revokePermissions(id);
-        }
-        if (Permissions && Permissions.revokeFullTrust) {
-          Permissions.revokeFullTrust(id);
         }
 
         // Sweep this plugin's namespaced ctx.storage entries so a reinstall
@@ -774,7 +907,7 @@ const dataUpdateListeners = new Map();
      * its teardown + resource cleanup so no CSS/DOM/listeners leak) and drops
      * the instance from the runtime so a subsequent syncFromStore() can cleanly
      * re-register it — but deliberately does NOT touch the persisted store or
-     * the user's permission/trust grants, which are keyed to the plugin id and
+     * the user's permission grants, which are keyed to the plugin id and
      * must survive switching away from and back to a dataset.
      *
      * Unlike unregister(), this never deletes store.plugins[id] or revokes
@@ -788,13 +921,13 @@ const dataUpdateListeners = new Map();
       if (instance.enabled) {
         await this.disable(id);
       } else {
-        // Even when suspended, drop any resources/CSS defensively.
         this._removeCSS(id);
         this._cleanupResources(id);
       }
       plugins.delete(id);
       pluginResources.delete(id);
       dataUpdateListeners.delete(id);
+      cardRenderPluginIds.delete(id);
     },
 
     // Restore the brand button to its pre-override content (the logo <img>).
@@ -820,29 +953,19 @@ const dataUpdateListeners = new Map();
       // Capture stable internal references before plugin runs
       captureInternalReferences();
 
-      // CS-002: JavaScript plugins run unsandboxed in the page realm, so
-      // running one is a full-trust decision. Require explicit, persisted
-      // consent before any package-sourced JS executes. (Plugins registered
-      // programmatically with real functions are host code already.)
-      const requiresFullTrust = !!(instance.definition.js || instance.definition.teardownJs);
-      if (requiresFullTrust && Permissions &&
-          typeof Permissions.requestFullTrust === 'function') {
-        const pluginName = (instance.definition.manifest && instance.definition.manifest.name) || id;
-        const trusted = await Permissions.requestFullTrust(id, pluginName);
-        if (!trusted) {
-          throw new Error('Plugin "' + id + '" was not enabled: full-trust consent was declined');
-        }
-      }
-
-      // Task 2.6: Pass config to plugin context
-      if (instance.definition.manifest.config) {
+      // Task 2.6: Pass config to plugin context (legacy host-code path only;
+      // sandboxed plugins receive config in their worker's init payload).
+      if (instance.context && instance.definition.manifest.config) {
         instance.context.config = instance.definition.manifest.config;
       }
 
       // Check permissions BEFORE applying any visible override, running CSS,
-      // or running setup — so a declined permission dialog (or any later
-      // failure) can never leave the app's brand/DOM mutated with no clean
-      // way back.
+      // or starting the plugin — so a declined permission dialog (or any
+      // later failure) can never leave the app's brand/DOM mutated with no
+      // clean way back. This is now the ONLY consent step: sandboxed plugin
+      // JS has no ambient access outside these permission-gated calls, so a
+      // granted permission is an enforced capability grant, not a polite
+      // request (CS-002, resolved).
       if (instance.definition.manifest.permissions) {
         const granted = await this._checkPermissions(id, instance.definition.manifest.permissions);
         if (!granted) {
@@ -871,30 +994,49 @@ const dataUpdateListeners = new Map();
         this._applyCSS(id, instance.definition.css);
       }
 
-      // Run setup
-      if (instance.definition.setup) {
-        try {
+      try {
+        if (instance.definition.js || instance.definition.teardownJs) {
+          // Sandboxed path: every JS-bearing installed package. Build the
+          // host-side RPC handler tree ONCE per worker (not per call!) — it
+          // owns per-plugin state (domHandles for ui.inject/replace, etc.)
+          // that must persist across the whole enabled lifetime, not reset
+          // on every single RPC round trip.
+          const hostHandlers = createHostHandlers(id);
+          instance.workerHandle = await createPluginWorker(id, {
+            js: instance.definition.js || '',
+            teardownJs: instance.definition.teardownJs || '',
+            permissions: instance.definition.manifest.permissions || [],
+            config: instance.definition.manifest.config,
+            appVersion: window.APP_VERSION || '0.21.0',
+            schemaVersion: window.SCHEMA_VERSION || 4
+          }, (path, args) => dispatch(hostHandlers, path, args));
+
+          await instance.workerHandle.callWithDeadline(['lifecycle', 'runSetup'], [], ENABLE_TIMEOUT_MS);
+          this._startHangWatcher();
+        } else if (instance.definition.setup) {
+          // Legacy host-code path: a real function, session-only, never
+          // persisted, therefore never a downloaded/untrusted package.
           await instance.definition.setup(instance.context);
-        } catch (err) {
-          console.error('[Plugin] Setup error for', id, ':', err);
-          console.error('[Plugin] Stack trace:', err.stack);
-          if (window.showToast) {
-            window.showToast('Plugin "' + id + '" failed to start: ' + err.message, 'error');
-          }
-
-          // Clean up partially applied resources, including any brand override
-          // applied above, so a failed enable leaves no ghost UI behind.
-          this._restoreBrandOverride(instance);
-          this._removeCSS(id);
-          this._cleanupResources(id);
-
-          // Log to plugin context if available
-          if (instance.context && instance.context.logger) {
-            instance.context.logger.error('Plugin setup failed and was disabled: ' + err.message);
-          }
-
-          throw err;
         }
+      } catch (err) {
+        console.error('[Plugin] Setup error for', id, ':', err);
+        if (window.showToast) {
+          window.showToast('Plugin "' + id + '" failed to start: ' + err.message, 'error');
+        }
+
+        if (instance.workerHandle) {
+          instance.workerHandle.terminate();
+          instance.workerHandle = null;
+          this._stopHangWatcherIfIdle();
+        }
+
+        // Clean up partially applied resources, including any brand override
+        // applied above, so a failed enable leaves no ghost UI behind.
+        this._restoreBrandOverride(instance);
+        this._removeCSS(id);
+        this._cleanupResources(id);
+
+        throw err;
       }
 
       instance.enabled = true;
@@ -913,17 +1055,28 @@ const dataUpdateListeners = new Map();
       }
 
       // Run teardown
-      if (instance.definition.teardown) {
+      if (instance.workerHandle) {
         try {
-          await instance.definition.teardown(instance.context);
+          await instance.workerHandle.callWithDeadline(['lifecycle', 'runTeardown'], [], TEARDOWN_TIMEOUT_MS);
         } catch (err) {
           console.error('[Plugin] Teardown error for', id, ':', err);
-          console.error('[Plugin] Stack trace:', err.stack);
-          // Log to plugin context if available
           if (instance.context && instance.context.logger) {
             instance.context.logger.warn('Plugin cleanup had errors but continuing: ' + err.message);
           }
           // Continue anyway - don't let cleanup errors break app
+        } finally {
+          instance.workerHandle.terminate();
+          instance.workerHandle = null;
+          this._stopHangWatcherIfIdle();
+        }
+      } else if (instance.definition.teardown) {
+        try {
+          await instance.definition.teardown(instance.context);
+        } catch (err) {
+          console.error('[Plugin] Teardown error for', id, ':', err);
+          if (instance.context && instance.context.logger) {
+            instance.context.logger.warn('Plugin cleanup had errors but continuing: ' + err.message);
+          }
         }
       }
 
@@ -936,6 +1089,7 @@ const dataUpdateListeners = new Map();
 
       // Cleanup resources
       this._cleanupResources(id);
+      cardRenderPluginIds.delete(id);
 
       instance.enabled = false;
       this._persistEnabledState(id, false);
@@ -983,7 +1137,6 @@ const dataUpdateListeners = new Map();
         return;
       }
 
-      // Track cleanup statistics
       const cleanup = {
         domElements: 0,
         components: 0,
@@ -995,44 +1148,35 @@ const dataUpdateListeners = new Map();
       resources.forEach(function(resource) {
         try {
           if (resource.type === 'dom') {
-            // For replaced elements, restore the original
             if (resource.original) {
               if (resource.element && resource.element.parentNode) {
                 resource.element.parentNode.replaceChild(resource.original, resource.element);
                 cleanup.domElements++;
               }
-            } 
-            // For injected elements, just remove them
-            else if (resource.element && resource.element.parentNode) {
+            } else if (resource.element && resource.element.parentNode) {
               resource.element.parentNode.removeChild(resource.element);
               cleanup.domElements++;
             }
           } else if (resource.type === 'component') {
-            // Unregister the component only if this plugin still owns the slot
-            // (identity-checked), so cleaning up a plugin that never won the
-            // registration can't remove another plugin's active override.
             if (ComponentRegistry) {
               if (ComponentRegistry.unregister(resource.name, resource.component)) {
                 cleanup.components++;
               }
             }
           } else if (resource.type === 'middleware') {
-            // Unregister middleware interceptor
             if (Middleware) {
               Middleware.unregister(resource.name);
               cleanup.listeners++;
             }
+          } else if (resource.type === 'card-decorator') {
+            cleanup.listeners++;
           } else if (resource.type === 'listener') {
-            // Data update listeners are tracked separately in dataUpdateListeners map
             cleanup.listeners++;
           } else if (resource.type === 'event') {
-            // Task 1.5: Clean up global event bus handlers on plugin disable/unregister
             const list = globalEventBus.get(resource.event);
             if (list) {
               const idx = list.findIndex(function(h) { return h.callback === resource.callback && h.pluginId === id; });
-              if (idx !== -1) {
-                list.splice(idx, 1);
-              }
+              if (idx !== -1) list.splice(idx, 1);
             }
             cleanup.events++;
           }
@@ -1042,18 +1186,15 @@ const dataUpdateListeners = new Map();
         }
       });
 
-      // Clear all resources
       resources.clear();
 
-      // Clean up data update listeners
       const listeners = dataUpdateListeners.get(id);
       if (listeners && listeners.length > 0) {
         cleanup.listeners += listeners.length;
         dataUpdateListeners.delete(id);
       }
 
-      // Log cleanup summary
-      console.log('[Plugin] Cleanup complete for', id, ':', 
+      console.log('[Plugin] Cleanup complete for', id, ':',
         cleanup.domElements, 'DOM elements,',
         cleanup.components, 'components,',
         cleanup.listeners, 'listeners,',
@@ -1063,35 +1204,39 @@ const dataUpdateListeners = new Map();
     },
 
     _checkPermissions: async function(id, permissions) {
-      // Task 1.4: Use PermissionsManager for actual user consent instead of auto-granting
       console.log('[Plugin] Permissions requested for', id, ':', permissions);
 
       if (!permissions || permissions.length === 0) {
         return true;
       }
 
-      // Use the PermissionsManager if available (preferred path)
       if (Permissions) {
         const instance = plugins.get(id);
         const pluginName = (instance && instance.definition.manifest && instance.definition.manifest.name) || id;
         return await Permissions.requestPermissions(id, pluginName, permissions);
       }
 
-      // Fallback: use global dialog if available
       if (window.showPermissionDialog) {
         return await window.showPermissionDialog(id, permissions);
       }
 
-      // Last resort: deny by default when no consent mechanism is available
       console.warn('[Plugin] No permission consent mechanism available; denying permissions for', id);
       return false;
     },
 
     notifyDataUpdate: function(event) {
-      dataUpdateListeners.forEach(function(listeners, pluginId) {
+      dataUpdateListeners.forEach(function(listeners) {
         listeners.forEach(function(callback) {
           try {
-            callback(event);
+            // A sandboxed plugin's callback is an RPC remote-callback stub
+            // that returns a Promise (the invoke round trip into its
+            // worker); catch async rejections too, not just synchronous
+            // throws, so one plugin's broken listener can't produce an
+            // unhandled rejection.
+            const result = callback(event);
+            if (result && typeof result.catch === 'function') {
+              result.catch(err => console.error('[Plugin] Data update callback error:', err));
+            }
           } catch (err) {
             console.error('[Plugin] Data update callback error:', err);
           }
@@ -1101,6 +1246,69 @@ const dataUpdateListeners = new Map();
 
     listAll: function() {
       return this.list();
+    },
+
+    /** Plugin ids with a live Card component or card.render decorator. Empty in the common case. */
+    getCardRenderPluginIds: function() {
+      return Array.from(cardRenderPluginIds);
+    },
+
+    /**
+     * Ask one plugin's worker to render/decorate a batch of cards. Never
+     * throws — a timeout, error, or missing worker all resolve to `null` so
+     * rendering.js can treat "no upgrade this pass" uniformly and let the
+     * already-rendered default tiles stand.
+     */
+    renderBatch: async function(id, cardsSnapshot, opts) {
+      const instance = plugins.get(id);
+      if (!instance || !instance.enabled || !instance.workerHandle) return null;
+      try {
+        return await instance.workerHandle.callWithDeadline(
+          ['ui', 'renderBatch'], [cardsSnapshot, opts || {}], CARD_RENDER_DEADLINE_MS
+        );
+      } catch (err) {
+        return null;
+      }
+    },
+
+    /** Backstop hang detector: terminates and suspends a worker whose oldest pending RPC call is stuck. */
+    _startHangWatcher: function() {
+      if (hangWatcherTimer) return;
+      hangWatcherTimer = setInterval(() => {
+        plugins.forEach((instance, id) => {
+          if (instance.workerHandle && instance.workerHandle.isHung(HANG_BACKSTOP_MS)) {
+            console.error('[Plugin] "' + id + '" stopped responding; suspending.');
+            instance.workerHandle.terminate();
+            instance.workerHandle = null;
+            instance.enabled = false;
+            this._removeCSS(id);
+            this._cleanupResources(id);
+            cardRenderPluginIds.delete(id);
+            this._persistEnabledState(id, false);
+            if (window.showToast) {
+              window.showToast('Plugin "' + id + '" stopped responding and was suspended.', 'error');
+            }
+          }
+        });
+        this._stopHangWatcherIfIdle();
+      }, 2000);
+    },
+
+    /**
+     * Stop the hang-watcher interval once no plugin has a live worker to
+     * watch — otherwise this timer runs forever (a real, if minor, resource
+     * leak in production once every JS-bearing plugin is disabled, and a
+     * process-hang hazard in tests, where an un-cleared interval keeps
+     * Node's event loop alive after the test file's assertions finish).
+     */
+    _stopHangWatcherIfIdle: function() {
+      if (!hangWatcherTimer) return;
+      let anyActive = false;
+      plugins.forEach(instance => { if (instance.workerHandle) anyActive = true; });
+      if (!anyActive) {
+        clearInterval(hangWatcherTimer);
+        hangWatcherTimer = null;
+      }
     },
 
     install: async function(pkg) {
@@ -1123,7 +1331,6 @@ const dataUpdateListeners = new Map();
       }
 
       // Phase 3.3: Dependency Checking
-      // Halt installation if any declared dependency is not already installed
       if (pkg.manifest.dependencies && Array.isArray(pkg.manifest.dependencies) && pkg.manifest.dependencies.length > 0) {
         const missing = pkg.manifest.dependencies.filter(function(dep) {
           return !plugins.has(dep);
@@ -1135,8 +1342,9 @@ const dataUpdateListeners = new Map();
 
       // The js/teardownJs source strings are the canonical executable form of
       // a plugin package: they are what gets persisted and reconstructed
-      // after a reload. Empty strings (common in CSS-only theme packages)
-      // count as absent.
+      // after a reload, and what gets handed to a fresh worker on every
+      // enable. Empty strings (common in CSS-only theme packages) count as
+      // absent.
       const jsSource =
         (typeof pkg.js === 'string' && pkg.js.trim()) ? pkg.js :
         (typeof pkg.javascript === 'string' && pkg.javascript.trim()) ? pkg.javascript : null;
@@ -1144,13 +1352,11 @@ const dataUpdateListeners = new Map();
         (typeof pkg.teardownJs === 'string' && pkg.teardownJs.trim()) ? pkg.teardownJs :
         (typeof pkg.teardown === 'string' && pkg.teardown.trim()) ? pkg.teardown : null;
 
-      // Compile source strings unless the caller supplied real functions.
-      // A syntax error here throws before anything is registered.
-      if (!pkg.setup && jsSource) {
-        pkg.setup = _createSandboxedFunction(jsSource);
-      }
-      const teardownFn = (typeof pkg.teardown === 'function') ? pkg.teardown :
-        (teardownSource ? _createSandboxedFunction(teardownSource) : undefined);
+      // Syntax-check (never execute) source strings unless the caller
+      // supplied real functions. A syntax error here throws before anything
+      // is registered.
+      if (!pkg.setup && jsSource) _checkSyntax(jsSource);
+      if (typeof pkg.teardown !== 'function' && teardownSource) _checkSyntax(teardownSource);
 
       // Generate base ID
       let id = pkg.manifest.id || pkg.manifest.name.toLowerCase().replace(/\s+/g, '-');
@@ -1164,7 +1370,7 @@ const dataUpdateListeners = new Map();
       const definition = {
         manifest: pkg.manifest,
         setup: pkg.setup,
-        teardown: teardownFn,
+        teardown: (typeof pkg.teardown === 'function') ? pkg.teardown : undefined,
         css: pkg.css,
         js: jsSource,
         teardownJs: teardownSource
@@ -1188,14 +1394,21 @@ const dataUpdateListeners = new Map();
       }
 
       // Only CSS-only themes (SAFE) enable silently — they execute no
-      // JavaScript. Anything carrying JS goes through enable(), whose
-      // full-trust consent dialog the user must accept first (CS-002);
-      // declining leaves the plugin installed-but-suspended. App-layer
+      // JavaScript. Anything carrying JS goes through enable(), which now
+      // runs inside a dedicated sandboxed worker (CS-002, resolved) gated
+      // only by the plugin's declared, user-granted permissions. App-layer
       // (HIGH) plugins always stay suspended until enabled explicitly.
+      //
+      // Time-boxed the same way boot's syncFromStore() is: a LOW-risk
+      // plugin's `js` auto-enabling here is exactly as capable of hanging
+      // (an infinite loop, a Promise that never resolves) as one restored
+      // at boot, and install() is typically awaited directly from UI code —
+      // an unbounded hang here would freeze the Plugin Manager, not just
+      // fail to enable one plugin.
       const risk = this.assessModRisk(pkg);
       if (risk === 'SAFE' || risk === 'LOW') {
         try {
-          await this.enable(id);
+          await this._enableWithTimeout(id);
         } catch (err) {
           console.warn('[Plugin] Installed but not enabled', id, ':', err.message);
         }
@@ -1212,8 +1425,6 @@ const dataUpdateListeners = new Map();
 
       const manifest = pkg.manifest;
       const layer = manifest.layer || 'feature';
-      // Check both function-form (setup/teardown) and string-form (js/javascript) so that
-      // raw JSON packages that have not yet been through install() are assessed correctly.
       const hasJS = !!pkg.setup || !!pkg.teardown || !!pkg.js || !!pkg.javascript;
       const hasCSS = !!pkg.css;
       const hasOverrides = !!pkg.overrides || !!(manifest.overrides);
@@ -1221,11 +1432,6 @@ const dataUpdateListeners = new Map();
       if (layer === 'theme' && !hasJS && hasCSS) {
         return 'SAFE';
       }
-      // The feature layer is, by definition, the JavaScript-carrying tier: a
-      // feature plugin runs through the plugin API and enabling it always goes
-      // through the explicit full-trust consent dialog (see enable()), which is
-      // the real disclosure. LOW here reflects "auto-enables after consent",
-      // not "runs with no gate". App layer / component overrides are HIGH.
       if (layer === 'feature' && !hasOverrides) {
         return 'LOW';
       }
@@ -1236,9 +1442,6 @@ const dataUpdateListeners = new Map();
     },
 
     syncFromStore: async function(safeMode) {
-      // When the caller does not know the safe-mode state (e.g. a re-sync
-      // after an async IndexedDB/local-file payload arrives), derive it from
-      // the URL so ?safemode reliably keeps every sync path disabled.
       if (typeof safeMode === 'undefined' && typeof window !== 'undefined' &&
           window.location && typeof window.location.search === 'string') {
         safeMode = new URLSearchParams(window.location.search).has('safemode');
@@ -1260,16 +1463,10 @@ const dataUpdateListeners = new Map();
       for (const id of pluginIds) {
         const pluginData = storedPlugins[id];
 
-        // Idempotent: a plugin already registered this session (e.g. by an
-        // earlier sync, or because an async storage mirror re-triggered the
-        // sync after boot) is left untouched.
         if (plugins.has(id)) {
           continue;
         }
 
-        // Entries without a definition are legacy-format plugins that the
-        // current runtime cannot execute; they are surfaced (read-only) in
-        // the Plugin Manager UI for export/removal.
         if (!pluginData || !pluginData.definition) {
           continue;
         }
@@ -1277,21 +1474,12 @@ const dataUpdateListeners = new Map();
         try {
           const stored = pluginData.definition;
 
-          // Reconstruct executable functions from the persisted source
-          // strings on a fresh definition object — never mutate the stored
-          // entry, which must stay JSON-serializable.
           const def = {
             manifest: stored.manifest,
             css: stored.css,
             js: (typeof stored.js === 'string' && stored.js.trim()) ? stored.js : null,
             teardownJs: (typeof stored.teardownJs === 'string' && stored.teardownJs.trim()) ? stored.teardownJs : null
           };
-          if (def.js) {
-            def.setup = _createSandboxedFunction(def.js);
-          }
-          if (def.teardownJs) {
-            def.teardown = _createSandboxedFunction(def.teardownJs);
-          }
 
           this.register(id, def);
 
@@ -1299,10 +1487,6 @@ const dataUpdateListeners = new Map();
             try {
               await this._enableWithTimeout(id);
             } catch (enableErr) {
-              // A plugin that throws or hangs during boot re-enable is
-              // quarantined (persisted as suspended) so it can neither block
-              // boot (the enable is time-boxed) nor re-break every subsequent
-              // boot. The user can re-enable it from the Plugin Manager.
               console.error('[Plugin] Boot re-enable failed; suspending', id, ':', enableErr);
               this._persistEnabledState(id, false);
             }
@@ -1315,10 +1499,10 @@ const dataUpdateListeners = new Map();
 
     // Time-box enable() so a single plugin with a never-resolving setup()
     // cannot block the sequential boot sync and leave the app on a blank
-    // screen. The timeout unblocks the boot loop; a still-pending setup is
-    // simply abandoned (not awaited).
+    // screen. For a sandboxed plugin this also forcibly terminates the
+    // worker on timeout — a capability main-thread execution never had.
     _enableWithTimeout: async function(id, timeoutMs) {
-      const limit = typeof timeoutMs === 'number' ? timeoutMs : 5000;
+      const limit = typeof timeoutMs === 'number' ? timeoutMs : ENABLE_TIMEOUT_MS;
       let timer = null;
       const timeout = new Promise((_resolve, reject) => {
         timer = setTimeout(
@@ -1328,6 +1512,14 @@ const dataUpdateListeners = new Map();
       });
       try {
         await Promise.race([this.enable(id), timeout]);
+      } catch (err) {
+        const instance = plugins.get(id);
+        if (instance && instance.workerHandle) {
+          instance.workerHandle.terminate();
+          instance.workerHandle = null;
+          this._stopHangWatcherIfIdle();
+        }
+        throw err;
       } finally {
         if (timer) clearTimeout(timer);
       }
@@ -1338,7 +1530,8 @@ const dataUpdateListeners = new Map();
      * Dynamically build a settings panel from the plugin's config object.
      * Each config key becomes a labelled form input whose type is inferred
      * from the value type (boolean → checkbox, number → number, else → text).
-     * Changes made in the panel are written back to the plugin's live context.
+     * Changes made in the panel are written back to the plugin's live config
+     * (and, for sandboxed plugins, the worker's `ctx.config` on next enable).
      *
      * @param {string} id - Plugin ID
      * @returns {HTMLElement|null} A <div class="plugin-settings-panel"> element,
@@ -1393,7 +1586,6 @@ const dataUpdateListeners = new Map();
         input.setAttribute('data-config-key', key);
         input.setAttribute('data-plugin-id', id);
 
-        // Write changes back to the live config object and context
         input.onchange = function() {
           let newValue;
           if (valueType === 'boolean') {
@@ -1407,7 +1599,6 @@ const dataUpdateListeners = new Map();
           if (instance.context && instance.context.config) {
             instance.context.config[key] = newValue;
           }
-          // Persist the new value so plugin settings survive a reload.
           if (window.store && window.store.plugins && window.store.plugins[id]) {
             const storedDef = window.store.plugins[id].definition;
             if (storedDef && storedDef.manifest && storedDef.manifest.config) {
@@ -1431,14 +1622,33 @@ const dataUpdateListeners = new Map();
   console.log('[Plugin] API system initialized');
 
 export { PluginManager as Plugin };
-export { _createSandboxedFunction as PluginSandbox };
+// PLUGIN_INVARIANTS.md §1: window.CardSpoke.PluginSandbox must keep the
+// shape { createFunction }. Pre-sandbox, createFunction(code) returned a
+// callable wrapper that actually ran the code on the main thread; nothing in
+// this codebase or the Plugin Manager UI was found to consume that return
+// value, so it is repurposed here as a syntax-check-only function (throws on
+// bad JS, otherwise returns undefined) — the single compilation point is
+// retained, but "compilation" no longer implies "capable of unsandboxed
+// execution." Real execution always happens inside a plugin's own worker.
+export { _checkSyntax as PluginSandbox };
 
 // Reset internal state (used in tests for isolation)
 export function resetForTesting() {
+  // Terminate any still-live sandboxed workers before dropping their
+  // instances — otherwise a test that installs/enables a JS-bearing plugin
+  // and never explicitly disables it before the next resetForTesting() call
+  // leaks a real, un-terminated worker thread for the rest of the process.
+  plugins.forEach(instance => {
+    if (instance.workerHandle) {
+      try { instance.workerHandle.terminate(); } catch (_e) { /* ignore */ }
+    }
+  });
   plugins.clear();
   pluginResources.clear();
   dataUpdateListeners.clear();
   globalEventBus.clear();
+  cardRenderPluginIds.clear();
+  if (hangWatcherTimer) { clearInterval(hangWatcherTimer); hangWatcherTimer = null; }
   // Drop captured host references so each test re-captures from its own
   // window/document mock instead of a stale one from a previous file.
   InternalAPI.data = {};

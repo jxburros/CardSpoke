@@ -1,11 +1,12 @@
 {
   "_readme": [
     "CardSpoke plugin package template. Copy this file, fill in the fields, then install it via Plugin Manager -> Install (or Plugin.install(pkg)).",
-    "The `js` string is your setup code: it runs as the BODY of a function receiving `ctx` whenever the plugin is enabled. Do NOT call registerPlugin from it.",
+    "The `js` string is your setup code: it runs, inside your own sandboxed Worker, as the BODY of an async function receiving `ctx` whenever the plugin is enabled. Do NOT call registerPlugin from it.",
+    "There is no DOM/window/fetch/localStorage in that worker. Build UI with ctx.h(tag, props, children) instead of document.createElement; every ctx.api.* call is async — use await.",
     "Everything you create through ctx.api.* (DOM injections, components, middleware, event listeners) is tracked and cleaned up automatically when the plugin is suspended or removed.",
-    "`teardownJs` is optional extra cleanup for things the tracker cannot see (setInterval, MutationObserver, ...). It receives the same ctx object as setup.",
+    "`teardownJs` is optional extra cleanup for things the tracker cannot see (setInterval, ...). It receives the same ctx object as setup.",
     "layer: 'theme' = CSS only (auto-enabled) | 'feature' = CSS+JS (auto-enabled unless it declares overrides) | 'app' = deep transformation (user must enable it manually).",
-    "permissions your js needs: 'ui-override' (ctx.api.ui.inject/replace/registerComponent), 'data-modify' (create/update/delete cards, tags), 'storage' (ctx.api.storage), 'network' (ctx.api.network), 'filesystem' (ctx.api.filesystem). The user is asked for consent on first enable.",
+    "permissions your js needs: 'ui-override' (ctx.api.ui.inject/replace/registerComponent), 'data-modify' (create/update/delete cards, tags), 'storage' (ctx.api.storage), 'network' (ctx.api.network), 'filesystem' (ctx.api.filesystem). The user is asked for consent on first enable, and the sandbox enforces it — a denied permission is not reachable, not just discouraged.",
     "Full documentation: docs/architecture/PLUGIN_SYSTEM.md. Hard constraints: docs/architecture/PLUGIN_INVARIANTS.md."
   ],
   "id": "my-plugin",
@@ -19,10 +20,10 @@
     "permissions": [
       "ui-override"
     ],
-    "compatibility": ">=0.17.0",
+    "compatibility": ">=0.21.0",
     "config": {}
   },
   "css": "/* Optional. Injected while the plugin is enabled, removed when suspended. */",
-  "js": "var el = document.createElement('span');\nel.textContent = 'Hello from My Plugin';\nctx.api.ui.inject('.header', el, 'append');\nctx.api.ui.showToast('My Plugin enabled', 'success');\nctx.logger.info('setup complete');\n",
-  "teardownJs": "// Optional. Extra cleanup for timers/observers; tracked resources are removed automatically."
+  "js": "var el = ctx.h('span', {}, 'Hello from My Plugin');\nawait ctx.api.ui.inject('.header', el, 'append');\nctx.api.ui.showToast('My Plugin enabled', 'success');\nctx.logger.info('setup complete');\n",
+  "teardownJs": "// Optional. Extra cleanup for timers; tracked resources are removed automatically."
 }

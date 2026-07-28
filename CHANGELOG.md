@@ -31,6 +31,85 @@ The format follows Keep a Changelog and the project uses semantic versioning whe
 
 ---
 
+## [0.21.0] – 2026-07-28
+
+**CS-002 resolved: plugin JavaScript now runs in a real sandbox, not a
+consent dialog.** Every JS-bearing plugin executes inside its own dedicated
+Web Worker with no `window`, `document`, `localStorage`, or raw `fetch`/
+`XMLHttpRequest`/`WebSocket`/`indexedDB`/`caches` — the only way out is a
+permission-gated `ctx.api` RPC into the host, and a denied permission is now
+genuinely unreachable, not just discouraged. This is a breaking change to the
+plugin contract (not to persisted data — `store.plugins`'s schema is
+unchanged): every `ctx.api` method is now asynchronous, UI is built with a
+new `ctx.h(...)` vnode helper instead of `document.createElement`, and the
+`card.render` hook was redesigned as a patch-returning decorator instead of
+handing plugins a live DOM node. There is no compatibility shim or toggle —
+every plugin that ships JavaScript needs the mechanical rewrite the six
+updated `sample-plugins/` packages demonstrate.
+
+### Security
+
+- **Plugin JavaScript is sandboxed (CS-002).** Replaces the "full-trust
+  consent" dialog (which honestly told users a plugin could reach anything,
+  because it could) with real Worker isolation. Permissions
+  (`ui-override`, `data-modify`, `storage`, `network`, `filesystem`) are now
+  an enforced capability grant, not a description of intent.
+- **A hung or malicious plugin can be killed outright.** A `setup()` that
+  never resolves — or spins in a genuine infinite loop — is time-boxed and
+  its worker is forcibly terminated. Previously, an infinite loop on the
+  main thread had no recovery path short of force-closing the app.
+- **Cross-plugin storage isolation is now real.** A plugin can no longer
+  read or collide with another plugin's `plugin_<id>_` namespaced storage
+  keys even by accident — `localStorage`/`indexedDB` aren't reachable from
+  inside the sandbox at all, only the namespaced `ctx.api.storage`.
+
+### Changed — breaking plugin API changes
+
+- Every `ctx.api.data.*`, `ctx.api.ui.*`, `ctx.api.middleware.register`, and
+  `ctx.api.events.*` method is now asynchronous — `await` it.
+- `ctx.api.ui.inject`/`replace` take a vnode (`ctx.h(tag, props, children)`)
+  instead of a real `HTMLElement`, since a sandboxed worker has no DOM to
+  build one with. They return `{ remove(), update(vnode) }` instead of a
+  bare undo function.
+- `ctx.api.ui.registerComponent`'s `render(props)` returns a vnode (may be
+  `async`) instead of synchronously returning an `HTMLElement`.
+- The `card.render` hook is no longer a `(mwCtx, next)` middleware fired
+  with a live `[card, cardTileElement]` — it's a batched decorator,
+  `(card, tileSnapshot) => patch`, with no live DOM access and no
+  `next()`/`stopPropagation()` (every registered decorator is independent
+  and additive). `card.create`/`update`/`delete`/`save` keep full
+  onion-model semantics.
+- `ctx.api.network.xhr()` is removed — `XMLHttpRequest`'s stateful,
+  event-driven shape doesn't cross a Worker boundary safely. Use
+  `ctx.api.network.fetch(url, options)`, which now returns a serializable
+  Response-shaped object instead of a real `Response`.
+- The full-trust consent dialog and its API (`Permissions.requestFullTrust`/
+  `hasFullTrust`/`grantFullTrust`/`revokeFullTrust`, the
+  `cardspoke_plugin_trust` localStorage key) are removed outright, with no
+  replacement — the per-permission consent dialogs are now the whole story.
+- All six JS-bearing sample plugins (`daily-journal`, `kanban-board`,
+  `pomodoro-desk`, `auto-save-indicator`, `card-color-tags`,
+  `card-reading-time`) and `TEMPLATE.json` are rewritten against the new API
+  — use them as the migration reference for any existing plugin.
+
+### Added
+
+- `www/src/core/plugin-worker-bootstrap.js`, `plugin-worker-manager.js`,
+  `plugin-rpc.js`, and `plugin-vnode.js` — the sandbox itself: the worker
+  entry point, per-plugin Worker lifecycle, the request/response +
+  function-handle RPC protocol shared by both sides, and the `ctx.h`/vnode
+  building blocks.
+- `scripts/build-plugin-worker.mjs` — bundles the worker entry point into a
+  standalone `www/plugin-worker-bootstrap.js`, run before `vite build`/`vite`
+  (Rollup's single-entry `iife` output can't also emit this as a second
+  chunk in the same build).
+- `tests/helpers/fake-worker-global.js` / `worker-thread-adapter.mjs` — a
+  test-only `Worker` global backed by a real Node `worker_threads` thread
+  running the actual production worker-bootstrap source, so plugin tests
+  exercise genuine thread isolation rather than a same-process mock.
+
+---
+
 ## [0.20.0] – 2026-07-20
 
 ### Changed

@@ -1,4 +1,4 @@
-// Version: 0.20.0
+// Version: 0.21.0
 (function() {
   "use strict";
   const middlewares = [];
@@ -375,9 +375,7 @@
   };
   console.log("[PluginValidator] Validation system initialized");
   const STORAGE_KEY = "cardspoke_plugin_permissions";
-  const TRUST_KEY = "cardspoke_plugin_trust";
   const grantedPermissions = /* @__PURE__ */ new Map();
-  const trustedPlugins = /* @__PURE__ */ new Set();
   function loadPermissions() {
     if (typeof localStorage === "undefined") return;
     try {
@@ -390,22 +388,6 @@
       }
     } catch (err) {
       console.error("[Permissions] Failed to load saved permissions:", err);
-    }
-    try {
-      const savedTrust = localStorage.getItem(TRUST_KEY);
-      if (savedTrust) {
-        JSON.parse(savedTrust).forEach((pluginId) => trustedPlugins.add(pluginId));
-      }
-    } catch (err) {
-      console.error("[Permissions] Failed to load saved trust grants:", err);
-    }
-  }
-  function saveTrust() {
-    try {
-      if (typeof localStorage === "undefined") return;
-      localStorage.setItem(TRUST_KEY, JSON.stringify(Array.from(trustedPlugins)));
-    } catch (err) {
-      console.error("[Permissions] Failed to save trust grants:", err);
     }
   }
   function savePermissions() {
@@ -508,58 +490,15 @@
       return granted;
     },
     /**
-     * Whether the user has accepted a plugin's JavaScript as fully trusted.
-     */
-    hasFullTrust: function(pluginId) {
-      return trustedPlugins.has(pluginId);
-    },
-    /** Record full-trust consent for a plugin (persisted). */
-    grantFullTrust: function(pluginId) {
-      trustedPlugins.add(pluginId);
-      saveTrust();
-      console.log("[Permissions] Full trust granted to", pluginId);
-    },
-    /** Remove full-trust consent (e.g. when the plugin is deleted). */
-    revokeFullTrust: function(pluginId) {
-      if (trustedPlugins.delete(pluginId)) {
-        saveTrust();
-        console.log("[Permissions] Full trust revoked from", pluginId);
-      }
-    },
-    /**
-     * Ask the user for full-trust consent before a JavaScript plugin runs.
-     * There is no script isolation in this runtime: plugin JS executes in
-     * the page realm and can reach everything the app can, regardless of
-     * declared permissions. The dialog says exactly that. Environments
-     * without a consent UI deny by default.
-     */
-    requestFullTrust: async function(pluginId, pluginName) {
-      if (this.hasFullTrust(pluginId)) {
-        return true;
-      }
-      if (typeof document === "undefined" || !document.body || typeof document.createElement !== "function" || typeof document.addEventListener !== "function") {
-        console.warn("[Permissions] No consent UI available; full trust denied for", pluginId);
-        return false;
-      }
-      const granted = await this._showDecisionDialog({
-        titleText: "Run Plugin Code?",
-        introText: '"' + pluginName + '" contains JavaScript. CardSpoke plugins are NOT sandboxed: this code will run with FULL access to this app — including every card in every unlocked dataset, browser storage, and the network. Declared permissions scope the plugin API but cannot contain malicious code.',
-        bulletItems: ["Only continue if you trust the author of this plugin."],
-        denyLabel: "Keep Suspended",
-        allowLabel: "Trust & Run"
-      });
-      if (granted) {
-        this.grantFullTrust(pluginId);
-      }
-      return granted;
-    },
-    /**
-     * Show permission consent dialog
+     * Show permission consent dialog. Plugin JavaScript now runs inside a
+     * dedicated Worker sandbox with no DOM/window/storage/network access of
+     * its own (CS-002, resolved) — granting one of these permissions is a
+     * real, enforced capability grant, not a description of intent.
      */
     _showConsentDialog: async function(pluginId, pluginName, permissions) {
       return this._showDecisionDialog({
         titleText: "Permission Request",
-        introText: '"' + pluginName + '" requests the following permissions. Note: permissions describe what the plugin API offers this plugin; they are not a security sandbox.',
+        introText: '"' + pluginName + '" runs in a sandboxed worker with no access to this app beyond what you grant below. It requests the following permissions:',
         bulletItems: permissions.map(function(perm) {
           return perm + ": " + (PERMISSION_DESCRIPTIONS[perm] || "Unknown permission");
         }),
@@ -666,13 +605,11 @@
       }));
     },
     /**
-     * Clear all permissions and trust grants (for testing)
+     * Clear all permissions (for testing)
      */
     clearAll: function() {
       grantedPermissions.clear();
       savePermissions();
-      trustedPlugins.clear();
-      saveTrust();
     }
   };
   loadPermissions();
@@ -771,10 +708,427 @@
     }
   };
   console.log("[StorageDriverRegistry] System initialized");
+  function isPlainObject(value) {
+    if (value === null || typeof value !== "object") return false;
+    if (Array.isArray(value)) return false;
+    if (value instanceof Date || value instanceof Map || value instanceof Set) return false;
+    if (typeof ArrayBuffer !== "undefined" && (value instanceof ArrayBuffer || ArrayBuffer.isView(value))) return false;
+    return true;
+  }
+  function createRpcChannel(options) {
+    const postMessage = options.postMessage;
+    const addListener = options.addListener;
+    const onCall = options.onCall || function() {
+      throw new Error("No call handler registered for this RPC channel");
+    };
+    let nextId = 1;
+    let nextHandle = 1;
+    const pending = /* @__PURE__ */ new Map();
+    const callbacks = /* @__PURE__ */ new Map();
+    const functionToHandle = /* @__PURE__ */ new WeakMap();
+    const handleToLocalStub = /* @__PURE__ */ new Map();
+    function send(msg) {
+      postMessage(msg);
+    }
+    function serialize(value) {
+      if (typeof value === "function") {
+        let handle = functionToHandle.get(value);
+        if (handle === void 0) {
+          handle = nextHandle++;
+          functionToHandle.set(value, handle);
+          callbacks.set(handle, value);
+        }
+        return { __rpcHandle: handle };
+      }
+      if (Array.isArray(value)) {
+        return value.map(serialize);
+      }
+      if (isPlainObject(value)) {
+        const out = {};
+        for (const key of Object.keys(value)) out[key] = serialize(value[key]);
+        return out;
+      }
+      return value;
+    }
+    function deserialize(value) {
+      if (value && typeof value === "object" && typeof value.__rpcHandle === "number") {
+        const handle = value.__rpcHandle;
+        let stub = handleToLocalStub.get(handle);
+        if (!stub) {
+          stub = function remoteCallback() {
+            return invoke(handle, Array.prototype.slice.call(arguments));
+          };
+          handleToLocalStub.set(handle, stub);
+        }
+        return stub;
+      }
+      if (Array.isArray(value)) {
+        return value.map(deserialize);
+      }
+      if (isPlainObject(value)) {
+        const out = {};
+        for (const key of Object.keys(value)) out[key] = deserialize(value[key]);
+        return out;
+      }
+      return value;
+    }
+    function call(path, args, opts) {
+      const id = nextId++;
+      const promise = new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject, sentAt: Date.now() });
+      });
+      send({ id, kind: "call", path, args: serialize(args || []) });
+      return withTimeout(id, promise, opts && opts.timeoutMs);
+    }
+    function invoke(handle, args, opts) {
+      const id = nextId++;
+      const promise = new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject, sentAt: Date.now() });
+      });
+      send({ id, kind: "invoke", handle, args: serialize(args || []) });
+      return withTimeout(id, promise, opts && opts.timeoutMs);
+    }
+    function withTimeout(id, promise, timeoutMs) {
+      if (!timeoutMs) return promise;
+      let timer = null;
+      const timeout = new Promise((_resolve, reject) => {
+        timer = setTimeout(() => {
+          const entry = pending.get(id);
+          if (entry) {
+            pending.delete(id);
+            reject(new Error("RPC call timed out after " + timeoutMs + "ms"));
+          }
+        }, timeoutMs);
+      });
+      return Promise.race([promise, timeout]).finally(() => {
+        if (timer) clearTimeout(timer);
+      });
+    }
+    async function handleMessage(msg) {
+      if (!msg || typeof msg !== "object" || typeof msg.id !== "number" || typeof msg.kind !== "string") {
+        return;
+      }
+      switch (msg.kind) {
+        case "call": {
+          try {
+            const result = await onCall(msg.path, deserialize(msg.args));
+            send({ id: msg.id, kind: "result", value: serialize(result) });
+          } catch (err) {
+            send({ id: msg.id, kind: "error", message: describeError(err) });
+          }
+          break;
+        }
+        case "invoke": {
+          try {
+            const fn = callbacks.get(msg.handle);
+            if (!fn) throw new Error("Unknown callback handle: " + msg.handle);
+            const result = await fn.apply(null, deserialize(msg.args));
+            send({ id: msg.id, kind: "invoke-result", value: serialize(result) });
+          } catch (err) {
+            send({ id: msg.id, kind: "invoke-error", message: describeError(err) });
+          }
+          break;
+        }
+        case "result":
+        case "invoke-result": {
+          const entry = pending.get(msg.id);
+          if (entry) {
+            pending.delete(msg.id);
+            entry.resolve(deserialize(msg.value));
+          }
+          break;
+        }
+        case "error":
+        case "invoke-error": {
+          const entry = pending.get(msg.id);
+          if (entry) {
+            pending.delete(msg.id);
+            entry.reject(new Error(msg.message || "RPC call failed"));
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    }
+    function describeError(err) {
+      if (err && typeof err.message === "string") return err.message;
+      return String(err);
+    }
+    addListener(handleMessage);
+    return {
+      call,
+      invoke,
+      releaseCallback(handle) {
+        callbacks.delete(handle);
+      },
+      /** Reject every in-flight request (used when a worker is being terminated). */
+      rejectAll(err) {
+        pending.forEach((entry) => entry.reject(err));
+        pending.clear();
+      },
+      /** Age in ms of the oldest still-pending request, or 0 if none. Used for hang detection. */
+      oldestPendingAgeMs() {
+        let oldest = 0;
+        const now = Date.now();
+        pending.forEach((entry) => {
+          const age = now - entry.sentAt;
+          if (age > oldest) oldest = age;
+        });
+        return oldest;
+      },
+      pendingCount() {
+        return pending.size;
+      }
+    };
+  }
+  function dispatch(handlers, path, args) {
+    if (!Array.isArray(path) || path.length === 0) {
+      throw new Error("Invalid RPC path");
+    }
+    let target = handlers;
+    for (let i = 0; i < path.length - 1; i++) {
+      target = target && target[path[i]];
+      if (!target) throw new Error("Unknown RPC path: " + path.join("."));
+    }
+    const method = target && target[path[path.length - 1]];
+    if (typeof method !== "function") {
+      throw new Error("Unknown RPC method: " + path.join("."));
+    }
+    return method.apply(target, args || []);
+  }
+  const WORKER_SCRIPT_URL = "./plugin-worker-bootstrap.js";
+  const READY_TIMEOUT_MS = 5e3;
+  async function createPluginWorker(pluginId, initPayload, onCall) {
+    const worker = new Worker(WORKER_SCRIPT_URL, { type: "module" });
+    let terminated = false;
+    let readyResolve, readyReject;
+    const ready = new Promise((resolve, reject) => {
+      readyResolve = resolve;
+      readyReject = reject;
+    });
+    const readyTimer = setTimeout(() => readyReject(new Error('Plugin worker for "' + pluginId + '" failed to start')), READY_TIMEOUT_MS);
+    const channel = createRpcChannel({
+      postMessage: (msg) => {
+        if (!terminated) worker.postMessage(msg);
+      },
+      addListener: (handler) => {
+        worker.addEventListener("message", (evt) => {
+          const data = evt.data;
+          if (data && data.kind === "ready") {
+            clearTimeout(readyTimer);
+            readyResolve();
+            return;
+          }
+          handler(data);
+        });
+      },
+      onCall
+    });
+    let onError = () => {
+    };
+    worker.addEventListener("error", (evt) => {
+      channel.rejectAll(new Error("Plugin worker error: " + (evt.message || "unknown error")));
+      onError(evt);
+    });
+    worker.addEventListener("messageerror", () => {
+      channel.rejectAll(new Error("Plugin worker sent an unclonable message"));
+    });
+    await ready;
+    await channel.call(["lifecycle", "init"], [Object.assign({ id: pluginId }, initPayload)]);
+    function terminate() {
+      if (terminated) return;
+      terminated = true;
+      channel.rejectAll(new Error('Plugin "' + pluginId + '" worker was terminated'));
+      worker.terminate();
+    }
+    return {
+      channel,
+      terminate,
+      onError: (fn) => {
+        onError = fn;
+      },
+      /**
+       * Race a call against a deadline; on timeout, forcibly terminate the
+       * worker (a capability main-thread plugin execution never had — a hung
+       * `while(true){}` in a worker can be killed outright instead of freezing
+       * the whole app).
+       */
+      async callWithDeadline(path, args, timeoutMs) {
+        let timer = null;
+        const timeout = new Promise((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error('Plugin "' + pluginId + '" timed out after ' + timeoutMs + "ms")), timeoutMs);
+        });
+        try {
+          return await Promise.race([channel.call(path, args), timeout]);
+        } finally {
+          clearTimeout(timer);
+        }
+      },
+      isHung(hangThresholdMs) {
+        return channel.oldestPendingAgeMs() > hangThresholdMs;
+      }
+    };
+  }
+  const EVENT_PROP_PATTERN = /^on([a-z]+)$/i;
+  function h$1(tag, props, children) {
+    if (typeof tag !== "string" || !tag) {
+      throw new Error("ctx.h: tag must be a non-empty string");
+    }
+    return {
+      __vnode: true,
+      tag,
+      props: props || {},
+      children: normalizeChildren(children)
+    };
+  }
+  function normalizeChildren(children) {
+    if (children == null) return [];
+    const flat = Array.isArray(children) ? children : [children];
+    return flat.filter((c) => c !== null && c !== void 0 && c !== false);
+  }
+  function isVnode(value) {
+    return !!(value && typeof value === "object" && value.__vnode);
+  }
+  function applyProps(el, props) {
+    Object.keys(props || {}).forEach((key) => {
+      const value = props[key];
+      if (value === null || value === void 0) return;
+      if (key === "style") {
+        if (typeof value === "string") {
+          el.style.cssText = value;
+        } else if (typeof value === "object") {
+          Object.keys(value).forEach((prop) => {
+            el.style[prop] = value[prop];
+          });
+        }
+        return;
+      }
+      if (key === "dataset") {
+        Object.keys(value).forEach((dk) => {
+          el.dataset[dk] = value[dk];
+        });
+        return;
+      }
+      if (key === "className" || key === "class") {
+        el.className = value;
+        return;
+      }
+      const eventMatch = key.match(EVENT_PROP_PATTERN);
+      if (eventMatch && typeof value === "function") {
+        const eventType = eventMatch[1].toLowerCase();
+        el.addEventListener(eventType, makeDomListener(value));
+        return;
+      }
+      if (typeof value === "boolean") {
+        if (value) el.setAttribute(key, "");
+        else el.removeAttribute(key);
+        if (key in el) {
+          try {
+            el[key] = value;
+          } catch (_e) {
+          }
+        }
+      } else {
+        el.setAttribute(key, String(value));
+        if (key === "value" && "value" in el) el.value = value;
+      }
+    });
+  }
+  function makeDomListener(remoteHandler) {
+    return function domListener(event) {
+      const descriptor = {
+        type: event.type,
+        key: event.key,
+        code: event.code,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        target: {
+          value: event.target && "value" in event.target ? event.target.value : void 0,
+          checked: event.target && "checked" in event.target ? event.target.checked : void 0,
+          dataset: event.target && event.target.dataset ? Object.assign({}, event.target.dataset) : void 0
+        }
+      };
+      return Promise.resolve(remoteHandler(descriptor)).then((result) => {
+        if (result && result.preventDefault) event.preventDefault();
+        if (result && result.stopPropagation) event.stopPropagation();
+      }).catch((err) => {
+        console.error("[Plugin] Event handler error:", err);
+      });
+    };
+  }
+  function vnodeToDOM(vnode) {
+    if (vnode === null || vnode === void 0) return document.createTextNode("");
+    if (typeof vnode === "string" || typeof vnode === "number") {
+      return document.createTextNode(String(vnode));
+    }
+    if (!isVnode(vnode)) {
+      throw new Error("Invalid vnode: expected the result of ctx.h(...)");
+    }
+    const el = document.createElement(vnode.tag);
+    applyProps(el, vnode.props);
+    vnode.children.forEach((child) => {
+      el.appendChild(vnodeToDOM(child));
+    });
+    return el;
+  }
+  function updateElementFromVnode(el, vnode) {
+    if (!isVnode(vnode)) {
+      throw new Error("Invalid vnode: expected the result of ctx.h(...)");
+    }
+    Array.from(el.attributes).forEach((attr) => {
+      if (attr.name.indexOf("data-plugin") !== 0) el.removeAttribute(attr.name);
+    });
+    while (el.firstChild) el.removeChild(el.firstChild);
+    applyProps(el, vnode.props);
+    vnode.children.forEach((child) => {
+      el.appendChild(vnodeToDOM(child));
+    });
+  }
+  function applyPatch(rootEl, patch) {
+    if (!patch || typeof patch !== "object") return;
+    (patch.addClass || []).forEach((cls) => rootEl.classList.add(cls));
+    (patch.removeClass || []).forEach((cls) => rootEl.classList.remove(cls));
+    Object.keys(patch.setStyle || {}).forEach((selector) => {
+      const target = selector === "" ? rootEl : rootEl.querySelector(selector);
+      if (!target) return;
+      const styles = patch.setStyle[selector];
+      Object.keys(styles).forEach((prop) => {
+        target.style[prop] = styles[prop];
+      });
+    });
+    Object.keys(patch.setStyleByIndex || {}).forEach((selector) => {
+      const targets = rootEl.querySelectorAll(selector);
+      const stylesList = patch.setStyleByIndex[selector];
+      targets.forEach((target, i) => {
+        const styles = stylesList[i];
+        if (!styles) return;
+        Object.keys(styles).forEach((prop) => {
+          target.style[prop] = styles[prop];
+        });
+      });
+    });
+    Object.keys(patch.appendChildren || {}).forEach((selector) => {
+      const target = selector === "" ? rootEl : rootEl.querySelector(selector);
+      if (!target) return;
+      (patch.appendChildren[selector] || []).forEach((vnode) => {
+        target.appendChild(vnodeToDOM(vnode));
+      });
+    });
+    Object.keys(patch.prependChildren || {}).forEach((selector) => {
+      const target = selector === "" ? rootEl : rootEl.querySelector(selector);
+      if (!target) return;
+      (patch.prependChildren[selector] || []).slice().reverse().forEach((vnode) => {
+        target.insertBefore(vnodeToDOM(vnode), target.firstChild);
+      });
+    });
+  }
   const plugins = /* @__PURE__ */ new Map();
   const pluginResources = /* @__PURE__ */ new Map();
   const dataUpdateListeners = /* @__PURE__ */ new Map();
+  let nextDomHandleId = 1;
   const globalEventBus = /* @__PURE__ */ new Map();
+  const cardRenderPluginIds = /* @__PURE__ */ new Set();
   const InternalAPI = {
     data: {},
     ui: {},
@@ -798,121 +1152,30 @@
     }
     return true;
   }
-  function createUIApi(pluginId) {
+  function trackResource(pluginId, resource) {
     const resources = pluginResources.get(pluginId) || /* @__PURE__ */ new Set();
-    return {
-      inject: function(selector, element, position) {
-        if (!hasPermission(pluginId, "ui-override")) {
-          throw new Error("Plugin does not have ui-override permission");
-        }
-        position = position || "append";
-        const target = document.querySelector(selector);
-        if (!target) {
-          console.warn("[Plugin:" + pluginId + "] Selector not found:", selector);
-          return () => {
-          };
-        }
-        switch (position) {
-          case "before":
-            if (!target.parentNode) {
-              console.warn("[Plugin:" + pluginId + '] Target has no parent node for "before" injection');
-              return () => {
-              };
-            }
-            target.parentNode.insertBefore(element, target);
-            break;
-          case "after":
-            if (!target.parentNode) {
-              console.warn("[Plugin:" + pluginId + '] Target has no parent node for "after" injection');
-              return () => {
-              };
-            }
-            target.parentNode.insertBefore(element, target.nextSibling);
-            break;
-          case "prepend":
-            target.insertBefore(element, target.firstChild);
-            break;
-          case "append":
-          default:
-            target.appendChild(element);
-            break;
-        }
-        const resource = { type: "dom", element };
-        resources.add(resource);
-        return function() {
-          if (element.parentNode) {
-            element.parentNode.removeChild(element);
-          }
-          resources.delete(resource);
-        };
-      },
-      replace: function(selector, element) {
-        if (!hasPermission(pluginId, "ui-override")) {
-          throw new Error("Plugin does not have ui-override permission");
-        }
-        const target = document.querySelector(selector);
-        if (!target) {
-          console.warn("[Plugin:" + pluginId + "] Selector not found:", selector);
-          return () => {
-          };
-        }
-        const original = target;
-        if (!target.parentNode) {
-          console.warn("[Plugin:" + pluginId + "] Target has no parent node for replace");
-          return () => {
-          };
-        }
-        target.parentNode.replaceChild(element, target);
-        const resource = { type: "dom", element, original };
-        resources.add(resource);
-        return function() {
-          if (element.parentNode) {
-            element.parentNode.replaceChild(original, element);
-          }
-          resources.delete(resource);
-        };
-      },
-      registerComponent: function(name, component) {
-        if (!hasPermission(pluginId, "ui-override")) {
-          throw new Error("Plugin does not have ui-override permission");
-        }
-        if (ComponentRegistry) {
-          const won = ComponentRegistry.register(name, component, component.priority || 0);
-          if (won) {
-            const resource = { type: "component", name, component };
-            resources.add(resource);
-          }
-        }
-      },
-      unregisterComponent: function(name) {
-        if (ComponentRegistry) {
-          ComponentRegistry.unregister(name);
-        }
-      },
-      showToast: function(message, type, duration) {
-        var fn = InternalAPI.ui.showToast || window.showToast;
-        if (fn) {
-          fn(message, type || "info", duration);
-        }
-      }
-    };
+    resources.add(resource);
+    return resource;
   }
   function createDataApi(pluginId) {
-    const resources = pluginResources.get(pluginId) || /* @__PURE__ */ new Set();
     return {
       onUpdate: function(callback) {
         const listeners = dataUpdateListeners.get(pluginId) || [];
         listeners.push(callback);
         dataUpdateListeners.set(pluginId, listeners);
-        const resource = { type: "listener", callback };
-        resources.add(resource);
+        const resource = trackResource(pluginId, { type: "listener", callback });
         return function() {
           const idx = listeners.indexOf(callback);
-          if (idx !== -1) {
-            listeners.splice(idx, 1);
-          }
-          resources.delete(resource);
+          if (idx !== -1) listeners.splice(idx, 1);
+          const resources = pluginResources.get(pluginId);
+          if (resources) resources.delete(resource);
         };
+      },
+      offUpdate: function(callback) {
+        const listeners = dataUpdateListeners.get(pluginId);
+        if (!listeners) return;
+        const idx = listeners.indexOf(callback);
+        if (idx !== -1) listeners.splice(idx, 1);
       },
       getCard: function(id) {
         if (window.store && window.store.cards && window.store.cards[id]) {
@@ -983,9 +1246,7 @@
       },
       getTags: function(cardId) {
         var fn = InternalAPI.data.getTags || window.getTags;
-        if (fn) {
-          return fn(cardId);
-        }
+        if (fn) return fn(cardId);
         return [];
       },
       addTag: function(cardId, tag) {
@@ -993,9 +1254,7 @@
           throw new Error("Plugin does not have data-modify permission");
         }
         var fn = InternalAPI.data.addTag || window.addTag;
-        if (fn) {
-          return fn(cardId, tag);
-        }
+        if (fn) return fn(cardId, tag);
         return false;
       },
       removeTag: function(cardId, tag) {
@@ -1003,9 +1262,7 @@
           throw new Error("Plugin does not have data-modify permission");
         }
         var fn = InternalAPI.data.removeTag || window.removeTag;
-        if (fn) {
-          return fn(cardId, tag);
-        }
+        if (fn) return fn(cardId, tag);
         return false;
       },
       setTags: function(cardId, tags) {
@@ -1013,16 +1270,12 @@
           throw new Error("Plugin does not have data-modify permission");
         }
         var fn = InternalAPI.data.setTags || window.setTags;
-        if (fn) {
-          return fn(cardId, tags);
-        }
+        if (fn) return fn(cardId, tags);
         return false;
       },
       getAllTags: function() {
         var fn = InternalAPI.data.getAllTags || window.getAllTags;
-        if (fn) {
-          return fn();
-        }
+        if (fn) return fn();
         return [];
       }
     };
@@ -1089,49 +1342,36 @@
     };
   }
   function createEventApi(pluginId) {
-    const resources = pluginResources.get(pluginId) || /* @__PURE__ */ new Set();
     return {
       on: function(event, callback) {
-        if (!globalEventBus.has(event)) {
-          globalEventBus.set(event, []);
-        }
+        if (!globalEventBus.has(event)) globalEventBus.set(event, []);
         const handlers = globalEventBus.get(event);
         handlers.push({ pluginId, callback });
-        const resource = { type: "event", event, callback };
-        resources.add(resource);
+        const resource = trackResource(pluginId, { type: "event", event, callback });
         return function() {
           const list = globalEventBus.get(event);
           if (list) {
             const idx = list.findIndex(function(h2) {
               return h2.callback === callback && h2.pluginId === pluginId;
             });
-            if (idx !== -1) {
-              list.splice(idx, 1);
-            }
+            if (idx !== -1) list.splice(idx, 1);
           }
-          resources.delete(resource);
+          const resources = pluginResources.get(pluginId);
+          if (resources) resources.delete(resource);
         };
       },
-      emit: function(event) {
+      emit: function(event, args) {
         const handlers = globalEventBus.get(event);
         if (handlers) {
-          const args = Array.prototype.slice.call(arguments, 1);
+          const callArgs = Array.isArray(args) ? args : Array.prototype.slice.call(arguments, 1);
           handlers.slice().forEach(function(entry) {
             try {
-              entry.callback.apply(null, args);
+              entry.callback.apply(null, callArgs);
             } catch (err) {
               console.error("[EventBus] Handler error in plugin " + entry.pluginId + ":", err);
             }
           });
         }
-      },
-      once: function(event, callback) {
-        const self = this;
-        const wrapper = function() {
-          self.off(event, wrapper);
-          callback.apply(null, arguments);
-        };
-        return this.on(event, wrapper);
       },
       off: function(event, callback) {
         const list = globalEventBus.get(event);
@@ -1139,67 +1379,8 @@
           const idx = list.findIndex(function(h2) {
             return h2.callback === callback && h2.pluginId === pluginId;
           });
-          if (idx !== -1) {
-            list.splice(idx, 1);
-          }
+          if (idx !== -1) list.splice(idx, 1);
         }
-      }
-    };
-  }
-  function createMiddlewareApi(pluginId) {
-    const resources = pluginResources.get(pluginId) || /* @__PURE__ */ new Set();
-    return {
-      /**
-       * Register a middleware interceptor for core operations
-       * ('card.create', 'card.update', 'card.delete', 'card.save',
-       * 'card.render', or '*'). The name is namespaced per plugin, and the
-       * registration is tracked so it is automatically removed when the
-       * plugin is disabled or unregistered.
-       *
-       * @param {Object} middleware - { name, priority?, operations?, handler }
-       * @returns {Function} Unregister function
-       */
-      register: function(middleware) {
-        if (!middleware || !middleware.name || typeof middleware.handler !== "function") {
-          throw new Error("Middleware must have a name and a handler function");
-        }
-        if (!MiddlewareManager) {
-          throw new Error("Middleware pipeline not available");
-        }
-        const namespacedName = pluginId + ":" + middleware.name;
-        MiddlewareManager.register({
-          name: namespacedName,
-          priority: middleware.priority || 0,
-          operations: middleware.operations || ["*"],
-          handler: middleware.handler
-        });
-        const resource = { type: "middleware", name: namespacedName };
-        resources.add(resource);
-        return function() {
-          MiddlewareManager.unregister(namespacedName);
-          resources.delete(resource);
-        };
-      },
-      unregister: function(name) {
-        if (MiddlewareManager) {
-          MiddlewareManager.unregister(pluginId + ":" + name);
-        }
-      }
-    };
-  }
-  function createNetworkApi(pluginId) {
-    return {
-      fetch: async function(url, options) {
-        if (!hasPermission(pluginId, "network")) {
-          throw new Error("Plugin does not have network permission");
-        }
-        return window.fetch(url, options);
-      },
-      xhr: function() {
-        if (!hasPermission(pluginId, "network")) {
-          throw new Error("Plugin does not have network permission");
-        }
-        return new XMLHttpRequest();
       }
     };
   }
@@ -1225,6 +1406,119 @@
       }
     };
   }
+  function createLegacyUIApi(pluginId) {
+    return {
+      inject: function(selector, element, position) {
+        if (!hasPermission(pluginId, "ui-override")) {
+          throw new Error("Plugin does not have ui-override permission");
+        }
+        position = position || "append";
+        const target = document.querySelector(selector);
+        if (!target) return () => {
+        };
+        switch (position) {
+          case "before":
+            if (!target.parentNode) return () => {
+            };
+            target.parentNode.insertBefore(element, target);
+            break;
+          case "after":
+            if (!target.parentNode) return () => {
+            };
+            target.parentNode.insertBefore(element, target.nextSibling);
+            break;
+          case "prepend":
+            target.insertBefore(element, target.firstChild);
+            break;
+          default:
+            target.appendChild(element);
+            break;
+        }
+        const resource = trackResource(pluginId, { type: "dom", element });
+        return function() {
+          if (element.parentNode) element.parentNode.removeChild(element);
+          const resources = pluginResources.get(pluginId);
+          if (resources) resources.delete(resource);
+        };
+      },
+      replace: function(selector, element) {
+        if (!hasPermission(pluginId, "ui-override")) {
+          throw new Error("Plugin does not have ui-override permission");
+        }
+        const target = document.querySelector(selector);
+        if (!target || !target.parentNode) return () => {
+        };
+        const original = target;
+        target.parentNode.replaceChild(element, target);
+        const resource = trackResource(pluginId, { type: "dom", element, original });
+        return function() {
+          if (element.parentNode) element.parentNode.replaceChild(original, element);
+          const resources = pluginResources.get(pluginId);
+          if (resources) resources.delete(resource);
+        };
+      },
+      registerComponent: function(name, component) {
+        if (!hasPermission(pluginId, "ui-override")) {
+          throw new Error("Plugin does not have ui-override permission");
+        }
+        if (ComponentRegistry) {
+          const won = ComponentRegistry.register(name, component, component.priority || 0);
+          if (won) {
+            if (name === "Card") cardRenderPluginIds.add(pluginId);
+            trackResource(pluginId, { type: "component", name, component });
+          }
+        }
+      },
+      unregisterComponent: function(name) {
+        if (ComponentRegistry) ComponentRegistry.unregister(name);
+        if (name === "Card") cardRenderPluginIds.delete(pluginId);
+      },
+      showToast: function(message, type, duration) {
+        var fn = InternalAPI.ui.showToast || window.showToast;
+        if (fn) fn(message, type || "info", duration);
+      }
+    };
+  }
+  function createLegacyMiddlewareApi(pluginId) {
+    return {
+      register: function(middleware) {
+        if (!middleware || !middleware.name || typeof middleware.handler !== "function") {
+          throw new Error("Middleware must have a name and a handler function");
+        }
+        if (!MiddlewareManager) throw new Error("Middleware pipeline not available");
+        const namespacedName = pluginId + ":" + middleware.name;
+        MiddlewareManager.register({
+          name: namespacedName,
+          priority: middleware.priority || 0,
+          operations: middleware.operations || ["*"],
+          handler: middleware.handler
+        });
+        trackResource(pluginId, { type: "middleware", name: namespacedName });
+        return function() {
+          MiddlewareManager.unregister(namespacedName);
+        };
+      },
+      unregister: function(name) {
+        if (MiddlewareManager) MiddlewareManager.unregister(pluginId + ":" + name);
+      }
+    };
+  }
+  function createLegacyNetworkApi(pluginId) {
+    return {
+      fetch: async function(url, options) {
+        if (!hasPermission(pluginId, "network")) {
+          throw new Error("Plugin does not have network permission");
+        }
+        return window.fetch(url, options);
+      },
+      xhr: function() {
+        if (!hasPermission(pluginId, "network")) {
+          throw new Error("Plugin does not have network permission");
+        }
+        return new XMLHttpRequest();
+      }
+    };
+  }
   function createLogger(pluginId) {
     const prefix = "[Plugin:" + pluginId + "]";
     return {
@@ -1242,46 +1536,244 @@
       }
     };
   }
-  function createPluginContext(pluginId) {
+  function createLegacyPluginContext(pluginId) {
     return {
       modId: pluginId,
-      appVersion: window.APP_VERSION || "0.20.0",
+      appVersion: window.APP_VERSION || "0.21.0",
       schemaVersion: window.SCHEMA_VERSION || 4,
       api: {
-        ui: createUIApi(pluginId),
+        ui: createLegacyUIApi(pluginId),
         data: createDataApi(pluginId),
         storage: createStorageApi(pluginId),
         events: createEventApi(pluginId),
-        middleware: createMiddlewareApi(pluginId),
-        network: createNetworkApi(pluginId),
+        middleware: createLegacyMiddlewareApi(pluginId),
+        network: createLegacyNetworkApi(pluginId),
         filesystem: createFilesystemApi(pluginId)
       },
       utils: window.CardSpoke && window.CardSpoke.utils ? window.CardSpoke.utils : {},
       logger: createLogger(pluginId)
     };
   }
-  function _createSandboxedFunction(code) {
-    const compiled = new Function("ctx", '"use strict";\n' + code);
-    const wrapper = function(ctx) {
-      return compiled(ctx);
+  function createWorkerUIHandlers(pluginId) {
+    const domHandles = /* @__PURE__ */ new Map();
+    function doInject(selector, vnode, position) {
+      if (!hasPermission(pluginId, "ui-override")) {
+        throw new Error("Plugin does not have ui-override permission");
+      }
+      position = position || "append";
+      const target = document.querySelector(selector);
+      if (!target) return null;
+      const element = vnodeToDOM(vnode);
+      switch (position) {
+        case "before":
+          if (!target.parentNode) return null;
+          target.parentNode.insertBefore(element, target);
+          break;
+        case "after":
+          if (!target.parentNode) return null;
+          target.parentNode.insertBefore(element, target.nextSibling);
+          break;
+        case "prepend":
+          target.insertBefore(element, target.firstChild);
+          break;
+        default:
+          target.appendChild(element);
+          break;
+      }
+      const handleId = nextDomHandleId++;
+      domHandles.set(handleId, { element });
+      trackResource(pluginId, { type: "dom", element });
+      return handleId;
+    }
+    function doReplace(selector, vnode) {
+      if (!hasPermission(pluginId, "ui-override")) {
+        throw new Error("Plugin does not have ui-override permission");
+      }
+      const target = document.querySelector(selector);
+      if (!target || !target.parentNode) return null;
+      const element = vnodeToDOM(vnode);
+      const original = target;
+      target.parentNode.replaceChild(element, target);
+      const handleId = nextDomHandleId++;
+      domHandles.set(handleId, { element, original });
+      trackResource(pluginId, { type: "dom", element, original });
+      return handleId;
+    }
+    return {
+      inject: function(selector, vnode, position) {
+        return doInject(selector, vnode, position);
+      },
+      replace: function(selector, vnode) {
+        return doReplace(selector, vnode);
+      },
+      removeInjected: function(handleId) {
+        const entry = domHandles.get(handleId);
+        if (!entry) return;
+        if (entry.original && entry.element.parentNode) {
+          entry.element.parentNode.replaceChild(entry.original, entry.element);
+        } else if (entry.element.parentNode) {
+          entry.element.parentNode.removeChild(entry.element);
+        }
+        domHandles.delete(handleId);
+      },
+      updateInjected: function(handleId, vnode) {
+        const entry = domHandles.get(handleId);
+        if (!entry) return;
+        updateElementFromVnode(entry.element, vnode);
+      },
+      registerComponent: function(name, priority) {
+        if (!hasPermission(pluginId, "ui-override")) {
+          throw new Error("Plugin does not have ui-override permission");
+        }
+        const instance = plugins.get(pluginId);
+        const component = {
+          priority: priority || 0,
+          render: async function(props) {
+            if (!instance || !instance.workerHandle) throw new Error("Plugin worker not available");
+            const vnode = await instance.workerHandle.callWithDeadline(["ui", "componentRender"], [name, props], BOOT_COMPONENT_TIMEOUT_MS);
+            return vnodeToDOM(vnode);
+          }
+        };
+        const won = ComponentRegistry.register(name, component, priority || 0);
+        if (won) {
+          if (name === "Card") cardRenderPluginIds.add(pluginId);
+          trackResource(pluginId, { type: "component", name, component });
+        }
+        return won;
+      },
+      unregisterComponent: function(name) {
+        if (ComponentRegistry) ComponentRegistry.unregister(name);
+        if (name === "Card") cardRenderPluginIds.delete(pluginId);
+      },
+      showToast: function(message, type, duration) {
+        var fn = InternalAPI.ui.showToast || window.showToast;
+        if (fn) fn(message, type || "info", duration);
+      }
     };
-    wrapper.__cardspokeCompiled = true;
-    return wrapper;
   }
-  function _functionToCtxCode(fn) {
-    if (typeof fn !== "function") return null;
-    if (fn.__cardspokeCompiled) return null;
-    return "return (" + fn.toString() + ")(ctx);";
+  function createWorkerMiddlewareHandlers(pluginId) {
+    return {
+      register: function(name, priority, operations) {
+        const ops = operations || ["*"];
+        if (ops.indexOf("card.render") !== -1) {
+          cardRenderPluginIds.add(pluginId);
+          trackResource(pluginId, { type: "card-decorator", name });
+          return true;
+        }
+        const namespacedName = pluginId + ":" + name;
+        const wrapper = async function(mwCtx, realNext) {
+          const instance = plugins.get(pluginId);
+          if (!instance || !instance.workerHandle) {
+            await realNext();
+            return;
+          }
+          const nextProxy = async function() {
+            await realNext();
+            return { args: mwCtx.args, prevented: mwCtx.prevented, stopped: mwCtx.stopped };
+          };
+          const outcome = await instance.workerHandle.callWithDeadline(
+            ["middleware", "invoke"],
+            [name, mwCtx.operation, mwCtx.args, nextProxy],
+            MIDDLEWARE_TIMEOUT_MS
+          );
+          if (outcome) {
+            if (outcome.args !== void 0) mwCtx.args = outcome.args;
+            if (outcome.prevented) mwCtx.preventDefault();
+            if (outcome.stopped) mwCtx.stopPropagation();
+          }
+        };
+        MiddlewareManager.register({ name: namespacedName, priority: priority || 0, operations: ops, handler: wrapper });
+        trackResource(pluginId, { type: "middleware", name: namespacedName });
+        return true;
+      },
+      unregister: function(name) {
+        cardRenderPluginIds.delete(pluginId);
+        MiddlewareManager.unregister(pluginId + ":" + name);
+      }
+    };
+  }
+  function createWorkerNetworkHandlers(pluginId) {
+    return {
+      fetch: async function(url, options) {
+        if (!hasPermission(pluginId, "network")) {
+          throw new Error("Plugin does not have network permission");
+        }
+        const response = await window.fetch(url, options);
+        const bodyBuffer = await response.arrayBuffer();
+        return {
+          ok: response.ok,
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url,
+          headers: Array.from(response.headers.entries()),
+          bodyBuffer
+        };
+      }
+    };
+  }
+  function createUtilsHandlers() {
+    const utils2 = window.CardSpoke && window.CardSpoke.utils || {};
+    return new Proxy({}, {
+      get: function(_target, prop) {
+        if (typeof prop !== "string") return void 0;
+        return async function() {
+          const fn = utils2[prop];
+          if (typeof fn !== "function") throw new Error("Unknown utils method: " + prop);
+          return await fn.apply(utils2, arguments);
+        };
+      }
+    });
+  }
+  function createLoggerHandlers() {
+    return {
+      log: function() {
+        console.log.apply(console, arguments);
+      },
+      info: function() {
+        console.info.apply(console, arguments);
+      },
+      warn: function() {
+        console.warn.apply(console, arguments);
+      },
+      error: function() {
+        console.error.apply(console, arguments);
+      }
+    };
+  }
+  function createHostHandlers(pluginId) {
+    return {
+      data: createDataApi(pluginId),
+      storage: createStorageApi(pluginId),
+      events: createEventApi(pluginId),
+      filesystem: createFilesystemApi(pluginId),
+      network: createWorkerNetworkHandlers(pluginId),
+      ui: createWorkerUIHandlers(pluginId),
+      middleware: createWorkerMiddlewareHandlers(pluginId),
+      utils: createUtilsHandlers(),
+      logger: createLoggerHandlers()
+    };
+  }
+  const AsyncFunction = Object.getPrototypeOf(async function() {
+  }).constructor;
+  function _checkSyntax(code) {
+    new AsyncFunction("ctx", '"use strict";\n' + code);
   }
   function _createSerializableDefinition(definition) {
     if (!definition) return null;
     return {
       manifest: definition.manifest,
       css: definition.css,
-      js: typeof definition.js === "string" && definition.js || _functionToCtxCode(definition.setup),
-      teardownJs: typeof definition.teardownJs === "string" && definition.teardownJs || _functionToCtxCode(definition.teardown)
+      js: typeof definition.js === "string" && definition.js || null,
+      teardownJs: typeof definition.teardownJs === "string" && definition.teardownJs || null
     };
   }
+  const ENABLE_TIMEOUT_MS = 5e3;
+  const TEARDOWN_TIMEOUT_MS = 5e3;
+  const MIDDLEWARE_TIMEOUT_MS = 5e3;
+  const BOOT_COMPONENT_TIMEOUT_MS = 3e3;
+  const CARD_RENDER_DEADLINE_MS = 80;
+  const HANG_BACKSTOP_MS = 1e4;
+  let hangWatcherTimer = null;
   const PluginManager = {
     register: function(id, definition) {
       if (!id || !definition) {
@@ -1313,12 +1805,13 @@
       }
       const resources = /* @__PURE__ */ new Set();
       pluginResources.set(id, resources);
-      const context = createPluginContext(id);
+      const context = !definition.js && !definition.teardownJs ? createLegacyPluginContext(id) : null;
       const instance = {
         id,
         definition,
         context,
         enabled: false,
+        workerHandle: null,
         resources
       };
       plugins.set(id, instance);
@@ -1334,11 +1827,9 @@
         plugins.delete(id);
         pluginResources.delete(id);
         dataUpdateListeners.delete(id);
+        cardRenderPluginIds.delete(id);
         if (PermissionsManager && PermissionsManager.revokePermissions) {
           PermissionsManager.revokePermissions(id);
-        }
-        if (PermissionsManager && PermissionsManager.revokeFullTrust) {
-          PermissionsManager.revokeFullTrust(id);
         }
         try {
           const prefix = "plugin_" + id + "_";
@@ -1381,7 +1872,7 @@
      * its teardown + resource cleanup so no CSS/DOM/listeners leak) and drops
      * the instance from the runtime so a subsequent syncFromStore() can cleanly
      * re-register it — but deliberately does NOT touch the persisted store or
-     * the user's permission/trust grants, which are keyed to the plugin id and
+     * the user's permission grants, which are keyed to the plugin id and
      * must survive switching away from and back to a dataset.
      *
      * Unlike unregister(), this never deletes store.plugins[id] or revokes
@@ -1401,6 +1892,7 @@
       plugins.delete(id);
       pluginResources.delete(id);
       dataUpdateListeners.delete(id);
+      cardRenderPluginIds.delete(id);
     },
     // Restore the brand button to its pre-override content (the logo <img>).
     // Safe to call unconditionally; a no-op when the plugin never overrode it.
@@ -1420,15 +1912,7 @@
         return;
       }
       captureInternalReferences();
-      const requiresFullTrust = !!(instance.definition.js || instance.definition.teardownJs);
-      if (requiresFullTrust && PermissionsManager && typeof PermissionsManager.requestFullTrust === "function") {
-        const pluginName = instance.definition.manifest && instance.definition.manifest.name || id;
-        const trusted = await PermissionsManager.requestFullTrust(id, pluginName);
-        if (!trusted) {
-          throw new Error('Plugin "' + id + '" was not enabled: full-trust consent was declined');
-        }
-      }
-      if (instance.definition.manifest.config) {
+      if (instance.context && instance.definition.manifest.config) {
         instance.context.config = instance.definition.manifest.config;
       }
       if (instance.definition.manifest.permissions) {
@@ -1450,23 +1934,36 @@
       if (instance.definition.css) {
         this._applyCSS(id, instance.definition.css);
       }
-      if (instance.definition.setup) {
-        try {
+      try {
+        if (instance.definition.js || instance.definition.teardownJs) {
+          const hostHandlers = createHostHandlers(id);
+          instance.workerHandle = await createPluginWorker(id, {
+            js: instance.definition.js || "",
+            teardownJs: instance.definition.teardownJs || "",
+            permissions: instance.definition.manifest.permissions || [],
+            config: instance.definition.manifest.config,
+            appVersion: window.APP_VERSION || "0.21.0",
+            schemaVersion: window.SCHEMA_VERSION || 4
+          }, (path, args) => dispatch(hostHandlers, path, args));
+          await instance.workerHandle.callWithDeadline(["lifecycle", "runSetup"], [], ENABLE_TIMEOUT_MS);
+          this._startHangWatcher();
+        } else if (instance.definition.setup) {
           await instance.definition.setup(instance.context);
-        } catch (err) {
-          console.error("[Plugin] Setup error for", id, ":", err);
-          console.error("[Plugin] Stack trace:", err.stack);
-          if (window.showToast) {
-            window.showToast('Plugin "' + id + '" failed to start: ' + err.message, "error");
-          }
-          this._restoreBrandOverride(instance);
-          this._removeCSS(id);
-          this._cleanupResources(id);
-          if (instance.context && instance.context.logger) {
-            instance.context.logger.error("Plugin setup failed and was disabled: " + err.message);
-          }
-          throw err;
         }
+      } catch (err) {
+        console.error("[Plugin] Setup error for", id, ":", err);
+        if (window.showToast) {
+          window.showToast('Plugin "' + id + '" failed to start: ' + err.message, "error");
+        }
+        if (instance.workerHandle) {
+          instance.workerHandle.terminate();
+          instance.workerHandle = null;
+          this._stopHangWatcherIfIdle();
+        }
+        this._restoreBrandOverride(instance);
+        this._removeCSS(id);
+        this._cleanupResources(id);
+        throw err;
       }
       instance.enabled = true;
       this._persistEnabledState(id, true);
@@ -1480,12 +1977,24 @@
       if (!instance.enabled) {
         return;
       }
-      if (instance.definition.teardown) {
+      if (instance.workerHandle) {
+        try {
+          await instance.workerHandle.callWithDeadline(["lifecycle", "runTeardown"], [], TEARDOWN_TIMEOUT_MS);
+        } catch (err) {
+          console.error("[Plugin] Teardown error for", id, ":", err);
+          if (instance.context && instance.context.logger) {
+            instance.context.logger.warn("Plugin cleanup had errors but continuing: " + err.message);
+          }
+        } finally {
+          instance.workerHandle.terminate();
+          instance.workerHandle = null;
+          this._stopHangWatcherIfIdle();
+        }
+      } else if (instance.definition.teardown) {
         try {
           await instance.definition.teardown(instance.context);
         } catch (err) {
           console.error("[Plugin] Teardown error for", id, ":", err);
-          console.error("[Plugin] Stack trace:", err.stack);
           if (instance.context && instance.context.logger) {
             instance.context.logger.warn("Plugin cleanup had errors but continuing: " + err.message);
           }
@@ -1494,6 +2003,7 @@
       this._restoreBrandOverride(instance);
       this._removeCSS(id);
       this._cleanupResources(id);
+      cardRenderPluginIds.delete(id);
       instance.enabled = false;
       this._persistEnabledState(id, false);
       console.log("[Plugin] Disabled:", id);
@@ -1564,6 +2074,8 @@
               MiddlewareManager.unregister(resource.name);
               cleanup.listeners++;
             }
+          } else if (resource.type === "card-decorator") {
+            cleanup.listeners++;
           } else if (resource.type === "listener") {
             cleanup.listeners++;
           } else if (resource.type === "event") {
@@ -1572,9 +2084,7 @@
               const idx = list.findIndex(function(h2) {
                 return h2.callback === resource.callback && h2.pluginId === id;
               });
-              if (idx !== -1) {
-                list.splice(idx, 1);
-              }
+              if (idx !== -1) list.splice(idx, 1);
             }
             cleanup.events++;
           }
@@ -1621,10 +2131,13 @@
       return false;
     },
     notifyDataUpdate: function(event) {
-      dataUpdateListeners.forEach(function(listeners, pluginId) {
+      dataUpdateListeners.forEach(function(listeners) {
         listeners.forEach(function(callback) {
           try {
-            callback(event);
+            const result = callback(event);
+            if (result && typeof result.catch === "function") {
+              result.catch((err) => console.error("[Plugin] Data update callback error:", err));
+            }
           } catch (err) {
             console.error("[Plugin] Data update callback error:", err);
           }
@@ -1633,6 +2146,69 @@
     },
     listAll: function() {
       return this.list();
+    },
+    /** Plugin ids with a live Card component or card.render decorator. Empty in the common case. */
+    getCardRenderPluginIds: function() {
+      return Array.from(cardRenderPluginIds);
+    },
+    /**
+     * Ask one plugin's worker to render/decorate a batch of cards. Never
+     * throws — a timeout, error, or missing worker all resolve to `null` so
+     * rendering.js can treat "no upgrade this pass" uniformly and let the
+     * already-rendered default tiles stand.
+     */
+    renderBatch: async function(id, cardsSnapshot, opts) {
+      const instance = plugins.get(id);
+      if (!instance || !instance.enabled || !instance.workerHandle) return null;
+      try {
+        return await instance.workerHandle.callWithDeadline(
+          ["ui", "renderBatch"],
+          [cardsSnapshot, opts || {}],
+          CARD_RENDER_DEADLINE_MS
+        );
+      } catch (err) {
+        return null;
+      }
+    },
+    /** Backstop hang detector: terminates and suspends a worker whose oldest pending RPC call is stuck. */
+    _startHangWatcher: function() {
+      if (hangWatcherTimer) return;
+      hangWatcherTimer = setInterval(() => {
+        plugins.forEach((instance, id) => {
+          if (instance.workerHandle && instance.workerHandle.isHung(HANG_BACKSTOP_MS)) {
+            console.error('[Plugin] "' + id + '" stopped responding; suspending.');
+            instance.workerHandle.terminate();
+            instance.workerHandle = null;
+            instance.enabled = false;
+            this._removeCSS(id);
+            this._cleanupResources(id);
+            cardRenderPluginIds.delete(id);
+            this._persistEnabledState(id, false);
+            if (window.showToast) {
+              window.showToast('Plugin "' + id + '" stopped responding and was suspended.', "error");
+            }
+          }
+        });
+        this._stopHangWatcherIfIdle();
+      }, 2e3);
+    },
+    /**
+     * Stop the hang-watcher interval once no plugin has a live worker to
+     * watch — otherwise this timer runs forever (a real, if minor, resource
+     * leak in production once every JS-bearing plugin is disabled, and a
+     * process-hang hazard in tests, where an un-cleared interval keeps
+     * Node's event loop alive after the test file's assertions finish).
+     */
+    _stopHangWatcherIfIdle: function() {
+      if (!hangWatcherTimer) return;
+      let anyActive = false;
+      plugins.forEach((instance) => {
+        if (instance.workerHandle) anyActive = true;
+      });
+      if (!anyActive) {
+        clearInterval(hangWatcherTimer);
+        hangWatcherTimer = null;
+      }
     },
     install: async function(pkg) {
       if (!pkg || !pkg.manifest) {
@@ -1658,10 +2234,8 @@
       }
       const jsSource = typeof pkg.js === "string" && pkg.js.trim() ? pkg.js : typeof pkg.javascript === "string" && pkg.javascript.trim() ? pkg.javascript : null;
       const teardownSource = typeof pkg.teardownJs === "string" && pkg.teardownJs.trim() ? pkg.teardownJs : typeof pkg.teardown === "string" && pkg.teardown.trim() ? pkg.teardown : null;
-      if (!pkg.setup && jsSource) {
-        pkg.setup = _createSandboxedFunction(jsSource);
-      }
-      const teardownFn = typeof pkg.teardown === "function" ? pkg.teardown : teardownSource ? _createSandboxedFunction(teardownSource) : void 0;
+      if (!pkg.setup && jsSource) _checkSyntax(jsSource);
+      if (typeof pkg.teardown !== "function" && teardownSource) _checkSyntax(teardownSource);
       let id = pkg.manifest.id || pkg.manifest.name.toLowerCase().replace(/\s+/g, "-");
       if (plugins.has(id)) {
         await this.unregister(id);
@@ -1669,7 +2243,7 @@
       const definition = {
         manifest: pkg.manifest,
         setup: pkg.setup,
-        teardown: teardownFn,
+        teardown: typeof pkg.teardown === "function" ? pkg.teardown : void 0,
         css: pkg.css,
         js: jsSource,
         teardownJs: teardownSource
@@ -1690,7 +2264,7 @@
       const risk = this.assessModRisk(pkg);
       if (risk === 'SAFE' || risk === 'LOW') {
         try {
-          await this.enable(id);
+          await this._enableWithTimeout(id);
         } catch (err) {
           console.warn("[Plugin] Installed but not enabled", id, ":", err.message);
         }
@@ -1747,12 +2321,6 @@
             js: typeof stored.js === "string" && stored.js.trim() ? stored.js : null,
             teardownJs: typeof stored.teardownJs === "string" && stored.teardownJs.trim() ? stored.teardownJs : null
           };
-          if (def.js) {
-            def.setup = _createSandboxedFunction(def.js);
-          }
-          if (def.teardownJs) {
-            def.teardown = _createSandboxedFunction(def.teardownJs);
-          }
           this.register(id, def);
           if (!safeMode && pluginData.enabled) {
             try {
@@ -1769,10 +2337,10 @@
     },
     // Time-box enable() so a single plugin with a never-resolving setup()
     // cannot block the sequential boot sync and leave the app on a blank
-    // screen. The timeout unblocks the boot loop; a still-pending setup is
-    // simply abandoned (not awaited).
+    // screen. For a sandboxed plugin this also forcibly terminates the
+    // worker on timeout — a capability main-thread execution never had.
     _enableWithTimeout: async function(id, timeoutMs) {
-      const limit = typeof timeoutMs === "number" ? timeoutMs : 5e3;
+      const limit = typeof timeoutMs === "number" ? timeoutMs : ENABLE_TIMEOUT_MS;
       let timer = null;
       const timeout = new Promise((_resolve, reject) => {
         timer = setTimeout(
@@ -1782,6 +2350,14 @@
       });
       try {
         await Promise.race([this.enable(id), timeout]);
+      } catch (err) {
+        const instance = plugins.get(id);
+        if (instance && instance.workerHandle) {
+          instance.workerHandle.terminate();
+          instance.workerHandle = null;
+          this._stopHangWatcherIfIdle();
+        }
+        throw err;
       } finally {
         if (timer) clearTimeout(timer);
       }
@@ -1791,7 +2367,8 @@
      * Dynamically build a settings panel from the plugin's config object.
      * Each config key becomes a labelled form input whose type is inferred
      * from the value type (boolean → checkbox, number → number, else → text).
-     * Changes made in the panel are written back to the plugin's live context.
+     * Changes made in the panel are written back to the plugin's live config
+     * (and, for sandboxed plugins, the worker's `ctx.config` on next enable).
      *
      * @param {string} id - Plugin ID
      * @returns {HTMLElement|null} A <div class="plugin-settings-panel"> element,
@@ -1868,10 +2445,23 @@
   };
   console.log("[Plugin] API system initialized");
   function resetForTesting() {
+    plugins.forEach((instance) => {
+      if (instance.workerHandle) {
+        try {
+          instance.workerHandle.terminate();
+        } catch (_e) {
+        }
+      }
+    });
     plugins.clear();
     pluginResources.clear();
     dataUpdateListeners.clear();
     globalEventBus.clear();
+    cardRenderPluginIds.clear();
+    if (hangWatcherTimer) {
+      clearInterval(hangWatcherTimer);
+      hangWatcherTimer = null;
+    }
     InternalAPI.data = {};
     InternalAPI.ui = {};
     InternalAPI.utils = {};
@@ -1917,7 +2507,7 @@
     // Used by the app layer and by app-layer plugins. See
     // docs/architecture/PLUGIN_SYSTEM.md for which parts are supported plugin API.
     Plugin: PluginManager,
-    PluginSandbox: Object.freeze({ createFunction: _createSandboxedFunction }),
+    PluginSandbox: Object.freeze({ createFunction: _checkSyntax }),
     Middleware: MiddlewareManager,
     ComponentRegistry,
     StorageDriverRegistry,
@@ -2035,8 +2625,8 @@
   }
   "use strict";
   const APP_CREATOR = "Jeffrey Guntly";
-  const APP_VERSION = '0.20.0';
-  const APP_RELEASE_DATE = "2026-07-20";
+  const APP_VERSION = '0.21.0';
+  const APP_RELEASE_DATE = "2026-07-28";
   const APP_UPDATER = "JX Holdings, LLC";
   const SCHEMA_VERSION = 4;
   const MAX_UNDO_STACK = 50;
@@ -6769,13 +7359,16 @@ This action cannot be undone!`, {
       const renderBatch = () => {
         const frag = document.createDocumentFragment();
         const start = renderIndex;
+        const upgradeEntries = [];
         for (let i = start; i < Math.min(start + batchSize, kids.length); i++) {
           const card = kids[i];
           const cardEl = renderCardTile(card, { lazyBody: true });
           frag.appendChild(cardEl);
+          upgradeEntries.push({ card, tileEl: cardEl });
         }
         grid.appendChild(frag);
         renderIndex += batchSize;
+        scheduleCardRenderUpgrade(upgradeEntries);
       };
       const onScroll = () => {
         if (renderIndex >= kids.length) return;
@@ -6791,24 +7384,6 @@ This action cannot be undone!`, {
     }
   }
   function renderCardTile(card, opts = {}) {
-    if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
-      const CustomCard = window.CardSpoke.ComponentRegistry.get("Card");
-      if (CustomCard && typeof CustomCard.render === "function") {
-        try {
-          const isSelected = opts.isSelected || false;
-          const customEl = CustomCard.render({ card, isSelected, opts, onSelect: function() {
-            goTo("read", { cardId: card.id });
-          } });
-          if (customEl instanceof HTMLElement) {
-            customEl.dataset.cardId = card.id;
-            customEl.dataset.renderType = "list";
-            return customEl;
-          }
-        } catch (err) {
-          console.warn("[ComponentRegistry] Custom Card render failed, using default:", err);
-        }
-      }
-    }
     const isCompact = store.viewMode === "compact";
     const cardClasses = isCompact ? "card card-compact" : "card";
     const cardEl = h("button", { className: cardClasses + " card-tile", onclick: () => goTo('read', { cardId: card.id }), "aria-label": "Open card: " + (card.title || "Untitled"), role: "listitem" });
@@ -6868,10 +7443,84 @@ This action cannot be undone!`, {
       }
       previewObserver.observe(cardEl);
     }
-    if (window.CardSpoke && window.CardSpoke.Middleware) {
-      window.CardSpoke.Middleware.run("card.render", [card, cardEl]).catch((err) => console.error("[Middleware] card.render error:", err));
-    }
     return cardEl;
+  }
+  const cardRenderCache = /* @__PURE__ */ new Map();
+  const CARD_RENDER_CACHE_LIMIT = 1e3;
+  function buildTileSnapshot(tileEl) {
+    const tagEls = tileEl.querySelectorAll(".card-tag");
+    return {
+      classList: Array.from(tileEl.classList),
+      hasBody: !!tileEl.querySelector(".card-description"),
+      hasTags: tagEls.length > 0,
+      tagTexts: Array.from(tagEls).map((el) => el.textContent),
+      isCompact: tileEl.classList.contains("card-compact")
+    };
+  }
+  function applyCardRenderResults(results, byCardId) {
+    (results || []).forEach((r) => {
+      const entry = byCardId.get(r.cardId);
+      if (!entry || !entry.tileEl || !entry.tileEl.isConnected) return;
+      if (r.vnode) {
+        try {
+          const newEl = vnodeToDOM(r.vnode);
+          newEl.dataset.cardId = String(r.cardId);
+          newEl.dataset.renderType = entry.tileEl.dataset.renderType || "list";
+          entry.tileEl.replaceWith(newEl);
+          entry.tileEl = newEl;
+        } catch (err) {
+          console.warn("[Plugin] Card component render failed:", err);
+        }
+      }
+      if (r.patch) {
+        try {
+          applyPatch(entry.tileEl, r.patch);
+        } catch (err) {
+          console.warn("[Plugin] card.render patch failed:", err);
+        }
+      }
+    });
+  }
+  async function scheduleCardRenderUpgrade(entries) {
+    const Plugin = window.CardSpoke && window.CardSpoke.Plugin;
+    if (!Plugin) return;
+    const pluginIds = Plugin.getCardRenderPluginIds();
+    if (!pluginIds.length) return;
+    const byCardId = /* @__PURE__ */ new Map();
+    entries.forEach((e) => {
+      if (e.tileEl && e.tileEl.isConnected) byCardId.set(e.card.id, e);
+    });
+    if (!byCardId.size) return;
+    for (const pluginId of pluginIds) {
+      const toFetch = [];
+      const cachedResults = [];
+      byCardId.forEach((entry, cardId) => {
+        const cacheKey = pluginId + "|" + cardId + "|" + (entry.card.updatedAt || 0);
+        const cached = cardRenderCache.get(cacheKey);
+        if (cached) {
+          cachedResults.push({ cardId, vnode: cached.vnode, patch: cached.patch });
+        } else {
+          toFetch.push({ card: entry.card, isSelected: !!entry.isSelected, tileSnapshot: buildTileSnapshot(entry.tileEl) });
+        }
+      });
+      if (cachedResults.length) applyCardRenderResults(cachedResults, byCardId);
+      if (toFetch.length) {
+        const results = await Plugin.renderBatch(pluginId, toFetch, {});
+        if (results) {
+          results.forEach((r) => {
+            const entry = byCardId.get(r.cardId);
+            const key = pluginId + "|" + r.cardId + "|" + (entry ? entry.card.updatedAt || 0 : 0);
+            cardRenderCache.set(key, { vnode: r.vnode, patch: r.patch });
+          });
+          if (cardRenderCache.size > CARD_RENDER_CACHE_LIMIT) {
+            const excess = cardRenderCache.size - CARD_RENDER_CACHE_LIMIT;
+            const it = cardRenderCache.keys();
+            for (let i = 0; i < excess; i++) cardRenderCache.delete(it.next().value);
+          }
+          applyCardRenderResults(results, byCardId);
+        }
+      }
+    }
   }
   function renderCardBody(text) {
     const container = h("div", { className: "card-detail-body" });
@@ -7025,13 +7674,16 @@ This action cannot be undone!`, {
       const childrenSection = h("div", { className: "children-section" });
       childrenSection.appendChild(h("div", { className: "children-title" }, `Children (${card.children.length})`));
       const childrenGrid = h("div", { className: "card-grid" });
+      const childUpgradeEntries = [];
       card.children.forEach((cid) => {
         const childCard = store.cards[cid];
         if (childCard) {
           const childEl = renderCardTile(childCard);
           childrenGrid.appendChild(childEl);
+          childUpgradeEntries.push({ card: childCard, tileEl: childEl });
         }
       });
+      scheduleCardRenderUpgrade(childUpgradeEntries);
       childrenSection.appendChild(childrenGrid);
       detail.appendChild(childrenSection);
     }
@@ -7559,10 +8211,12 @@ ${prefix}`;
         let renderIndex = 0;
         const renderBatch = () => {
           const frag = document.createDocumentFragment();
+          const upgradeEntries = [];
           for (let i = renderIndex; i < Math.min(renderIndex + batchSize, fuzzyResults.length); i++) {
             const result = fuzzyResults[i];
             const card = result.card;
             const cardEl = renderCardTile(card, { highlightQuery: query, lazyBody: true });
+            upgradeEntries.push({ card, tileEl: cardEl });
             cardEl.classList.add("search-result");
             cardEl.dataset.resultIndex = i;
             cardEl.addEventListener("click", () => {
@@ -7607,6 +8261,7 @@ ${prefix}`;
           grid.appendChild(frag);
           renderIndex += batchSize;
           updateSearchSelection(0);
+          scheduleCardRenderUpgrade(upgradeEntries);
         };
         const onScroll = () => {
           if (renderIndex >= fuzzyResults.length) return;
@@ -7650,7 +8305,7 @@ ${prefix}`;
       bootError("Render failed: " + (e.message || e));
     }
   }
-  function applyRegistryComponents() {
+  async function applyRegistryComponents() {
     if (!window.CardSpoke || !window.CardSpoke.ComponentRegistry) {
       return;
     }
@@ -7660,7 +8315,7 @@ ${prefix}`;
       try {
         const headerEl = document.querySelector(".header");
         if (headerEl) {
-          const customEl = CustomHeader.render({ header: headerEl });
+          const customEl = await CustomHeader.render({ header: headerEl });
           if (customEl instanceof HTMLElement) {
             headerEl.parentNode.replaceChild(customEl, headerEl);
             console.log("[ComponentRegistry] Custom Header component applied");
@@ -7675,7 +8330,7 @@ ${prefix}`;
       try {
         const menuPanel = document.querySelector(".menu-panel");
         if (menuPanel) {
-          const customEl = CustomSidebar.render({ panel: menuPanel });
+          const customEl = await CustomSidebar.render({ panel: menuPanel });
           if (customEl instanceof HTMLElement) {
             menuPanel.parentNode.replaceChild(customEl, menuPanel);
             console.log("[ComponentRegistry] Custom Sidebar component applied");
@@ -7690,7 +8345,7 @@ ${prefix}`;
       try {
         const searchWrapper = document.querySelector(".search-input-wrapper");
         if (searchWrapper) {
-          const customEl = CustomSearchBar.render({ wrapper: searchWrapper });
+          const customEl = await CustomSearchBar.render({ wrapper: searchWrapper });
           if (customEl instanceof HTMLElement) {
             searchWrapper.parentNode.replaceChild(customEl, searchWrapper);
             console.log("[ComponentRegistry] Custom SearchBar component applied");
@@ -9997,7 +10652,7 @@ ${prefix}`;
       await window.CardSpoke.Plugin.syncFromStore(safeMode);
     }
     if (typeof applyRegistryComponents === "function") {
-      applyRegistryComponents();
+      await applyRegistryComponents();
     }
     render();
     populateFooter();

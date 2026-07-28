@@ -1,12 +1,13 @@
 {
   "name": "cardspoke",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "description": "A lightweight, local-first card-based knowledge app",
   "scripts": {
-    "test": "uvu tests",
-    "test:watch": "uvu tests --watch",
-    "build": "vite build",
-    "dev": "vite",
+    "test": "uvu tests -i helpers",
+    "test:watch": "uvu tests -i helpers --watch",
+    "build": "node scripts/build-plugin-worker.mjs && vite build",
+    "dev": "node scripts/build-plugin-worker.mjs && vite",
+    "build:plugin-worker": "node scripts/build-plugin-worker.mjs",
     "preview": "vite preview",
     "smoke": "node scripts/static-smoke.mjs",
     "qa:browser": "node scripts/browser-qa.mjs",
@@ -41,6 +42,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.2.3",
+    "esbuild": "^0.28.1",
     "playwright": "1.61.1",
     "typescript": "^5.9.3",
     "uvu": "^0.5.6",

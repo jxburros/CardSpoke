@@ -3,14 +3,13 @@
   "manifest": {
     "id": "card-reading-time",
     "name": "Card Reading Time",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "author": "CardSpoke Community",
-    "description": "Adds an estimated reading time to card tiles with longer bodies. Demonstrates reading card data from the 'card.render' middleware hook.",
+    "description": "Adds an estimated reading time to card tiles with longer bodies. Demonstrates the 'card.render' decorator contract.",
     "layer": "feature",
     "permissions": [],
-    "compatibility": ">=0.17.0"
+    "compatibility": ">=0.21.0"
   },
   "css": ".plugin-reading-time { display: inline-block; margin-top: 4px; font-size: 11px; color: var(--text-ghost); }\n",
-  "js": "ctx.api.middleware.register({\n  name: 'reading-time',\n  operations: ['card.render'],\n  handler: async function(mw, next) {\n    await next();\n    var card = mw.args && mw.args[0];\n    var cardEl = mw.args && mw.args[1];\n    if (!card || !cardEl || !card.body) return;\n    if (cardEl.querySelector('.plugin-reading-time')) return;\n    var words = String(card.body).split(/\\s+/).filter(Boolean).length;\n    if (words < 30) return;\n    var minutes = Math.max(1, Math.round(words / 200));\n    var badge = document.createElement('span');\n    badge.className = 'plugin-reading-time';\n    badge.textContent = minutes + ' min read';\n    var content = cardEl.querySelector('.card-content') || cardEl;\n    content.appendChild(badge);\n  }\n});\nctx.logger.info('Reading time estimates active');\n",
-  "teardownJs": "// Badges were created outside the tracked-resource APIs, so remove\n// the ones still in the document ourselves.\nvar badges = document.querySelectorAll('.plugin-reading-time');\nfor (var i = 0; i < badges.length; i++) {\n  if (badges[i].parentNode) badges[i].parentNode.removeChild(badges[i]);\n}\n"
+  "js": "// 'card.render' decorators receive (card, tileSnapshot) — never a live DOM\n// node — and return a patch describing what to add. See\n// docs/architecture/PLUGIN_SYSTEM.md \"The card.render decorator contract\".\nctx.api.middleware.register({\n  name: 'reading-time',\n  operations: ['card.render'],\n  handler: async function(card, tileSnapshot) {\n    if (!card || !card.body) return null;\n    var words = String(card.body).split(/\\s+/).filter(Boolean).length;\n    if (words < 30) return null;\n    var minutes = Math.max(1, Math.round(words / 200));\n    return {\n      appendChildren: {\n        '.card-content': [ctx.h('span', { className: 'plugin-reading-time' }, minutes + ' min read')]\n      }\n    };\n  }\n});\n\nctx.logger.info('Reading time estimates active');\n"
 }
