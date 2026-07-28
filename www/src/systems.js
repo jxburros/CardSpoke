@@ -2136,9 +2136,12 @@ import {
           await window.CardSpoke.Plugin.syncFromStore(safeMode);
         }
 
-        // Task 2.5: Apply custom components from ComponentRegistry (Header, Sidebar, SearchBar)
+        // Task 2.5: Apply custom components from ComponentRegistry (Header, Sidebar, SearchBar).
+        // A custom component's render() is an async RPC call into its sandboxed
+        // worker; this is boot-time-only (never a per-frame hot path), so
+        // awaiting it here is fine.
         if (typeof applyRegistryComponents === 'function') {
-          applyRegistryComponents();
+          await applyRegistryComponents();
         }
 
         render();                        // Initial render

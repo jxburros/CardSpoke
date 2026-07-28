@@ -17,7 +17,7 @@
 
 /**
  * CardSpoke Core Type Definitions
- * @version 0.20.0
+ * @version 0.21.0
  * @module @cardspoke/core
  */
 
@@ -116,9 +116,64 @@ export interface PluginContext {
   schemaVersion: number;
   /** Present when the manifest declares `config`; the settings panel writes here. */
   config?: Record<string, any>;
+  /** Build a vnode — see Vnode. Not available on the legacy (function-form) host-code ctx. */
+  h?(tag: string, props?: VnodeProps, children?: VnodeChild | VnodeChild[]): Vnode;
   api: PluginAPI;
   utils: PluginUtils;
   logger: Logger;
+}
+
+/**
+ * A plain, serializable UI description built by `ctx.h(...)` inside a
+ * sandboxed plugin's worker (no DOM exists there — see plugin-vnode.js).
+ * The host converts this to a real HTMLElement.
+ */
+export interface Vnode {
+  __vnode: true;
+  tag: string;
+  props: VnodeProps;
+  children: VnodeChild[];
+}
+
+export type VnodeChild = Vnode | string | number;
+
+export interface VnodeProps {
+  className?: string;
+  style?: string | Record<string, string>;
+  dataset?: Record<string, string>;
+  [attr: string]: any;
+  onclick?: (event: VnodeEventDescriptor) => void | VnodeEventResult | Promise<void | VnodeEventResult>;
+  oninput?: (event: VnodeEventDescriptor) => void | VnodeEventResult | Promise<void | VnodeEventResult>;
+  onchange?: (event: VnodeEventDescriptor) => void | VnodeEventResult | Promise<void | VnodeEventResult>;
+  onkeydown?: (event: VnodeEventDescriptor) => void | VnodeEventResult | Promise<void | VnodeEventResult>;
+}
+
+/**
+ * A safe, serializable summary of a DOM event — never the real Event object
+ * (Events aren't structured-clonable, and shouldn't be exposed raw anyway).
+ */
+export interface VnodeEventDescriptor {
+  type: string;
+  key?: string;
+  code?: string;
+  clientX?: number;
+  clientY?: number;
+  target?: {
+    value?: any;
+    checked?: boolean;
+    dataset?: Record<string, string>;
+  };
+}
+
+export interface VnodeEventResult {
+  preventDefault?: boolean;
+  stopPropagation?: boolean;
+}
+
+/** Returned by ui.inject/ui.replace — there is no live node reference to hold onto. */
+export interface UIHandle {
+  remove(): Promise<void>;
+  update(vnode: Vnode): Promise<void>;
 }
 
 export interface Logger {
@@ -139,14 +194,33 @@ export interface PluginAPI {
 }
 
 export interface MiddlewareApi {
-  /** Register a tracked, per-plugin-namespaced middleware. Returns an unregister function. */
-  register(middleware: Middleware): () => void;
+  /**
+   * Register a tracked, per-plugin-namespaced middleware. Returns an
+   * unregister function. `operations: ['card.render']` routes to the
+   * decorator contract (CardRenderDecorator), not MiddlewareFunction — see
+   * docs/architecture/PLUGIN_SYSTEM.md "The card.render decorator contract".
+   */
+  register(middleware: Middleware | CardRenderMiddleware): () => void;
   unregister(name: string): void;
 }
 
 export interface NetworkApi {
-  fetch(url: string, options?: any): Promise<Response>;
-  xhr(): XMLHttpRequest;
+  /** Always proxied through the main thread — the worker never performs a real request itself, even once granted. */
+  fetch(url: string, options?: any): Promise<SandboxedResponse>;
+  /** Not available in the sandboxed runtime — XMLHttpRequest's stateful/event-driven shape does not cross a Worker boundary safely. Use fetch(). */
+  xhr(): never;
+}
+
+/** A serializable stand-in for the Fetch Response object (a real Response can't cross the Worker boundary). */
+export interface SandboxedResponse {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  url: string;
+  headers: { get(name: string): string | null; entries(): IterableIterator<[string, string]> };
+  arrayBuffer(): Promise<ArrayBuffer>;
+  text(): Promise<string>;
+  json(): Promise<any>;
 }
 
 export interface FilesystemApi {
@@ -155,25 +229,25 @@ export interface FilesystemApi {
 }
 
 export interface UIApi {
-  inject(selector: string, element: HTMLElement, position?: 'before' | 'after' | 'append' | 'prepend'): () => void;
-  replace(selector: string, element: HTMLElement): () => void;
-  registerComponent(name: string, component: Component): void;
-  unregisterComponent(name: string): void;
-  showToast(message: string, type?: 'success' | 'error' | 'info' | 'warning', duration?: number): void;
+  inject(selector: string, vnode: Vnode, position?: 'before' | 'after' | 'append' | 'prepend'): Promise<UIHandle>;
+  replace(selector: string, vnode: Vnode): Promise<UIHandle>;
+  registerComponent(name: string, component: Component): Promise<void>;
+  unregisterComponent(name: string): Promise<void>;
+  showToast(message: string, type?: 'success' | 'error' | 'info' | 'warning', duration?: number): Promise<void>;
 }
 
 export interface DataApi {
   onUpdate(callback: (event: DataUpdateEvent) => void): () => void;
-  getCard(id: string): Card | undefined;
-  listCards(): Card[];
-  createCard(data: Partial<Card>): string;
-  updateCard(id: string, updates: Partial<Card>): Card;
-  deleteCard(id: string): boolean;
-  getTags(cardId: string): string[];
-  addTag(cardId: string, tag: string): boolean;
-  removeTag(cardId: string, tag: string): boolean;
-  setTags(cardId: string, tags: string[]): boolean;
-  getAllTags(): string[];
+  getCard(id: string): Promise<Card | undefined>;
+  listCards(): Promise<Card[]>;
+  createCard(data: Partial<Card>): Promise<string>;
+  updateCard(id: string, updates: Partial<Card>): Promise<Card>;
+  deleteCard(id: string): Promise<boolean>;
+  getTags(cardId: string): Promise<string[]>;
+  addTag(cardId: string, tag: string): Promise<boolean>;
+  removeTag(cardId: string, tag: string): Promise<boolean>;
+  setTags(cardId: string, tags: string[]): Promise<boolean>;
+  getAllTags(): Promise<string[]>;
 }
 
 export interface StorageApi {
@@ -198,7 +272,8 @@ export interface DataUpdateEvent {
 }
 
 export interface Component {
-  render(props: any): HTMLElement | string;
+  /** Returns a vnode (ctx.h(...)), not an HTMLElement — see Vnode. May be async. */
+  render(props: any): Vnode | Promise<Vnode>;
   priority?: number;
   onMount?(): void;
   onUnmount?(): void;
@@ -213,15 +288,22 @@ export interface ComponentMetadata {
   canReplace?: string[];
 }
 
-/** Props passed to a registered Card component */
+/**
+ * Props passed to a registered Card component, once per render batch (see
+ * docs/architecture/PLUGIN_SYSTEM.md "The card.render decorator contract").
+ * Unlike the pre-sandbox API, there is no `onSelect` callback — a function
+ * reference could technically cross the RPC boundary as a handle, but no
+ * navigation-triggering `ctx.api` method exists yet for a custom Card
+ * component to call back into. Build tiles as non-interactive presentation
+ * for now, or use ctx.h's onclick with your own ctx.api.data reads.
+ */
 export interface CardComponentProps {
   card: Card;
   isSelected: boolean;
   opts: Record<string, any>;
-  onSelect: () => void;
 }
 
-/** Props passed to a registered Header component: the default header node */
+/** Props passed to a registered Header component: the default header node (host-side only; not serializable to a plugin worker directly — passed through the componentRender RPC call as an opaque props bag) */
 export interface HeaderComponentProps {
   header: HTMLElement;
 }
@@ -249,6 +331,7 @@ export interface MiddlewareContext {
   preventDefault(): void;
 }
 
+/** Used for card.create / card.update / card.delete / card.save — full onion-model semantics. */
 export type MiddlewareFunction = (ctx: MiddlewareContext, next: () => Promise<void>) => Promise<void>;
 
 export interface Middleware {
@@ -256,6 +339,44 @@ export interface Middleware {
   priority: number;
   operations: string[];
   handler: MiddlewareFunction;
+}
+
+/**
+ * A serializable summary of an already-built default card tile — never a
+ * live DOM node (see docs/architecture/PLUGIN_SYSTEM.md "The card.render
+ * decorator contract" / PLUGIN_INVARIANTS.md §7).
+ */
+export interface CardTileSnapshot {
+  classList: string[];
+  hasBody: boolean;
+  hasTags: boolean;
+  tagTexts: string[];
+  isCompact: boolean;
+}
+
+/** A patch the host applies to the real tile after a card.render decorator resolves. */
+export interface CardRenderPatch {
+  addClass?: string[];
+  removeClass?: string[];
+  /** '' selector addresses the tile root itself. */
+  setStyle?: Record<string, Record<string, string>>;
+  /** Per-matched-element (by DOM order) style, keyed by selector. */
+  setStyleByIndex?: Record<string, Array<Record<string, string>>>;
+  appendChildren?: Record<string, Vnode[]>;
+  prependChildren?: Record<string, Vnode[]>;
+}
+
+/**
+ * `ctx.api.middleware.register({ operations: ['card.render'], handler })`
+ * uses THIS handler shape, not MiddlewareFunction — no live DOM node, no
+ * next()/stopPropagation()/preventDefault(). Every registered decorator is
+ * independent and additive (PLUGIN_INVARIANTS.md §7).
+ */
+export interface CardRenderMiddleware {
+  name: string;
+  priority?: number;
+  operations: ['card.render'];
+  handler: (card: Card, tileSnapshot: CardTileSnapshot) => CardRenderPatch | null | Promise<CardRenderPatch | null>;
 }
 
 /**
@@ -344,7 +465,13 @@ declare global {
       installPlugin(pkg: ModPackage): Promise<string>;
       requestPermissions(pluginId: string, pluginName: string, permissions: PermissionType[]): Promise<boolean>;
       Plugin: PluginClass;
-      PluginSandbox: { createFunction(code: string): (ctx: PluginContext) => any };
+      /**
+       * Syntax-check a setup-body string (throws on invalid JS, otherwise
+       * returns undefined). Does NOT execute the code and does not return a
+       * callable — that changed in v0.21.0 (CS-002): real execution always
+       * happens inside a plugin's own dedicated Worker now.
+       */
+      PluginSandbox: { createFunction(code: string): void };
       Middleware: MiddlewareManager;
       ComponentRegistry: ComponentRegistryClass;
       StorageDriverRegistry: StorageDriverRegistryClass;
@@ -370,11 +497,23 @@ export interface PluginClass {
   syncFromStore(safeMode?: boolean): Promise<void>;
   notifyDataUpdate(event: DataUpdateEvent): void;
   buildSettingsPanel(id: string): HTMLElement | null;
+  /** Plugin ids with a live Card component or card.render decorator registered. Empty in the common case. */
+  getCardRenderPluginIds(): string[];
+  /**
+   * Ask one plugin's worker to render/decorate a batch of cards. Never
+   * throws — resolves to `null` on timeout/error/missing worker, so
+   * rendering.js can treat "no upgrade this pass" uniformly.
+   */
+  renderBatch(
+    id: string,
+    cardsSnapshot: Array<{ card: Card; isSelected?: boolean; tileSnapshot?: CardTileSnapshot }>,
+    opts?: Record<string, any>
+  ): Promise<Array<{ cardId: string; vnode: Vnode | null; patch: CardRenderPatch | null }> | null>;
 }
 
 export interface PluginDefinition {
   manifest: ModManifest;
-  /** Session-only function form. Only string js/teardownJs persist across reloads. */
+  /** Session-only function form — host code, unsandboxed, runs on the main thread. Only string js/teardownJs persist across reloads AND are sandboxed. */
   setup?(ctx: PluginContext): void | Promise<void>;
   teardown?(ctx: PluginContext): void | Promise<void>;
   css?: string;
@@ -386,8 +525,16 @@ export interface PluginDefinition {
 export interface PluginInstance {
   id: string;
   definition: PluginDefinition;
-  context: PluginContext;
+  /**
+   * Only present for the legacy function-form (host-code) registration
+   * path. `null` for every JS-bearing installed package (string `js`/
+   * `teardownJs`) — its ctx is built fresh inside a dedicated Worker on
+   * each enable and is not reachable from the host (v0.21.0, CS-002).
+   */
+  context: PluginContext | null;
   enabled: boolean;
+  /** Present while enabled, for a JS-bearing plugin. Opaque — see PluginWorkerHandle in plugin-worker-manager.js. */
+  workerHandle?: unknown;
   resources: Set<any>;
 }
 

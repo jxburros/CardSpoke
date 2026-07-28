@@ -22,6 +22,7 @@ import {
   searchResultsState, setSearchResultsState,
   trashBin
 } from './state.js';
+import { vnodeToDOM, applyPatch } from '@core/plugin-vnode.js';
 
 
       // Source Part 4/5: Rendering, themes, footer, and initialization
@@ -148,13 +149,16 @@ import {
           const renderBatch = () => {
             const frag = document.createDocumentFragment();
             const start = renderIndex;
+            const upgradeEntries = [];
             for (let i = start; i < Math.min(start + batchSize, kids.length); i++) {
               const card = kids[i];
               const cardEl = renderCardTile(card, { lazyBody: true });
               frag.appendChild(cardEl);
+              upgradeEntries.push({ card: card, tileEl: cardEl });
             }
             grid.appendChild(frag);
             renderIndex += batchSize;
+            scheduleCardRenderUpgrade(upgradeEntries);
           };
           const onScroll = () => {
             if (renderIndex >= kids.length) return;
@@ -176,24 +180,14 @@ import {
        * @returns {HTMLElement} Card tile element
        */
       function renderCardTile(card, opts = {}) {
-        // Check ComponentRegistry for a custom Card component
-        if (window.CardSpoke && window.CardSpoke.ComponentRegistry) {
-          const CustomCard = window.CardSpoke.ComponentRegistry.get('Card');
-          if (CustomCard && typeof CustomCard.render === 'function') {
-            try {
-              const isSelected = opts.isSelected || false;
-              const customEl = CustomCard.render({ card: card, isSelected: isSelected, opts: opts, onSelect: function() { goTo('read', { cardId: card.id }); } });
-              if (customEl instanceof HTMLElement) {
-                customEl.dataset.cardId = card.id;
-                customEl.dataset.renderType = 'list';
-                return customEl;
-              }
-            } catch (err) {
-              console.warn('[ComponentRegistry] Custom Card render failed, using default:', err);
-            }
-          }
-        }
-
+        // A plugin-registered custom Card component (or a card.render
+        // decorator) is no longer applied here, synchronously and per-tile —
+        // plugin JS runs in a sandboxed Worker, so producing a custom render
+        // is an async RPC round trip. The default tile below is always built
+        // first so rendering is never blocked on a plugin; callers that
+        // batch tiles (renderBatch in the list and search views) schedule an
+        // async upgrade pass afterward via scheduleCardRenderUpgrade(). See
+        // docs/architecture/PLUGIN_SYSTEM.md "The Card render hot path".
         const isCompact = store.viewMode === 'compact';
         const cardClasses = isCompact ? 'card card-compact' : 'card';
         const cardEl = h('button', { className: cardClasses + ' card-tile', onclick: () => goTo('read', { cardId: card.id }), 'aria-label': 'Open card: ' + (card.title || 'Untitled'), role: 'listitem' });
@@ -264,13 +258,99 @@ import {
           previewObserver.observe(cardEl);
         }
 
-        // Fire card.render middleware for plugins (Task 1.1)
-        if (window.CardSpoke && window.CardSpoke.Middleware) {
-          window.CardSpoke.Middleware.run('card.render', [card, cardEl])
-            .catch(err => console.error('[Middleware] card.render error:', err));
-        }
-
         return cardEl;
+      }
+
+      // --- Plugin Card-render upgrade pass (async, batched, best-effort) ---
+      //
+      // Zero plugins registered on 'Card'/'card.render' → getCardRenderPluginIds()
+      // is empty and this is a no-op check, unconditionally. Otherwise, one
+      // RPC round trip per plugin per batch (not per tile) asks that
+      // plugin's sandboxed worker for an optional replacement vnode (a
+      // custom 'Card' component) and/or an optional decorator patch
+      // (card.render), racing a short deadline inside Plugin.renderBatch()
+      // so a slow or hung plugin can never stall/stutter rendering — the
+      // default tiles already on screen simply stand for that pass.
+      const cardRenderCache = new Map();
+      const CARD_RENDER_CACHE_LIMIT = 1000;
+
+      function buildTileSnapshot(tileEl) {
+        const tagEls = tileEl.querySelectorAll('.card-tag');
+        return {
+          classList: Array.from(tileEl.classList),
+          hasBody: !!tileEl.querySelector('.card-description'),
+          hasTags: tagEls.length > 0,
+          tagTexts: Array.from(tagEls).map(el => el.textContent),
+          isCompact: tileEl.classList.contains('card-compact')
+        };
+      }
+
+      function applyCardRenderResults(results, byCardId) {
+        (results || []).forEach(r => {
+          const entry = byCardId.get(r.cardId);
+          if (!entry || !entry.tileEl || !entry.tileEl.isConnected) return;
+          if (r.vnode) {
+            try {
+              const newEl = vnodeToDOM(r.vnode);
+              newEl.dataset.cardId = String(r.cardId);
+              newEl.dataset.renderType = entry.tileEl.dataset.renderType || 'list';
+              entry.tileEl.replaceWith(newEl);
+              entry.tileEl = newEl;
+            } catch (err) {
+              console.warn('[Plugin] Card component render failed:', err);
+            }
+          }
+          if (r.patch) {
+            try { applyPatch(entry.tileEl, r.patch); } catch (err) { console.warn('[Plugin] card.render patch failed:', err); }
+          }
+        });
+      }
+
+      /**
+       * @param {{card: object, tileEl: HTMLElement, isSelected?: boolean}[]} entries
+       */
+      async function scheduleCardRenderUpgrade(entries) {
+        const Plugin = window.CardSpoke && window.CardSpoke.Plugin;
+        if (!Plugin) return;
+        const pluginIds = Plugin.getCardRenderPluginIds();
+        if (!pluginIds.length) return;
+
+        const byCardId = new Map();
+        entries.forEach(e => { if (e.tileEl && e.tileEl.isConnected) byCardId.set(e.card.id, e); });
+        if (!byCardId.size) return;
+
+        for (const pluginId of pluginIds) {
+          const toFetch = [];
+          const cachedResults = [];
+          byCardId.forEach((entry, cardId) => {
+            const cacheKey = pluginId + '|' + cardId + '|' + (entry.card.updatedAt || 0);
+            const cached = cardRenderCache.get(cacheKey);
+            if (cached) {
+              cachedResults.push({ cardId: cardId, vnode: cached.vnode, patch: cached.patch });
+            } else {
+              toFetch.push({ card: entry.card, isSelected: !!entry.isSelected, tileSnapshot: buildTileSnapshot(entry.tileEl) });
+            }
+          });
+
+          if (cachedResults.length) applyCardRenderResults(cachedResults, byCardId);
+
+          if (toFetch.length) {
+            const results = await Plugin.renderBatch(pluginId, toFetch, {});
+            if (results) {
+              results.forEach(r => {
+                const entry = byCardId.get(r.cardId);
+                const key = pluginId + '|' + r.cardId + '|' + (entry ? (entry.card.updatedAt || 0) : 0);
+                cardRenderCache.set(key, { vnode: r.vnode, patch: r.patch });
+              });
+              if (cardRenderCache.size > CARD_RENDER_CACHE_LIMIT) {
+                const excess = cardRenderCache.size - CARD_RENDER_CACHE_LIMIT;
+                const it = cardRenderCache.keys();
+                for (let i = 0; i < excess; i++) cardRenderCache.delete(it.next().value);
+              }
+              applyCardRenderResults(results, byCardId);
+            }
+          }
+        }
       }
 
       /**
@@ -464,13 +544,16 @@ import {
           const childrenSection = h('div', { className: 'children-section' });
           childrenSection.appendChild(h('div', { className: 'children-title' }, `Children (${card.children.length})`));
           const childrenGrid = h('div', { className: 'card-grid' });
+          const childUpgradeEntries = [];
           card.children.forEach(cid => {
             const childCard = store.cards[cid];
             if (childCard) {
               const childEl = renderCardTile(childCard);
               childrenGrid.appendChild(childEl);
+              childUpgradeEntries.push({ card: childCard, tileEl: childEl });
             }
           });
+          scheduleCardRenderUpgrade(childUpgradeEntries);
           childrenSection.appendChild(childrenGrid);
           detail.appendChild(childrenSection);
         }
@@ -1033,10 +1116,12 @@ import {
             let renderIndex = 0;
             const renderBatch = () => {
               const frag = document.createDocumentFragment();
+              const upgradeEntries = [];
               for (let i = renderIndex; i < Math.min(renderIndex + batchSize, fuzzyResults.length); i++) {
                 const result = fuzzyResults[i];
                 const card = result.card;
                 const cardEl = renderCardTile(card, { highlightQuery: query, lazyBody: true });
+                upgradeEntries.push({ card: card, tileEl: cardEl });
                 cardEl.classList.add('search-result');
                 cardEl.dataset.resultIndex = i;
                 cardEl.addEventListener('click', () => {
@@ -1091,6 +1176,7 @@ import {
               grid.appendChild(frag);
               renderIndex += batchSize;
               updateSearchSelection(0);
+              scheduleCardRenderUpgrade(upgradeEntries);
             };
             const onScroll = () => {
               if (renderIndex >= fuzzyResults.length) return;
@@ -1145,7 +1231,12 @@ import {
        * Task 2.5: Expand Component Registry to Sidebar, Header, and SearchBar.
        * Called once after plugins are synced from store.
        */
-      function applyRegistryComponents() {
+      // Boot-time only (called once from the boot IIFE, before the first
+      // render()) — a custom Header/Sidebar/SearchBar component's render()
+      // is now an async RPC call into that plugin's sandboxed worker, which
+      // is fine here since this never runs in a per-frame hot path the way
+      // the Card component does.
+      async function applyRegistryComponents() {
         if (!window.CardSpoke || !window.CardSpoke.ComponentRegistry) {
           return;
         }
@@ -1157,7 +1248,7 @@ import {
           try {
             const headerEl = document.querySelector('.header');
             if (headerEl) {
-              const customEl = CustomHeader.render({ header: headerEl });
+              const customEl = await CustomHeader.render({ header: headerEl });
               if (customEl instanceof HTMLElement) {
                 headerEl.parentNode.replaceChild(customEl, headerEl);
                 console.log('[ComponentRegistry] Custom Header component applied');
@@ -1174,7 +1265,7 @@ import {
           try {
             const menuPanel = document.querySelector('.menu-panel');
             if (menuPanel) {
-              const customEl = CustomSidebar.render({ panel: menuPanel });
+              const customEl = await CustomSidebar.render({ panel: menuPanel });
               if (customEl instanceof HTMLElement) {
                 menuPanel.parentNode.replaceChild(customEl, menuPanel);
                 console.log('[ComponentRegistry] Custom Sidebar component applied');
@@ -1191,7 +1282,7 @@ import {
           try {
             const searchWrapper = document.querySelector('.search-input-wrapper');
             if (searchWrapper) {
-              const customEl = CustomSearchBar.render({ wrapper: searchWrapper });
+              const customEl = await CustomSearchBar.render({ wrapper: searchWrapper });
               if (customEl instanceof HTMLElement) {
                 searchWrapper.parentNode.replaceChild(customEl, searchWrapper);
                 console.log('[ComponentRegistry] Custom SearchBar component applied');

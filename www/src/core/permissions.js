@@ -20,18 +20,9 @@
 // Provides security layer for plugin capabilities
 
 const STORAGE_KEY = 'cardspoke_plugin_permissions';
-const TRUST_KEY = 'cardspoke_plugin_trust';
 const grantedPermissions = new Map();
-// Plugins whose JavaScript the user has explicitly accepted as fully
-// trusted. JS plugins run in the page realm with the same power as the
-// app itself — permissions scope the supported ctx API but are NOT a
-// security boundary, so consent must be to FULL access (CS-002).
-const trustedPlugins = new Set();
 
-  // Load saved permissions from localStorage. The permission grants and the
-  // trust grants are parsed in SEPARATE try blocks so a corrupt value in one
-  // key cannot wipe the other for the session (both fail safe: an unreadable
-  // trust list just means the user re-consents, never over-trust).
+  // Load saved permissions from localStorage.
   function loadPermissions() {
     if (typeof localStorage === 'undefined') return;
     try {
@@ -44,24 +35,6 @@ const trustedPlugins = new Set();
       }
     } catch (err) {
       console.error('[Permissions] Failed to load saved permissions:', err);
-    }
-    try {
-      const savedTrust = localStorage.getItem(TRUST_KEY);
-      if (savedTrust) {
-        JSON.parse(savedTrust).forEach(pluginId => trustedPlugins.add(pluginId));
-      }
-    } catch (err) {
-      console.error('[Permissions] Failed to load saved trust grants:', err);
-    }
-  }
-
-  // Persist the full-trust grants to localStorage
-  function saveTrust() {
-    try {
-      if (typeof localStorage === 'undefined') return;
-      localStorage.setItem(TRUST_KEY, JSON.stringify(Array.from(trustedPlugins)));
-    } catch (err) {
-      console.error('[Permissions] Failed to save trust grants:', err);
     }
   }
 
@@ -184,68 +157,16 @@ const trustedPlugins = new Set();
     },
 
     /**
-     * Whether the user has accepted a plugin's JavaScript as fully trusted.
-     */
-    hasFullTrust: function(pluginId) {
-      return trustedPlugins.has(pluginId);
-    },
-
-    /** Record full-trust consent for a plugin (persisted). */
-    grantFullTrust: function(pluginId) {
-      trustedPlugins.add(pluginId);
-      saveTrust();
-      console.log('[Permissions] Full trust granted to', pluginId);
-    },
-
-    /** Remove full-trust consent (e.g. when the plugin is deleted). */
-    revokeFullTrust: function(pluginId) {
-      if (trustedPlugins.delete(pluginId)) {
-        saveTrust();
-        console.log('[Permissions] Full trust revoked from', pluginId);
-      }
-    },
-
-    /**
-     * Ask the user for full-trust consent before a JavaScript plugin runs.
-     * There is no script isolation in this runtime: plugin JS executes in
-     * the page realm and can reach everything the app can, regardless of
-     * declared permissions. The dialog says exactly that. Environments
-     * without a consent UI deny by default.
-     */
-    requestFullTrust: async function(pluginId, pluginName) {
-      if (this.hasFullTrust(pluginId)) {
-        return true;
-      }
-      if (typeof document === 'undefined' || !document.body ||
-          typeof document.createElement !== 'function' ||
-          typeof document.addEventListener !== 'function') {
-        console.warn('[Permissions] No consent UI available; full trust denied for', pluginId);
-        return false;
-      }
-      const granted = await this._showDecisionDialog({
-        titleText: 'Run Plugin Code?',
-        introText: '"' + pluginName + '" contains JavaScript. CardSpoke plugins are NOT sandboxed: ' +
-          'this code will run with FULL access to this app — including every card in every ' +
-          'unlocked dataset, browser storage, and the network. Declared permissions scope the ' +
-          'plugin API but cannot contain malicious code.',
-        bulletItems: ['Only continue if you trust the author of this plugin.'],
-        denyLabel: 'Keep Suspended',
-        allowLabel: 'Trust & Run'
-      });
-      if (granted) {
-        this.grantFullTrust(pluginId);
-      }
-      return granted;
-    },
-
-    /**
-     * Show permission consent dialog
+     * Show permission consent dialog. Plugin JavaScript now runs inside a
+     * dedicated Worker sandbox with no DOM/window/storage/network access of
+     * its own (CS-002, resolved) — granting one of these permissions is a
+     * real, enforced capability grant, not a description of intent.
      */
     _showConsentDialog: async function(pluginId, pluginName, permissions) {
       return this._showDecisionDialog({
         titleText: 'Permission Request',
-        introText: '"' + pluginName + '" requests the following permissions. Note: permissions ' +
-          'describe what the plugin API offers this plugin; they are not a security sandbox.',
+        introText: '"' + pluginName + '" runs in a sandboxed worker with no access to this app ' +
+          'beyond what you grant below. It requests the following permissions:',
         bulletItems: permissions.map(function(perm) {
           return perm + ': ' + (PERMISSION_DESCRIPTIONS[perm] || 'Unknown permission');
         }),
@@ -369,13 +290,11 @@ const trustedPlugins = new Set();
     },
 
     /**
-     * Clear all permissions and trust grants (for testing)
+     * Clear all permissions (for testing)
      */
     clearAll: function() {
       grantedPermissions.clear();
       savePermissions();
-      trustedPlugins.clear();
-      saveTrust();
     }
   };
 

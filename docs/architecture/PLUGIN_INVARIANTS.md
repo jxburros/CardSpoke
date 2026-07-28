@@ -25,8 +25,8 @@ with these semantics:
 | `registerPlugin(id, definition)` | Async; registers **and enables**; session-only (no persistence). |
 | `installPlugin(pkg)` | Persistent install; equals `Plugin.install`. |
 | `requestPermissions(pluginId, pluginName, permissions)` | Returns `Promise<boolean>`. |
-| `Plugin` | The PluginManager with: `register`, `unregister`, `get`, `list`, `listAll`, `enable`, `disable`, `install`, `assessModRisk`, `syncFromStore`, `notifyDataUpdate`, `buildSettingsPanel`. |
-| `PluginSandbox` | Object with `createFunction(code)` — the shape `{ createFunction }` is relied on by the Plugin Manager UI. |
+| `Plugin` | The PluginManager with: `register`, `unregister`, `get`, `list`, `listAll`, `enable`, `disable`, `install`, `assessModRisk`, `syncFromStore`, `notifyDataUpdate`, `buildSettingsPanel`, `getCardRenderPluginIds`, `renderBatch`. |
+| `PluginSandbox` | Object with `createFunction(code)` — the shape `{ createFunction }` is retained (nothing was found consuming its return value beyond this wiring). **Behavior changed** (v0.21.0, CS-002): pre-sandbox, `createFunction` returned a callable wrapper that, if invoked, actually ran the code on the main thread. It is now a syntax-check-only function — it throws on invalid JS and otherwise returns `undefined`; it never executes the code. Real execution always happens inside a plugin's own dedicated Worker (`plugin-worker-bootstrap.js`). |
 | `Middleware` | `register`, `unregister`, `run`, `list`, `clear`. |
 | `ComponentRegistry` | `register`, `unregister`, `get`, `list`. |
 | `StorageDriverRegistry` | Present (experimental). |
@@ -67,6 +67,18 @@ The order is: **core runtime → app layer → boot IIFE**. Concretely:
    second build path with its own copy of the runtime — a diverging
    duplicate runtime (the old `www/src/core.js`) is what originally broke
    the plugin system.
+6. `npm run build` (and `npm run dev`) also run `scripts/build-plugin-worker.mjs`
+   **first**, which bundles `www/src/core/plugin-worker-bootstrap.js` (plus
+   its `plugin-rpc.js`/`plugin-vnode.js` imports) into a standalone ES
+   module at `www/plugin-worker-bootstrap.js` via esbuild. This is a
+   deliberate exception to "one build," not a violation of it: Rollup's
+   `iife` output format (used for the main `app.js` bundle) only supports a
+   single entry point, so the sandbox's worker script — loaded at runtime
+   via `new Worker('./plugin-worker-bootstrap.js', { type: 'module' })`,
+   which Vite's module graph cannot see ahead of time — has to be built as
+   its own separate artifact. It must run *before* `vite build` so
+   `vite.config.js`'s `copy-site-to-dist` plugin finds the file already
+   present in `www/` when it copies the site into `dist/`.
 
 ## 3. Host-bridge window globals
 
@@ -123,6 +135,11 @@ corresponding `ctx.api` methods.
 - Other persisted keys: user permission grants live in localStorage under
   `cardspoke_plugin_permissions`; plugin key-value storage uses the
   `plugin_<id>_` prefix. Both key formats are frozen.
+- **Unchanged by the v0.21.0 sandbox migration (CS-002).** Moving plugin JS
+  execution into a dedicated Worker changed *how* `js`/`teardownJs` strings
+  run and what `ctx.api` looks like while they run — it did not change what
+  gets persisted. The `cardspoke_plugin_trust` localStorage key (full-trust
+  consent) is gone and will not reappear; no migration reads it.
 
 ## 5. Plugin package format and execution model
 
@@ -131,16 +148,39 @@ corresponding `ctx.api` methods.
   `docs/architecture/PLUGIN_SYSTEM.md` says. `javascript` is accepted as a legacy alias
   of `js`. Top-level `id`/`config`/`overrides` are normalized into the
   manifest at install.
-- **`js` is a setup-function BODY receiving `ctx`.** It is compiled by the
-  single factory `_createSandboxedFunction` in `plugin-api.js` as
-  `new Function('ctx', '"use strict";\n' + code)` and executed on the main
-  thread. All plugin-code compilation must keep going through that one
-  factory. Packages must never self-register.
+- **`js` is a setup-function BODY receiving `ctx`, executed inside a
+  dedicated Worker (v0.21.0, CS-002 — was: the main thread).** It is
+  compiled once per `enable()`, inside that worker, as
+  `new AsyncFunction('ctx', '"use strict";\n' + code)` by
+  `plugin-worker-bootstrap.js`. A separate, main-thread-only
+  `_checkSyntax`/`PluginSandbox` call (same `AsyncFunction` construction,
+  never invoked) exists purely to surface a bad package's syntax error
+  synchronously at install time, before any worker is created — this is a
+  deliberate two-compile design, not a duplicate one. **All real execution
+  must go through the worker; do not add a second path that runs `js` on
+  the main thread.** Packages must never self-register.
+- The worker has no `window`, `document`, `localStorage`, or raw
+  `fetch`/`XMLHttpRequest`/`WebSocket`/`indexedDB`/`caches`/`BroadcastChannel`
+  — these are stripped in `plugin-worker-bootstrap.js` before the plugin's
+  `js` is compiled. This list may grow (new browser capabilities added to
+  the strip list) but must never shrink without a security review — it is
+  the actual enforcement mechanism behind every `ctx.api` permission.
+- A definition carrying `js`/`teardownJs` strings never gets a host-side
+  `ctx` object (`instance.context` is `null`) — its `ctx` is built fresh
+  inside the worker on every enable. A definition registered with real
+  `setup`/`teardown` **functions** (the `registerPlugin` session-only path,
+  documented as host code because a function value cannot come from a
+  persisted/downloaded package) gets a conventional host-side `ctx` and
+  runs unsandboxed on the main thread, exactly as before v0.21.0 — that
+  path was never the security boundary, so it did not need to change.
 - The three layer names `theme` / `feature` / `app` and the risk mapping
   are frozen: theme+CSS-only → `SAFE`; feature without overrides → `LOW`;
   app layer or any overrides → `HIGH`; anything else → `MEDIUM`. Only
   `SAFE`/`LOW` auto-enable on install; `HIGH` requires an explicit user
-  enable. This is the safety boundary users rely on.
+  enable. This is the safety boundary users rely on. `install()`'s
+  auto-enable is time-boxed via `_enableWithTimeout` (same as boot's
+  `syncFromStore`) — a hanging `SAFE`/`LOW` plugin's worker is terminated
+  rather than leaving `install()` awaited forever.
 - `register()` throws on a duplicate id; `install()` on an existing id is
   an in-place update (full unregister first, same id, no suffixes).
 - Validator limits and blocked patterns (100 KB CSS / 500 KB JS; `eval(`,
@@ -154,7 +194,9 @@ corresponding `ctx.api` methods.
 `data-modify` — these six strings are persisted in user grants and written
 in plugin manifests. Add new permissions if needed; never rename or reuse
 the existing ones. Deleting a plugin (`unregister`) must keep revoking its
-grants.
+grants. **Unchanged in meaning by the v0.21.0 sandbox** — but now genuinely
+enforced (the worker cannot reach an ungated capability at all), not merely
+descriptive.
 
 ## 7. Middleware operations
 
@@ -166,22 +208,61 @@ Operation names and argument tuples fired by the host:
 | `card.update` | `[cardId, card]` | `data.js updateCard` |
 | `card.delete` | `[cardId]` | `data.js deleteCard` |
 | `card.save` | `[store]` | `storage.js saveNow` — `preventDefault()` aborts the save |
-| `card.render` | `[card, cardTileElement]` | `rendering.js renderCardTile` |
 
-`data.js` must also keep calling `Plugin.notifyDataUpdate({type, cardId,
-card?})` for create/update/delete — that is what feeds
-`ctx.api.data.onUpdate`. Plugin middleware names are namespaced
-`<pluginId>:<name>` by `ctx.api.middleware`; cleanup on disable depends on
-that prefix.
+`card.create`/`update`/`delete`/`save` keep the full onion-model contract:
+a plugin's `handler(mwCtx, next)` runs inside its own worker, and the host
+proxies `next()` as a round trip back into the real pipeline (so a plugin
+can still gate whether/when downstream middleware — including other
+plugins', possibly in other workers — runs). `data.js` must also keep
+calling `Plugin.notifyDataUpdate({type, cardId, card?})` for
+create/update/delete — that is what feeds `ctx.api.data.onUpdate`. Plugin
+middleware names are namespaced `<pluginId>:<name>` by `ctx.api.middleware`;
+cleanup on disable depends on that prefix.
+
+**`card.render` is a deliberate, permanent exception (v0.21.0, CS-002).**
+It no longer fires through the onion-model pipeline above and no longer
+carries a live `cardTileElement` — cross-thread `next()` interleaving per
+tile, at up to 60 tiles/batch, would be prohibitively slow, and a live DOM
+node cannot cross the Worker boundary at all. Instead:
+
+- Fired from `rendering.js`'s render-batch upgrade pass (`scheduleCardRenderUpgrade`),
+  batched (one RPC call per plugin per render batch, not per tile), racing
+  a short (~80ms) deadline — a slow/hung decorator never blocks rendering.
+- Handler shape is `(card, tileSnapshot) => patch | Promise<patch> | null`
+  — **not** `(mwCtx, next) => {}`. `tileSnapshot` is a serializable summary
+  (`classList`, `hasBody`, `hasTags`, `tagTexts`, `isCompact`) of the
+  already-built default tile.
+- The handler's return value (a patch: `addClass`/`removeClass`/`setStyle`/
+  `setStyleByIndex`/`appendChildren`/`prependChildren`) is what the host
+  applies to the real tile — see `docs/architecture/PLUGIN_SYSTEM.md`
+  "The card.render decorator contract" for the full shape.
+- There is no `next()`/`stopPropagation()`/`preventDefault()` for this
+  operation. Every plugin's registered `card.render` decorator is
+  independent and additive, applied in registration order after all
+  decorators for that batch resolve (or time out). Do not reintroduce
+  onion-model semantics here without re-solving the per-tile latency
+  problem first.
+- Registering `operations: ['card.render']` (even mixed with other
+  operation names in one call) routes that registration to this path
+  instead of the general pipeline — `www/src/core/plugin-worker-bootstrap.js`'s
+  `createMiddlewareApi().register` and `plugin-api.js`'s
+  `createWorkerMiddlewareHandlers` both special-case it. Keep them in sync.
 
 ## 8. Component registry names
 
-The host queries exactly these component names: `Card` (per card-tile
-render, live), and `Header`, `Sidebar`, `SearchBar` (once at boot via
-`applyRegistryComponents()`). A custom component's `render(props)` must
-return an `HTMLElement`; on any exception the host falls back to the
-default renderer. Removing one of these lookups breaks published plugins
-that register the corresponding component.
+The host queries exactly these component names: `Card` (per render-batch,
+via the same batched worker round trip as `card.render` decorators — see
+§7), and `Header`, `Sidebar`, `SearchBar` (once at boot via
+`applyRegistryComponents()`). A custom component's `render(props)` returns
+a vnode (`ctx.h(...)`, see `docs/architecture/PLUGIN_SYSTEM.md`), **not** an
+`HTMLElement` directly (v0.21.0, CS-002 — was: must return an `HTMLElement`
+synchronously) — the host's `ComponentRegistry`-stored wrapper converts the
+returned vnode to real DOM (`plugin-vnode.js`'s `vnodeToDOM`) after the RPC
+round trip resolves. `render()` may be `async`; `Header`/`Sidebar`/
+`SearchBar`'s boot-time caller (`applyRegistryComponents`) awaits it, and
+`Card`'s hot-path caller races it against a deadline and falls back to the
+default tile on timeout/exception. Removing one of these lookups breaks
+published plugins that register the corresponding component.
 
 ## 9. DOM and CSS contract
 
@@ -210,9 +291,12 @@ that register the corresponding component.
 ## 11. Event bus semantics
 
 `ctx.api.events` is a **global** bus: events emitted by one plugin are
-received by all plugins subscribed to that event name. Handlers are removed
-automatically when their plugin is disabled. Do not scope it per plugin —
-cross-plugin communication is a documented feature.
+received by all plugins subscribed to that event name — including plugins
+running in a *different* worker than the emitter (the bus itself lives on
+the host, in `plugin-api.js`, and relays into/out of each subscriber's
+worker over RPC). Handlers are removed automatically when their plugin is
+disabled. Do not scope it per plugin — cross-plugin communication is a
+documented feature.
 
 ## Change checklist
 

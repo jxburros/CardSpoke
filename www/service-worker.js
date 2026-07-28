@@ -10,7 +10,7 @@
 // cache namespace — and the worker's own bytes — change on every release.
 // A byte-identical worker is never re-installed by the browser, which is how
 // 0.18.1 shipped while returning users stayed pinned to the 0.18.0 cache.
-const CACHE_VERSION = 'cardspoke-app-shell-v0.20.0-public-1';
+const CACHE_VERSION = 'cardspoke-app-shell-v0.21.0-public-1';
 const APP_SHELL = [
   './',
   './index.html',
@@ -18,6 +18,10 @@ const APP_SHELL = [
   './app-loader.js',
   './offline-status.js',
   './app.js',
+  // Plugin sandbox worker entry point (new Worker(...) is a runtime
+  // construct the browser can't discover ahead of time, so it has to be
+  // precached explicitly like any other app-shell asset).
+  './plugin-worker-bootstrap.js',
   './CardSpoke.svg',
   './manifest.webmanifest'
 ];

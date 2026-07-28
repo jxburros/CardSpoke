@@ -488,7 +488,11 @@ export default defineConfig({
           'index.html', 'styles.css', 'manifest.webmanifest',
           'service-worker.js', 'capacitor.js', 'offline-status.js',
           'app-loader.js', 'CardSpoke.svg', 'capabilities.json',
-          'diagnostic.html', 'test.html'
+          'diagnostic.html', 'test.html',
+          // Plugin sandbox worker entry point — built separately by
+          // scripts/build-plugin-worker.mjs (see npm run build), not by the
+          // vite build above, so it must be copied into dist/ here too.
+          'plugin-worker-bootstrap.js', 'plugin-worker-bootstrap.js.map'
         ];
         const distDir = resolve(__dirname, 'dist');
         if (!fs.existsSync(distDir)) fs.mkdirSync(distDir, { recursive: true });

@@ -3,14 +3,13 @@
   "manifest": {
     "id": "card-color-tags",
     "name": "Card Color Tags",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "author": "CardSpoke Community",
-    "description": "Gives every tag a stable color derived from its text. Demonstrates the 'card.render' middleware hook.",
+    "description": "Gives every tag a stable color derived from its text. Demonstrates the 'card.render' decorator contract.",
     "layer": "feature",
     "permissions": [],
-    "compatibility": ">=0.17.0"
+    "compatibility": ">=0.21.0"
   },
   "css": "",
-  "js": "function colorFor(text) {\n  var hash = 0;\n  for (var i = 0; i < text.length; i++) {\n    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;\n  }\n  return 'hsl(' + (hash % 360) + ', 65%, 38%)';\n}\n\nfunction paint(rootEl) {\n  var tags = rootEl.querySelectorAll('.card-tag');\n  for (var i = 0; i < tags.length; i++) {\n    tags[i].style.background = colorFor(tags[i].textContent || '');\n    tags[i].style.color = '#ffffff';\n  }\n}\n\n// 'card.render' fires once per card tile with args [card, cardEl].\nctx.api.middleware.register({\n  name: 'color-tags',\n  operations: ['card.render'],\n  handler: async function(mw, next) {\n    await next();\n    var cardEl = mw.args && mw.args[1];\n    if (cardEl && cardEl.querySelectorAll) paint(cardEl);\n  }\n});\n\n// Color anything already on screen at enable time.\npaint(document);\nctx.logger.info('Card color tags active');\n",
-  "teardownJs": "// Middleware is auto-unregistered; clear the inline styles we set on\n// tiles that are still on screen.\nvar tags = document.querySelectorAll('.card-tag');\nfor (var i = 0; i < tags.length; i++) {\n  tags[i].style.background = '';\n  tags[i].style.color = '';\n}\n"
+  "js": "function colorFor(text) {\n  var hash = 0;\n  for (var i = 0; i < text.length; i++) {\n    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;\n  }\n  return 'hsl(' + (hash % 360) + ', 65%, 38%)';\n}\n\n// 'card.render' decorators receive (card, tileSnapshot) — a plain data\n// summary of the already-built default tile, never a live DOM node — and\n// return a patch the host applies for them. See\n// docs/architecture/PLUGIN_SYSTEM.md \"The card.render decorator contract\".\nctx.api.middleware.register({\n  name: 'color-tags',\n  operations: ['card.render'],\n  handler: async function(card, tileSnapshot) {\n    var tags = (tileSnapshot && tileSnapshot.tagTexts) || [];\n    if (!tags.length) return null;\n    return {\n      setStyleByIndex: {\n        '.card-tag': tags.map(function(text) {\n          return { background: colorFor(text), color: '#ffffff' };\n        })\n      }\n    };\n  }\n});\n\nctx.logger.info('Card color tags active');\n"
 }

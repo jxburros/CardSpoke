@@ -21,6 +21,7 @@ import * as assert from 'uvu/assert';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { installFakeWorkerGlobal } from './helpers/fake-worker-global.js';
 import {
   encryptStorePayload,
   decryptStorePayload,
@@ -149,45 +150,111 @@ test('CS-005: import preserves the modern plugin persistence shape', () => {
   assert.not.ok(/js:\s*plugin\.js\s*\|\|\s*''/.test(src), 'legacy lossy conversion removed');
 });
 
-// ── CS-002: full-trust consent model ──────────────────────────────────────
+// ── CS-002: real Worker sandbox (resolved — no more full-trust consent) ──
+//
+// CS-002 originally shipped as a "full-trust consent" dialog because plugin
+// JS ran unsandboxed on the main thread — permissions described intent but
+// could not contain malicious code. It has since been resolved for real:
+// every JS-bearing plugin now runs inside its own dedicated Worker (see
+// www/src/core/plugin-worker-bootstrap.js), with no ambient access to
+// window/document/localStorage/fetch outside its permission-gated ctx.api.
+// The full-trust dialog and its consent/revocation bookkeeping are gone —
+// these tests now prove containment directly instead of consent.
 
-test('CS-002: enabling package-sourced JS requires full-trust consent', async () => {
+installFakeWorkerGlobal();
+
+test('CS-002: sandboxed plugin JS has no ambient access to document, window, or fetch', async () => {
   const { Permissions } = await import('../www/src/core/permissions.js');
   const { Plugin, resetForTesting } = await import('../www/src/core/plugin-api.js');
 
   resetForTesting();
   Permissions.clearAll();
 
-  // Minimal window/store host bridge; the document stub deliberately lacks
-  // body/createElement/addEventListener, so no consent dialog can be shown
-  // and requestFullTrust must deny by default.
-  global.window = { store: { plugins: {} } };
+  global.window = {
+    store: { plugins: {} },
+    save: () => {},
+    APP_VERSION: '0.21.0',
+    SCHEMA_VERSION: 4,
+    localStorage: {
+      _data: {},
+      getItem(k) { return Object.prototype.hasOwnProperty.call(this._data, k) ? this._data[k] : null; },
+      setItem(k, v) { this._data[k] = v; },
+      removeItem(k) { delete this._data[k]; },
+      get length() { return Object.keys(this._data).length; },
+      key(i) { return Object.keys(this._data)[i] || null; }
+    }
+  };
+  global.localStorage = global.window.localStorage;
   global.document = { querySelector: () => null, getElementById: () => null };
 
+  Permissions.grantPermissions('trust-probe', ['storage']);
   const id = await Plugin.install({
-    manifest: { id: 'trust-probe', name: 'Trust Probe', version: '1.0.0', author: 't', layer: 'feature' },
-    js: "globalThis.__trustProbeRan = true;"
+    manifest: {
+      id: 'trust-probe', name: 'Trust Probe', version: '1.0.0', author: 't', layer: 'feature',
+      permissions: ['storage']
+    },
+    js: "await ctx.api.storage.set('probe', { doc: typeof document, win: typeof window, fetch: typeof fetch, ls: typeof localStorage });"
   });
 
-  assert.is(Plugin.get(id).enabled, false, 'JS plugin must not run without consent');
-  assert.not.ok(globalThis.__trustProbeRan, 'setup must not have executed');
+  assert.is(Plugin.get(id).enabled, true, 'plugin enabled — its JS ran, but inside a sandbox');
+  const probe = JSON.parse(global.localStorage.getItem('plugin_trust-probe_probe'));
+  assert.is(probe.doc, 'undefined', 'document is unreachable inside the worker');
+  assert.is(probe.win, 'undefined', 'window is unreachable inside the worker');
+  assert.is(probe.fetch, 'undefined', 'raw fetch is stripped even though the worker environment has it ambiently');
+  assert.is(probe.ls, 'undefined', 'localStorage is unreachable — only the namespaced ctx.api.storage is');
 
-  // Consent recorded (the dialog's Allow path) → enable proceeds.
-  Permissions.grantFullTrust(id);
-  await Plugin.enable(id);
-  assert.is(Plugin.get(id).enabled, true, 'enabled after consent');
-  assert.ok(globalThis.__trustProbeRan, 'setup ran after consent');
-
-  // Deleting the plugin revokes consent.
-  await Plugin.unregister(id);
-  assert.not.ok(Permissions.hasFullTrust(id), 'trust revoked on delete');
-
-  delete globalThis.__trustProbeRan;
+  await Plugin.disable(id);
   resetForTesting();
   Permissions.clearAll();
 });
 
-test('CS-002: CSS-only themes still enable without a trust prompt', async () => {
+test('CS-002: a denied permission is unreachable from inside the worker, not just discouraged', async () => {
+  const { Permissions } = await import('../www/src/core/permissions.js');
+  const { Plugin, resetForTesting } = await import('../www/src/core/plugin-api.js');
+
+  resetForTesting();
+  Permissions.clearAll();
+
+  global.window = {
+    store: { plugins: {} },
+    save: () => {},
+    APP_VERSION: '0.21.0',
+    SCHEMA_VERSION: 4,
+    localStorage: {
+      _data: {},
+      getItem(k) { return Object.prototype.hasOwnProperty.call(this._data, k) ? this._data[k] : null; },
+      setItem(k, v) { this._data[k] = v; },
+      removeItem(k) { delete this._data[k]; },
+      get length() { return Object.keys(this._data).length; },
+      key(i) { return Object.keys(this._data)[i] || null; }
+    }
+  };
+  global.localStorage = global.window.localStorage;
+  global.document = { querySelector: () => null, getElementById: () => null };
+
+  // No permissions declared/granted at all — network is denied.
+  const id = await Plugin.install({
+    manifest: { id: 'network-probe', name: 'Network Probe', version: '1.0.0', author: 't', layer: 'feature' },
+    js: [
+      "var denied = false;",
+      "try { await ctx.api.network.fetch('https://example.com'); }",
+      "catch (err) { denied = err.message.includes('network'); }",
+      "await ctx.api.storage.set('denied', denied);"
+    ].join('\n')
+  });
+
+  // storage wasn't granted either, so the probe's own result-recording call
+  // would itself throw — install() swallows an enable() failure and leaves
+  // the plugin suspended, which is itself proof enough: an ungated
+  // capability was never reached.
+  assert.is(Plugin.get(id).enabled, false, 'setup failed (storage denied too) — no capability leaked despite the failure');
+
+  await Plugin.unregister(id);
+  resetForTesting();
+  Permissions.clearAll();
+});
+
+test('CS-002: CSS-only themes auto-enable with no worker/permission dance at all', async () => {
   const { Permissions } = await import('../www/src/core/permissions.js');
   const { Plugin, resetForTesting } = await import('../www/src/core/plugin-api.js');
 
@@ -209,8 +276,8 @@ test('CS-002: CSS-only themes still enable without a trust prompt', async () => 
     css: ':root { --bg: #123456; }'
   });
 
-  assert.is(Plugin.get(id).enabled, true, 'CSS-only theme auto-enables (no JS runs)');
-  assert.not.ok(Permissions.hasFullTrust(id), 'no trust grant needed for CSS-only');
+  assert.is(Plugin.get(id).enabled, true, 'CSS-only theme auto-enables (no JS runs, no worker spun up)');
+  assert.not.ok(Plugin.get(id).workerHandle, 'a CSS-only theme never gets a worker at all');
 
   await Plugin.unregister(id);
   resetForTesting();

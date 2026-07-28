@@ -3,10 +3,13 @@
 //         3.3 (dependency checking), 3.4 (sandbox hardening)
 import { test } from 'uvu';
 import * as assert from 'uvu/assert';
+import { installFakeWorkerGlobal } from './helpers/fake-worker-global.js';
 import { Plugin, PluginSandbox, resetForTesting } from '../www/src/core/plugin-api.js';
 import { Middleware } from '../www/src/core/middleware.js';
 import { ComponentRegistry } from '../www/src/core/component-registry.js';
 import { Permissions } from '../www/src/core/permissions.js';
+
+installFakeWorkerGlobal();
 
 let PluginManager = null;
 
@@ -444,37 +447,68 @@ test('buildSettingsPanel input onchange updates live config and context', async 
   await PluginManager.disable('live-config');
 });
 
-// ─── Task 3.4: Sandbox Hardening ─────────────────────────────────────────────
+// ─── Task 3.4: Sandbox Hardening (CS-002, resolved: real Worker isolation) ──
+//
+// Plugin JS is no longer compiled into a callable main-thread `setup`
+// function at all — it runs inside a dedicated Worker sandbox instead. These
+// two tests now prove the actual, stronger claim: the code really executes,
+// and it executes with no ambient access outside its permission-gated
+// ctx.api (observed here via a storage side-channel — ctx.api.ui.showToast
+// resolves through an InternalAPI reference other tests in this file may
+// have already captured, so it isn't a reliable "did it run" signal).
 
-test('install() still executes plugin JS via sandboxed function factory', async () => {
-  global.sandboxTestRan = false;
+test('install() runs plugin JS inside a sandboxed worker, not a main-thread function', async () => {
+  window.CardSpoke.Permissions.grantPermissions('sandbox-test', ['storage']);
 
   const pkg = {
     manifest: {
       id: 'sandbox-test',
       name: 'Sandbox Test',
       version: '1.0.0',
-      layer: 'feature'
+      layer: 'feature',
+      permissions: ['storage']
     },
-    js: 'sandboxTestRan = true;'
+    js: "await ctx.api.storage.set('marker', 'ran');"
   };
 
   const id = await PluginManager.install(pkg);
   const instance = PluginManager.get(id);
 
-  assert.ok(instance.definition.setup, 'Setup function created by sandbox factory');
-  assert.type(instance.definition.setup, 'function', 'Setup is a callable function');
+  assert.not.ok(instance.definition.setup, 'No main-thread setup function is created for string-form js');
+  assert.equal(window.localStorage.getItem('plugin_sandbox-test_marker'), '"ran"', 'The plugin JS actually executed, inside its sandboxed worker');
 });
 
-test('syncFromStore uses sandbox factory to reconstruct setup functions', async () => {
-  global.sandboxSyncRan = false;
+test('sandboxed plugin JS has no ambient access to document, window, or fetch', async () => {
+  window.CardSpoke.Permissions.grantPermissions('sandbox-isolation-test', ['storage']);
+
+  const pkg = {
+    manifest: {
+      id: 'sandbox-isolation-test',
+      name: 'Sandbox Isolation Test',
+      version: '1.0.0',
+      layer: 'feature',
+      permissions: ['storage']
+    },
+    js: "await ctx.api.storage.set('probe', { doc: typeof document, win: typeof window, fetch: typeof fetch });"
+  };
+
+  await PluginManager.install(pkg);
+
+  const probe = JSON.parse(window.localStorage.getItem('plugin_sandbox-isolation-test_probe'));
+  assert.equal(probe.doc, 'undefined', 'document is unreachable inside the worker');
+  assert.equal(probe.win, 'undefined', 'window is unreachable inside the worker');
+  assert.equal(probe.fetch, 'undefined', 'raw fetch is unreachable inside the worker (only ctx.api.network.fetch is)');
+});
+
+test('syncFromStore reconstructs a plugin from its persisted js string but no callable setup', async () => {
+  window.CardSpoke.Permissions.grantPermissions('sandbox-sync-test', ['storage']);
 
   window.store.plugins['sandbox-sync-test'] = {
     definition: {
-      manifest: { name: 'Sandbox Sync Test', version: '1.0.0', layer: 'feature' },
+      manifest: { name: 'Sandbox Sync Test', version: '1.0.0', layer: 'feature', permissions: ['storage'] },
       setup: null,
       teardown: null,
-      js: 'sandboxSyncRan = true;'
+      js: "await ctx.api.storage.set('marker', 'ran');"
     },
     enabled: false
   };
@@ -484,8 +518,18 @@ test('syncFromStore uses sandbox factory to reconstruct setup functions', async 
 
   const instance = PluginManager.get('sandbox-sync-test');
   assert.ok(instance, 'Plugin re-registered');
-  assert.ok(instance.definition.setup, 'Setup reconstructed by sandbox factory');
-  assert.type(instance.definition.setup, 'function', 'Setup is callable');
+  assert.not.ok(instance.definition.setup, 'No main-thread setup function is reconstructed from the js string');
+  assert.not.ok(instance.enabled, 'safeMode leaves it suspended, so its worker never ran');
+});
+
+// Real, unterminated worker_threads.Worker instances keep the Node process
+// alive after the test file's assertions finish — every enabled plugin here
+// runs inside a genuine worker thread, so it must be disabled (which
+// terminates its worker) before uvu is done, or the process hangs.
+test.after(async () => {
+  for (const instance of PluginManager.list()) {
+    if (instance.enabled) await PluginManager.disable(instance.id);
+  }
 });
 
 test.run();

@@ -3,19 +3,19 @@
   "manifest": {
     "id": "daily-journal",
     "name": "Daily Journal",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "author": "CardSpoke Community",
-    "description": "Turns CardSpoke into a journaling app: renames the app and adds a Today's Entry button that creates one dated, tagged journal card per day. Demonstrates overrides.appName and ctx.api.data.createCard.",
+    "description": "Turns CardSpoke into a journaling app: renames the app and adds a Today's Entry button that creates one dated, tagged journal card per day. Demonstrates overrides.appName, ctx.h, and the async ctx.api.data.createCard.",
     "layer": "app",
     "permissions": [
       "ui-override",
       "data-modify"
     ],
-    "compatibility": ">=0.17.0",
+    "compatibility": ">=0.21.0",
     "overrides": {
       "appName": "Daily Journal"
     }
   },
   "css": "",
-  "js": "function todayTitle() {\n  var now = new Date();\n  var mm = String(now.getMonth() + 1);\n  var dd = String(now.getDate());\n  if (mm.length < 2) mm = '0' + mm;\n  if (dd.length < 2) dd = '0' + dd;\n  return 'Journal — ' + now.getFullYear() + '-' + mm + '-' + dd;\n}\n\nvar btn = document.createElement('button');\nbtn.className = 'btn plugin-journal-btn';\nbtn.textContent = \"Today's Entry\";\nbtn.onclick = function() {\n  var title = todayTitle();\n  var existing = ctx.api.data.listCards().filter(function(c) { return c.title === title; });\n  if (existing.length > 0) {\n    ctx.api.ui.showToast('Today\\'s entry already exists — search for \"' + title + '\"', 'info');\n    return;\n  }\n  ctx.api.data.createCard({ title: title, body: '', tags: ['journal'] });\n  ctx.api.ui.showToast('Created ' + title, 'success');\n};\nctx.api.ui.inject('.header', btn, 'append');\n\nctx.logger.info('Daily journal ready');\n"
+  "js": "function todayTitle() {\n  var now = new Date();\n  var mm = String(now.getMonth() + 1);\n  var dd = String(now.getDate());\n  if (mm.length < 2) mm = '0' + mm;\n  if (dd.length < 2) dd = '0' + dd;\n  return 'Journal — ' + now.getFullYear() + '-' + mm + '-' + dd;\n}\n\nvar btn = ctx.h('button', {\n  className: 'btn plugin-journal-btn',\n  onclick: async function() {\n    var title = todayTitle();\n    var existing = (await ctx.api.data.listCards()).filter(function(c) { return c.title === title; });\n    if (existing.length > 0) {\n      ctx.api.ui.showToast('Today\\'s entry already exists — search for \"' + title + '\"', 'info');\n      return;\n    }\n    await ctx.api.data.createCard({ title: title, body: '', tags: ['journal'] });\n    ctx.api.ui.showToast('Created ' + title, 'success');\n  }\n}, \"Today's Entry\");\nawait ctx.api.ui.inject('.header', btn, 'append');\n\nctx.logger.info('Daily journal ready');\n"
 }

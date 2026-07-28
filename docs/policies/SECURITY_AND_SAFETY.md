@@ -60,34 +60,52 @@ This guide outlines expectations for secure, transparent, and user-respecting be
 - For plugins introducing network access, include mockable clients and offline fallbacks.
 - Audit dependencies for known CVEs before releases.
 
-## Plugin Trust Model (v0.20.0)
+## Plugin Trust Model (v0.21.0 — CS-002 resolved)
 
-**JavaScript plugins are fully trusted code.** There is no sandbox: plugin
-JavaScript is compiled with `new Function` and runs on the main thread in the
-page realm, where it can reach `window`, `document`, LocalStorage, IndexedDB,
-`fetch`, and the host bridge directly. The declared `permissions` array scopes
-what the *supported* `ctx` API offers a well-behaved plugin — it is a
-compatibility and UX contract, **not a security boundary**, and cannot contain
-malicious code.
+**JavaScript plugins run inside a real sandbox.** Every JS-bearing plugin
+executes inside its own dedicated Web Worker (`www/src/core/plugin-worker-bootstrap.js`),
+compiled there — not on the main thread. That worker has no `window`, no
+`document`, no `localStorage`, and no raw `fetch`/`XMLHttpRequest`/`WebSocket`/
+`indexedDB`/`caches`/`BroadcastChannel` (all deliberately stripped before the
+plugin's own code ever runs). The only way out is `ctx.api.*`, which round-trips
+through the host over a `postMessage`-based RPC protocol (`www/src/core/plugin-rpc.js`)
+and is checked against the plugin's declared, user-granted `permissions` on
+every call. A denied permission is **unreachable**, not merely discouraged.
 
-The controls that follow from that honesty:
+This replaces the previous "full-trust consent" model entirely — there is no
+blanket "trust this code" prompt anymore, because there is no longer a
+blanket capability grant to warn about. The remaining controls:
 
-- **Full-trust consent (required)**: any plugin that ships JavaScript must be
-  explicitly accepted by the user in a consent dialog that states the above
-  before it is enabled — at install, at re-import, and (once per plugin) at
-  first enable. Consent is revoked when the plugin is deleted.
-- **No silent JS enable**: only CSS-only themes (risk `SAFE`) auto-enable.
-  Everything carrying JavaScript stays suspended until consent is given.
-- **Risk labeling** (sets expectations, not guarantees): `SAFE` = CSS-only
-  theme; `LOW` = feature layer without overrides; `HIGH` = app layer or
-  overrides; visual badges shown in the Plugin Manager.
-- **Safe Mode**: booting with `?safemode` registers plugins but never runs them.
+- **Per-permission consent (the real boundary now)**: the first time a plugin
+  needs a gated capability (`ui-override`, `data-modify`, `storage`,
+  `network`, `filesystem`), the user is asked to grant it — and that grant is
+  enforced by the sandbox construction itself, not just checked by a
+  cooperating wrapper.
+- **No silent JS enable for HIGH-risk plugins**: `app`-layer plugins (or any
+  plugin declaring `overrides`) always install suspended until the user
+  enables them manually. `SAFE`/`LOW` risk plugins (CSS-only themes, and
+  feature-layer plugins without overrides) auto-enable — the sandbox is what
+  makes that safe to do by default now, not a corner cut.
+- **Risk labeling**: `SAFE` = CSS-only theme; `LOW` = feature layer without
+  overrides; `HIGH` = app layer or overrides; visual badges shown in the
+  Plugin Manager.
+- **Safe Mode**: booting with `?safemode` registers plugins but never enables
+  them (no worker is ever spun up).
 - **Validation**: manifests, size limits, and obvious footguns (`eval`,
-  arbitrary `new Function`) are screened before registration.
+  arbitrary `new Function`) are still screened before registration — a
+  defense-in-depth static check, not the primary boundary anymore.
+- **Hang/abuse containment**: a plugin whose setup never resolves (or spins
+  in an infinite loop) is time-boxed and its worker is forcibly terminated —
+  a capability the previous main-thread execution model could never offer,
+  since a genuine infinite loop there would have frozen the whole app with
+  no way to interrupt it.
 
-Users should only install plugins from authors they trust — the same rule as
-installing any software. Real isolation (Worker/iframe with a message
-protocol) is tracked as future hardening work.
+Users should still only install plugins from authors they trust — sandboxing
+contains what a plugin's *code* can reach, not what it's allowed to do with a
+capability once granted (a plugin with `data-modify` can still delete every
+card; a plugin with `network` can still send your data somewhere you didn't
+expect). See `docs/architecture/PLUGIN_SYSTEM.md` for the full execution
+model and the complete `ctx.api` reference.
 
 ## Security Improvements Implemented (v0.15.1+)
 
@@ -102,15 +120,16 @@ The app ships a hardened CSP in `www/index.html`:
 - `default-src 'self'` — the app is self-contained; no third-party scripts, styles, or fonts load at startup.
 - `style-src 'self' 'unsafe-inline'` — inline styles are permitted because the app
   builds elements with inline `style` attributes and theme plugins inject CSS
-  text. Under the full-trust plugin model this adds no attack surface beyond what
-  a consented plugin already has, but it does mean CSS injection is not blocked
-  by the CSP; it is bounded instead by `img-src` and by the app never reflecting
+  text. Plugin CSS is validated/sanitized (`www/src/core/plugin-validator.js`)
+  before injection; it is bounded by `img-src` and by the app never reflecting
   user content into CSS-selectable attributes (see `img-src` below).
-- `font-src 'self'` and `worker-src 'self'` — fonts and workers load only from the
-  app's own origin.
-- `connect-src 'self' https://raw.githubusercontent.com` — the only permitted `fetch`/XHR destination beyond the app's own origin is the curated plugin gallery, and "Install from URL" only resolves gallery-hosted packages.
+- `font-src 'self'` and `worker-src 'self'` — fonts load only from the app's
+  own origin, and `worker-src 'self'` is what permits each plugin's dedicated
+  sandbox Worker (a same-origin static file, `www/plugin-worker-bootstrap.js`
+  — never a Blob URL, so this directive needs no further loosening).
+- `connect-src 'self' https://raw.githubusercontent.com` — the only permitted `fetch`/XHR destination beyond the app's own origin is the curated plugin gallery, and "Install from URL" only resolves gallery-hosted packages. A plugin's own `ctx.api.network.fetch` calls are proxied through this same main-thread chokepoint — the plugin's worker never performs a real network request itself, even once the `network` permission is granted.
 - `img-src 'self' data: blob:` — images are limited to the app's own origin plus inline `data:`/`blob:` data; arbitrary remote (`https:`) image loads are blocked. This closes the CSS `url()` / image-beacon channel a malicious or user-accepted plugin could otherwise use to signal data out of the page. It is paired with the app never reflecting user content (card titles, tags) into CSS-selectable DOM `value` attributes, so plugin CSS attribute selectors cannot read card content either.
-- `script-src 'self' 'unsafe-eval'` — `'unsafe-eval'` is required by the plugin runtime, which compiles the `setup`/`teardown` functions of JSON plugin packages at install/enable time (see `www/src/core/plugin-api.js`). This is a deliberate, documented trade-off under the full-trust plugin model: consent dialogs, risk labels, and Safe Mode set expectations, and moving plugin execution into sandboxed workers/iframes is tracked as future hardening work.
+- `script-src 'self' 'unsafe-eval'` — `'unsafe-eval'` is required for `new Function`-based compilation of plugin `js`/`teardownJs` strings, which now happens exclusively **inside each plugin's own sandboxed Worker** (`www/src/core/plugin-worker-bootstrap.js`), not on the main thread. The directive is scoped to the app's own origin either way; what changed is that the compiled code it permits no longer has DOM/window/storage/network access by default (CS-002, resolved).
 - `frame-src 'none'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'` — frames, plugin objects, and external form posts are not used and are blocked outright.
 
 ## Security Hardening Checklist for Capacitor Builds

@@ -3,10 +3,13 @@
 //         2.4 (plugin updating), 2.6 (config/overrides), 2.7 (network/filesystem perms)
 import { test } from 'uvu';
 import * as assert from 'uvu/assert';
+import { installFakeWorkerGlobal } from './helpers/fake-worker-global.js';
 import { Plugin, PluginSandbox, resetForTesting } from '../www/src/core/plugin-api.js';
 import { Permissions } from '../www/src/core/permissions.js';
 
 let PluginManager = null;
+
+installFakeWorkerGlobal();
 
 test.before(() => {
   resetForTesting();
@@ -177,24 +180,32 @@ test('install() updates existing plugin instead of creating duplicate', async ()
   assert.equal(all.length, 1, 'Only one plugin instance exists after update');
 });
 
-// Task 2.1: Persist Setup/Teardown
-test('syncFromStore reconstructs setup function from JS string', async () => {
-  let setupCalled = false;
+// Task 2.1 (superseded by the worker sandbox): a persisted `js` string is
+// reconstructed at boot and actually RUN — inside its own sandboxed worker,
+// not as a main-thread `setup` function anymore (CS-002, resolved). There is
+// no `global.setupCalled = true`-style shared-realm probe available now;
+// execution is observed instead through a host-bridge function the plugin
+// calls via a permission-gated ctx.api method.
+test('syncFromStore reconstructs and runs a plugin from its persisted js string', async () => {
+  // ctx.api.ui.showToast isn't a reliable "did it run" signal here: it
+  // resolves through InternalAPI's captured-once window.showToast reference
+  // (plugin-api.js), which earlier tests in this file already froze to the
+  // no-op set in test.before(). ctx.api.storage isn't cached that way — it
+  // reads/writes window.localStorage directly — so it is an accurate
+  // side-channel for "the worker actually ran this code."
+  window.CardSpoke.Permissions.grantPermissions('persist-test', ['storage']);
 
   // Simulate what gets stored in window.store.plugins after install
   window.store.plugins['persist-test'] = {
     definition: {
-      manifest: { name: 'Persist Test', version: '1.0.0', layer: 'feature' },
+      manifest: { name: 'Persist Test', version: '1.0.0', layer: 'feature', permissions: ['storage'] },
       setup: null,       // Functions are lost after JSON serialization
       teardown: null,
       css: null,
-      js: 'setupCalled = true;'   // Raw JS string is preserved
+      js: "await ctx.api.storage.set('marker', 'ran');"   // Raw JS string is preserved
     },
     enabled: true
   };
-
-  // Make setupCalled accessible in new Function scope
-  global.setupCalled = false;
 
   // Reset plugins in-memory map (simulate fresh page load)
   PluginManager.unregister('persist-test');
@@ -203,7 +214,11 @@ test('syncFromStore reconstructs setup function from JS string', async () => {
 
   const instance = PluginManager.get('persist-test');
   assert.ok(instance, 'Plugin re-registered from store');
-  assert.ok(instance.definition.setup, 'Setup function reconstructed from JS string');
+  assert.equal(instance.definition.js, "await ctx.api.storage.set('marker', 'ran');", 'Raw js string preserved verbatim');
+  assert.not.ok(instance.definition.setup, 'No main-thread setup function is created — the js string runs inside a worker instead');
+  assert.equal(window.localStorage.getItem('plugin_persist-test_marker'), '"ran"', 'The persisted js actually executed, inside its sandboxed worker');
+
+  await PluginManager.disable('persist-test');
 });
 
 // Task 2.6: Config and Overrides
@@ -302,26 +317,29 @@ test('filesystem API denies access without filesystem permission', async () => {
   }
 });
 
-// Task 2.4: install() with pkg.js field
-test('install() creates callable setup from pkg.js string', async () => {
-  let jsExecuted = false;
-  global.jsExecuted = false;
+// Task 2.4 (superseded by the worker sandbox): install() persists the raw
+// `js` string and runs it inside a dedicated worker — it no longer compiles
+// a main-thread-callable `setup` function (CS-002, resolved).
+test('install() runs plugin JS inside a sandboxed worker, not as a main-thread setup function', async () => {
+  window.CardSpoke.Permissions.grantPermissions('js-install-test', ['storage']);
 
   const pkg = {
     manifest: {
       id: 'js-install-test',
       name: 'JS Install Test',
       version: '1.0.0',
-      layer: 'feature'
+      layer: 'feature',
+      permissions: ['storage']
     },
-    js: 'jsExecuted = true;'
+    js: "await ctx.api.storage.set('marker', 'ran');"
   };
 
   const id = await PluginManager.install(pkg);
   const instance = PluginManager.get(id);
 
-  assert.ok(instance.definition.setup, 'setup function created from js string');
-  assert.type(instance.definition.setup, 'function', 'setup is a function');
+  assert.not.ok(instance.definition.setup, 'No main-thread setup function is created for string-form js');
+  assert.equal(instance.definition.js, pkg.js, 'Raw js string is the canonical persisted/executable form');
+  assert.equal(window.localStorage.getItem('plugin_js-install-test_marker'), '"ran"', 'The plugin JS actually executed, inside its sandboxed worker');
 });
 
 // listAll() is an alias for list()
@@ -329,6 +347,16 @@ test('listAll() returns same result as list()', () => {
   const list = PluginManager.list();
   const listAll = PluginManager.listAll();
   assert.equal(list.length, listAll.length, 'listAll and list return same count');
+});
+
+// Real, unterminated worker_threads.Worker instances keep the Node process
+// alive after the test file's assertions finish — every enabled plugin here
+// runs inside a genuine worker thread, so it must be disabled (which
+// terminates its worker) before uvu is done, or the process hangs.
+test.after(async () => {
+  for (const instance of PluginManager.list()) {
+    if (instance.enabled) await PluginManager.disable(instance.id);
+  }
 });
 
 test.run();

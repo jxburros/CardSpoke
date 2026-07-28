@@ -21,6 +21,8 @@ const samplesDir = join(__dirname, '..', 'sample-plugins');
 
 const VALID_LAYERS = ['theme', 'feature', 'app'];
 const KNOWN_PERMISSIONS = ['ui-override', 'storage', 'network', 'filesystem', 'core-override', 'data-modify'];
+// eslint-disable-next-line no-empty-function
+const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 
 function loadDir(subdir) {
   const dir = join(samplesDir, subdir);
@@ -89,10 +91,24 @@ test('feature and app samples have compilable setup code', () => {
   [...features, ...apps].forEach(({ filename, pkg }) => {
     assert.ok(pkg.js && pkg.js.trim().length > 0, `${filename}: needs js`);
     // Must compile as a setup body receiving ctx — same compilation the
-    // runtime performs in _createSandboxedFunction.
-    assert.not.throws(() => new Function('ctx', '"use strict";\n' + pkg.js), `${filename}: js must compile`);
+    // worker sandbox performs (see plugin-worker-bootstrap.js's `compile`
+    // and plugin-api.js's `_checkSyntax`). Compiled as an AsyncFunction,
+    // not a plain Function, since sample js now uses top-level `await`
+    // against the now-async ctx.api.
+    assert.not.throws(() => new AsyncFunction('ctx', '"use strict";\n' + pkg.js), `${filename}: js must compile`);
     if (pkg.teardownJs) {
-      assert.not.throws(() => new Function('ctx', '"use strict";\n' + pkg.teardownJs), `${filename}: teardownJs must compile`);
+      assert.not.throws(() => new AsyncFunction('ctx', '"use strict";\n' + pkg.teardownJs), `${filename}: teardownJs must compile`);
+    }
+  });
+});
+
+test('samples never reference document/window (unreachable inside the sandbox)', () => {
+  [...features, ...apps].forEach(({ filename, pkg }) => {
+    assert.not.ok(/\bdocument\./.test(pkg.js), `${filename}: js references document, which does not exist in the plugin's worker`);
+    assert.not.ok(/\bwindow\./.test(pkg.js), `${filename}: js references window, which does not exist in the plugin's worker`);
+    if (pkg.teardownJs) {
+      assert.not.ok(/\bdocument\./.test(pkg.teardownJs), `${filename}: teardownJs references document`);
+      assert.not.ok(/\bwindow\./.test(pkg.teardownJs), `${filename}: teardownJs references window`);
     }
   });
 });
@@ -161,7 +177,7 @@ test('TEMPLATE.json follows the package conventions it teaches', () => {
   assert.is(pkg.manifest.id, pkg.id);
   assert.ok(VALID_LAYERS.includes(pkg.manifest.layer));
   assert.not.ok(pkg.js.includes('registerPlugin('), 'template js must not self-register');
-  assert.not.throws(() => new Function('ctx', '"use strict";\n' + pkg.js), 'template js compiles');
+  assert.not.throws(() => new AsyncFunction('ctx', '"use strict";\n' + pkg.js), 'template js compiles');
   const result = PluginValidator.validate({ id: pkg.id, manifest: pkg.manifest, css: pkg.css, js: pkg.js });
   assert.ok(result.valid, (result.errors || []).join('; '));
 });
