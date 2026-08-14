@@ -251,3 +251,9 @@ CardSpoke is created by [Jeffrey Guntly](https://github.com/jxburros) and mainta
 - Follow plugin development practices in the Plugin System Overview.
 - Adhere to the Security & Safety policy.
 - Keep spin-offs, OS-specific shells, and alternate app suites outside this repository unless the public CardSpoke scope changes later.
+
+---
+
+## Project Stewardship
+
+This project is developed by **Jeffrey** through **JX Holdings, LLC**. GitHub: [`jxburros`](https://github.com/jxburros).
