@@ -19,7 +19,7 @@ jobs:
   # full unit suite, dependency audit, production build, and static smoke
   # checks all pass. A red QA job means nothing is deployed.
   qa:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
 
@@ -89,7 +89,7 @@ jobs:
 
   deploy:
     needs: qa
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     environment:
       name: github-pages
       url: ${{ steps.deploy3.outputs.page_url || steps.deploy2.outputs.page_url || steps.deploy1.outputs.page_url }}
